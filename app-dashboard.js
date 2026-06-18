@@ -1,7 +1,6 @@
 
 function renderDashboard() {
   const gs = gapStats();
-  const totalBatches = state.recipes.reduce((sum, recipe) => sum + batches(recipe), 0);
   const complete = completedCount();
   const total = STEP_KEYS.length;
   const worst = worstForecast();
@@ -12,9 +11,6 @@ function renderDashboard() {
 
   const dashboardCompletion = document.getElementById("dashboardCompletion");
   if (dashboardCompletion) dashboardCompletion.textContent = `${complete}/${total}`;
-
-  const systemDailyProgress = document.getElementById("systemDailyProgress");
-  if (systemDailyProgress) systemDailyProgress.textContent = `${complete}/${total}`;
 
   const completionBar = document.getElementById("completionBar");
   if (completionBar) completionBar.style.width = `${(complete / total) * 100}%`;
@@ -30,46 +26,20 @@ function renderDashboard() {
   if (completionMessageText) {
     completionMessageText.textContent = dailyMaintenanceComplete()
       ? "You know what will run out and when to shop."
-      : "Use Checklist to complete the fuel management loop. Use Insights to review what is happening.";
+      : "Use Checklist to complete the fuel management loop.";
   }
 
   const completionMessageCard = document.getElementById("completionMessageCard");
   if (completionMessageCard) completionMessageCard.classList.toggle("complete", dailyMaintenanceComplete());
 
-  const dashboardPrepared = document.getElementById("dashboardPrepared");
-  if (dashboardPrepared) {
-    dashboardPrepared.textContent = `${state.preparedFuel.proteinBagels.qty + state.preparedFuel.proteinShakes.qty} units`;
-  }
-
-  const dashboardPreparedNote = document.getElementById("dashboardPreparedNote");
-  if (dashboardPreparedNote) {
-    dashboardPreparedNote.textContent = `${state.preparedFuel.proteinBagels.qty} bagels, ${state.preparedFuel.proteinShakes.qty} shakes ready.`;
-  }
 
   const personalLongestGap = document.getElementById("personalLongestGap");
   if (personalLongestGap) personalLongestGap.textContent = duration(gs.longest);
 
-  const dashboardCalories = document.getElementById("dashboardCalories");
-  if (dashboardCalories) dashboardCalories.textContent = `${gs.calories} kcal`;
 
-  const personalCaloriesSmall = document.getElementById("personalCaloriesSmall");
-  if (personalCaloriesSmall) personalCaloriesSmall.textContent = `${gs.calories} kcal planned`;
-
-  const dashboardBatches = document.getElementById("dashboardBatches");
-  if (dashboardBatches) dashboardBatches.textContent = totalBatches;
-
-  const readinessScore = document.getElementById("readinessScore");
-  if (readinessScore) readinessScore.textContent = complete >= total ? "92" : complete >= 2 ? "78" : "61";
-
-  const readinessNote = document.getElementById("readinessNote");
-  if (readinessNote) {
-    readinessNote.textContent = complete >= total
-      ? "You know when stock runs out and when to shop."
-      : "Finish the core steps before trusting readiness.";
-  }
 
   const topShoppingDay = document.getElementById("topShoppingDay");
-  if (topShoppingDay) topShoppingDay.textContent = state.nextShopOpportunity || "Set in Fuel Confirmation";
+  if (topShoppingDay) topShoppingDay.textContent = calculatedNextShopDate() ? formatShortDate(calculatedNextShopDate()) : "No burn rate";
 
   const topStatus = document.getElementById("topStatus");
   if (topStatus) {
@@ -79,7 +49,16 @@ function renderDashboard() {
 
   const dashboardInsight = document.getElementById("dashboardInsight");
   if (dashboardInsight) {
-    dashboardInsight.textContent = "Dashboard is ordered by action: Checklist, System Insights, then Personal Insights.";
+    dashboardInsight.textContent = "Dashboard is ordered by action: Checklist first.";
+  }
+
+  if (typeof nutritionBarrierForecast === "function") {
+    const barrierForecast = nutritionBarrierForecast();
+    const dashboardBarrierRisk = document.getElementById("dashboardBarrierRisk");
+    if (dashboardBarrierRisk) dashboardBarrierRisk.textContent = barrierForecast.riskLevelLabel;
+
+    const dashboardBarrierNote = document.getElementById("dashboardBarrierNote");
+    if (dashboardBarrierNote) dashboardBarrierNote.textContent = barrierForecast.dashboardNote;
   }
 
   const fuelStreakEl = document.getElementById("fuelStreak");
@@ -97,9 +76,9 @@ function renderDashboard() {
 
   const proactivityNote = document.getElementById("proactivityNote");
   if (proactivityNote) {
-    proactivityNote.textContent = state.nextShopOpportunity
-      ? `Next planned shop: ${state.nextShopOpportunity}`
-      : "Add a shop opportunity in Fuel Confirmation.";
+    proactivityNote.textContent = calculatedNextShopDate()
+      ? `Calculated next shop: ${formatShortDate(calculatedNextShopDate())}`
+      : "Add daily consumption rates to calculate a shopping date.";
   }
 
   const fuelDisciplineScoreEl = document.getElementById("fuelDisciplineScore");
@@ -108,9 +87,9 @@ function renderDashboard() {
   const fastFlow = document.getElementById("fastFlow");
   if (fastFlow) {
     const steps = [
-      ["fuelConfirmation", "Step 1", "Confirm fuel categories", "pantry"],
-      ["shopping", "Step 2", "Generate forecast", "shopping"],
-      ["bodyMind", "Step 3", "Body and mind log", "adherence"]
+      ["fuelConfirmation", "Step 1", "Fuel confirmation", "pantry"],
+      ["shopping", "Step 2", "Fuel forecast review", "shopping"],
+      ["nextAction", "Step 3", "Download report", "report"]
     ];
 
     fastFlow.innerHTML = steps
@@ -128,9 +107,9 @@ function renderDashboard() {
 
 function renderChecklist() {
   const items = [
-    ["pantry", "Fuel categories confirmed"],
-    ["shopping", "Fuel forecast generated"],
-    ["adherence", "Body and mind logged"]
+    ["pantry", "Fuel confirmation"],
+    ["shopping", "Fuel forecast review"],
+    ["report", "Download report"]
   ];
 
   const dailyChecklist = document.getElementById("dailyChecklist");
