@@ -60,6 +60,20 @@
   gap: 10px;
 }
 
+.forecast-section {
+  display: grid;
+  gap: 10px;
+}
+
+.forecast-section + .forecast-section {
+  margin-top: 18px;
+}
+
+.forecast-section h3 {
+  margin: 8px 0 0;
+  color: var(--text);
+}
+
 .forecast-row {
   display: grid;
   grid-template-columns: minmax(140px, 1.15fr) minmax(120px, .8fr) minmax(120px, .8fr) minmax(140px, .9fr) minmax(200px, 1.35fr);
