@@ -3,15 +3,11 @@
 Applied to the uploaded files only.
 
 Updates:
-- Updated visible product language to Personal Fuel Operations.
-- Reworked navigation with Setup Actions and Purpose dropdowns.
-- Split Purpose into Start With Why.
-- Moved Body & Mind into Setup Actions and removed Adherence from the Purpose menu.
-- Removed the old timeline setup section.
-- Removed the old show-up indicator panel and the old fifth checklist item.
-- Reordered Dashboard cards: Checklist, System Insights, Personal Insights.
-- Renamed Meal Prep to Fuel Forecast.
-- Grouped forecast food items into Meals, Snacks, and Supplements.
-- Refactored Fuel Forecast with current stock, daily burn rate, run-out forecast, traffic light status, and next action.
-- Simplified Personal Insights by removing Timeline View, Longest Gap, and Gap Summary while keeping Fuel Streak.
-- Kept meal prep action buttons working with clearer spacing.
+- Updated visible product language to "Know when you'll run out. Know when to shop."
+- Put Checklist above Dashboard in the navigation.
+- Removed the Purpose menu and Start With Why screen.
+- Removed the standalone Confirm Pantry tab.
+- Kept Fuel Forecast as the stock and shopping prediction surface.
+- Renamed Daily Burn Rate to Daily Consumption Rate in the UI.
+- Replaced the flat pantry view with a sequential category confirmation workflow for Meals, Snacks, Supplements, and Electrolytes.
+- Locked run-out predictions until every fuel category is confirmed.
