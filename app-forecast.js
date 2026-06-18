@@ -1,21 +1,49 @@
 
-function renderShopping() {
-  const nextShopOpportunity = document.getElementById("nextShopOpportunity");
-  if (nextShopOpportunity) nextShopOpportunity.value = state.nextShopOpportunity;
+function renderForecastIdentity(row) {
+  if (!row.imported) {
+    return `
+      <div class="item-name">${escapeHtml(row.label)}</div>
+      <div class="row-note">${escapeHtml(row.unit)}</div>
+    `;
+  }
 
+  const categoryOptions = forecastGroupOptions()
+    .map(group => `<option value="${group.key}" ${row.group === group.key ? "selected" : ""}>${escapeHtml(group.label)}</option>`)
+    .join("");
+
+  return `
+    <label class="forecast-field">
+      <span>Item Name</span>
+      <input value="${escapeHtml(row.label)}" data-forecast-label="${row.key}">
+    </label>
+    <label class="forecast-field">
+      <span>Category</span>
+      <select data-forecast-group="${row.key}">${categoryOptions}</select>
+    </label>
+    <label class="forecast-field">
+      <span>Unit</span>
+      <input value="${escapeHtml(row.unit)}" data-forecast-unit="${row.key}">
+    </label>
+    ${row.notes ? `<div class="row-note">${escapeHtml(row.notes)}</div>` : ""}
+  `;
+}
+
+
+function renderShopping() {
   const allConfirmed = allForecastCategoriesConfirmed();
   const nextCategory = nextForecastCategory();
   const confirmationFlow = document.getElementById("forecastConfirmationFlow");
 
   if (confirmationFlow) {
-    confirmationFlow.innerHTML = FORECAST_GROUPS
+    confirmationFlow.innerHTML = forecastGroupsForPantry()
       .map(group => {
         const rows = forecastRows().filter(row => row.group === group.key);
         const complete = isForecastCategoryComplete(group.key);
         const shouldOpen = !complete && nextCategory?.key === group.key;
+        const openAttribute = shouldOpen ? "open" : "";
 
         return `
-          <details class="forecast-confirmation ${complete ? "complete" : ""}" ${shouldOpen ? "open" : ""}>
+          <details class="forecast-confirmation ${complete ? "complete" : ""}" ${openAttribute}>
             <summary>
               <span>${group.label}</span>
               <span class="category-status ${complete ? "complete" : ""}">${complete ? "Complete" : "Confirm next"}</span>
@@ -25,8 +53,7 @@ function renderShopping() {
                 .map(row => `
                   <div class="confirmation-row">
                     <div>
-                      <div class="item-name">${row.label}</div>
-                      <div class="row-note">${row.unit}</div>
+                      ${renderForecastIdentity(row)}
                     </div>
                     <label class="forecast-field">
                       <span>Current Stock</span>
@@ -39,7 +66,7 @@ function renderShopping() {
                   </div>
                 `)
                 .join("")}
-              <button class="primary" data-confirm-forecast-category="${group.key}" ${complete ? "disabled" : ""}>
+              <button type="button" class="primary" data-confirm-forecast-category="${group.key}">
                 ${complete ? "Category Confirmed" : `Confirm ${group.label}`}
               </button>
             </div>
@@ -59,14 +86,14 @@ function renderShopping() {
         </div>
       `;
     } else {
-      forecastList.innerHTML = FORECAST_GROUPS
+      forecastList.innerHTML = forecastGroupsForPantry()
         .map(group => {
           const rows = forecastRows().filter(row => row.group === group.key);
           if (!rows.length) return "";
 
           return `
-            <section class="forecast-section">
-              <h3>${group.label}</h3>
+            <details class="forecast-section" open>
+              <summary>${group.label}</summary>
               <div class="forecast-row forecast-heading">
                 <span>Food Item</span>
                 <span>Current Stock</span>
@@ -78,12 +105,12 @@ function renderShopping() {
                 .map(row => `
                   <div class="forecast-row">
                     <div>
-                      <div class="item-name">${row.label}</div>
-                      <div class="row-note">${row.unit}</div>
+                      <div class="item-name">${escapeHtml(row.label)}</div>
+                      <div class="row-note">${escapeHtml(row.unit)}</div>
                     </div>
                     <div>
                       <strong>${row.currentStock}</strong>
-                      <div class="row-note">${row.unit}</div>
+                      <div class="row-note">${escapeHtml(row.unit)}</div>
                     </div>
                     <div>
                       <strong>${row.dailyBurnRate}</strong>
@@ -95,12 +122,12 @@ function renderShopping() {
                     </div>
                     <div>
                       <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
-                      <div class="row-note">${row.nextAction}</div>
+                      <div class="row-note">${escapeHtml(row.nextAction)}</div>
                     </div>
                   </div>
                 `)
                 .join("")}
-            </section>
+            </details>
           `;
         })
         .join("");
@@ -128,25 +155,12 @@ function renderShopping() {
     .filter(row => row.status !== "green")
     .sort((a, b) => forecastRank(b.status) - forecastRank(a.status));
 
-  if (!state.nextShopOpportunity) {
-    shoppingList.innerHTML = `
-      <div class="row">
-        <div>
-          <div class="item-name">Set next shopping opportunity</div>
-          <div class="row-note">Forecast status needs a target shopping date.</div>
-        </div>
-        <strong>Required</strong>
-      </div>
-    `;
-    return;
-  }
-
   if (!needsAttention.length) {
     shoppingList.innerHTML = `
       <div class="row">
         <div>
           <div class="item-name">All tracked food is green</div>
-          <div class="row-note">Enough stock until ${formatShortDate(dateFromInput(state.nextShopOpportunity))}.</div>
+          <div class="row-note">Next calculated shop: ${calculatedNextShopDate() ? formatShortDate(calculatedNextShopDate()) : "No burn rate"}.</div>
         </div>
         <strong>Hold</strong>
       </div>
@@ -158,8 +172,8 @@ function renderShopping() {
     .map(row => `
       <div class="row">
         <div>
-          <div class="item-name">${row.label}</div>
-          <div class="row-note">${row.nextAction}</div>
+          <div class="item-name">${escapeHtml(row.label)}</div>
+          <div class="row-note">${escapeHtml(row.nextAction)}</div>
         </div>
         <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
       </div>
