@@ -69,7 +69,7 @@ function renderDashboard() {
   }
 
   const topShoppingDay = document.getElementById("topShoppingDay");
-  if (topShoppingDay) topShoppingDay.textContent = state.nextShopOpportunity || "Set in Fuel Forecast";
+  if (topShoppingDay) topShoppingDay.textContent = state.nextShopOpportunity || "Set in Fuel Confirmation";
 
   const topStatus = document.getElementById("topStatus");
   if (topStatus) {
@@ -99,7 +99,7 @@ function renderDashboard() {
   if (proactivityNote) {
     proactivityNote.textContent = state.nextShopOpportunity
       ? `Next planned shop: ${state.nextShopOpportunity}`
-      : "Add a shop opportunity in Fuel Forecast.";
+      : "Add a shop opportunity in Fuel Confirmation.";
   }
 
   const fuelDisciplineScoreEl = document.getElementById("fuelDisciplineScore");
@@ -108,7 +108,7 @@ function renderDashboard() {
   const fastFlow = document.getElementById("fastFlow");
   if (fastFlow) {
     const steps = [
-      ["shopping", "Step 1", "Confirm fuel categories", "pantry"],
+      ["fuelConfirmation", "Step 1", "Confirm fuel categories", "pantry"],
       ["shopping", "Step 2", "Generate forecast", "shopping"],
       ["bodyMind", "Step 3", "Body and mind log", "adherence"]
     ];
