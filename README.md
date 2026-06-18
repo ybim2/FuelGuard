@@ -7,7 +7,10 @@ Updates:
 - Put Checklist above Dashboard in the navigation.
 - Removed the Purpose menu and Start With Why screen.
 - Removed the standalone Confirm Pantry tab.
-- Kept Fuel Forecast as the stock and shopping prediction surface.
+- Setup Actions now contains Fuel Confirmation, Fuel Forecast, and Download Report.
+- Moved the sequential confirmation workflow into Fuel Confirmation.
+- Fuel Forecast now displays the confirmed forecast output and Next Action list.
+- Added a Download Report button at the bottom of the Next Action section.
+- Connected both report download buttons to the same download action.
 - Renamed Daily Burn Rate to Daily Consumption Rate in the UI.
-- Replaced the flat pantry view with a sequential category confirmation workflow for Meals, Snacks, Supplements, and Electrolytes.
 - Locked run-out predictions until every fuel category is confirmed.
