@@ -52,57 +52,149 @@ function renderStats() {
   drawBars("proactivityChart", [40, 55, 65, 70, proactivityScore(), proactivityScore(), proactivityScore()], "Proactivity");
 }
 
+
+
 function renderReport() {
-  const gs = gapStats();
   const forecast = forecastRows();
   const worst = worstForecast();
   const critical = forecast.filter(row => row.status !== "green");
-  const report = `Fuel Guard Daily Report - ${today()}
 
-Readiness: ${completedCount()}/${STEP_KEYS.length} system steps complete
+  return `Fuel Guard Forecast Report - ${today()}
 
-Meal Gaps
-- Longest gap: ${duration(gs.longest)}
-- Calories planned: ${gs.calories} kcal
-- Last meal tracked: ${gs.last?.name || "N/A"}
+System Status
+- Steps complete: ${completedCount()}/${STEP_KEYS.length}
+- Current status: ${(worst?.status || "amber").toUpperCase()}
+- Calculated next shop: ${calculatedNextShopDate() ? formatShortDate(calculatedNextShopDate()) : "No burn rate"}
+
+Shopping Priority
+${critical.length ? critical.map(row => `- ${row.label}: ${row.nextAction} (${row.status.toUpperCase()})`).join("\n") : "- All tracked food is green. Keep monitoring."}
+
+Nutrition Barriers
+${typeof nutritionBarrierReportSummary === "function" ? nutritionBarrierReportSummary() : "- No nutrition barrier patterns yet. Log what got in the way after a missed target and Fuel Guard will spot repeat patterns here."}
 
 Fuel Forecast
-- Next shopping opportunity: ${state.nextShopOpportunity || "Not set"}
-- Current status: ${(worst?.status || "amber").toUpperCase()}
-- Attention needed: ${critical.length ? critical.map(row => `${row.label} (${row.status})`).join(", ") : "None"}
-
-Behaviour Metrics
-- Fuel streak: ${fuelStreak()} day(s)
-- Proactivity score: ${proactivityScore()}%
-- Fuel discipline score: ${fuelDisciplineScore()}%
-
-Prepared Fuel
-- Protein bagels: ${state.preparedFuel.proteinBagels.qty}
-- Protein shakes: ${state.preparedFuel.proteinShakes.qty}
-
-Pantry
-- Protein bagel batches possible: ${batches(state.recipes[0])}
-- Protein shake batches possible: ${batches(state.recipes[1])}
-
-Body and Mind
-- Energy: ${state.bodyMind.energy}
-- Mood: ${state.bodyMind.mood}
-- Hunger/crash risk: ${state.bodyMind.hunger}
-- Note: ${state.bodyMind.note || "None"}
+${forecast.map(row => `- ${row.label}: ${row.currentStock} ${row.unit}, ${row.dailyBurnRate}/day, runs out ${row.runOutShortDate}, ${row.status.toUpperCase()}`).join("\n")}
 `;
-
-  const reportPreview = document.getElementById("reportPreview");
-  if (reportPreview) reportPreview.textContent = report;
-  return report;
 }
 
 function downloadFuelReport() {
   const blob = new Blob([renderReport()], { type: "text/plain" });
   const anchor = document.createElement("a");
   anchor.href = URL.createObjectURL(blob);
-  anchor.download = "fuel-guard-daily-report.txt";
+  anchor.download = "fuel-guard-forecast-report.txt";
   anchor.click();
   URL.revokeObjectURL(anchor.href);
+  state.completed.report = true;
+  addAdherence("report");
+  save();
+  renderAll();
+}
+
+
+function setPantryImportStatus(message) {
+  const status = document.getElementById("pantryImportStatus");
+  if (status) status.textContent = message || "";
+}
+
+function loadXlsxParser() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-xlsx-parser="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.XLSX));
+      existing.addEventListener("error", () => reject(new Error("Spreadsheet parser failed to load.")));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js";
+    script.async = true;
+    script.dataset.xlsxParser = "true";
+    script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error("Spreadsheet parser failed to load."));
+    script.onerror = () => reject(new Error("Spreadsheet parser failed to load."));
+    document.body.appendChild(script);
+  });
+}
+
+function rowValue(row, names) {
+  const entries = Object.entries(row || {}).map(([key, value]) => [compact(key), value]);
+  const wanted = names.map(compact);
+  const match = entries.find(([key]) => wanted.includes(key));
+  return match ? match[1] : "";
+}
+
+function pantryKeyForItem(name) {
+  const target = compact(name);
+  const existing = Object.entries(state.pantry).find(([key, item]) => compact(key) === target || compact(item.label) === target);
+  if (existing) return existing[0];
+
+  const base = slug(name) || `imported-${Date.now()}`;
+  let key = base;
+  let index = 2;
+  while (state.pantry[key]) {
+    key = `${base}-${index}`;
+    index += 1;
+  }
+  return key;
+}
+
+function applyPantryTemplateRows(rows) {
+  let importedCount = 0;
+
+  rows.forEach(row => {
+    const label = String(rowValue(row, ["Item Name", "Item", "Name"]) || "").trim();
+    if (!label) return;
+
+    const key = pantryKeyForItem(label);
+    const existing = state.pantry[key] || {};
+    const rawQuantity = rowValue(row, ["Quantity", "Qty", "Current Stock", "Stock"]);
+    const quantity = Number(String(rawQuantity || "0").replace(/,/g, ""));
+    const unit = String(rowValue(row, ["Unit", "Units"]) || existing.unit || "units").trim();
+    const notes = String(rowValue(row, ["Notes", "Note"]) || "").trim();
+
+    state.pantry[key] = {
+      ...existing,
+      label,
+      qty: Number.isFinite(quantity) ? quantity : Number(existing.qty || 0),
+      unit,
+      group: normalizeForecastCategory(rowValue(row, ["Category", "Section", "Group"])),
+      notes,
+      imported: true,
+      dailyUse: Number(existing.dailyUse || 0)
+    };
+    importedCount += 1;
+  });
+
+  if (!importedCount) return 0;
+
+  state.forecastConfirmations = {};
+  state.completed.pantry = false;
+  state.completed.shopping = false;
+  state.completed.report = false;
+  save();
+  renderAll();
+  return importedCount;
+}
+
+async function importPantryTemplate(file) {
+  if (!file) return;
+
+  try {
+    setPantryImportStatus("Loading template...");
+    const XLSX = await loadXlsxParser();
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) throw new Error("No worksheet found.");
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+    const importedCount = applyPantryTemplateRows(rows);
+    setPantryImportStatus(importedCount ? `Imported ${importedCount} item${importedCount === 1 ? "" : "s"}.` : "No pantry rows found.");
+  } catch (error) {
+    console.error(error);
+    setPantryImportStatus(error.message || "Import failed. Check the template columns and try again.");
+  }
 }
 
 function switchScreen(screen) {
@@ -117,18 +209,23 @@ function switchScreen(screen) {
     section.classList.toggle("active", section.id === screen);
   });
 
+  if (screen === "shopping" && allForecastCategoriesConfirmed() && !state.completed.shopping) {
+    state.completed.shopping = true;
+    addAdherence("shopping");
+    save();
+    renderAll();
+  }
+
   const titles = {
     dashboard: "System Overview",
     shopping: "Fuel Forecast",
+    nextAction: "Download Report",
     fuelConfirmation: "Fuel Confirmation",
     checklist: "Checklist",
-    personalInsights: "Personal Insights",
-    systemInsights: "System Insights",
+    nutritionBarriers: "Nutrition Barriers",
     adherence: "Adherence",
     bodyMind: "Body & Mind",
-    stats: "Stats",
-    logs: "Weekly Logs",
-    report: "Download Report",
+    logs: "Activity Log",
     future: "Future Ideas Parked"
   };
 
@@ -136,7 +233,8 @@ function switchScreen(screen) {
     dashboard: "Know when you'll run out. Know when to shop.",
     fuelConfirmation: "Confirm categories one by one before generating the forecast.",
     shopping: "Confirmed fuel information appears here as run-out predictions and shopping need.",
-    report: "Download the latest Fuel Guard report.",
+    nutritionBarriers: "Spot what disrupts fuelling and choose the next fix.",
+    nextAction: "Download the latest forecast report with the current shopping priority.",
     adherence: "Review and adjust the operational stages completed today.",
     bodyMind: "Log how the fuel system felt in the body."
   };
@@ -155,16 +253,28 @@ function renderAll() {
   renderGaps();
   renderTimeline();
   renderShopping();
+  if (typeof renderNutritionBarriers === "function") renderNutritionBarriers();
   renderBodyMind();
   renderChecklist();
   renderLogs();
   renderStats();
-  renderReport();
 }
 
 function readForecastForm() {
-  const nextShopOpportunity = document.getElementById("nextShopOpportunity");
-  if (nextShopOpportunity) state.nextShopOpportunity = nextShopOpportunity.value;
+  document.querySelectorAll("[data-forecast-label]").forEach(input => {
+    const key = input.dataset.forecastLabel;
+    if (state.pantry[key]) state.pantry[key].label = input.value.trim() || state.pantry[key].label;
+  });
+
+  document.querySelectorAll("[data-forecast-group]").forEach(input => {
+    const key = input.dataset.forecastGroup;
+    if (state.pantry[key]) state.pantry[key].group = normalizeForecastCategory(input.value);
+  });
+
+  document.querySelectorAll("[data-forecast-unit]").forEach(input => {
+    const key = input.dataset.forecastUnit;
+    if (state.pantry[key]) state.pantry[key].unit = input.value.trim() || state.pantry[key].unit;
+  });
 
   document.querySelectorAll("[data-forecast-stock]").forEach(input => {
     const key = input.dataset.forecastStock;
@@ -186,7 +296,12 @@ document.addEventListener("click", event => {
   if (jump) switchScreen(jump.dataset.jump);
 
   const categoryButton = event.target.closest("[data-confirm-forecast-category]");
-  if (categoryButton) confirmForecastCategory(categoryButton.dataset.confirmForecastCategory);
+  if (categoryButton) {
+    event.preventDefault();
+    const currentCategory = categoryButton.closest("details");
+    if (currentCategory) currentCategory.open = false;
+    confirmForecastCategory(categoryButton.dataset.confirmForecastCategory);
+  }
 });
 
 const mealEditor = document.getElementById("mealEditor");
@@ -227,10 +342,26 @@ if (fuelForecastList) {
 
 const forecastConfirmationFlow = document.getElementById("forecastConfirmationFlow");
 if (forecastConfirmationFlow) {
-  forecastConfirmationFlow.onchange = () => {
+  forecastConfirmationFlow.oninput = () => {
     readForecastForm();
     save();
-    renderAll();
+  };
+
+  forecastConfirmationFlow.onchange = event => {
+    readForecastForm();
+    save();
+    if (event.target.matches("[data-forecast-group]")) renderAll();
+  };
+}
+
+
+const importPantryTemplateButton = document.getElementById("importPantryTemplate");
+const pantryTemplateInput = document.getElementById("pantryTemplateInput");
+if (importPantryTemplateButton && pantryTemplateInput) {
+  importPantryTemplateButton.onclick = () => pantryTemplateInput.click();
+  pantryTemplateInput.onchange = () => {
+    importPantryTemplate(pantryTemplateInput.files?.[0]);
+    pantryTemplateInput.value = "";
   };
 }
 
@@ -272,11 +403,9 @@ if (logBodyMind) {
   };
 }
 
-const downloadReport = document.getElementById("downloadReport");
-if (downloadReport) downloadReport.onclick = downloadFuelReport;
-
 const downloadForecastReport = document.getElementById("downloadForecastReport");
 if (downloadForecastReport) downloadForecastReport.onclick = downloadFuelReport;
+
 
 document.addEventListener("click", event => {
   const tipId = event.target.dataset.closeTip;
