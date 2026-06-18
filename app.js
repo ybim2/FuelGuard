@@ -40,15 +40,17 @@ const DEFAULT_STATE = {
     proteinShakes: { label: "Prepared Protein Shakes", qty: 0, unit: "shakes" }
   },
   pantry: {
-    bagels: { label: "Bagels", qty: 18, unit: "single bagels", dailyUse: 4, packSize: 6 },
-    philadelphia: { label: "Philadelphia", qty: 2, unit: "tubs", dailyUse: 0.25 },
-    deli: { label: "Deli Slices", qty: 7, unit: "packs", dailyUse: 0.75 },
-    mixedVeg: { label: "Mixed Veg", qty: 2, unit: "bags", dailyUse: 0.25 },
-    proteinPowder: { label: "Protein Powder", qty: 15, unit: "servings", dailyUse: 1 },
-    blueberries: { label: "Blueberries", qty: 500, unit: "g", dailyUse: 100 },
-    bananas: { label: "Bananas", qty: 6, unit: "bananas", dailyUse: 1 },
-    honey: { label: "Honey", qty: 300, unit: "g", dailyUse: 20 },
-    wholeMilk: { label: "Whole Milk", qty: 2000, unit: "ml", dailyUse: 300 }
+    bagels: { label: "Bagels", qty: 18, unit: "single bagels", dailyUse: 4, packSize: 6, group: "snacks" },
+    wraps: { label: "Wraps", qty: 8, unit: "wraps", dailyUse: 1, group: "meals" },
+    yoghurt: { label: "Yoghurt", qty: 4, unit: "pots", dailyUse: 1, group: "snacks" },
+    philadelphia: { label: "Philadelphia", qty: 2, unit: "tubs", dailyUse: 0.25, group: "meals" },
+    deli: { label: "Deli Slices", qty: 7, unit: "packs", dailyUse: 0.75, group: "meals" },
+    mixedVeg: { label: "Mixed Veg", qty: 2, unit: "bags", dailyUse: 0.25, group: "meals" },
+    proteinPowder: { label: "Protein Powder", qty: 15, unit: "servings", dailyUse: 1, group: "supplements" },
+    blueberries: { label: "Blueberries", qty: 500, unit: "g", dailyUse: 100, group: "snacks" },
+    bananas: { label: "Bananas", qty: 6, unit: "bananas", dailyUse: 1, group: "snacks" },
+    honey: { label: "Honey", qty: 300, unit: "g", dailyUse: 20, group: "snacks" },
+    wholeMilk: { label: "Whole Milk", qty: 2000, unit: "ml", dailyUse: 300, group: "supplements" }
   },
   recipes: [
     {
@@ -312,6 +314,7 @@ function forecastRows() {
       key,
       label: item.label,
       unit: item.unit,
+      group: item.group || "meals",
       currentStock,
       dailyBurnRate,
       daysUntilRunOut,
@@ -435,7 +438,7 @@ function renderDashboard() {
   }
 
   const topShoppingDay = document.getElementById("topShoppingDay");
-  if (topShoppingDay) topShoppingDay.textContent = state.nextShopOpportunity || "Set in Meal Prep";
+  if (topShoppingDay) topShoppingDay.textContent = state.nextShopOpportunity || "Set in Fuel Forecast";
 
   const topStatus = document.getElementById("topStatus");
   if (topStatus) {
@@ -465,7 +468,7 @@ function renderDashboard() {
   if (proactivityNote) {
     proactivityNote.textContent = state.nextShopOpportunity
       ? `Next planned shop: ${state.nextShopOpportunity}`
-      : "Add a shop opportunity in Meal Prep.";
+      : "Add a shop opportunity in Fuel Forecast.";
   }
 
   const fuelDisciplineScoreEl = document.getElementById("fuelDisciplineScore");
@@ -619,41 +622,57 @@ function renderShopping() {
 
   const forecastList = document.getElementById("fuelForecastList");
   if (forecastList) {
-    forecastList.innerHTML = `
-      <div class="forecast-row forecast-heading">
-        <span>Food Item</span>
-        <span>Current Stock</span>
-        <span>Daily Burn Rate</span>
-        <span>Run-Out Forecast</span>
-        <span>Traffic Light Status / Next Action</span>
-      </div>
-      ${forecastRows()
-        .map(row => `
-          <div class="forecast-row">
-            <div>
-              <div class="item-name">${row.label}</div>
-              <div class="row-note">${row.unit}</div>
-            </div>
-            <label class="forecast-field">
+    const groups = [
+      ["meals", "Meals"],
+      ["snacks", "Snacks"],
+      ["supplements", "Supplements"]
+    ];
+
+    forecastList.innerHTML = groups
+      .map(([group, title]) => {
+        const rows = forecastRows().filter(row => row.group === group);
+        if (!rows.length) return "";
+
+        return `
+          <section class="forecast-section">
+            <h3>${title}</h3>
+            <div class="forecast-row forecast-heading">
+              <span>Food Item</span>
               <span>Current Stock</span>
-              <input type="number" min="0" step="0.01" value="${row.currentStock}" data-forecast-stock="${row.key}">
-            </label>
-            <label class="forecast-field">
               <span>Daily Burn Rate</span>
-              <input type="number" min="0" step="0.01" value="${row.dailyBurnRate}" data-forecast-burn="${row.key}">
-            </label>
-            <div>
-              <strong>${formatDays(row.daysUntilRunOut)}</strong>
-              <div class="row-note">${Number.isFinite(row.daysUntilRunOut) ? row.runOutShortDate : "No run-out date"}</div>
+              <span>Run-Out Forecast</span>
+              <span>Traffic Light Status / Next Action</span>
             </div>
-            <div>
-              <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
-              <div class="row-note">${row.nextAction}</div>
-            </div>
-          </div>
-        `)
-        .join("")}
-    `;
+            ${rows
+              .map(row => `
+                <div class="forecast-row">
+                  <div>
+                    <div class="item-name">${row.label}</div>
+                    <div class="row-note">${row.unit}</div>
+                  </div>
+                  <label class="forecast-field">
+                    <span>Current Stock</span>
+                    <input type="number" min="0" step="0.01" value="${row.currentStock}" data-forecast-stock="${row.key}">
+                  </label>
+                  <label class="forecast-field">
+                    <span>Daily Burn Rate</span>
+                    <input type="number" min="0" step="0.01" value="${row.dailyBurnRate}" data-forecast-burn="${row.key}">
+                  </label>
+                  <div>
+                    <strong>${formatDays(row.daysUntilRunOut)}</strong>
+                    <div class="row-note">${Number.isFinite(row.daysUntilRunOut) ? row.runOutShortDate : "No run-out date"}</div>
+                  </div>
+                  <div>
+                    <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
+                    <div class="row-note">${row.nextAction}</div>
+                  </div>
+                </div>
+              `)
+              .join("")}
+          </section>
+        `;
+      })
+      .join("");
   }
 
   const shoppingList = document.getElementById("shoppingList");
@@ -820,7 +839,7 @@ Meal Gaps
 - Calories planned: ${gs.calories} kcal
 - Last meal tracked: ${gs.last?.name || "N/A"}
 
-Fuel Burn Forecast
+Fuel Forecast
 - Next shopping opportunity: ${state.nextShopOpportunity || "Not set"}
 - Current status: ${(worst?.status || "amber").toUpperCase()}
 - Attention needed: ${critical.length ? critical.map(row => `${row.label} (${row.status})`).join(", ") : "None"}
@@ -865,7 +884,7 @@ function switchScreen(screen) {
   const titles = {
     dashboard: "System Overview",
     setupActions: "Confirm Pantry",
-    shopping: "Fuel Burn Forecast",
+    shopping: "Fuel Forecast",
     checklist: "Checklist",
     startWhy: "Start With Why",
     personalInsights: "Personal Insights",
