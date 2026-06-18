@@ -96,6 +96,15 @@ Body and Mind
   return report;
 }
 
+function downloadFuelReport() {
+  const blob = new Blob([renderReport()], { type: "text/plain" });
+  const anchor = document.createElement("a");
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = "fuel-guard-daily-report.txt";
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
+}
+
 function switchScreen(screen) {
   const target = document.getElementById(screen);
   if (!target) return;
@@ -111,6 +120,7 @@ function switchScreen(screen) {
   const titles = {
     dashboard: "System Overview",
     shopping: "Fuel Forecast",
+    fuelConfirmation: "Fuel Confirmation",
     checklist: "Checklist",
     personalInsights: "Personal Insights",
     systemInsights: "System Insights",
@@ -118,13 +128,15 @@ function switchScreen(screen) {
     bodyMind: "Body & Mind",
     stats: "Stats",
     logs: "Weekly Logs",
-    report: "Daily Report",
+    report: "Download Report",
     future: "Future Ideas Parked"
   };
 
   const subtitles = {
     dashboard: "Know when you'll run out. Know when to shop.",
-    shopping: "Confirm categories, then forecast shopping need from stock and daily consumption rate.",
+    fuelConfirmation: "Confirm categories one by one before generating the forecast.",
+    shopping: "Confirmed fuel information appears here as run-out predictions and shopping need.",
+    report: "Download the latest Fuel Guard report.",
     adherence: "Review and adjust the operational stages completed today.",
     bodyMind: "Log how the fuel system felt in the body."
   };
@@ -228,6 +240,7 @@ if (saveShopping) {
     readForecastForm();
     if (allForecastCategoriesConfirmed()) {
       markDone("shopping");
+      switchScreen("shopping");
     } else {
       save();
       renderAll();
@@ -260,16 +273,10 @@ if (logBodyMind) {
 }
 
 const downloadReport = document.getElementById("downloadReport");
-if (downloadReport) {
-  downloadReport.onclick = () => {
-    const blob = new Blob([renderReport()], { type: "text/plain" });
-    const anchor = document.createElement("a");
-    anchor.href = URL.createObjectURL(blob);
-    anchor.download = "fuel-guard-daily-report.txt";
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
-  };
-}
+if (downloadReport) downloadReport.onclick = downloadFuelReport;
+
+const downloadForecastReport = document.getElementById("downloadForecastReport");
+if (downloadForecastReport) downloadForecastReport.onclick = downloadFuelReport;
 
 document.addEventListener("click", event => {
   const tipId = event.target.dataset.closeTip;
