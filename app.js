@@ -2,6 +2,7 @@ const fuelGuardScriptParts = [
   "app-state.js",
   "app-dashboard.js",
   "app-forecast.js",
+  "app-barriers.js",
   "app-ui.js"
 ];
 
