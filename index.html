@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fuel Guard MVP v20</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Personal Fuel Operations</span></div></div>
+      <nav class="side-nav">
+        <button class="nav-item active" data-screen="dashboard">Dashboard</button>
+        <button class="nav-item" data-screen="checklist">Checklist</button>
+
+        <details class="nav-group" open>
+          <summary>Setup Actions</summary>
+          <button class="nav-item sub" data-screen="setupActions">Confirm Pantry</button>
+          <button class="nav-item sub" data-screen="shopping">Meal Prep</button>
+        </details>
+
+        <details class="nav-group" open>
+          <summary>Purpose</summary>
+          <button class="nav-item sub" data-screen="startWhy">Start With Why</button>
+          <button class="nav-item sub" data-screen="adherence">Adherence</button>
+          <button class="nav-item sub" data-screen="bodyMind">Body &amp; Mind</button>
+        </details>
+
+        <details class="nav-group" open>
+          <summary>Insights</summary>
+          <button class="nav-item sub" data-screen="personalInsights">Personal Insights</button>
+          <button class="nav-item sub" data-screen="systemInsights">System Insights</button>
+        </details>
+
+        <details class="nav-group">
+          <summary>Review</summary>
+          <button class="nav-item sub" data-screen="stats">Stats</button>
+          <button class="nav-item sub" data-screen="logs">Weekly Logs</button>
+          <button class="nav-item sub" data-screen="report">Daily Report</button>
+        </details>
+      </nav>
+      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/4 complete</strong><p>Complete your daily fuel maintenance.</p></div>
+    </aside>
+
+    <main class="app">
+      <header class="topbar">
+        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">System Overview</h1><p id="pageSubtitle">A clear view of whether your personal fuel operations support training, work and recovery.</p></div>
+        <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Set in Meal Prep</strong></div>
+      </header>
+
+      <section id="dashboard" class="screen active">
+        <article id="completionMessageCard" class="card completion-card">
+          <div>
+            <p class="label">Fuel Guard</p>
+            <h2 id="completionMessageTitle">Daily system status</h2>
+            <p id="completionMessageText">Use Checklist to complete the fuel management loop. Use Insights to review what is happening.</p>
+          </div>
+          <div class="progress-bar"><span id="completionBar"></span></div>
+        </article>
+
+        <div class="grid three">
+          <article class="card metric-card">
+            <p class="label">Checklist</p>
+            <h2 id="dashboardCompletion">0/4</h2>
+            <p>Daily system checklist and step progress.</p>
+            <button class="secondary dashboard-jump" data-jump="checklist">Open Checklist</button>
+          </article>
+
+          <article class="card metric-card">
+            <p class="label">System Insights</p>
+            <h2 id="dashboardSystemSummary">Readiness</h2>
+            <p>Readiness, progress, calories, batches and fridge storage.</p>
+            <button class="secondary dashboard-jump" data-jump="systemInsights">Open System Insights</button>
+          </article>
+
+          <article class="card metric-card">
+            <p class="label">Personal Insights</p>
+            <h2 id="dashboardPersonalSummary">Timeline</h2>
+            <p>Timeline, gaps, streak, proactivity and discipline.</p>
+            <button class="secondary dashboard-jump" data-jump="personalInsights">Open Personal Insights</button>
+          </article>
+        </div>
+
+        <article class="card insight dismissible" id="dashboardTip">
+          <div class="icon">💡</div>
+          <p id="dashboardInsight">Dashboard is now a launchpad. Insights and Checklist hold the detail.</p>
+          <button class="tip-close" data-close-tip="dashboardTip" aria-label="Close tip">×</button>
+        </article>
+      </section>
+
+      
+      <section id="personalInsights" class="screen">
+        <article class="card">
+          <h2>Timeline View</h2>
+          <p class="muted">Today’s food rhythm at a glance.</p>
+          <div id="dashboardTimelineView" class="horizontal-timeline"></div>
+        </article>
+
+        <div class="grid two">
+          <article class="card metric-card">
+            <p class="label">Longest Gap</p>
+            <h2 id="personalLongestGap">0h 00m</h2>
+            <p id="personalCaloriesSmall">0 kcal planned</p>
+          </article>
+
+          <article class="card metric-card">
+            <p class="label">Fuel Streak</p>
+            <h2 id="fuelStreak">0 days</h2>
+            <p id="fuelStreakNote">Build consistency one day at a time.</p>
+          </article>
+        </div>
+
+        <article class="card">
+          <h2>Gap Summary</h2>
+          <div id="dashboardGapSummary" class="list"></div>
+        </article>
+
+        <div class="grid two">
+
+          <article class="card metric-card">
+            <p class="label">Fuel Discipline</p>
+            <h2 id="fuelDisciplineScore">0%</h2>
+            <p>Food bought vs food actually prepped.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="systemInsights" class="screen">
+        <div class="grid three">
+          <article class="card metric-card">
+            <p class="label">Readiness</p>
+            <h2 id="readinessScore">61</h2>
+            <p id="readinessNote">Complete setup before trusting readiness.</p>
+          </article>
+
+          <article class="card metric-card">
+            <p class="label">Daily Progress</p>
+            <h2 id="systemDailyProgress">0/4</h2>
+            <p>System stages completed today.</p>
+          </article>
+
+          <article class="card metric-card">
+            <p class="label">Batches Possible</p>
+            <h2 id="dashboardBatches">0</h2>
+            <p>Bagel and shake batches from current ingredients.</p>
+          </article>
+        </div>
+
+        <div class="grid two">
+          <article class="card metric-card">
+            <p class="label">Calories Planned</p>
+            <h2 id="dashboardCalories">0 kcal</h2>
+            <p>Estimated from the timeline.</p>
+          </article>
+
+          <article class="card metric-card">
+            <p class="label">Fridge Storage</p>
+            <h2 id="dashboardPrepared">0 units</h2>
+            <p id="dashboardPreparedNote">Prepared fuel ready to grab.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="checklist" class="screen">
+        <article class="card">
+          <h2>Fuel Management Steps</h2>
+          <p class="muted">Each operational stage turns green as it is complete.</p>
+          <section class="fast-flow" id="fastFlow"></section>
+        </article>
+      </section>
+
+      <section id="setupActions" class="screen clean-screen">
+        <div class="grid">
+          <article class="card">
+            <h2>Confirm Pantry</h2>
+            <p class="muted">Check the stock numbers that power the Fuel Burn Forecast.</p>
+            <div id="setupPantryList" class="list"></div>
+            <button id="setupConfirmPantry" class="primary">Confirm Pantry Checked</button>
+          </article>
+        </div>
+      </section>
+<section id="shopping" class="screen">
+        <article class="card">
+          <h2>Fuel Burn Forecast</h2>
+          <p class="muted">Forecast the next shopping need from current stock and daily burn rate.</p>
+          <div class="form-grid forecast-controls"><label>Next shopping opportunity <input id="nextShopOpportunity" type="date"></label></div>
+          <div id="fuelForecastList" class="forecast-list"></div>
+          <div class="button-row"><button id="saveShopping" class="primary">Update Meal Prep Plan</button><button id="confirmShopping" class="secondary">Confirm Meal Prep Complete</button></div>
+        </article>
+        <article class="card"><h2>Next Action</h2><div id="shoppingList" class="list"></div></article>
+      </section>
+<section id="startWhy" class="screen">
+        <article class="card why-card"><p class="label">Today's Why</p><h2 id="nutritionWhyDisplay">Pass RAF training and stop energy crashes.</h2><p>The food you prepare today protects tomorrow's training, work and recovery.</p><label>Update your why<textarea id="nutritionWhyInput" rows="3" placeholder="Why do you want to improve your personal fuel operations?"></textarea></label><button id="saveWhy" class="secondary">Save Why</button></article>
+      </section>
+<section id="adherence" class="screen">
+        <article class="card"><h2>Adherence Log</h2><p class="muted">Updates automatically when you confirm each stage. You can also adjust it manually.</p><div id="adherenceActions" class="check-grid"></div><button id="saveManualAdherence" class="primary">Save Manual Adherence</button></article>
+      </section>
+<section id="bodyMind" class="screen">
+        <article class="card"><h2>Body &amp; Mind</h2><label>Energy today<select id="energyToday"><option>Low</option><option selected>Stable</option><option>High</option></select></label><label>Mood today<select id="moodToday"><option>Flat</option><option selected>Calm</option><option>Motivated</option></select></label><label>Hunger/crash risk<select id="hungerToday"><option selected>Managed</option><option>Distracting</option><option>Crashed</option></select></label><label>Recovery note<textarea id="recoveryNote" rows="4" placeholder="How did your fuel system feel today?"></textarea></label><button id="logBodyMind" class="primary">Log Body + Mind</button></article>
+      </section>
+
+      <section id="logs" class="screen">
+        <article class="card"><h2>Weekly Personal Fuel Operations Log</h2><p class="muted">A customer-success style activity log for your personal fuel operations.</p><div id="weeklyLogSummary" class="grid three"></div></article>
+        <article class="card"><h2>Activity Log</h2><div id="activityLog" class="list"></div></article>
+      </section>
+
+      <section id="future" class="screen">
+        <article class="card"><h2>Future Ideas Parked</h2><p class="muted">Social posting, PT mode, WhatsApp sharing and recovery logistics are intentionally parked. The MVP needs to work for you first.</p></article>
+      </section>
+
+      <section id="stats" class="screen">
+        <article class="card"><h2>Stats</h2><p class="muted">Adherence, physiology and proactivity trends.</p></article>
+        <div class="chart-row"><article class="card chart-card"><h3>Weekly Adherence</h3><canvas id="weeklyChart" width="430" height="260"></canvas></article><article class="card chart-card"><h3>Weekly Physiology</h3><canvas id="weeklyPhysiologyChart" width="430" height="260"></canvas></article></div>
+        <article class="card chart-card"><h3>Physiology vs Adherence</h3><canvas id="lineChart" width="900" height="320"></canvas></article>
+        <article class="card chart-card"><h3>Proactivity Score</h3><canvas id="proactivityChart" width="900" height="320"></canvas></article>
+      </section>
+
+      <section id="report" class="screen">
+        <article class="card"><h2>Daily Report</h2><p class="muted">Generate a simple downloadable report you can share or review.</p><div id="reportPreview" class="report-preview"></div><button id="downloadReport" class="primary">Download Daily Report</button></article>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
