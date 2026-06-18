@@ -17,14 +17,13 @@
         <details class="nav-group" open>
           <summary>Setup Actions</summary>
           <button class="nav-item sub" data-screen="setupActions">Confirm Pantry</button>
-          <button class="nav-item sub" data-screen="shopping">Meal Prep</button>
+          <button class="nav-item sub" data-screen="shopping">Fuel Forecast</button>
+          <button class="nav-item sub" data-screen="bodyMind">Body &amp; Mind</button>
         </details>
 
         <details class="nav-group" open>
           <summary>Purpose</summary>
           <button class="nav-item sub" data-screen="startWhy">Start With Why</button>
-          <button class="nav-item sub" data-screen="adherence">Adherence</button>
-          <button class="nav-item sub" data-screen="bodyMind">Body &amp; Mind</button>
         </details>
 
         <details class="nav-group" open>
@@ -46,7 +45,7 @@
     <main class="app">
       <header class="topbar">
         <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">System Overview</h1><p id="pageSubtitle">A clear view of whether your personal fuel operations support training, work and recovery.</p></div>
-        <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Set in Meal Prep</strong></div>
+        <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Set in Fuel Forecast</strong></div>
       </header>
 
       <section id="dashboard" class="screen active">
@@ -76,8 +75,8 @@
 
           <article class="card metric-card">
             <p class="label">Personal Insights</p>
-            <h2 id="dashboardPersonalSummary">Timeline</h2>
-            <p>Timeline, gaps, streak, proactivity and discipline.</p>
+            <h2 id="dashboardPersonalSummary">Streak</h2>
+            <p>Fuel streak and discipline.</p>
             <button class="secondary dashboard-jump" data-jump="personalInsights">Open Personal Insights</button>
           </article>
         </div>
@@ -91,32 +90,12 @@
 
       
       <section id="personalInsights" class="screen">
-        <article class="card">
-          <h2>Timeline View</h2>
-          <p class="muted">Today’s food rhythm at a glance.</p>
-          <div id="dashboardTimelineView" class="horizontal-timeline"></div>
-        </article>
-
         <div class="grid two">
-          <article class="card metric-card">
-            <p class="label">Longest Gap</p>
-            <h2 id="personalLongestGap">0h 00m</h2>
-            <p id="personalCaloriesSmall">0 kcal planned</p>
-          </article>
-
           <article class="card metric-card">
             <p class="label">Fuel Streak</p>
             <h2 id="fuelStreak">0 days</h2>
             <p id="fuelStreakNote">Build consistency one day at a time.</p>
           </article>
-        </div>
-
-        <article class="card">
-          <h2>Gap Summary</h2>
-          <div id="dashboardGapSummary" class="list"></div>
-        </article>
-
-        <div class="grid two">
 
           <article class="card metric-card">
             <p class="label">Fuel Discipline</p>
@@ -151,7 +130,7 @@
           <article class="card metric-card">
             <p class="label">Calories Planned</p>
             <h2 id="dashboardCalories">0 kcal</h2>
-            <p>Estimated from the timeline.</p>
+            <p>Estimated from planned meals.</p>
           </article>
 
           <article class="card metric-card">
@@ -174,7 +153,7 @@
         <div class="grid">
           <article class="card">
             <h2>Confirm Pantry</h2>
-            <p class="muted">Check the stock numbers that power the Fuel Burn Forecast.</p>
+            <p class="muted">Check the stock numbers that power the Fuel Forecast.</p>
             <div id="setupPantryList" class="list"></div>
             <button id="setupConfirmPantry" class="primary">Confirm Pantry Checked</button>
           </article>
@@ -182,11 +161,11 @@
       </section>
 <section id="shopping" class="screen">
         <article class="card">
-          <h2>Fuel Burn Forecast</h2>
+          <h2>Fuel Forecast</h2>
           <p class="muted">Forecast the next shopping need from current stock and daily burn rate.</p>
           <div class="form-grid forecast-controls"><label>Next shopping opportunity <input id="nextShopOpportunity" type="date"></label></div>
           <div id="fuelForecastList" class="forecast-list"></div>
-          <div class="button-row"><button id="saveShopping" class="primary">Update Meal Prep Plan</button><button id="confirmShopping" class="secondary">Confirm Meal Prep Complete</button></div>
+          <div class="button-row"><button id="saveShopping" class="primary">Update Fuel Forecast</button><button id="confirmShopping" class="secondary">Confirm Meal Prep Complete</button></div>
         </article>
         <article class="card"><h2>Next Action</h2><div id="shoppingList" class="list"></div></article>
       </section>
