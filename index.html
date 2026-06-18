@@ -13,11 +13,12 @@
       <nav class="side-nav">
         <button class="nav-item" data-screen="checklist">Checklist</button>
         <button class="nav-item active" data-screen="dashboard">Dashboard</button>
-        <button class="nav-item" data-screen="shopping">Fuel Forecast</button>
 
         <details class="nav-group" open>
           <summary>Setup Actions</summary>
-          <button class="nav-item sub" data-screen="bodyMind">Body &amp; Mind</button>
+          <button class="nav-item sub" data-screen="fuelConfirmation">Fuel Confirmation</button>
+          <button class="nav-item sub" data-screen="shopping">Fuel Forecast</button>
+          <button class="nav-item sub" data-screen="report">Download Report</button>
         </details>
 
         <details class="nav-group" open>
@@ -30,7 +31,6 @@
           <summary>Review</summary>
           <button class="nav-item sub" data-screen="stats">Stats</button>
           <button class="nav-item sub" data-screen="logs">Weekly Logs</button>
-          <button class="nav-item sub" data-screen="report">Daily Report</button>
         </details>
       </nav>
       <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/3 complete</strong><p>Complete your daily fuel maintenance.</p></div>
@@ -82,7 +82,6 @@
         </article>
       </section>
 
-      
       <section id="personalInsights" class="screen">
         <div class="grid two">
           <article class="card metric-card">
@@ -143,21 +142,30 @@
         </article>
       </section>
 
-<section id="shopping" class="screen">
+      <section id="fuelConfirmation" class="screen">
         <article class="card">
-          <h2>Fuel Forecast</h2>
-          <p class="muted">Confirm each fuel category, then generate run-out predictions from current stock and daily consumption rate.</p>
+          <h2>Fuel Confirmation</h2>
+          <p class="muted">Confirm meals, snacks, supplements and electrolytes one category at a time before generating the forecast.</p>
           <div class="form-grid forecast-controls"><label>Next shopping opportunity <input id="nextShopOpportunity" type="date"></label></div>
           <div id="forecastConfirmationFlow" class="forecast-flow"></div>
-          <div id="fuelForecastList" class="forecast-list"></div>
-          <div class="button-row"><button id="saveShopping" class="primary">Update Fuel Forecast</button></div>
+          <div class="button-row"><button id="saveShopping" class="primary">Confirm Fuel Information</button></div>
         </article>
-        <article class="card"><h2>Next Action</h2><div id="shoppingList" class="list"></div></article>
       </section>
-<section id="adherence" class="screen">
+
+      <section id="shopping" class="screen">
+        <article class="card">
+          <h2>Fuel Forecast</h2>
+          <p class="muted">Confirmed fuel information appears here as run-out predictions and shopping need.</p>
+          <div id="fuelForecastList" class="forecast-list"></div>
+        </article>
+        <article class="card"><h2>Next Action</h2><div id="shoppingList" class="list"></div><button id="downloadForecastReport" class="primary">Download Report</button></article>
+      </section>
+
+      <section id="adherence" class="screen">
         <article class="card"><h2>Adherence Log</h2><p class="muted">Updates automatically when you confirm each stage. You can also adjust it manually.</p><div id="adherenceActions" class="check-grid"></div><button id="saveManualAdherence" class="primary">Save Manual Adherence</button></article>
       </section>
-<section id="bodyMind" class="screen">
+
+      <section id="bodyMind" class="screen">
         <article class="card"><h2>Body &amp; Mind</h2><label>Energy today<select id="energyToday"><option>Low</option><option selected>Stable</option><option>High</option></select></label><label>Mood today<select id="moodToday"><option>Flat</option><option selected>Calm</option><option>Motivated</option></select></label><label>Hunger/crash risk<select id="hungerToday"><option selected>Managed</option><option>Distracting</option><option>Crashed</option></select></label><label>Recovery note<textarea id="recoveryNote" rows="4" placeholder="How did your fuel system feel today?"></textarea></label><button id="logBodyMind" class="primary">Log Body + Mind</button></article>
       </section>
 
@@ -178,7 +186,7 @@
       </section>
 
       <section id="report" class="screen">
-        <article class="card"><h2>Daily Report</h2><p class="muted">Generate a simple downloadable report you can share or review.</p><div id="reportPreview" class="report-preview"></div><button id="downloadReport" class="primary">Download Daily Report</button></article>
+        <article class="card"><h2>Download Report</h2><p class="muted">Generate a simple downloadable report you can share or review.</p><div id="reportPreview" class="report-preview"></div><button id="downloadReport" class="primary">Download Report</button></article>
       </section>
     </main>
   </div>
