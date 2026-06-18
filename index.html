@@ -9,21 +9,15 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Personal Fuel Operations</span></div></div>
+      <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Know when you'll run out. Know when to shop</span></div></div>
       <nav class="side-nav">
-        <button class="nav-item active" data-screen="dashboard">Dashboard</button>
         <button class="nav-item" data-screen="checklist">Checklist</button>
+        <button class="nav-item active" data-screen="dashboard">Dashboard</button>
+        <button class="nav-item" data-screen="shopping">Fuel Forecast</button>
 
         <details class="nav-group" open>
           <summary>Setup Actions</summary>
-          <button class="nav-item sub" data-screen="setupActions">Confirm Pantry</button>
-          <button class="nav-item sub" data-screen="shopping">Fuel Forecast</button>
           <button class="nav-item sub" data-screen="bodyMind">Body &amp; Mind</button>
-        </details>
-
-        <details class="nav-group" open>
-          <summary>Purpose</summary>
-          <button class="nav-item sub" data-screen="startWhy">Start With Why</button>
         </details>
 
         <details class="nav-group" open>
@@ -39,12 +33,12 @@
           <button class="nav-item sub" data-screen="report">Daily Report</button>
         </details>
       </nav>
-      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/4 complete</strong><p>Complete your daily fuel maintenance.</p></div>
+      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/3 complete</strong><p>Complete your daily fuel maintenance.</p></div>
     </aside>
 
     <main class="app">
       <header class="topbar">
-        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">System Overview</h1><p id="pageSubtitle">A clear view of whether your personal fuel operations support training, work and recovery.</p></div>
+        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">System Overview</h1><p id="pageSubtitle">Know when you'll run out. Know when to shop.</p></div>
         <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Set in Fuel Forecast</strong></div>
       </header>
 
@@ -61,7 +55,7 @@
         <div class="grid three">
           <article class="card metric-card">
             <p class="label">Checklist</p>
-            <h2 id="dashboardCompletion">0/4</h2>
+            <h2 id="dashboardCompletion">0/3</h2>
             <p>Daily system checklist and step progress.</p>
             <button class="secondary dashboard-jump" data-jump="checklist">Open Checklist</button>
           </article>
@@ -76,7 +70,7 @@
           <article class="card metric-card">
             <p class="label">Personal Insights</p>
             <h2 id="dashboardPersonalSummary">Streak</h2>
-            <p>Fuel streak and discipline.</p>
+            <p>Fuel streak and forecast discipline.</p>
             <button class="secondary dashboard-jump" data-jump="personalInsights">Open Personal Insights</button>
           </article>
         </div>
@@ -98,9 +92,9 @@
           </article>
 
           <article class="card metric-card">
-            <p class="label">Fuel Discipline</p>
+            <p class="label">Forecast Discipline</p>
             <h2 id="fuelDisciplineScore">0%</h2>
-            <p>Food bought vs food actually prepped.</p>
+            <p>Categories confirmed vs forecast generated.</p>
           </article>
         </div>
       </section>
@@ -110,12 +104,12 @@
           <article class="card metric-card">
             <p class="label">Readiness</p>
             <h2 id="readinessScore">61</h2>
-            <p id="readinessNote">Complete setup before trusting readiness.</p>
+            <p id="readinessNote">Confirm forecast categories before trusting readiness.</p>
           </article>
 
           <article class="card metric-card">
             <p class="label">Daily Progress</p>
-            <h2 id="systemDailyProgress">0/4</h2>
+            <h2 id="systemDailyProgress">0/3</h2>
             <p>System stages completed today.</p>
           </article>
 
@@ -149,28 +143,16 @@
         </article>
       </section>
 
-      <section id="setupActions" class="screen clean-screen">
-        <div class="grid">
-          <article class="card">
-            <h2>Confirm Pantry</h2>
-            <p class="muted">Check the stock numbers that power the Fuel Forecast.</p>
-            <div id="setupPantryList" class="list"></div>
-            <button id="setupConfirmPantry" class="primary">Confirm Pantry Checked</button>
-          </article>
-        </div>
-      </section>
 <section id="shopping" class="screen">
         <article class="card">
           <h2>Fuel Forecast</h2>
-          <p class="muted">Forecast the next shopping need from current stock and daily burn rate.</p>
+          <p class="muted">Confirm each fuel category, then generate run-out predictions from current stock and daily consumption rate.</p>
           <div class="form-grid forecast-controls"><label>Next shopping opportunity <input id="nextShopOpportunity" type="date"></label></div>
+          <div id="forecastConfirmationFlow" class="forecast-flow"></div>
           <div id="fuelForecastList" class="forecast-list"></div>
-          <div class="button-row"><button id="saveShopping" class="primary">Update Fuel Forecast</button><button id="confirmShopping" class="secondary">Confirm Meal Prep Complete</button></div>
+          <div class="button-row"><button id="saveShopping" class="primary">Update Fuel Forecast</button></div>
         </article>
         <article class="card"><h2>Next Action</h2><div id="shoppingList" class="list"></div></article>
-      </section>
-<section id="startWhy" class="screen">
-        <article class="card why-card"><p class="label">Today's Why</p><h2 id="nutritionWhyDisplay">Pass RAF training and stop energy crashes.</h2><p>The food you prepare today protects tomorrow's training, work and recovery.</p><label>Update your why<textarea id="nutritionWhyInput" rows="3" placeholder="Why do you want to improve your personal fuel operations?"></textarea></label><button id="saveWhy" class="secondary">Save Why</button></article>
       </section>
 <section id="adherence" class="screen">
         <article class="card"><h2>Adherence Log</h2><p class="muted">Updates automatically when you confirm each stage. You can also adjust it manually.</p><div id="adherenceActions" class="check-grid"></div><button id="saveManualAdherence" class="primary">Save Manual Adherence</button></article>
@@ -180,7 +162,7 @@
       </section>
 
       <section id="logs" class="screen">
-        <article class="card"><h2>Weekly Personal Fuel Operations Log</h2><p class="muted">A customer-success style activity log for your personal fuel operations.</p><div id="weeklyLogSummary" class="grid three"></div></article>
+        <article class="card"><h2>Weekly Fuel Guard Log</h2><p class="muted">A customer-success style activity log for your fuel checks.</p><div id="weeklyLogSummary" class="grid three"></div></article>
         <article class="card"><h2>Activity Log</h2><div id="activityLog" class="list"></div></article>
       </section>
 
