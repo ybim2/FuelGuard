@@ -34,7 +34,7 @@
 }
 
 .fast-flow {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .button-row {
@@ -58,6 +58,83 @@
 .forecast-list {
   display: grid;
   gap: 10px;
+}
+
+.forecast-flow {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.forecast-confirmation {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.045);
+  overflow: hidden;
+}
+
+.forecast-confirmation[open] {
+  border-color: rgba(45,255,136,.32);
+}
+
+.forecast-confirmation.complete {
+  border-color: rgba(45,255,136,.24);
+  background: rgba(45,255,136,.065);
+}
+
+.forecast-confirmation summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  background: transparent;
+  color: var(--text);
+  padding: 14px 16px;
+}
+
+.forecast-confirmation-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.confirmation-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(120px, .8fr) minmax(150px, .9fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0,0,0,.12);
+}
+
+.category-status {
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--amber);
+  background: rgba(255,176,32,.13);
+  font-size: .72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.category-status.complete {
+  color: var(--green);
+  background: rgba(45,255,136,.13);
+}
+
+.forecast-locked {
+  padding: 16px;
+  border: 1px dashed rgba(255,176,32,.42);
+  border-radius: 18px;
+  background: rgba(255,176,32,.08);
+}
+
+.forecast-locked strong {
+  display: block;
+  margin-bottom: 6px;
 }
 
 .forecast-section {
@@ -168,6 +245,7 @@ html, body {
   .sidebar-card{width:100%;max-width:100%}
   .app{width:100%;min-width:0;padding:18px}
   .fast-flow{grid-template-columns:1fr}
+  .confirmation-row{grid-template-columns:1fr}
   .forecast-row{grid-template-columns:1fr}
   .forecast-heading{display:none}
 }
