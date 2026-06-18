@@ -140,15 +140,20 @@
 .forecast-section {
   display: grid;
   gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.03);
+  padding: 10px;
 }
 
 .forecast-section + .forecast-section {
   margin-top: 18px;
 }
 
-.forecast-section h3 {
-  margin: 8px 0 0;
+.forecast-section summary {
   color: var(--text);
+  background: transparent;
+  padding: 8px 10px;
 }
 
 .forecast-row {
