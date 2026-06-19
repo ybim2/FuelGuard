@@ -1,4 +1,6 @@
-const STEP_KEYS = ["pantry", "shopping", "adherence"];
+const STEP_KEYS = ["pantry", "liveFuelStatus", "nutritionBarriers"];
+const FUEL_GREEN_LIMIT_MINUTES = 210;
+const FUEL_RED_LIMIT_MINUTES = 300;
 
 const FORECAST_GROUPS = [
   { key: "meals", label: "Meals" },
@@ -7,14 +9,82 @@ const FORECAST_GROUPS = [
   { key: "electrolytes", label: "Electrolytes" }
 ];
 
+const OPTIONAL_FORECAST_GROUPS = [
+  { key: "shakes", label: "Shakes" },
+  { key: "uncategorised", label: "Uncategorised" }
+];
+
+function slug(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function compact(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
+function forecastGroupOptions() {
+  return [...FORECAST_GROUPS, ...OPTIONAL_FORECAST_GROUPS];
+}
+
+function normalizeForecastCategory(category) {
+  const raw = String(category || "").trim();
+  const value = compact(raw);
+  if (!value) return "uncategorised";
+
+  const direct = forecastGroupOptions().find(group => value === compact(group.key) || value === compact(group.label));
+  if (direct) return direct.key;
+  if (value.includes("meal")) return "meals";
+  if (value.includes("snack")) return "snacks";
+  if (value.includes("shake") || value.includes("smoothie")) return "shakes";
+  if (value.includes("supplement") || value.includes("proteinpowder")) return "supplements";
+  if (value.includes("electrolyte")) return "electrolytes";
+  return "uncategorised";
+}
+
+function labelForForecastGroup(groupKey) {
+  return forecastGroupOptions().find(group => group.key === groupKey)?.label || "Uncategorised";
+}
+
+function forecastGroupsForPantry(pantry) {
+  const source = pantry || (typeof state !== "undefined" ? state.pantry : {});
+  const groups = [...FORECAST_GROUPS];
+  const seen = new Set(groups.map(group => group.key));
+
+  Object.values(source || {}).forEach(item => {
+    const groupKey = normalizeForecastCategory(item.group);
+    if (!seen.has(groupKey)) {
+      groups.push({ key: groupKey, label: labelForForecastGroup(groupKey) });
+      seen.add(groupKey);
+    }
+  });
+
+  return groups;
+}
+
 const DEFAULT_STATE = {
   completed: {
     gaps: false,
     plan: false,
     pantry: false,
     shopping: false,
+    liveFuelStatus: false,
+    nutritionBarriers: false,
     prep: false,
-    adherence: false
+    adherence: false,
+    report: false
   },
   forecastConfirmations: {
     meals: false,
@@ -22,7 +92,6 @@ const DEFAULT_STATE = {
     supplements: false,
     electrolytes: false
   },
-  nextShopOpportunity: "",
   planningDays: 7,
   plannedShifts: 5,
   plannedTraining: 4,
@@ -103,6 +172,13 @@ const DEFAULT_STATE = {
     hunger: "Managed",
     note: ""
   },
+  nutritionBarriers: {
+    logs: [],
+    insightWindowWeeks: 4
+  },
+  fuelGap: {
+    logs: []
+  },
   adherenceHistory: []
 };
 
@@ -121,6 +197,16 @@ function load() {
       completed: { ...defaults.completed, ...(parsed.completed || {}) },
       forecastConfirmations: { ...defaults.forecastConfirmations, ...(parsed.forecastConfirmations || {}) },
       bodyMind: { ...defaults.bodyMind, ...(parsed.bodyMind || {}) },
+      nutritionBarriers: {
+        ...defaults.nutritionBarriers,
+        ...(parsed.nutritionBarriers || {}),
+        logs: parsed.nutritionBarriers?.logs || []
+      },
+      fuelGap: {
+        ...defaults.fuelGap,
+        ...(parsed.fuelGap || {}),
+        logs: parsed.fuelGap?.logs || []
+      },
       adherenceHistory: parsed.adherenceHistory || []
     };
 
@@ -134,7 +220,7 @@ function load() {
       merged.preparedFuel[key] = { ...(defaults.preparedFuel[key] || {}), ...item };
     });
 
-    if (!FORECAST_GROUPS.every(group => merged.forecastConfirmations[group.key])) {
+    if (!forecastGroupsForPantry(merged.pantry).every(group => merged.forecastConfirmations[group.key])) {
       merged.completed.pantry = false;
       merged.completed.shopping = false;
     }
@@ -176,6 +262,108 @@ function startOfToday() {
   return date;
 }
 
+function fuelGapState() {
+  state.fuelGap = {
+    ...DEFAULT_STATE.fuelGap,
+    ...(state.fuelGap || {})
+  };
+
+  if (!Array.isArray(state.fuelGap.logs)) state.fuelGap.logs = [];
+  return state.fuelGap;
+}
+
+function fuelLogDate(log) {
+  const date = new Date(log.timestamp || log.date || log);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatClock(date) {
+  if (!date) return "--";
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function todaysFuelLogs(now = new Date()) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return fuelGapState().logs
+    .map(log => ({ ...log, date: fuelLogDate(log) }))
+    .filter(log => log.date && log.date >= start && log.date < end)
+    .sort((a, b) => a.date - b.date);
+}
+
+function lastFuelLog() {
+  return fuelGapState().logs
+    .map(log => ({ ...log, date: fuelLogDate(log) }))
+    .filter(log => log.date)
+    .sort((a, b) => b.date - a.date)[0] || null;
+}
+
+function minutesSinceLastFuel(now = new Date()) {
+  const last = lastFuelLog();
+  if (!last) return Infinity;
+  return Math.max(0, (now - last.date) / 60000);
+}
+
+function fuelGapStatus(minutes) {
+  if (!Number.isFinite(minutes)) return "red";
+  if (minutes < FUEL_GREEN_LIMIT_MINUTES) return "green";
+  if (minutes < FUEL_RED_LIMIT_MINUTES) return "amber";
+  return "red";
+}
+
+function fuelGapSnapshot(now = new Date()) {
+  const last = lastFuelLog();
+  const elapsedMinutes = minutesSinceLastFuel(now);
+  const status = fuelGapStatus(elapsedMinutes);
+
+  return {
+    lastFuelled: last ? formatClock(last.date) : "No fuel logged",
+    timeSinceFuel: Number.isFinite(elapsedMinutes) ? duration(elapsedMinutes) : "No fuel logged",
+    status,
+    nextAction: status === "red"
+      ? "RED - fuel gap too long. Eat a quick available option within 30 minutes."
+      : ""
+  };
+}
+
+function fuelGapDurationsToday(now = new Date()) {
+  const logs = todaysFuelLogs(now);
+  const gaps = [];
+
+  for (let index = 1; index < logs.length; index += 1) {
+    gaps.push((logs[index].date - logs[index - 1].date) / 60000);
+  }
+
+  if (logs.length) gaps.push((now - logs[logs.length - 1].date) / 60000);
+  return gaps.filter(gap => Number.isFinite(gap) && gap >= 0);
+}
+
+function fuelGapInsight(now = new Date()) {
+  const logs = todaysFuelLogs(now);
+  const gaps = fuelGapDurationsToday(now);
+
+  return {
+    longestGap: gaps.length ? Math.max(...gaps) : 0,
+    confirmations: logs.length,
+    highRiskGaps: gaps.filter(gap => gap >= FUEL_RED_LIMIT_MINUTES).length
+  };
+}
+
+function recordFuelled() {
+  fuelGapState().logs.push({
+    id: uid(),
+    timestamp: new Date().toISOString(),
+    label: "Fuelled"
+  });
+  state.completed.liveFuelStatus = true;
+  addAdherence("liveFuelStatus");
+  save();
+  renderAll();
+}
+
 function dateFromInput(value) {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00`);
@@ -193,10 +381,27 @@ function formatShortDate(date) {
   return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 }
 
+function calculatedNextShopDays() {
+  const finiteRunways = Object.values(state.pantry)
+    .map(item => {
+      const stock = Number(item.qty || 0);
+      const burn = Number(item.dailyUse || 0);
+      return burn > 0 ? stock / burn : Infinity;
+    })
+    .filter(Number.isFinite);
+
+  if (!finiteRunways.length) return null;
+  return Math.max(0, Math.min(...finiteRunways));
+}
+
+function calculatedNextShopDate() {
+  const days = calculatedNextShopDays();
+  return days === null ? null : addDays(days);
+}
+
 function daysToNextShop() {
-  const shopDate = dateFromInput(state.nextShopOpportunity);
-  if (!shopDate) return null;
-  return Math.ceil((shopDate - startOfToday()) / 86400000);
+  const days = calculatedNextShopDays();
+  return days === null ? null : Math.ceil(days);
 }
 
 function formatDays(days) {
@@ -284,9 +489,12 @@ function markDone(key) {
 
 function addAdherence(key) {
   const labels = {
-    pantry: "Fuel categories confirmed",
-    shopping: "Fuel forecast generated",
-    adherence: "Body and mind logged"
+    pantry: "Fuel confirmation completed",
+    liveFuelStatus: "Live fuel status completed",
+    nutritionBarriers: "Nutrition barriers completed",
+    shopping: "Fuel forecast reviewed",
+    adherence: "Body and mind logged",
+    report: "Download report completed"
   };
 
   if (!labels[key]) return;
@@ -308,6 +516,13 @@ function ensureForecastConfirmations() {
     ...DEFAULT_STATE.forecastConfirmations,
     ...(state.forecastConfirmations || {})
   };
+
+  forecastGroupsForPantry().forEach(group => {
+    if (typeof state.forecastConfirmations[group.key] !== "boolean") {
+      state.forecastConfirmations[group.key] = false;
+    }
+  });
+
   return state.forecastConfirmations;
 }
 
@@ -317,12 +532,12 @@ function isForecastCategoryComplete(groupKey) {
 
 function allForecastCategoriesConfirmed() {
   const confirmations = ensureForecastConfirmations();
-  return FORECAST_GROUPS.every(group => confirmations[group.key]);
+  return forecastGroupsForPantry().every(group => confirmations[group.key]);
 }
 
 function nextForecastCategory() {
   const confirmations = ensureForecastConfirmations();
-  return FORECAST_GROUPS.find(group => !confirmations[group.key]) || null;
+  return forecastGroupsForPantry().find(group => !confirmations[group.key]) || null;
 }
 
 function confirmForecastCategory(groupKey) {
@@ -331,46 +546,41 @@ function confirmForecastCategory(groupKey) {
 
   if (allForecastCategoriesConfirmed()) {
     state.completed.pantry = true;
-    state.completed.shopping = true;
     addAdherence("pantry");
-    addAdherence("shopping");
   }
 
   save();
   renderAll();
 }
 
-function forecastStatus(daysUntilRunOut, shopDays) {
-  if (daysUntilRunOut <= 0) return "red";
+function forecastStatus(daysUntilRunOut) {
+  if (daysUntilRunOut <= 2) return "red";
   if (!Number.isFinite(daysUntilRunOut)) return "green";
-  if (shopDays === null) return "amber";
-  if (shopDays < 0) return "red";
-  if (daysUntilRunOut < shopDays) return "red";
-  if (daysUntilRunOut - shopDays <= 2) return "amber";
+  if (daysUntilRunOut <= 5) return "amber";
   return "green";
 }
 
 function forecastAction(row) {
-  if (!state.nextShopOpportunity) return "Set next shopping opportunity so this can be judged.";
   if (row.status === "red") return `Shop before ${row.runOutShortDate} or reduce daily use.`;
-  if (row.status === "amber") return "Add to the next shop or reduce daily use if demand increases.";
-  return `Enough until ${formatShortDate(dateFromInput(state.nextShopOpportunity))}. Keep monitoring.`;
+  if (row.status === "amber") return `Plan to shop by ${row.runOutShortDate} or reduce daily use if demand increases.`;
+  return `Enough until ${row.runOutShortDate}. Keep monitoring.`;
 }
 
 function forecastRows() {
-  const shopDays = daysToNextShop();
-
   return Object.entries(state.pantry).map(([key, item]) => {
     const currentStock = Number(item.qty || 0);
     const dailyBurnRate = Number(item.dailyUse || 0);
     const daysUntilRunOut = dailyBurnRate > 0 ? currentStock / dailyBurnRate : Infinity;
     const runOutDate = Number.isFinite(daysUntilRunOut) ? addDays(daysUntilRunOut) : null;
-    const status = forecastStatus(daysUntilRunOut, shopDays);
+    const status = forecastStatus(daysUntilRunOut);
     const row = {
       key,
       label: item.label,
       unit: item.unit,
-      group: item.group || "meals",
+      group: normalizeForecastCategory(item.group || "meals"),
+      imported: Boolean(item.imported),
+      notes: item.notes || "",
+      dailyUseUnit: item.dailyUseUnit || (item.imported ? "grams/day" : "per day"),
       currentStock,
       dailyBurnRate,
       daysUntilRunOut,
@@ -400,10 +610,9 @@ function foodRunoutDays() {
 
 function proactivityScore() {
   const runway = foodRunoutDays();
-  const shopDays = daysToNextShop();
-  if (shopDays === null || shopDays < 0) return 0;
-  if (shopDays < runway) return 100;
-  if (shopDays === runway) return 65;
+  if (!Number.isFinite(runway)) return 100;
+  if (runway > 7) return 100;
+  if (runway > 3) return 65;
   return 25;
 }
 
