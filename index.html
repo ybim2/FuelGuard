@@ -17,7 +17,6 @@
           <summary>Fuel Operations</summary>
           <button class="nav-item sub" data-screen="fuelConfirmation">Fuel Confirmation</button>
           <button class="nav-item sub active" data-screen="dashboard">Live Fuel Status</button>
-          <button class="nav-item sub" data-screen="shopping">Fuel Forecast</button>
           <button class="nav-item sub" data-screen="nutritionBarriers">Nutrition Barriers</button>
         </details>
 
@@ -26,7 +25,7 @@
           <button class="nav-item sub" data-screen="logs">Activity Log</button>
         </details>
       </nav>
-      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/3 complete</strong><p>Complete your daily fuel maintenance.</p></div>
+      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/4 complete</strong><p>Complete your daily fuel maintenance.</p></div>
     </aside>
 
     <main class="app">
@@ -68,7 +67,7 @@
         <div class="grid two">
           <article class="card metric-card">
             <p class="label">Checklist</p>
-            <h2 id="dashboardCompletion">0/3</h2>
+            <h2 id="dashboardCompletion">0/4</h2>
             <p>Daily system checklist and step progress.</p>
             <button class="secondary dashboard-jump" data-jump="checklist">Open Checklist</button>
           </article>
@@ -88,8 +87,6 @@
         </article>
       </section>
 
-
-
       <section id="checklist" class="screen">
         <article class="card">
           <h2>Fuel Management Steps</h2>
@@ -101,21 +98,17 @@
       <section id="fuelConfirmation" class="screen">
         <article class="card">
           <h2>Fuel Confirmation</h2>
-          <p class="muted">Confirm meals, snacks, supplements and electrolytes one category at a time before generating the forecast.</p>
+          <p class="muted">Confirm stock by category, review run-out risk in the table, then check whether tomorrow is protected.</p>
           <div class="pantry-import-panel">
-            <div class="button-row pantry-import-row"><button id="importPantryTemplate" class="secondary" type="button">Import Weekly Pantry Template</button><input id="pantryTemplateInput" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden><span id="pantryImportStatus" class="row-note"></span></div>
-            <p class="import-help">Excel file upload supported for rows containing: Item Name, Category, Quantity, Unit, and optional Notes.</p>
+            <div class="button-row pantry-import-row"><button id="exportPantryTemplate" class="secondary" type="button">Download Pantry Upload Template</button><button id="importPantryTemplate" class="secondary" type="button">Upload Pantry Items</button><button id="clearWholePantry" class="secondary danger-secondary" type="button">Clear Whole Pantry</button><input id="pantryTemplateInput" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden><span id="pantryImportStatus" class="row-note"></span></div>
+            <div class="import-help">
+              <p><strong>Download pantry template</strong> - use this template to fill in the items you have.</p>
+              <p><strong>Upload pantry items</strong> - populate the table with your items.</p>
+              <p><strong>Clear whole pantry</strong> - remove all items from the table.</p>
+            </div>
           </div>
           <div id="forecastConfirmationFlow" class="forecast-flow"></div>
-          <div class="button-row"><button id="saveShopping" class="primary">Confirm Fuel Information</button></div>
-        </article>
-      </section>
-
-      <section id="shopping" class="screen">
-        <article class="card">
-          <h2>Fuel Forecast</h2>
-          <p class="muted">Confirmed fuel information appears here as run-out predictions and shopping need.</p>
-          <div id="fuelForecastList" class="forecast-list"></div>
+          <div class="fuel-availability-slot" data-meal-prep-warning-slot></div>
         </article>
       </section>
 
