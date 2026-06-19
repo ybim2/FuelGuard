@@ -60,6 +60,24 @@
   gap: 10px;
 }
 
+.pantry-import-panel {
+  margin: 22px 0 24px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.035);
+}
+
+.pantry-import-row {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.import-help {
+  margin: 0;
+  max-width: 760px;
+}
+
 .forecast-flow {
   display: grid;
   gap: 12px;
@@ -140,15 +158,20 @@
 .forecast-section {
   display: grid;
   gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.03);
+  padding: 10px;
 }
 
 .forecast-section + .forecast-section {
   margin-top: 18px;
 }
 
-.forecast-section h3 {
-  margin: 8px 0 0;
+.forecast-section summary {
   color: var(--text);
+  background: transparent;
+  padding: 8px 10px;
 }
 
 .forecast-row {
@@ -184,6 +207,70 @@
 
 .forecast-row .status-pill {
   margin-bottom: 8px;
+}
+
+.fuel-gap-card {
+  border-color: rgba(32,214,255,.22);
+}
+
+.fuel-gap-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.fuelled-button {
+  min-width: 220px;
+  min-height: 76px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg,var(--green),var(--cyan));
+  color: #06100b;
+  font: inherit;
+  font-size: 1.08rem;
+  font-weight: 1000;
+  cursor: pointer;
+  box-shadow: 0 18px 44px rgba(45,255,136,.18);
+}
+
+.fuel-status-grid {
+  margin-bottom: 16px;
+}
+
+.fuel-status-grid h3,
+.fuel-insight-list h3 {
+  margin-bottom: 0;
+}
+
+.fuel-next-action {
+  display: none;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  font-weight: 900;
+}
+
+.fuel-next-action.red {
+  display: block;
+  border-color: rgba(255,77,109,.42);
+  background: rgba(255,77,109,.10);
+  color: var(--red);
+}
+
+.fuel-gap-lower {
+  align-items: start;
+}
+
+.fuel-insight-list {
+  display: grid;
+  gap: 10px;
+}
+
+.fuel-daily-empty {
+  margin-bottom: 0;
 }
 
 
@@ -245,6 +332,8 @@ html, body {
   .sidebar-card{width:100%;max-width:100%}
   .app{width:100%;min-width:0;padding:18px}
   .fast-flow{grid-template-columns:1fr}
+  .fuel-gap-header{grid-template-columns:1fr}
+  .fuelled-button{width:100%;min-width:0}
   .confirmation-row{grid-template-columns:1fr}
   .forecast-row{grid-template-columns:1fr}
   .forecast-heading{display:none}
