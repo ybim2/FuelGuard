@@ -34,7 +34,7 @@
 }
 
 .fast-flow {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .button-row {
@@ -48,6 +48,26 @@
 .button-row button.primary,
 .button-row button.secondary {
   margin-top: 0;
+}
+
+.nutrition-patterns-header {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nutrition-patterns-header h2 {
+  margin-bottom: 0;
+}
+
+.nutrition-patterns-header select {
+  width: auto;
+  min-width: 140px;
+}
+
+@media(max-width:900px){
+  .nutrition-patterns-header select {
+    width: 100%;
+  }
 }
 
 .forecast-controls {
@@ -78,10 +98,61 @@
   max-width: 760px;
 }
 
+.import-help p {
+  margin: 0 0 6px;
+}
+
+.import-help p:last-child {
+  margin-bottom: 0;
+}
+
 .forecast-flow {
   display: grid;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.fuel-confirmation-summary {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(45,255,136,.34);
+  border-radius: 18px;
+  background: rgba(45,255,136,.075);
+}
+
+.fuel-confirmation-summary h3 {
+  margin-bottom: 0;
+}
+
+.fuel-confirmation-review {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.035);
+  padding: 8px;
+  min-width: 0;
+}
+
+.fuel-confirmation-review summary {
+  color: var(--text);
+  background: transparent;
+}
+
+.review-flow {
+  margin: 10px 0 0;
+}
+
+.confirmation-submit-row {
+  padding: 0 8px 8px;
+}
+
+button.primary:disabled,
+button.secondary:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+  filter: grayscale(.35);
 }
 
 .forecast-confirmation {
@@ -89,6 +160,7 @@
   border-radius: 18px;
   background: rgba(255,255,255,.045);
   overflow: hidden;
+  min-width: 0;
 }
 
 .forecast-confirmation[open] {
@@ -114,17 +186,64 @@
   display: grid;
   gap: 10px;
   padding: 0 16px 16px;
+  min-width: 0;
+}
+
+.fuel-confirmation-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fuel-confirmation-table {
+  display: grid;
+  gap: 10px;
+  min-width: 1080px;
+}
+
+.forecast-section-actions {
+  margin-top: 4px;
+}
+
+.category-fuel-status {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.empty-category-note {
+  margin: 0;
+  padding: 10px 2px;
 }
 
 .confirmation-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(120px, .8fr) minmax(150px, .9fr);
+  grid-template-columns: minmax(160px,1.15fr) minmax(110px,.78fr) minmax(130px,.85fr) minmax(130px,.85fr) minmax(130px,.9fr) minmax(170px,1.15fr) minmax(105px,.7fr);
   gap: 12px;
   align-items: center;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(0,0,0,.12);
+}
+
+.empty-confirmation-row {
+  grid-template-columns: 1fr;
+}
+
+.confirmation-heading {
+  color: var(--green);
+  font-size: .72rem;
+  font-weight: 950;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: rgba(45,255,136,.07);
+}
+
+.confirmation-heading span {
+  color: var(--green);
 }
 
 .category-status {
@@ -209,6 +328,149 @@
   margin-bottom: 8px;
 }
 
+.fuel-availability-slot {
+  margin-top: 18px;
+}
+
+.meal-prep-warning {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 18px;
+  background: rgba(255,255,255,.04);
+}
+
+.meal-prep-warning.active.red {
+  border-color: rgba(255,77,109,.58);
+  background: linear-gradient(135deg,rgba(255,77,109,.16),rgba(255,176,32,.08)),rgba(255,255,255,.035);
+  box-shadow: 0 18px 44px rgba(255,77,109,.12);
+}
+
+.meal-prep-warning.active.amber {
+  border-color: rgba(255,176,32,.52);
+  background: linear-gradient(135deg,rgba(255,176,32,.14),rgba(255,77,109,.07)),rgba(255,255,255,.035);
+}
+
+.meal-prep-warning.stable {
+  border-color: rgba(45,255,136,.34);
+  background: rgba(45,255,136,.075);
+}
+
+.meal-prep-warning-header {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.meal-prep-warning-header h3 {
+  margin-bottom: 8px;
+}
+
+.meal-prep-warning-header p:last-child {
+  margin-bottom: 0;
+}
+
+.warning-label {
+  color: var(--red);
+}
+
+.meal-prep-status-stack {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.prep-state-pill {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,.22);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: .76rem;
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.meal-prep-risk-list {
+  display: grid;
+  gap: 10px;
+}
+
+.meal-prep-check-row {
+  display: grid;
+  grid-template-columns: minmax(150px,1fr) auto minmax(180px,1fr) minmax(190px,1.1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0,0,0,.16);
+}
+
+.meal-prep-check-row.active {
+  border-color: rgba(255,77,109,.38);
+  background: rgba(255,77,109,.09);
+}
+
+.meal-prep-check-row.complete {
+  border-color: rgba(45,255,136,.28);
+  background: rgba(45,255,136,.075);
+}
+
+.meal-prep-check-actions {
+  margin-top: 10px;
+}
+
+.meal-prep-check-actions button {
+  margin-top: 0;
+}
+
+.meal-prep-subhead {
+  margin: 18px 0 10px;
+}
+
+.meal-prep-risk-row {
+  display: grid;
+  grid-template-columns: minmax(150px,1fr) auto minmax(180px,1fr) minmax(190px,1.1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0,0,0,.16);
+}
+
+.meal-prep-risk-row strong {
+  color: var(--text);
+}
+
+.daily-snack-warning {
+  border-color: rgba(255,77,109,.36);
+  background: rgba(255,77,109,.09);
+}
+
+.stable-row {
+  border-color: rgba(45,255,136,.22);
+}
+
+.meal-prep-actions {
+  margin-top: 16px;
+}
+
+.danger-secondary {
+  border-color: rgba(255,77,109,.44) !important;
+  color: var(--red) !important;
+}
+
+.prep-unresolved-note {
+  margin: 10px 0 0;
+  color: var(--red);
+}
+
 .fuel-gap-card {
   border-color: rgba(32,214,255,.22);
 }
@@ -267,6 +529,62 @@
 .fuel-insight-list {
   display: grid;
   gap: 10px;
+}
+
+.fuel-momentum-card {
+  border-color: rgba(45,255,136,.26);
+}
+
+.fuel-momentum-header {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.fuel-momentum-header h2 {
+  margin-bottom: 0;
+}
+
+.fuel-momentum-header strong {
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(45,255,136,.14);
+  color: var(--green);
+  font-size: 1rem;
+}
+
+.fuel-momentum-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.fuel-momentum-item {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(0,0,0,.12);
+}
+
+.fuel-momentum-item.complete {
+  border-color: rgba(45,255,136,.3);
+  background: rgba(45,255,136,.075);
+}
+
+.fuel-momentum-message,
+.fuel-momentum-feedback {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(45,255,136,.28);
+  border-radius: 16px;
+  background: rgba(45,255,136,.075);
+  color: var(--text);
 }
 
 .fuel-daily-empty {
@@ -335,6 +653,18 @@ html, body {
   .fuel-gap-header{grid-template-columns:1fr}
   .fuelled-button{width:100%;min-width:0}
   .confirmation-row{grid-template-columns:1fr}
+  .confirmation-heading{display:none}
+  .fuel-confirmation-table .confirmation-row{grid-template-columns:minmax(160px,1.15fr) minmax(110px,.78fr) minmax(130px,.85fr) minmax(130px,.85fr) minmax(130px,.9fr) minmax(170px,1.15fr) minmax(105px,.7fr)}
+  .fuel-confirmation-table .confirmation-heading{display:grid}
+  .fuel-confirmation-table .empty-confirmation-row{grid-template-columns:1fr}
+  .category-fuel-status{flex-basis:100%;margin-left:0;white-space:normal}
+  .fuel-confirmation-summary{grid-template-columns:1fr}
+  .meal-prep-warning-header{grid-template-columns:1fr}
+  .meal-prep-status-stack{justify-items:start}
+  .meal-prep-check-row{grid-template-columns:1fr}
+  .meal-prep-risk-row{grid-template-columns:1fr}
+  .fuel-momentum-header{grid-template-columns:1fr}
+  .fuel-momentum-item{grid-template-columns:1fr}
   .forecast-row{grid-template-columns:1fr}
   .forecast-heading{display:none}
 }

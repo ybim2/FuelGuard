@@ -1,6 +1,49 @@
-const STEP_KEYS = ["pantry", "liveFuelStatus", "nutritionBarriers"];
+const STEP_KEYS = ["pantry", "prep", "liveFuelStatus", "nutritionBarriers"];
 const FUEL_GREEN_LIMIT_MINUTES = 210;
 const FUEL_RED_LIMIT_MINUTES = 300;
+const MEAL_PREP_WARNING_DAYS = 5;
+const MEAL_PREPARATION_CHECKS = [
+  {
+    key: "meals",
+    label: "Main Meals",
+    question: "Are main meals prepared for tomorrow?",
+    consequence: "Increased risk of missed meals and under-fuelling.",
+    action: "Protect the next 2-4 days with prepared core meals.",
+    horizon: "2-4 day batch coverage"
+  },
+  {
+    key: "snacks",
+    label: "Snacks",
+    question: "Are snacks prepared or packed for tomorrow?",
+    consequence: "Increased risk of missed snack windows and under-fuelling.",
+    action: "Pack tomorrow's snacks or restock high-turnover snack items.",
+    horizon: "Tomorrow coverage"
+  },
+  {
+    key: "shakes",
+    label: "Protein Shakes",
+    question: "Are protein shake ingredients available?",
+    consequence: "Increased risk of missed recovery fuel.",
+    action: "Check protein powder, milk and shake ingredients.",
+    horizon: "Tomorrow and week-ahead ingredients"
+  },
+  {
+    key: "electrolytes",
+    label: "Electrolytes",
+    question: "Are electrolytes ready?",
+    consequence: "Increased risk of poor training quality.",
+    action: "Prepare water and electrolytes for tomorrow.",
+    horizon: "Tomorrow coverage"
+  },
+  {
+    key: "backup",
+    label: "Emergency Backup",
+    question: "Is there an emergency backup food option?",
+    consequence: "Increased risk of under-fuelling if the plan breaks.",
+    action: "Set one backup food option that can be used immediately.",
+    horizon: "Fallback protection"
+  }
+];
 
 const FORECAST_GROUPS = [
   { key: "meals", label: "Meals" },
@@ -92,6 +135,7 @@ const DEFAULT_STATE = {
     supplements: false,
     electrolytes: false
   },
+  fuelInfoConfirmed: false,
   planningDays: 7,
   plannedShifts: 5,
   plannedTraining: 4,
@@ -176,8 +220,32 @@ const DEFAULT_STATE = {
     logs: [],
     insightWindowWeeks: 4
   },
+  mealPrep: {
+    resolvedDate: "",
+    snackPrepDate: "",
+    notYetDate: "",
+    checks: {
+      meals: "",
+      snacks: "",
+      shakes: "",
+      electrolytes: "",
+      backup: ""
+    },
+    notYetChecks: {
+      meals: "",
+      snacks: "",
+      shakes: "",
+      electrolytes: "",
+      backup: ""
+    }
+  },
   fuelGap: {
     logs: []
+  },
+  fuelMomentum: {
+    lastMessage: "",
+    lastDate: "",
+    barrierTrendImprovedDate: ""
   },
   adherenceHistory: []
 };
@@ -202,11 +270,13 @@ function load() {
         ...(parsed.nutritionBarriers || {}),
         logs: parsed.nutritionBarriers?.logs || []
       },
+      mealPrep: { ...defaults.mealPrep, ...(parsed.mealPrep || {}) },
       fuelGap: {
         ...defaults.fuelGap,
         ...(parsed.fuelGap || {}),
         logs: parsed.fuelGap?.logs || []
       },
+      fuelMomentum: { ...defaults.fuelMomentum, ...(parsed.fuelMomentum || {}) },
       adherenceHistory: parsed.adherenceHistory || []
     };
 
@@ -223,7 +293,9 @@ function load() {
     if (!forecastGroupsForPantry(merged.pantry).every(group => merged.forecastConfirmations[group.key])) {
       merged.completed.pantry = false;
       merged.completed.shopping = false;
+      merged.fuelInfoConfirmed = false;
     }
+    if (!merged.fuelInfoConfirmed) merged.completed.pantry = false;
 
     return merged;
   } catch {
@@ -254,6 +326,15 @@ function today() {
     day: "numeric",
     month: "long"
   });
+}
+
+function todayKey(date = new Date()) {
+  const localDate = new Date(date);
+  return [
+    localDate.getFullYear(),
+    String(localDate.getMonth() + 1).padStart(2, "0"),
+    String(localDate.getDate()).padStart(2, "0")
+  ].join("-");
 }
 
 function startOfToday() {
@@ -359,7 +440,12 @@ function recordFuelled() {
     label: "Fuelled"
   });
   state.completed.liveFuelStatus = true;
-  addAdherence("liveFuelStatus");
+  recordFuelMomentum(
+    "fuelLogged",
+    "Fuel logged. System updated.",
+    "Fuel logged. Your system is up to date. +1 Fuel Momentum",
+    { dedupeDaily: false }
+  );
   save();
   renderAll();
 }
@@ -473,7 +559,7 @@ function formatQty(key, item) {
 }
 
 function completedCount() {
-  return STEP_KEYS.filter(key => state.completed[key]).length;
+  return STEP_KEYS.filter(key => isStepComplete(key)).length;
 }
 
 function dailyMaintenanceComplete() {
@@ -487,28 +573,116 @@ function markDone(key) {
   renderAll();
 }
 
-function addAdherence(key) {
-  const labels = {
-    pantry: "Fuel confirmation completed",
-    liveFuelStatus: "Live fuel status completed",
-    nutritionBarriers: "Nutrition barriers completed",
-    shopping: "Fuel forecast reviewed",
-    adherence: "Body and mind logged",
-    report: "Download report completed"
-  };
+function addActivityEntry(key, label, { dedupeDaily = true } = {}) {
+  if (!key || !label) return;
 
-  if (!labels[key]) return;
-
-  state.adherenceHistory = state.adherenceHistory.filter(entry => {
-    const sameDay = new Date(entry.date).toDateString() === new Date().toDateString();
-    return !(sameDay && entry.key === key);
-  });
+  state.adherenceHistory = Array.isArray(state.adherenceHistory) ? state.adherenceHistory : [];
+  if (dedupeDaily) {
+    state.adherenceHistory = state.adherenceHistory.filter(entry => {
+      const sameDay = new Date(entry.date).toDateString() === new Date().toDateString();
+      return !(sameDay && entry.key === key);
+    });
+  }
 
   state.adherenceHistory.push({
     key,
-    label: labels[key],
+    label,
     date: new Date().toISOString()
   });
+}
+
+function addAdherence(key) {
+  const labels = {
+    pantry: "Fuel confirmation completed",
+    liveFuelStatus: "Fuel logged. System updated.",
+    prep: "Tomorrow protected.",
+    nutritionBarriers: "Nutrition diary updated",
+    shopping: "Fuel forecast reviewed",
+    adherence: "Body and mind logged",
+    report: "Download report completed",
+    barrierTrendImproved: "Nutrition diary trend improved."
+  };
+
+  if (!labels[key]) return;
+  addActivityEntry(key, labels[key], { dedupeDaily: true });
+}
+
+function fuelMomentumState() {
+  state.fuelMomentum = {
+    ...DEFAULT_STATE.fuelMomentum,
+    ...(state.fuelMomentum || {})
+  };
+
+  return state.fuelMomentum;
+}
+
+function recordFuelMomentum(key, activityLabel, message, options = {}) {
+  const momentum = fuelMomentumState();
+  momentum.lastMessage = message;
+  momentum.lastDate = new Date().toISOString();
+  addActivityEntry(key, activityLabel, options);
+}
+
+function recordTomorrowProtectedMomentum() {
+  recordFuelMomentum(
+    "tomorrowProtected",
+    "Tomorrow protected.",
+    "Tomorrow is protected. No fuel roulette. +2 Fuel Momentum",
+    { dedupeDaily: true }
+  );
+}
+
+function fuelLoggedToday() {
+  return todaysFuelLogs().length > 0;
+}
+
+function syncFuelMomentumBarrierTrendImprovement() {
+  if (typeof nutritionBarrierTrendSnapshot !== "function") return false;
+
+  const trend = nutritionBarrierTrendSnapshot();
+  if (!trend.improved) return false;
+
+  const momentum = fuelMomentumState();
+  const key = todayKey();
+  if (momentum.barrierTrendImprovedDate === key) return false;
+
+  momentum.barrierTrendImprovedDate = key;
+  recordFuelMomentum(
+    "barrierTrendImproved",
+    "Nutrition diary trend improved.",
+    `${trend.message} +3 Fuel Momentum`,
+    { dedupeDaily: true }
+  );
+  return true;
+}
+
+function fuelMomentumSnapshot() {
+  const momentum = fuelMomentumState();
+  const barrierTrend = typeof nutritionBarrierTrendSnapshot === "function"
+    ? nutritionBarrierTrendSnapshot()
+    : { improved: false, message: "Nutrition diary trend needs more data." };
+  const fuelLogged = fuelLoggedToday();
+  const tomorrowProtected = mealPrepResolvedToday();
+  const barrierImproved = Boolean(barrierTrend.improved);
+  const score = (fuelLogged ? 1 : 0) + (tomorrowProtected ? 2 : 0) + (barrierImproved ? 3 : 0);
+  const lastMessageIsToday = momentum.lastDate && todayKey(new Date(momentum.lastDate)) === todayKey();
+  const fallbackMessage = barrierImproved
+    ? barrierTrend.message
+    : tomorrowProtected
+      ? "Tomorrow is protected. No fuel roulette."
+      : fuelLogged
+        ? "Fuel logged. Your system is up to date."
+        : "Keep the fuel system current before under-fuelling has a chance to build.";
+
+  return {
+    score,
+    maxScore: 6,
+    fuelLogged,
+    tomorrowProtected,
+    barrierImproved,
+    barrierTrend,
+    message: lastMessageIsToday ? momentum.lastMessage : fallbackMessage
+  };
 }
 
 function ensureForecastConfirmations() {
@@ -543,12 +717,46 @@ function nextForecastCategory() {
 function confirmForecastCategory(groupKey) {
   readForecastForm();
   ensureForecastConfirmations()[groupKey] = true;
+  resetFuelInfoConfirmation();
 
-  if (allForecastCategoriesConfirmed()) {
-    state.completed.pantry = true;
-    addAdherence("pantry");
-  }
+  save();
+  renderAll();
+}
 
+function resetFuelInfoConfirmation() {
+  state.fuelInfoConfirmed = false;
+  state.completed.pantry = false;
+  state.completed.prep = false;
+}
+
+function resetPantryDependentState() {
+  resetFuelInfoConfirmation();
+  state.completed.shopping = false;
+  state.completed.report = false;
+}
+
+function clearForecastCategory(groupKey) {
+  const normalizedGroup = normalizeForecastCategory(groupKey);
+  let removedCount = 0;
+
+  Object.entries(state.pantry).forEach(([key, item]) => {
+    if (normalizeForecastCategory(item.group || "meals") === normalizedGroup) {
+      delete state.pantry[key];
+      removedCount += 1;
+    }
+  });
+
+  ensureForecastConfirmations()[normalizedGroup] = false;
+  resetPantryDependentState();
+  save();
+  renderAll();
+  return removedCount;
+}
+
+function clearWholePantry() {
+  state.pantry = {};
+  state.forecastConfirmations = {};
+  resetPantryDependentState();
   save();
   renderAll();
 }
@@ -600,6 +808,174 @@ function forecastRank(status) {
 
 function worstForecast() {
   return [...forecastRows()].sort((a, b) => forecastRank(b.status) - forecastRank(a.status))[0];
+}
+
+function mealPrepState() {
+  state.mealPrep = {
+    ...DEFAULT_STATE.mealPrep,
+    ...(state.mealPrep || {})
+  };
+  state.mealPrep.checks = {
+    ...DEFAULT_STATE.mealPrep.checks,
+    ...(state.mealPrep.checks || {})
+  };
+  state.mealPrep.notYetChecks = {
+    ...DEFAULT_STATE.mealPrep.notYetChecks,
+    ...(state.mealPrep.notYetChecks || {})
+  };
+
+  return state.mealPrep;
+}
+
+function mealPreparationCheckComplete(checkKey) {
+  return mealPrepState().checks?.[checkKey] === todayKey();
+}
+
+function mealPrepResolvedToday() {
+  return MEAL_PREPARATION_CHECKS.every(check => mealPreparationCheckComplete(check.key));
+}
+
+function snackPrepConfirmedToday() {
+  return mealPreparationCheckComplete("snacks");
+}
+
+function isStepComplete(key) {
+  if (key === "pantry") return Boolean(state.fuelInfoConfirmed);
+  if (key === "prep") return mealPrepResolvedToday();
+  return Boolean(state.completed[key]);
+}
+
+function mealPrepRiskRows() {
+  const warningGroups = new Set(["meals", "snacks", "shakes", "supplements", "electrolytes"]);
+
+  return forecastRows()
+    .filter(row => warningGroups.has(row.group))
+    .filter(row => Number.isFinite(row.daysUntilRunOut) && row.daysUntilRunOut <= MEAL_PREP_WARNING_DAYS)
+    .sort((a, b) => a.daysUntilRunOut - b.daysUntilRunOut);
+}
+
+function mealPrepConsequence(row) {
+  if (row.group === "meals") return "Increased risk of missed meals and under-fuelling.";
+  if (row.group === "snacks") return "Increased risk of missed snack windows and under-fuelling.";
+  if (row.group === "electrolytes") return "Increased risk of poor training quality.";
+  return "Increased risk of under-fuelling and poor training quality.";
+}
+
+function mealPrepAction(row) {
+  if (row.group === "meals") {
+    return row.daysUntilRunOut <= 2
+      ? "Prepare core meals before tomorrow."
+      : `Prepare core meals before ${row.runOutShortDate}.`;
+  }
+
+  if (row.group === "snacks") {
+    return row.daysUntilRunOut <= 2
+      ? `Prep snacks for today and restock ${row.label} before ${row.runOutShortDate}.`
+      : `Restock or prep ${row.label} before ${row.runOutShortDate}.`;
+  }
+
+  if (row.group === "electrolytes") {
+    return `Restock electrolytes before ${row.runOutShortDate}.`;
+  }
+
+  return `Restock or prep ${row.label} before ${row.runOutShortDate}.`;
+}
+
+function mealPrepWarningSnapshot() {
+  const prep = mealPrepState();
+  const riskRows = mealPrepRiskRows();
+  const resolvedToday = mealPrepResolvedToday();
+  const checks = MEAL_PREPARATION_CHECKS.map(check => ({
+    ...check,
+    complete: mealPreparationCheckComplete(check.key),
+    notYetToday: prep.notYetChecks?.[check.key] === todayKey()
+  }));
+  const incompleteChecks = checks.filter(check => !check.complete);
+  const active = incompleteChecks.length > 0;
+  const severity = active ? "red" : "green";
+
+  state.completed.prep = resolvedToday;
+  prep.resolvedDate = resolvedToday ? todayKey() : "";
+
+  return {
+    active,
+    severity,
+    resolvedToday,
+    checks,
+    incompleteChecks,
+    statusLabel: active ? "Coverage incomplete" : "System Stable",
+    prepStatus: active ? "Coverage unresolved" : "Tomorrow protected",
+    warningLabel: active ? "ACTION REQUIRED" : "SYSTEM STABLE",
+    riskRows: riskRows.map(row => ({
+      ...row,
+      consequence: mealPrepConsequence(row),
+      actionRequired: mealPrepAction(row)
+    }))
+  };
+}
+
+function confirmMealPrepComplete() {
+  const prep = mealPrepState();
+  const key = todayKey();
+  MEAL_PREPARATION_CHECKS.forEach(check => {
+    prep.checks[check.key] = key;
+    prep.notYetChecks[check.key] = "";
+  });
+  prep.resolvedDate = key;
+  prep.snackPrepDate = key;
+  prep.notYetDate = "";
+  state.completed.prep = true;
+  recordTomorrowProtectedMomentum();
+  save();
+  renderAll();
+}
+
+function markMealPrepNotYet() {
+  const prep = mealPrepState();
+  prep.notYetDate = todayKey();
+  prep.resolvedDate = "";
+  state.completed.prep = false;
+  save();
+  renderAll();
+}
+
+function confirmMealPreparationItem(checkKey) {
+  const prep = mealPrepState();
+  const normalizedKey = String(checkKey || "");
+  if (!MEAL_PREPARATION_CHECKS.some(check => check.key === normalizedKey)) return;
+
+  prep.checks[normalizedKey] = todayKey();
+  prep.notYetChecks[normalizedKey] = "";
+  if (normalizedKey === "snacks") prep.snackPrepDate = todayKey();
+  if (normalizedKey === "electrolytes") {
+    prep.checks.hydration = "";
+    prep.notYetChecks.hydration = "";
+  }
+  if (mealPrepResolvedToday()) {
+    prep.resolvedDate = todayKey();
+    state.completed.prep = true;
+    recordTomorrowProtectedMomentum();
+  } else {
+    prep.resolvedDate = "";
+    state.completed.prep = false;
+  }
+  save();
+  renderAll();
+}
+
+function markMealPreparationItemNotYet(checkKey) {
+  const prep = mealPrepState();
+  const normalizedKey = String(checkKey || "");
+  if (!MEAL_PREPARATION_CHECKS.some(check => check.key === normalizedKey)) return;
+
+  prep.checks[normalizedKey] = "";
+  prep.notYetChecks[normalizedKey] = todayKey();
+  if (normalizedKey === "snacks") prep.snackPrepDate = "";
+  if (normalizedKey === "electrolytes") prep.checks.hydration = "";
+  prep.resolvedDate = "";
+  state.completed.prep = false;
+  save();
+  renderAll();
 }
 
 function foodRunoutDays() {

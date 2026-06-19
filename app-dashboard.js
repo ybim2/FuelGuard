@@ -45,6 +45,37 @@ function renderFuelGap() {
   }
 }
 
+function renderFuelMomentum() {
+  if (typeof syncFuelMomentumBarrierTrendImprovement === "function" && syncFuelMomentumBarrierTrendImprovement()) {
+    save();
+  }
+
+  const snapshot = fuelMomentumSnapshot();
+  const score = document.getElementById("fuelMomentumScore");
+  if (score) score.textContent = `${snapshot.score}/${snapshot.maxScore}`;
+
+  const items = document.getElementById("fuelMomentumItems");
+  if (items) {
+    const rows = [
+      ["Fuel logged", snapshot.fuelLogged, "+1"],
+      ["Tomorrow protected", snapshot.tomorrowProtected, "+2"],
+      ["Diary trend", snapshot.barrierImproved, "+3"]
+    ];
+
+    items.innerHTML = rows
+      .map(([label, complete, points]) => `
+        <div class="fuel-momentum-item ${complete ? "complete" : ""}">
+          <span>${label}</span>
+          <strong>${complete ? "Complete" : "Pending"} ${points}</strong>
+        </div>
+      `)
+      .join("");
+  }
+
+  const message = document.getElementById("fuelMomentumMessage");
+  if (message) message.textContent = snapshot.message;
+}
+
 function renderDashboard() {
   const gs = gapStats();
   const complete = completedCount();
@@ -59,6 +90,7 @@ function renderDashboard() {
   if (dashboardCompletion) dashboardCompletion.textContent = `${complete}/${total}`;
 
   renderFuelGap();
+  renderFuelMomentum();
 
 
   const personalLongestGap = document.getElementById("personalLongestGap");
@@ -77,13 +109,13 @@ function renderDashboard() {
 
   const dashboardInsight = document.getElementById("dashboardInsight");
   if (dashboardInsight) {
-    dashboardInsight.textContent = "Live Fuel Status is now part of Fuel Operations.";
+    dashboardInsight.textContent = "Live Fuel Status is your default daily check-in.";
   }
 
   if (typeof nutritionBarrierForecast === "function") {
     const barrierForecast = nutritionBarrierForecast();
     const dashboardBarrierRisk = document.getElementById("dashboardBarrierRisk");
-    if (dashboardBarrierRisk) dashboardBarrierRisk.textContent = barrierForecast.riskLevelLabel;
+    if (dashboardBarrierRisk) dashboardBarrierRisk.textContent = `${barrierForecast.count} entries`;
 
     const dashboardBarrierNote = document.getElementById("dashboardBarrierNote");
     if (dashboardBarrierNote) dashboardBarrierNote.textContent = barrierForecast.dashboardNote;
@@ -116,15 +148,16 @@ function renderDashboard() {
   if (fastFlow) {
     const steps = [
       ["fuelConfirmation", "Step 1", "Fuel Confirmation", "pantry"],
-      ["dashboard", "Step 2", "Live Fuel status", "liveFuelStatus"],
-      ["nutritionBarriers", "Step 3", "Nutrition Barriers", "nutritionBarriers"]
+      ["fuelConfirmation", "Step 2", "Fuel Availability", "prep"],
+      ["dashboard", "Step 3", "Live Fuel Status", "liveFuelStatus"],
+      ["nutritionBarriers", "Step 4", "Nutrition Diary", "nutritionBarriers"]
     ];
 
     fastFlow.innerHTML = steps
       .map(([screen, step, label, key]) => `
-        <button class="flow-card ${state.completed[key] ? "done" : ""}" data-jump="${screen}">
+        <button class="flow-card ${isStepComplete(key) ? "done" : ""}" data-jump="${screen}">
           <span>${step}</span>
-          <strong>${state.completed[key] ? "✓ " : ""}${label}</strong>
+          <strong>${isStepComplete(key) ? "✓ " : ""}${label}</strong>
         </button>
       `)
       .join("");
@@ -136,18 +169,19 @@ function renderDashboard() {
 function renderChecklist() {
   const items = [
     ["pantry", "Fuel Confirmation"],
-    ["liveFuelStatus", "Live Fuel status"],
-    ["nutritionBarriers", "Nutrition Barriers"]
+    ["prep", "Fuel Availability"],
+    ["liveFuelStatus", "Live Fuel Status"],
+    ["nutritionBarriers", "Nutrition Diary"]
   ];
 
   const dailyChecklist = document.getElementById("dailyChecklist");
   if (dailyChecklist) {
     dailyChecklist.innerHTML = items
       .map(([key, label]) => `
-        <div class="check-item ${state.completed[key] ? "done" : ""}">
-          <span>${state.completed[key] ? "✓" : "○"}</span>
+        <div class="check-item ${isStepComplete(key) ? "done" : ""}">
+          <span>${isStepComplete(key) ? "✓" : "○"}</span>
           <strong>${label}</strong>
-          <span>${state.completed[key] ? "Done" : "Pending"}</span>
+          <span>${isStepComplete(key) ? "Done" : "Pending"}</span>
         </div>
       `)
       .join("");
@@ -157,10 +191,10 @@ function renderChecklist() {
   if (adherenceActions) {
     adherenceActions.innerHTML = items
       .map(([key, label]) => `
-        <label class="check-item ${state.completed[key] ? "done" : ""}">
-          <input type="checkbox" data-manual-complete="${key}" ${state.completed[key] ? "checked" : ""}>
+        <label class="check-item ${isStepComplete(key) ? "done" : ""}">
+          <input type="checkbox" data-manual-complete="${key}" ${isStepComplete(key) ? "checked" : ""}>
           <strong>${label}</strong>
-          <span>${state.completed[key] ? "Done" : "Pending"}</span>
+          <span>${isStepComplete(key) ? "Done" : "Pending"}</span>
         </label>
       `)
       .join("");

@@ -1,4 +1,10 @@
 const BARRIER_CATEGORIES = [
+  "Positive nutrition day",
+  "Neutral nutrition day",
+  "Poor preparation",
+  "Long gaps between meals",
+  "Snack availability issue",
+  "Training/work schedule disruption",
   "Planning gap",
   "Timing issue",
   "Low motivation / low bandwidth",
@@ -12,21 +18,15 @@ const BARRIER_CATEGORIES = [
   "Other"
 ];
 
-const BARRIER_TARGETS = [
-  "Calories",
-  "Protein",
-  "Carbs",
-  "Fat",
-  "Hydration",
-  "Pre-workout fuelling",
-  "Post-workout fuelling",
-  "Meal timing",
-  "Overall"
-];
-
 const BARRIER_WINDOWS = [2, 4, 6, 12, 18, 24];
 
 const BARRIER_FIXES = {
+  "Positive nutrition day": "Record what worked so it can be repeated.",
+  "Neutral nutrition day": "Keep logging the context around fuel decisions.",
+  "Poor preparation": "Protect tomorrow by confirming meals, snacks, shakes, and electrolytes.",
+  "Long gaps between meals": "Set up an accessible fuel option before the next long work or training block.",
+  "Snack availability issue": "Pack or restock snacks before your next shift or training session.",
+  "Training/work schedule disruption": "Prepare portable fuel before the next schedule pinch point.",
   "Planning gap": "Create a fallback meal plan.",
   "Timing issue": "Add fuelling timing prompts.",
   "Low motivation / low bandwidth": "Use minimum viable nutrition.",
@@ -39,6 +39,8 @@ const BARRIER_FIXES = {
   "Budget constraint": "Build a lower-cost fuel plan.",
   Other: "Review recent context."
 };
+
+const POSITIVE_DIARY_CATEGORIES = new Set(["Positive nutrition day", "Neutral nutrition day"]);
 
 function nutritionBarrierState() {
   state.nutritionBarriers = {
@@ -59,14 +61,8 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function parseOptionalNumber(value) {
-  if (value === null || value === undefined || String(value).trim() === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
 function barrierDate(log) {
-  const date = new Date(`${log.date || todayInputValue()}T00:00:00`);
+  const date = new Date(log.createdDate || `${log.date || todayInputValue()}T00:00:00`);
   return Number.isNaN(date.getTime()) ? startOfToday() : date;
 }
 
@@ -88,27 +84,110 @@ function topCount(counts) {
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || ["No patterns yet", 0];
 }
 
-function average(numbers) {
-  const values = numbers.filter(Number.isFinite);
-  if (!values.length) return null;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
+function nutritionBarrierTrendSnapshot() {
+  const todayStart = startOfToday();
+  const currentStart = new Date(todayStart);
+  currentStart.setDate(currentStart.getDate() - 6);
+  const previousStart = new Date(currentStart);
+  previousStart.setDate(previousStart.getDate() - 7);
 
-function possibleEnergyDeficit(logs, weeks) {
-  const calorieLogs = logs.filter(log => log.targetAffected === "Calories" && Number(log.deficitValue || 0) > 0);
-  if (!calorieLogs.length) return null;
-  const total = calorieLogs.reduce((sum, log) => sum + Number(log.deficitValue || 0), 0);
-  return Math.round((total / (Number(weeks) * 7)) * 7);
-}
+  const logs = nutritionBarrierState().logs;
+  const currentLogs = logs.filter(log => {
+    const date = barrierDate(log);
+    return date >= currentStart && date <= todayStart;
+  });
+  const previousLogs = logs.filter(log => {
+    const date = barrierDate(log);
+    return date >= previousStart && date < currentStart;
+  });
+  const currentCounts = countBy(currentLogs, log => log.barrierCategory);
+  const previousCounts = countBy(previousLogs, log => log.barrierCategory);
+  const improvedCategory = Object.entries(previousCounts)
+    .map(([category, previousCount]) => ({
+      category,
+      previousCount,
+      currentCount: currentCounts[category] || 0,
+      improvement: previousCount - (currentCounts[category] || 0)
+    }))
+    .filter(item => item.improvement > 0)
+    .sort((a, b) => b.improvement - a.improvement)[0];
+  const improved = previousLogs.length > 0 && currentLogs.length < previousLogs.length;
+  const label = improvedCategory?.category || "diary events";
 
-function barrierRiskLevel(score) {
-  if (score >= 65) return { level: "high", label: "High", status: "red" };
-  if (score >= 35) return { level: "moderate", label: "Moderate", status: "amber" };
-  return { level: "low", label: "Low", status: "green" };
+  return {
+    improved,
+    label,
+    currentCount: currentLogs.length,
+    previousCount: previousLogs.length,
+    message: improved
+      ? `Nutrition trend improving: fewer ${label.toLowerCase()} this week.`
+      : "Nutrition diary trend needs more data or fewer repeat challenges."
+  };
 }
 
 function suggestedBarrierFix(category) {
   return BARRIER_FIXES[category] || BARRIER_FIXES.Other;
+}
+
+function latestNutritionDiaryLog(logs) {
+  return [...(logs || [])]
+    .sort((a, b) => new Date(b.createdDate || b.date || 0) - new Date(a.createdDate || a.date || 0))[0] || null;
+}
+
+function sortedForecastRowsByStatus(status) {
+  if (typeof forecastRows !== "function") return [];
+  return forecastRows()
+    .filter(row => row.status === status)
+    .sort((a, b) => Number(a.daysUntilRunOut) - Number(b.daysUntilRunOut));
+}
+
+function rowDeadline(row) {
+  return row?.runOutShortDate && row.runOutShortDate !== "no run-out date"
+    ? ` before ${row.runOutShortDate}`
+    : " before your next training/work block";
+}
+
+function dynamicNutritionNextFix(logs, topCategory) {
+  const latestLog = latestNutritionDiaryLog(logs);
+  const positiveTone = POSITIVE_DIARY_CATEGORIES.has(latestLog?.barrierCategory) || POSITIVE_DIARY_CATEGORIES.has(topCategory);
+  const redRow = sortedForecastRowsByStatus("red")[0];
+  const amberRow = sortedForecastRowsByStatus("amber")[0];
+  const tomorrowProtected = typeof mealPrepResolvedToday === "function" ? mealPrepResolvedToday() : false;
+  const positivePrefix = positiveTone ? "Good day to maintain the system. " : "";
+
+  if (topCategory === "Snack availability issue") {
+    return `${positivePrefix}Pack or restock snacks before your next shift or training session.`;
+  }
+
+  if (topCategory === "Long gaps between meals") {
+    return `${positivePrefix}Set up an accessible fuel option before the next long work or training block.`;
+  }
+
+  if (topCategory === "Training/work schedule disruption") {
+    return `${positivePrefix}Prepare portable fuel before the next schedule pinch point.`;
+  }
+
+  if (topCategory === "Poor preparation" || !tomorrowProtected) {
+    return `${positivePrefix}Protect tomorrow by confirming meals, snacks, shakes, and electrolytes.`;
+  }
+
+  if (redRow) {
+    return `${positivePrefix}Prepare or restock ${redRow.label}${rowDeadline(redRow)}.`;
+  }
+
+  if (amberRow) {
+    return `${positivePrefix}Check ${amberRow.label} availability so tomorrow stays protected.`;
+  }
+
+  if (!tomorrowProtected) {
+    return `${positivePrefix}Protect tomorrow by confirming meals, snacks, shakes, and electrolytes.`;
+  }
+
+  if (positiveTone) {
+    return "Good day to maintain the system. Keep tomorrow protected.";
+  }
+
+  return suggestedBarrierFix(topCategory);
 }
 
 function nutritionBarrierForecast(weeks = nutritionBarrierState().insightWindowWeeks) {
@@ -116,65 +195,33 @@ function nutritionBarrierForecast(weeks = nutritionBarrierState().insightWindowW
   const count = logs.length;
 
   if (!count) {
+    const suggestedFix = dynamicNutritionNextFix(logs, "No patterns yet");
     return {
       logs,
       count: 0,
-      riskScore: 0,
-      riskLevel: "low",
-      riskLevelLabel: "Low",
-      status: "green",
       topBarrier: "No patterns yet",
       topBarrierCount: 0,
       topBarrierShare: 0,
-      mostAffectedTarget: "No patterns yet",
-      mostAffectedTargetCount: 0,
-      averageDeficit: null,
-      averageDeficitPercentage: null,
-      possibleEnergyDeficit: null,
-      suggestedFix: "Log what got in the way after a missed target.",
-      dashboardNote: "No nutrition barrier patterns yet."
+      latestExperience: "No entries yet",
+      suggestedFix,
+      dashboardNote: "No nutrition diary patterns yet."
     };
   }
 
   const barrierCounts = countBy(logs, log => log.barrierCategory);
-  const targetCounts = countBy(logs, log => log.targetAffected);
   const [topBarrier, topBarrierCount] = topCount(barrierCounts);
-  const [mostAffectedTarget, mostAffectedTargetCount] = topCount(targetCounts);
   const topBarrierShare = Math.round((topBarrierCount / count) * 100);
-  const averageDeficitValue = average(logs.map(log => Number(log.deficitValue)).filter(value => value > 0));
-  const averageDeficitPct = average(logs.map(log => Number(log.deficitPercentage)).filter(value => value > 0));
-  const forecastStatus = typeof worstForecast === "function" ? worstForecast()?.status : "green";
-  const eventsPerWeek = count / Number(weeks);
-  const frequencyScore = Math.min(35, eventsPerWeek * 16);
-  const severityScore = averageDeficitPct === null ? 0 : Math.min(25, averageDeficitPct * 0.35);
-  const repeatScore = Math.max(0, (topBarrierShare - 35) * 0.35);
-  const fuelForecastScore = forecastStatus === "red" ? 15 : forecastStatus === "amber" ? 8 : 0;
-  const trainingPressure = Number(state.plannedTraining || 0) / Math.max(1, Number(state.planningDays || 7));
-  const trainingScore = Math.min(10, trainingPressure * 14);
-  const riskScore = Math.max(0, Math.min(100, Math.round(frequencyScore + severityScore + repeatScore + fuelForecastScore + trainingScore)));
-  const risk = barrierRiskLevel(riskScore);
-  const dashboardNote = risk.level === "high"
-    ? "Higher risk of missing fuelling targets; fix the repeated barrier first."
-    : risk.level === "moderate"
-      ? "Higher risk of missing fuelling targets if this pattern repeats."
-      : "Low barrier pattern in this window.";
+  const latestExperience = latestNutritionDiaryLog(logs)?.barrierCategory || "No entries yet";
+  const dashboardNote = `Most common experience: ${topBarrier}.`;
 
   return {
     logs,
     count,
-    riskScore,
-    riskLevel: risk.level,
-    riskLevelLabel: risk.label,
-    status: risk.status,
     topBarrier,
     topBarrierCount,
     topBarrierShare,
-    mostAffectedTarget,
-    mostAffectedTargetCount,
-    averageDeficit: averageDeficitValue,
-    averageDeficitPercentage: averageDeficitPct,
-    possibleEnergyDeficit: possibleEnergyDeficit(logs, weeks),
-    suggestedFix: suggestedBarrierFix(topBarrier),
+    latestExperience,
+    suggestedFix: dynamicNutritionNextFix(logs, topBarrier),
     dashboardNote
   };
 }
@@ -182,48 +229,38 @@ function nutritionBarrierForecast(weeks = nutritionBarrierState().insightWindowW
 function nutritionBarrierReportSummary() {
   const forecast = nutritionBarrierForecast();
   if (!forecast.count) {
-    return "- No nutrition barrier patterns yet. Log what got in the way after a missed target and Fuel Guard will spot repeat patterns here.";
+    return "- No nutrition diary patterns yet. Log what influenced your day and Fuel Guard will spot repeat patterns here.";
   }
 
   return [
-    `- Risk level: ${forecast.riskLevelLabel}`,
-    `- Top barrier: ${forecast.topBarrier}`,
-    `- Most affected target: ${forecast.mostAffectedTarget}`,
+    `- Entries logged: ${forecast.count}`,
+    `- Most common experience: ${forecast.topBarrier}`,
+    `- Latest experience: ${forecast.latestExperience}`,
     `- Suggested next fix: ${forecast.suggestedFix}`
   ].join("\n");
 }
 
 function saveBarrierLog() {
-  const date = document.getElementById("barrierDate")?.value || todayInputValue();
   const barrierCategory = document.getElementById("barrierCategory")?.value || "";
-  const targetAffected = document.getElementById("barrierTarget")?.value || "";
-  if (!barrierCategory || !targetAffected) return;
+  if (!barrierCategory) return;
 
-  const targetValue = parseOptionalNumber(document.getElementById("barrierTargetValue")?.value);
-  const actualValue = parseOptionalNumber(document.getElementById("barrierActualValue")?.value);
-  const hasDeficitInputs = targetValue !== null && actualValue !== null;
-  const deficitValue = hasDeficitInputs ? Math.max(0, targetValue - actualValue) : null;
-  const deficitPercentage = hasDeficitInputs && targetValue > 0 ? Math.round((deficitValue / targetValue) * 100) : null;
   const note = document.getElementById("barrierNote")?.value.trim() || "";
+  const createdDate = new Date().toISOString();
 
   nutritionBarrierState().logs.push({
     id: uid(),
-    date,
+    date: todayInputValue(),
     barrierCategory,
-    targetAffected,
-    targetValue,
-    actualValue,
-    deficitValue,
-    deficitPercentage,
     note,
-    createdDate: new Date().toISOString()
+    createdDate
   });
 
   state.completed.nutritionBarriers = true;
   addAdherence("nutritionBarriers");
+  if (typeof syncFuelMomentumBarrierTrendImprovement === "function") syncFuelMomentumBarrierTrendImprovement();
   save();
   renderAll();
-  ["barrierTargetValue", "barrierActualValue", "barrierNote"].forEach(id => {
+  ["barrierNote"].forEach(id => {
     const field = document.getElementById(id);
     if (field) field.value = "";
   });
@@ -231,44 +268,17 @@ function saveBarrierLog() {
 
 function deleteBarrierLog(id) {
   nutritionBarrierState().logs = nutritionBarrierState().logs.filter(log => log.id !== id);
+  if (typeof syncFuelMomentumBarrierTrendImprovement === "function") syncFuelMomentumBarrierTrendImprovement();
   save();
   renderAll();
 }
 
-function formatBarrierDeficit(log) {
-  if (log.deficitValue === null || log.deficitValue === undefined) return "No deficit data";
-  const value = `${Number(log.deficitValue).toFixed(Number(log.deficitValue) % 1 ? 1 : 0)}`;
-  return log.deficitPercentage === null || log.deficitPercentage === undefined
-    ? `${value} deficit`
-    : `${value} deficit (${log.deficitPercentage}%)`;
-}
-
 function renderNutritionBarrierForm() {
-  const barrierState = nutritionBarrierState();
-  const dateInput = document.getElementById("barrierDate");
-  if (dateInput && !dateInput.value) dateInput.value = todayInputValue();
-
   const categorySelect = document.getElementById("barrierCategory");
   if (categorySelect) {
     const selected = categorySelect.value || BARRIER_CATEGORIES[0];
     categorySelect.innerHTML = BARRIER_CATEGORIES
       .map(category => `<option value="${escapeHtml(category)}" ${selected === category ? "selected" : ""}>${escapeHtml(category)}</option>`)
-      .join("");
-  }
-
-  const targetSelect = document.getElementById("barrierTarget");
-  if (targetSelect) {
-    const selected = targetSelect.value || BARRIER_TARGETS[0];
-    targetSelect.innerHTML = BARRIER_TARGETS
-      .map(target => `<option value="${escapeHtml(target)}" ${selected === target ? "selected" : ""}>${escapeHtml(target)}</option>`)
-      .join("");
-  }
-
-  const windowSelect = document.getElementById("barrierInsightWindow");
-  if (windowSelect) {
-    windowSelect.value = String(barrierState.insightWindowWeeks);
-    windowSelect.innerHTML = BARRIER_WINDOWS
-      .map(weeks => `<option value="${weeks}" ${Number(barrierState.insightWindowWeeks) === weeks ? "selected" : ""}>${weeks} weeks</option>`)
       .join("");
   }
 }
@@ -278,11 +288,9 @@ function renderNutritionBarrierSummary(forecast) {
   if (!summary) return;
 
   summary.innerHTML = `
-    <div class="mini-card"><p class="label">Current Risk</p><h3><span class="status-pill ${forecast.status}">${forecast.riskLevelLabel}</span></h3></div>
-    <div class="mini-card"><p class="label">Risk Score</p><h3>${forecast.riskScore}/100</h3></div>
-    <div class="mini-card"><p class="label">Most Common Barrier</p><h3>${escapeHtml(forecast.topBarrier)}</h3></div>
-    <div class="mini-card"><p class="label">Most Affected Target</p><h3>${escapeHtml(forecast.mostAffectedTarget)}</h3></div>
-    <div class="mini-card"><p class="label">Possible Energy Deficit</p><h3>${forecast.possibleEnergyDeficit === null ? "No calorie data" : `${forecast.possibleEnergyDeficit} kcal / 7 days`}</h3></div>
+    <div class="mini-card"><p class="label">Entries Logged</p><h3>${forecast.count}</h3></div>
+    <div class="mini-card"><p class="label">Most Common Experience</p><h3>${escapeHtml(forecast.topBarrier)}</h3></div>
+    <div class="mini-card"><p class="label">Latest Experience</p><h3>${escapeHtml(forecast.latestExperience)}</h3></div>
     <div class="mini-card"><p class="label">Suggested Next Fix</p><h3>${escapeHtml(forecast.suggestedFix)}</h3></div>
   `;
 }
@@ -291,22 +299,22 @@ function renderNutritionBarrierInsights(forecast) {
   const insights = document.getElementById("barrierInsights");
   if (!insights) return;
 
+  const trend = nutritionBarrierTrendSnapshot();
+  const trendHtml = trend.improved
+    ? `<div class="fuel-momentum-feedback"><strong>${escapeHtml(trend.message)}</strong></div>`
+    : "";
+
   if (!forecast.count) {
-    insights.innerHTML = `<p class="muted">No nutrition barrier patterns yet. Log what got in the way after a missed target and Fuel Guard will spot repeat patterns here.</p>`;
+    insights.innerHTML = trendHtml || `<p class="muted">No nutrition diary patterns yet. Log what influenced your day and Fuel Guard will spot repeat patterns here.</p>`;
     return;
   }
 
-  const averageDeficit = forecast.averageDeficit === null
-    ? "No deficit data"
-    : `${Math.round(forecast.averageDeficit)} average deficit${forecast.averageDeficitPercentage === null ? "" : ` (${Math.round(forecast.averageDeficitPercentage)}%)`}`;
-
   insights.innerHTML = `
-    <div class="row"><div><div class="item-name">Top barrier</div><div class="row-note">${escapeHtml(forecast.topBarrier)}</div></div><strong>${forecast.topBarrierCount}</strong></div>
-    <div class="row"><div><div class="item-name">Barrier count</div><div class="row-note">Selected window</div></div><strong>${forecast.count}</strong></div>
-    <div class="row"><div><div class="item-name">Percentage share</div><div class="row-note">Top barrier share</div></div><strong>${forecast.topBarrierShare}%</strong></div>
-    <div class="row"><div><div class="item-name">Average deficit</div><div class="row-note">Where target and actual values exist</div></div><strong>${averageDeficit}</strong></div>
-    <div class="row"><div><div class="item-name">Most affected target</div><div class="row-note">${escapeHtml(forecast.mostAffectedTarget)}</div></div><strong>${forecast.mostAffectedTargetCount}</strong></div>
-    <div class="row"><div><div class="item-name">Suggested next fix</div><div class="row-note">A repeated barrier pattern may increase under-fuelling risk.</div></div><strong>${escapeHtml(forecast.suggestedFix)}</strong></div>
+    ${trendHtml}
+    <div class="row"><div><div class="item-name">Most common experience</div><div class="row-note">${escapeHtml(forecast.topBarrier)}</div></div><strong>${forecast.topBarrierCount}</strong></div>
+    <div class="row"><div><div class="item-name">Diary entries</div><div class="row-note">Selected window</div></div><strong>${forecast.count}</strong></div>
+    <div class="row"><div><div class="item-name">Latest experience</div><div class="row-note">Most recent diary entry</div></div><strong>${escapeHtml(forecast.latestExperience)}</strong></div>
+    <div class="row"><div><div class="item-name">Suggested next fix</div><div class="row-note">Based on Today's experiences and current fuel setup.</div></div><strong>${escapeHtml(forecast.suggestedFix)}</strong></div>
   `;
 }
 
@@ -315,20 +323,20 @@ function renderNutritionBarrierRecentLogs() {
   if (!recentLogs) return;
 
   const logs = [...nutritionBarrierState().logs]
-    .sort((a, b) => new Date(b.date || b.createdDate) - new Date(a.date || a.createdDate))
+    .sort((a, b) => new Date(b.createdDate || b.date) - new Date(a.createdDate || a.date))
     .slice(0, 12);
 
   recentLogs.innerHTML = logs.length
     ? logs.map(log => `
       <div class="row">
         <div>
-          <div class="item-name">${escapeHtml(log.barrierCategory)} - ${escapeHtml(log.targetAffected)}</div>
-          <div class="row-note">${escapeHtml(formatShortDate(barrierDate(log)))} | ${escapeHtml(formatBarrierDeficit(log))}${log.note ? ` | ${escapeHtml(log.note)}` : ""}</div>
+          <div class="item-name">${escapeHtml(log.barrierCategory)}</div>
+          <div class="row-note">${escapeHtml(formatShortDate(barrierDate(log)))}${log.note ? ` | ${escapeHtml(log.note)}` : ""}</div>
         </div>
         <button class="secondary" type="button" data-delete-barrier-log="${escapeHtml(log.id)}">Delete</button>
       </div>
     `).join("")
-    : `<p class="muted">No nutrition barrier patterns yet. Log what got in the way after a missed target and Fuel Guard will spot repeat patterns here.</p>`;
+    : `<p class="muted">No nutrition diary patterns yet. Log what influenced your day and Fuel Guard will spot repeat patterns here.</p>`;
 }
 
 function renderNutritionBarriers() {
@@ -346,11 +354,4 @@ document.addEventListener("click", event => {
 
   const deleteButton = event.target.closest("[data-delete-barrier-log]");
   if (deleteButton) deleteBarrierLog(deleteButton.dataset.deleteBarrierLog);
-});
-
-document.addEventListener("change", event => {
-  if (!event.target.matches("#barrierInsightWindow")) return;
-  nutritionBarrierState().insightWindowWeeks = Number(event.target.value);
-  save();
-  renderAll();
 });

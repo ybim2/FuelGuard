@@ -69,10 +69,10 @@ System Status
 Shopping Priority
 ${critical.length ? critical.map(row => `- ${row.label}: ${row.nextAction} (${row.status.toUpperCase()})`).join("\n") : "- All tracked food is green. Keep monitoring."}
 
-Nutrition Barriers
-${typeof nutritionBarrierReportSummary === "function" ? nutritionBarrierReportSummary() : "- No nutrition barrier patterns yet. Log what got in the way after a missed target and Fuel Guard will spot repeat patterns here."}
+Nutrition Diary
+${typeof nutritionBarrierReportSummary === "function" ? nutritionBarrierReportSummary() : "- No nutrition diary patterns yet. Log what influenced your day and Fuel Guard will spot repeat patterns here."}
 
-Fuel Forecast
+Fuel Confirmation Run-Out Forecast
 ${forecast.map(row => `- ${row.label}: ${row.currentStock} ${row.unit}, ${row.dailyBurnRate}/day, runs out ${row.runOutShortDate}, ${row.status.toUpperCase()}`).join("\n")}
 `;
 }
@@ -198,6 +198,31 @@ async function importPantryTemplate(file) {
   }
 }
 
+async function exportPantryTemplate() {
+  try {
+    readForecastForm();
+    setPantryImportStatus("Preparing Excel export...");
+    const XLSX = await loadXlsxParser();
+    const rows = forecastRows().map(row => ({
+      "Item Name": row.label,
+      Category: labelForForecastGroup(row.group),
+      Quantity: row.currentStock,
+      Unit: row.unit,
+      Notes: row.notes || ""
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows, {
+      header: ["Item Name", "Category", "Quantity", "Unit", "Notes"]
+    });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Weekly Pantry");
+    XLSX.writeFile(workbook, "fuel-guard-weekly-pantry-template.xlsx");
+    setPantryImportStatus(`Exported ${rows.length} item${rows.length === 1 ? "" : "s"}.`);
+  } catch (error) {
+    console.error(error);
+    setPantryImportStatus(error.message || "Export failed. Try again.");
+  }
+}
+
 function switchScreen(screen) {
   const target = document.getElementById(screen);
   if (!target) return;
@@ -219,10 +244,9 @@ function switchScreen(screen) {
 
   const titles = {
     dashboard: "Live Fuel Status",
-    shopping: "Fuel Forecast",
     fuelConfirmation: "Fuel Confirmation",
-    checklist: "Checklist",
-    nutritionBarriers: "Nutrition Barriers",
+    checklist: "Process Checklist",
+    nutritionBarriers: "Nutrition Diary",
     adherence: "Adherence",
     bodyMind: "Body & Mind",
     logs: "Activity Log",
@@ -230,10 +254,9 @@ function switchScreen(screen) {
   };
 
   const subtitles = {
-    dashboard: "Track your live fuel gap and reset the timer when you fuel.",
-    fuelConfirmation: "Confirm categories one by one before generating the forecast.",
-    shopping: "Confirmed fuel information appears here as run-out predictions and shopping need.",
-    nutritionBarriers: "Spot what disrupts fuelling and choose the next fix.",
+    dashboard: "Check current fuel risk and log fuel fast.",
+    fuelConfirmation: "Confirm food stock, review run-out risk, then protect tomorrow.",
+    nutritionBarriers: "Reflect on what's influencing your fuelling.",
     adherence: "Review and adjust the operational stages completed today.",
     bodyMind: "Log how the fuel system felt in the body."
   };
@@ -294,8 +317,45 @@ document.addEventListener("click", event => {
   const fuelledButton = event.target.closest("#fuelledButton");
   if (fuelledButton) recordFuelled();
 
+  const saveShoppingButton = event.target.closest("#saveShopping");
+  if (saveShoppingButton) {
+    readForecastForm();
+    if (allForecastCategoriesConfirmed()) {
+      state.fuelInfoConfirmed = true;
+      state.completed.pantry = true;
+      addAdherence("pantry");
+      save();
+      renderAll();
+    } else {
+      resetFuelInfoConfirmation();
+      save();
+      renderAll();
+    }
+  }
+
+  const mealPrepCheckButton = event.target.closest("[data-meal-prep-check]");
+  if (mealPrepCheckButton) confirmMealPreparationItem(mealPrepCheckButton.dataset.mealPrepCheck);
+
+  const mealPrepComplete = event.target.closest("[data-meal-prep-complete]");
+  if (mealPrepComplete) confirmMealPrepComplete();
+
+  const mealPrepNotYet = event.target.closest("[data-meal-prep-not-yet]");
+  if (mealPrepNotYet) {
+    if (mealPrepNotYet.dataset.mealPrepNotYet) markMealPreparationItemNotYet(mealPrepNotYet.dataset.mealPrepNotYet);
+    else markMealPrepNotYet();
+  }
+
   const jump = event.target.closest("[data-jump]");
   if (jump) switchScreen(jump.dataset.jump);
+
+  const clearCategoryButton = event.target.closest("[data-clear-forecast-category]");
+  if (clearCategoryButton) {
+    event.preventDefault();
+    readForecastForm();
+    const groupKey = clearCategoryButton.dataset.clearForecastCategory;
+    const removedCount = clearForecastCategory(groupKey);
+    setPantryImportStatus(`Cleared ${removedCount} item${removedCount === 1 ? "" : "s"} from ${labelForForecastGroup(groupKey)}.`);
+  }
 
   const categoryButton = event.target.closest("[data-confirm-forecast-category]");
   if (categoryButton) {
@@ -333,24 +393,20 @@ if (mealEditor) {
   };
 }
 
-const fuelForecastList = document.getElementById("fuelForecastList");
-if (fuelForecastList) {
-  fuelForecastList.onchange = () => {
-    readForecastForm();
-    save();
-    renderAll();
-  };
-}
-
 const forecastConfirmationFlow = document.getElementById("forecastConfirmationFlow");
 if (forecastConfirmationFlow) {
   forecastConfirmationFlow.oninput = () => {
     readForecastForm();
+    resetFuelInfoConfirmation();
+    document.querySelectorAll("[data-meal-prep-warning-slot]").forEach(slot => {
+      slot.innerHTML = "";
+    });
     save();
   };
 
   forecastConfirmationFlow.onchange = event => {
     readForecastForm();
+    resetFuelInfoConfirmation();
     save();
     if (event.target.matches("[data-forecast-group]")) renderAll();
   };
@@ -358,6 +414,8 @@ if (forecastConfirmationFlow) {
 
 
 const importPantryTemplateButton = document.getElementById("importPantryTemplate");
+const exportPantryTemplateButton = document.getElementById("exportPantryTemplate");
+const clearWholePantryButton = document.getElementById("clearWholePantry");
 const pantryTemplateInput = document.getElementById("pantryTemplateInput");
 if (importPantryTemplateButton && pantryTemplateInput) {
   importPantryTemplateButton.onclick = () => pantryTemplateInput.click();
@@ -367,17 +425,15 @@ if (importPantryTemplateButton && pantryTemplateInput) {
   };
 }
 
-const saveShopping = document.getElementById("saveShopping");
-if (saveShopping) {
-  saveShopping.onclick = () => {
-    readForecastForm();
-    if (allForecastCategoriesConfirmed()) {
-      markDone("shopping");
-      switchScreen("shopping");
-    } else {
-      save();
-      renderAll();
-    }
+if (exportPantryTemplateButton) {
+  exportPantryTemplateButton.onclick = exportPantryTemplate;
+}
+
+if (clearWholePantryButton) {
+  clearWholePantryButton.onclick = () => {
+    if (!window.confirm("Clear the whole pantry? This removes every item from Fuel Confirmation.")) return;
+    clearWholePantry();
+    setPantryImportStatus("Whole pantry cleared.");
   };
 }
 
@@ -385,6 +441,25 @@ const saveManualAdherence = document.getElementById("saveManualAdherence");
 if (saveManualAdherence) {
   saveManualAdherence.onclick = () => {
     document.querySelectorAll("[data-manual-complete]").forEach(checkbox => {
+      if (checkbox.dataset.manualComplete === "prep" && checkbox.checked) {
+        const prep = mealPrepState();
+        const key = todayKey();
+        prep.resolvedDate = key;
+        prep.snackPrepDate = key;
+        MEAL_PREPARATION_CHECKS.forEach(check => {
+          prep.checks[check.key] = key;
+          prep.notYetChecks[check.key] = "";
+        });
+        recordTomorrowProtectedMomentum();
+      }
+      if (checkbox.dataset.manualComplete === "prep" && !checkbox.checked) {
+        const prep = mealPrepState();
+        prep.resolvedDate = "";
+        prep.snackPrepDate = "";
+        MEAL_PREPARATION_CHECKS.forEach(check => {
+          prep.checks[check.key] = "";
+        });
+      }
       state.completed[checkbox.dataset.manualComplete] = checkbox.checked;
     });
     save();

@@ -7,7 +7,7 @@ Updates:
 - Put Checklist above Dashboard in the navigation.
 - Removed the Purpose menu and Start With Why screen.
 - Removed the standalone Confirm Pantry tab.
-- Fuel Operations now contains Fuel Confirmation, Fuel Forecast, Live Fuel Status, and Nutrition Barriers.
+- Fuel Operations now contains Fuel Confirmation and Nutrition Diary.
 - Moved the sequential confirmation workflow into Fuel Confirmation.
 - Fuel Forecast now displays the confirmed forecast output and Next Action list.
 - Removed the Reporting menu and Download Report tab.

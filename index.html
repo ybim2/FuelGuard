@@ -11,27 +11,26 @@
     <aside class="sidebar">
       <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Prevent under-fuelling before it happens</span></div></div>
       <nav class="side-nav">
-        <button class="nav-item" data-screen="checklist">Checklist</button>
+        <button class="nav-item active" data-screen="dashboard">Live Fuel Status</button>
 
         <details class="nav-group" open>
           <summary>Fuel Operations</summary>
           <button class="nav-item sub" data-screen="fuelConfirmation">Fuel Confirmation</button>
-          <button class="nav-item sub active" data-screen="dashboard">Live Fuel Status</button>
-          <button class="nav-item sub" data-screen="shopping">Fuel Forecast</button>
-          <button class="nav-item sub" data-screen="nutritionBarriers">Nutrition Barriers</button>
+          <button class="nav-item sub" data-screen="nutritionBarriers">Nutrition Diary</button>
         </details>
 
         <details class="nav-group">
-          <summary>Review</summary>
+          <summary>Support</summary>
+          <button class="nav-item sub" data-screen="checklist">Process Checklist</button>
           <button class="nav-item sub" data-screen="logs">Activity Log</button>
         </details>
       </nav>
-      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/3 complete</strong><p>Complete your daily fuel maintenance.</p></div>
+      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/4 complete</strong><p>Complete your daily fuel maintenance.</p></div>
     </aside>
 
     <main class="app">
       <header class="topbar">
-        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">Live Fuel Status</h1><p id="pageSubtitle">Prevent under-fuelling before it happens.</p></div>
+        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">Live Fuel Status</h1><p id="pageSubtitle">Check current fuel risk and log fuel fast.</p></div>
         <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Calculating</strong></div>
       </header>
 
@@ -42,7 +41,7 @@
               <p class="label">Fuel Gap</p>
               <h2>Live fuel status</h2>
             </div>
-            <button id="fuelledButton" class="fuelled-button" type="button">I ATE / FUELLED</button>
+            <button id="fuelledButton" class="fuelled-button" type="button">I fuelled</button>
           </div>
 
           <div class="grid three fuel-status-grid">
@@ -65,34 +64,16 @@
           </div>
         </article>
 
-        <div class="grid two">
-          <article class="card metric-card">
-            <p class="label">Checklist</p>
-            <h2 id="dashboardCompletion">0/3</h2>
-            <p>Daily system checklist and step progress.</p>
-            <button class="secondary dashboard-jump" data-jump="checklist">Open Checklist</button>
-          </article>
-
-          <article class="card metric-card">
-            <p class="label">Barrier Risk</p>
-            <h2 id="dashboardBarrierRisk">Low</h2>
-            <p id="dashboardBarrierNote">No nutrition barrier patterns yet.</p>
-            <button class="secondary dashboard-jump" data-jump="nutritionBarriers">Open Nutrition Barriers</button>
-          </article>
-        </div>
-
         <article class="card insight dismissible" id="dashboardTip">
           <div class="icon">💡</div>
-          <p id="dashboardInsight">Live Fuel Status is now part of Fuel Operations.</p>
+          <p id="dashboardInsight">Live Fuel Status is your default daily check-in.</p>
           <button class="tip-close" data-close-tip="dashboardTip" aria-label="Close tip">×</button>
         </article>
       </section>
 
-
-
       <section id="checklist" class="screen">
         <article class="card">
-          <h2>Fuel Management Steps</h2>
+          <h2>Process Checklist</h2>
           <p class="muted">Each operational stage turns green as it is complete.</p>
           <section class="fast-flow" id="fastFlow"></section>
         </article>
@@ -101,21 +82,17 @@
       <section id="fuelConfirmation" class="screen">
         <article class="card">
           <h2>Fuel Confirmation</h2>
-          <p class="muted">Confirm meals, snacks, supplements and electrolytes one category at a time before generating the forecast.</p>
+          <p class="muted">Confirm stock by category, review run-out risk in the table, then check whether tomorrow is protected.</p>
           <div class="pantry-import-panel">
-            <div class="button-row pantry-import-row"><button id="importPantryTemplate" class="secondary" type="button">Import Weekly Pantry Template</button><input id="pantryTemplateInput" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden><span id="pantryImportStatus" class="row-note"></span></div>
-            <p class="import-help">Excel file upload supported for rows containing: Item Name, Category, Quantity, Unit, and optional Notes.</p>
+            <div class="button-row pantry-import-row"><button id="exportPantryTemplate" class="secondary" type="button">Download Pantry Upload Template</button><button id="importPantryTemplate" class="secondary" type="button">Upload Pantry Items</button><button id="clearWholePantry" class="secondary danger-secondary" type="button">Clear Whole Pantry</button><input id="pantryTemplateInput" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden><span id="pantryImportStatus" class="row-note"></span></div>
+            <div class="import-help">
+              <p><strong>Download pantry template</strong> - use this template to fill in the items you have.</p>
+              <p><strong>Upload pantry items</strong> - populate the table with your items.</p>
+              <p><strong>Clear whole pantry</strong> - remove all items from the table.</p>
+            </div>
           </div>
           <div id="forecastConfirmationFlow" class="forecast-flow"></div>
-          <div class="button-row"><button id="saveShopping" class="primary">Confirm Fuel Information</button></div>
-        </article>
-      </section>
-
-      <section id="shopping" class="screen">
-        <article class="card">
-          <h2>Fuel Forecast</h2>
-          <p class="muted">Confirmed fuel information appears here as run-out predictions and shopping need.</p>
-          <div id="fuelForecastList" class="forecast-list"></div>
+          <div class="fuel-availability-slot" data-meal-prep-warning-slot></div>
         </article>
       </section>
 
@@ -130,28 +107,23 @@
 
       <section id="nutritionBarriers" class="screen">
         <article class="card">
-          <h2>Nutrition Barriers</h2>
-          <p class="muted">Know what keeps disrupting your fuelling. Know what to fix next.</p>
+          <h2>Nutrition Diary</h2>
+          <p class="muted">Reflect on what's influencing your fuelling.</p>
           <div id="barrierSummary" class="grid three"></div>
         </article>
 
         <article class="card">
-          <h2>Log What Got In The Way</h2>
+          <h2>Log what influenced your day</h2>
           <div class="form-grid">
-            <label>Date<input id="barrierDate" type="date"></label>
-            <label>Barrier Category<select id="barrierCategory"></select></label>
-            <label>Target Affected<select id="barrierTarget"></select></label>
-            <label>Target Value<input id="barrierTargetValue" type="number" min="0" step="0.01" placeholder="Optional"></label>
-            <label>Actual Value<input id="barrierActualValue" type="number" min="0" step="0.01" placeholder="Optional"></label>
+            <label>Today's experiences<select id="barrierCategory"></select></label>
             <label>Note<textarea id="barrierNote" rows="3" placeholder="Optional note"></textarea></label>
           </div>
-          <div class="button-row"><button id="saveBarrierLog" class="primary" type="button">Save Barrier Log</button></div>
+          <div class="button-row"><button id="saveBarrierLog" class="primary" type="button">Save Diary Log</button></div>
         </article>
 
         <article class="card">
-          <div class="button-row">
-            <h2>Barrier Patterns</h2>
-            <label>Insight Window<select id="barrierInsightWindow"></select></label>
+          <div class="button-row nutrition-patterns-header">
+            <h2>Nutrition Patterns</h2>
           </div>
           <div id="barrierInsights" class="list"></div>
         </article>
