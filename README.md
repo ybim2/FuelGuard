@@ -3,14 +3,13 @@
 Applied to the uploaded files only.
 
 Updates:
-- Updated visible product language to "Know when you'll run out. Know when to shop."
+- Updated visible product language to "Prevent under-fuelling before it happens."
 - Put Checklist above Dashboard in the navigation.
 - Removed the Purpose menu and Start With Why screen.
 - Removed the standalone Confirm Pantry tab.
-- Setup Actions now contains Fuel Confirmation, Fuel Forecast, and Download Report.
+- Fuel Operations now contains Fuel Confirmation, Fuel Forecast, Live Fuel Status, and Nutrition Barriers.
 - Moved the sequential confirmation workflow into Fuel Confirmation.
 - Fuel Forecast now displays the confirmed forecast output and Next Action list.
-- Added a Download Report button at the bottom of the Next Action section.
-- Connected both report download buttons to the same download action.
+- Removed the Reporting menu and Download Report tab.
 - Renamed Daily Burn Rate to Daily Consumption Rate in the UI.
 - Locked run-out predictions until every fuel category is confirmed.
