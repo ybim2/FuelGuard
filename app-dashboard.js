@@ -116,15 +116,16 @@ function renderDashboard() {
   if (fastFlow) {
     const steps = [
       ["fuelConfirmation", "Step 1", "Fuel Confirmation", "pantry"],
-      ["dashboard", "Step 2", "Live Fuel status", "liveFuelStatus"],
-      ["nutritionBarriers", "Step 3", "Nutrition Barriers", "nutritionBarriers"]
+      ["fuelConfirmation", "Step 2", "Fuel Availability", "prep"],
+      ["dashboard", "Step 3", "Live Fuel Status", "liveFuelStatus"],
+      ["nutritionBarriers", "Step 4", "Nutrition Barriers", "nutritionBarriers"]
     ];
 
     fastFlow.innerHTML = steps
       .map(([screen, step, label, key]) => `
-        <button class="flow-card ${state.completed[key] ? "done" : ""}" data-jump="${screen}">
+        <button class="flow-card ${isStepComplete(key) ? "done" : ""}" data-jump="${screen}">
           <span>${step}</span>
-          <strong>${state.completed[key] ? "✓ " : ""}${label}</strong>
+          <strong>${isStepComplete(key) ? "✓ " : ""}${label}</strong>
         </button>
       `)
       .join("");
@@ -136,7 +137,8 @@ function renderDashboard() {
 function renderChecklist() {
   const items = [
     ["pantry", "Fuel Confirmation"],
-    ["liveFuelStatus", "Live Fuel status"],
+    ["prep", "Fuel Availability"],
+    ["liveFuelStatus", "Live Fuel Status"],
     ["nutritionBarriers", "Nutrition Barriers"]
   ];
 
@@ -144,10 +146,10 @@ function renderChecklist() {
   if (dailyChecklist) {
     dailyChecklist.innerHTML = items
       .map(([key, label]) => `
-        <div class="check-item ${state.completed[key] ? "done" : ""}">
-          <span>${state.completed[key] ? "✓" : "○"}</span>
+        <div class="check-item ${isStepComplete(key) ? "done" : ""}">
+          <span>${isStepComplete(key) ? "✓" : "○"}</span>
           <strong>${label}</strong>
-          <span>${state.completed[key] ? "Done" : "Pending"}</span>
+          <span>${isStepComplete(key) ? "Done" : "Pending"}</span>
         </div>
       `)
       .join("");
@@ -157,10 +159,10 @@ function renderChecklist() {
   if (adherenceActions) {
     adherenceActions.innerHTML = items
       .map(([key, label]) => `
-        <label class="check-item ${state.completed[key] ? "done" : ""}">
-          <input type="checkbox" data-manual-complete="${key}" ${state.completed[key] ? "checked" : ""}>
+        <label class="check-item ${isStepComplete(key) ? "done" : ""}">
+          <input type="checkbox" data-manual-complete="${key}" ${isStepComplete(key) ? "checked" : ""}>
           <strong>${label}</strong>
-          <span>${state.completed[key] ? "Done" : "Pending"}</span>
+          <span>${isStepComplete(key) ? "Done" : "Pending"}</span>
         </label>
       `)
       .join("");
