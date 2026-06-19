@@ -36,157 +36,185 @@ function dailyConsumptionUnit(row) {
   return row.imported ? "grams/day" : (row.dailyUseUnit || "per day");
 }
 
+function buyPrepByDate(row) {
+  if (!Number.isFinite(row.daysUntilRunOut)) return "No date";
+  if (row.status === "green") return "No immediate action";
+  return row.runOutShortDate;
+}
 
-function renderShopping() {
-  const allConfirmed = allForecastCategoriesConfirmed();
+function confirmationRiskText(row) {
+  if (row.status === "red") return "Urgent. Likely under-fuelling risk if no action is taken.";
+  if (row.status === "amber") return "Running low soon. Plan to buy or prep.";
+  return "Enough stock. No immediate action.";
+}
+
+function renderFuelConfirmationRow(row, complete) {
+  return `
+    <div class="confirmation-row">
+      <div>
+        ${renderForecastIdentity(row)}
+        <div class="row-note">${escapeHtml(labelForForecastGroup(row.group))}</div>
+      </div>
+      <label class="forecast-field">
+        <span>Current Stock</span>
+        <input type="number" min="0" step="0.01" value="${row.currentStock}" data-forecast-stock="${row.key}">
+        <span>${escapeHtml(row.unit)}</span>
+      </label>
+      <label class="forecast-field">
+        <span>${dailyConsumptionLabel(row)}</span>
+        <input type="number" min="0" step="${row.imported ? "1" : "0.01"}" value="${row.dailyBurnRate}" data-forecast-burn="${row.key}">
+        <span>${dailyConsumptionUnit(row)}</span>
+      </label>
+      <div>
+        <strong>${Number.isFinite(row.daysUntilRunOut) ? row.runOutShortDate : "No run-out date"}</strong>
+        <div class="row-note">${formatDays(row.daysUntilRunOut)}</div>
+      </div>
+      <div>
+        <strong>${escapeHtml(buyPrepByDate(row))}</strong>
+        <div class="row-note">${row.status === "green" ? "Monitor only" : "Action window"}</div>
+      </div>
+      <div>
+        <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
+        <div class="row-note">${escapeHtml(confirmationRiskText(row))}</div>
+      </div>
+      <div>
+        <span class="category-status ${complete ? "complete" : ""}">${complete ? "Confirmed" : "Pending"}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderFuelConfirmationCategorySections({ reviewMode = false } = {}) {
   const nextCategory = nextForecastCategory();
-  const confirmationFlow = document.getElementById("forecastConfirmationFlow");
 
-  if (confirmationFlow) {
-    confirmationFlow.innerHTML = forecastGroupsForPantry()
-      .map(group => {
-        const rows = forecastRows().filter(row => row.group === group.key);
-        const complete = isForecastCategoryComplete(group.key);
-        const shouldOpen = !complete && nextCategory?.key === group.key;
-        const openAttribute = shouldOpen ? "open" : "";
+  return forecastGroupsForPantry()
+    .map(group => {
+      const rows = forecastRows().filter(row => row.group === group.key);
+      const complete = isForecastCategoryComplete(group.key);
+      const shouldOpen = !reviewMode && !complete && nextCategory?.key === group.key;
+      const openAttribute = shouldOpen ? "open" : "";
+      const worstStatus = rows.length
+        ? rows.map(row => row.status).sort((a, b) => forecastRank(b) - forecastRank(a))[0]
+        : "green";
 
-        return `
-          <details class="forecast-confirmation ${complete ? "complete" : ""}" ${openAttribute}>
-            <summary>
-              <span>${group.label}</span>
-              <span class="category-status ${complete ? "complete" : ""}">${complete ? "Complete" : "Confirm next"}</span>
-            </summary>
-            <div class="forecast-confirmation-body">
-              ${rows
-                .map(row => `
-                  <div class="confirmation-row">
-                    <div>
-                      ${renderForecastIdentity(row)}
-                    </div>
-                    <label class="forecast-field">
-                      <span>Current Stock</span>
-                      <input type="number" min="0" step="0.01" value="${row.currentStock}" data-forecast-stock="${row.key}">
-                    </label>
-                    <label class="forecast-field">
-                      <span>${dailyConsumptionLabel(row)}</span>
-                      <input type="number" min="0" step="${row.imported ? "1" : "0.01"}" value="${row.dailyBurnRate}" data-forecast-burn="${row.key}">
-                    </label>
-                  </div>
-                `)
-                .join("")}
+      return `
+        <details class="forecast-confirmation ${complete ? "complete" : ""}" ${openAttribute}>
+          <summary>
+            <span>${group.label}</span>
+            <span class="category-status ${complete ? "complete" : ""}">${complete ? "Complete" : "Confirm next"}</span>
+          </summary>
+          <div class="forecast-confirmation-body">
+            <div class="fuel-confirmation-scroll">
+              <div class="fuel-confirmation-table">
+                <div class="confirmation-row confirmation-heading">
+                  <span>Category / Food Item</span>
+                  <span>Current Stock</span>
+                  <span>Daily Use</span>
+                  <span>Run-Out Date</span>
+                  <span>Buy / Prep By</span>
+                  <span>Risk</span>
+                  <span>Confirm</span>
+                </div>
+                ${rows.length
+                  ? rows.map(row => renderFuelConfirmationRow(row, complete)).join("")
+                  : `<div class="confirmation-row empty-confirmation-row"><p class="muted empty-category-note">No items in this pantry section.</p></div>`}
+              </div>
+            </div>
+            <div class="button-row forecast-section-actions">
               <button type="button" class="primary" data-confirm-forecast-category="${group.key}">
                 ${complete ? "Category Confirmed" : `Confirm ${group.label}`}
               </button>
+              <button type="button" class="secondary danger-secondary" data-clear-forecast-category="${group.key}">
+                Clear ${group.label}
+              </button>
+              <span class="status-pill ${worstStatus} category-fuel-status">Fuel status is: ${worstStatus.toUpperCase()}</span>
             </div>
-          </details>
-        `;
-      })
-      .join("");
-  }
-
-  const forecastList = document.getElementById("fuelForecastList");
-  if (forecastList) {
-    if (!allConfirmed) {
-      forecastList.innerHTML = `
-        <div class="forecast-locked">
-          <strong>Run-out forecast locked</strong>
-          <p>${nextCategory ? `Confirm ${nextCategory.label} next.` : "Confirm every category."} Predictions generate after meals, snacks, supplements and electrolytes are complete.</p>
-        </div>
+          </div>
+        </details>
       `;
-    } else {
-      forecastList.innerHTML = forecastGroupsForPantry()
-        .map(group => {
-          const rows = forecastRows().filter(row => row.group === group.key);
-          if (!rows.length) return "";
+    })
+    .join("");
+}
 
-          return `
-            <details class="forecast-section" open>
-              <summary>${group.label}</summary>
-              <div class="forecast-row forecast-heading">
-                <span>Food Item</span>
-                <span>Current Stock</span>
-                <span>Daily Consumption Rate</span>
-                <span>Run-Out Forecast</span>
-                <span>Traffic Light Status / Next Action</span>
-              </div>
-              ${rows
-                .map(row => `
-                  <div class="forecast-row">
-                    <div>
-                      <div class="item-name">${escapeHtml(row.label)}</div>
-                      <div class="row-note">${escapeHtml(row.unit)}</div>
-                    </div>
-                    <div>
-                      <strong>${row.currentStock}</strong>
-                      <div class="row-note">${escapeHtml(row.unit)}</div>
-                    </div>
-                    <div>
-                      <strong>${row.dailyBurnRate}</strong>
-                      <div class="row-note">${dailyConsumptionUnit(row)}</div>
-                    </div>
-                    <div>
-                      <strong>${formatDays(row.daysUntilRunOut)}</strong>
-                      <div class="row-note">${Number.isFinite(row.daysUntilRunOut) ? row.runOutShortDate : "No run-out date"}</div>
-                    </div>
-                    <div>
-                      <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
-                      <div class="row-note">${escapeHtml(row.nextAction)}</div>
-                    </div>
-                  </div>
-                `)
-                .join("")}
-            </details>
-          `;
-        })
-        .join("");
-    }
-  }
-
-  const shoppingList = document.getElementById("shoppingList");
-  if (!shoppingList) return;
-
-  if (!allConfirmed) {
-    shoppingList.innerHTML = `
-      <div class="row">
-        <div>
-          <div class="item-name">${nextCategory ? `Confirm ${nextCategory.label}` : "Confirm categories"}</div>
-          <div class="row-note">Run-out predictions unlock after the category workflow is complete.</div>
-        </div>
-        <strong>Next</strong>
-      </div>
-    `;
+function renderMealPrepWarnings() {
+  const slots = document.querySelectorAll("[data-meal-prep-warning-slot]");
+  if (!slots.length) return;
+  if (!state.fuelInfoConfirmed) {
+    slots.forEach(slot => {
+      slot.innerHTML = "";
+    });
     return;
   }
 
-  const rows = forecastRows();
-  const needsAttention = rows
-    .filter(row => row.status !== "green")
-    .sort((a, b) => forecastRank(b.status) - forecastRank(a.status));
-
-  if (!needsAttention.length) {
-    shoppingList.innerHTML = `
-      <div class="row">
+  const snapshot = mealPrepWarningSnapshot();
+  const checkRowsHtml = snapshot.checks
+    .map(check => `
+      <div class="meal-prep-check-row ${check.complete ? "complete" : "active"}">
         <div>
-          <div class="item-name">All tracked food is green</div>
-          <div class="row-note">Next calculated shop: ${calculatedNextShopDate() ? formatShortDate(calculatedNextShopDate()) : "No burn rate"}.</div>
+          <div class="item-name">${escapeHtml(check.label)}</div>
+          <div class="row-note">${escapeHtml(check.question)}</div>
+          <div class="row-note">${escapeHtml(check.horizon)}</div>
         </div>
-        <strong>Hold</strong>
-      </div>
-    `;
-    return;
-  }
-
-  shoppingList.innerHTML = needsAttention
-    .map(row => `
-      <div class="row">
+        <span class="status-pill ${check.complete ? "green" : "red"}">${check.complete ? "PREPARED" : "ACTION REQUIRED"}</span>
+        <div class="row-note">${check.complete ? "Preparation confirmed for today." : escapeHtml(check.consequence)}</div>
         <div>
-          <div class="item-name">${escapeHtml(row.label)}</div>
-          <div class="row-note">${escapeHtml(row.nextAction)}</div>
+          <strong>${check.complete ? "System stable for this check." : escapeHtml(check.action)}</strong>
+          <div class="button-row meal-prep-check-actions">
+            <button class="primary" type="button" data-meal-prep-check="${check.key}">Prepared</button>
+            <button class="secondary danger-secondary" type="button" data-meal-prep-not-yet="${check.key}">Not Yet</button>
+          </div>
+          ${check.notYetToday ? `<p class="row-note prep-unresolved-note">Not Yet recorded today. This check remains unresolved.</p>` : ""}
         </div>
-        <span class="status-pill ${row.status}">${row.status.toUpperCase()}</span>
       </div>
     `)
     .join("");
+
+  const html = `
+    <div class="meal-prep-warning fuel-availability-panel ${snapshot.active ? "active" : "stable"} ${snapshot.severity}">
+      <div class="meal-prep-warning-header">
+        <div>
+          <p class="label ${snapshot.active ? "warning-label" : ""}">Fuel Availability</p>
+          <h3>Is tomorrow protected?</h3>
+          <p>${snapshot.active ? "Confirm tomorrow and week-ahead coverage before this section clears." : "Tomorrow is protected and week-ahead coverage is stable."}</p>
+        </div>
+        <div class="meal-prep-status-stack">
+          <span class="status-pill ${snapshot.severity}">${snapshot.active ? "ACTION REQUIRED" : "PREPARED"}</span>
+          <span class="prep-state-pill">${snapshot.prepStatus}</span>
+        </div>
+      </div>
+      <div class="meal-prep-risk-list">
+        ${checkRowsHtml}
+      </div>
+    </div>
+  `;
+
+  slots.forEach(slot => {
+    slot.innerHTML = html;
+  });
+}
+
+function renderShopping() {
+  renderMealPrepWarnings();
+
+  const allConfirmed = allForecastCategoriesConfirmed();
+  const confirmationFlow = document.getElementById("forecastConfirmationFlow");
+
+  if (confirmationFlow) {
+    const sectionHtml = renderFuelConfirmationCategorySections({ reviewMode: allConfirmed });
+    const confirmDisabled = allConfirmed ? "" : "disabled";
+    const reviewOpenAttribute = state.fuelInfoConfirmed ? "" : "open";
+
+    confirmationFlow.innerHTML = `
+      <details class="fuel-confirmation-review" ${reviewOpenAttribute}>
+        <summary>Review or edit fuel confirmation table</summary>
+        <div class="forecast-flow review-flow">${sectionHtml}</div>
+        <div class="button-row confirmation-submit-row">
+          <button id="saveShopping" class="primary" type="button" ${confirmDisabled}>Confirm Fuel Information</button>
+          ${allConfirmed ? "" : `<span class="row-note">Confirm every category before continuing to Fuel Availability.</span>`}
+        </div>
+      </details>
+    `;
+  }
 }
 
 function renderBodyMind() {
