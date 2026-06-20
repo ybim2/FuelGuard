@@ -3,6 +3,7 @@
 (() => {
   const FOOD_LOG_COOLDOWN_MS = 60000;
   const RISK_GAP_THRESHOLD_MINUTES = 300;
+  const PLANNING_BUFFER_MINUTES = 45;
   const FOOD_TYPE_LABELS = {
     meal: "Meal",
     snack: "Snack",
@@ -21,6 +22,20 @@
     takeout: 34,
     hydration: 10
   };
+  const DAY_TYPE_OPTIONS = [
+    { value: "training-work", label: "Training + work day" },
+    { value: "double-training", label: "Double training day" },
+    { value: "shift", label: "Shift day" },
+    { value: "rest", label: "Rest day" },
+    { value: "other", label: "Other" },
+    { value: "standalone-training", label: "Standalone training" }
+  ];
+  const DAY_TYPE_LABELS = DAY_TYPE_OPTIONS.reduce((labels, option) => {
+    labels[option.value] = option.label;
+    return labels;
+  }, {});
+
+  let selectedArchiveKey = "";
 
   function safeText(value) {
     if (typeof escapeHtml === "function") return escapeHtml(value || "");
@@ -48,6 +63,41 @@
 
   function isFoodLog(log) {
     return normaliseFoodType(log?.type) !== "hydration";
+  }
+
+  function fuelArchiveState() {
+    const gap = fuelGapState();
+    if (!gap.dayTypes || Array.isArray(gap.dayTypes)) gap.dayTypes = {};
+    if (!gap.archive || Array.isArray(gap.archive)) gap.archive = {};
+    return gap;
+  }
+
+  function dayTypeLabel(value) {
+    if (!value) return "Not set";
+    return DAY_TYPE_LABELS[value] || value;
+  }
+
+  function dayTypeForKey(key) {
+    const gap = fuelArchiveState();
+    return gap.dayTypes[key] || gap.archive[key]?.dayType || "";
+  }
+
+  function addMinutes(date, minutes) {
+    return new Date(date.getTime() + minutes * 60000);
+  }
+
+  function dateFromKey(key) {
+    const date = new Date(`${key}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? new Date() : date;
+  }
+
+  function formatArchiveDateKey(key) {
+    return dateFromKey(key).toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
   }
 
   function logsWithDates() {
@@ -83,6 +133,10 @@
     return todaysAllLogs(now).filter(isFoodLog);
   }
 
+  function logsForDayKey(key) {
+    return logsWithDates().filter(log => todayKey(log.date) === key);
+  }
+
   function lastFoodLog() {
     return logsWithDates().filter(isFoodLog).sort((a, b) => b.date - a.date)[0] || null;
   }
@@ -105,6 +159,19 @@
 
   function clearFoodLogCooldown() {
     fuelGapState().cooldownUntil = 0;
+  }
+
+  function setDayTypeForKey(key, value) {
+    const gap = fuelArchiveState();
+    if (value) gap.dayTypes[key] = value;
+    else delete gap.dayTypes[key];
+
+    gap.logs.forEach(log => {
+      const date = fuelLogDate(log);
+      if (date && todayKey(date) === key) log.dayType = value || "";
+    });
+
+    storeArchiveForKey(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
   }
 
   function gapStatusCopy(status, hasLog) {
@@ -153,14 +220,17 @@
   };
 
   fuelDaySummary = function fuelDaySummaryOverride(now = new Date()) {
+    const key = todayKey(now);
     const logs = todaysAllLogs(now);
     const foodLogs = logs.filter(isFoodLog);
     const hydrationLogs = logs.filter(log => !isFoodLog(log));
     const last = foodLogs[foodLogs.length - 1] || null;
     const end = fuelDayEndSnapshot(now);
+    const dayType = dayTypeForKey(key);
     const foodLogText = `${foodLogs.length} food log${foodLogs.length === 1 ? "" : "s"}`;
     const hydrationText = hydrationLogs.length ? `, ${hydrationLogs.length} hydration log${hydrationLogs.length === 1 ? "" : "s"}` : "";
     const lastAte = last ? formatClock(last.date) : "No food logged";
+    const dayTypeText = dayType ? ` Day type: ${dayTypeLabel(dayType)}.` : "";
     const endText = end.dayEnded
       ? `Day ended at ${end.endTime}. Fasting started.`
       : "Today's tracking is still open.";
@@ -173,7 +243,8 @@
       lastFuelled: lastAte,
       dayEnded: end.dayEnded,
       endTime: end.endTime,
-      message: `Today's food summary: ${foodLogText}${hydrationText}. Last ate: ${lastAte}. ${endText}`
+      dayType,
+      message: `Today's food summary: ${foodLogText}${hydrationText}. Last ate: ${lastAte}.${dayTypeText} ${endText}`
     };
   };
 
@@ -193,6 +264,402 @@
     return latestIndex;
   }
 
+  function gapsFromFoodLogs(logs, referenceTime = new Date(), includeTrailing = false, trailingIsOngoing = false) {
+    const sorted = [...logs].filter(isFoodLog).sort((a, b) => a.date - b.date);
+    const gaps = [];
+
+    for (let index = 1; index < sorted.length; index += 1) {
+      const minutes = (sorted[index].date - sorted[index - 1].date) / 60000;
+      if (Number.isFinite(minutes) && minutes >= 0) {
+        gaps.push({
+          minutes,
+          start: sorted[index - 1].date,
+          end: sorted[index].date,
+          ongoing: false
+        });
+      }
+    }
+
+    if (includeTrailing && sorted.length) {
+      const last = sorted[sorted.length - 1];
+      const minutes = (referenceTime - last.date) / 60000;
+      if (Number.isFinite(minutes) && minutes >= 0) {
+        gaps.push({
+          minutes,
+          start: last.date,
+          end: referenceTime,
+          ongoing: trailingIsOngoing
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  function insightValue(minutes) {
+    return minutes > 0 ? duration(minutes) : "Not enough data";
+  }
+
+  function minutesIntoDay(date) {
+    return date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+  }
+
+  function timeWindowBucketForMinutes(minutes) {
+    if (!Number.isFinite(minutes)) return "Needs more data";
+    if (minutes < 660) return "morning";
+    if (minutes < 840) return "11:00-14:00";
+    if (minutes < 960) return "14:00-16:00";
+    if (minutes < 1080) return "16:00-18:00";
+    if (minutes < 1320) return "evening";
+    return "late/overnight";
+  }
+
+  function analyseFuelDay(key, { now = new Date(), endedAt = "" } = {}) {
+    const logs = logsForDayKey(key);
+    const foodLogs = logs.filter(isFoodLog);
+    const hydrationLogs = logs.filter(log => !isFoodLog(log));
+    const endedDate = endedAt ? fuelLogDate(endedAt) : null;
+    const isToday = key === todayKey(now);
+    const fallbackReference = foodLogs[foodLogs.length - 1]?.date || logs[logs.length - 1]?.date || dateFromKey(key);
+    const referenceTime = endedDate || (isToday ? now : fallbackReference);
+    const includeTrailing = Boolean(endedDate) || isToday;
+    const trailingIsOngoing = !endedDate && isToday;
+    const gaps = gapsFromFoodLogs(foodLogs, referenceTime, includeTrailing, trailingIsOngoing);
+    const completedGaps = gaps.filter(gap => !gap.ongoing);
+    const riskyGaps = gaps.filter(gap => gap.minutes >= RISK_GAP_THRESHOLD_MINUTES);
+    const completedRiskyGaps = completedGaps.filter(gap => gap.minutes >= RISK_GAP_THRESHOLD_MINUTES);
+    const longestGap = gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : 0;
+    const averageGap = gaps.length ? gaps.reduce((sum, gap) => sum + gap.minutes, 0) / gaps.length : 0;
+    const firstRisk = riskyGaps[0] || null;
+    const dangerStart = firstRisk ? addMinutes(firstRisk.start, RISK_GAP_THRESHOLD_MINUTES) : null;
+    const foodNeededBefore = dangerStart ? addMinutes(dangerStart, -PLANNING_BUFFER_MINUTES) : null;
+    const dayType = dayTypeForKey(key);
+    const reactive = completedRiskyGaps.length > 0 && completedRiskyGaps.length >= Math.ceil(Math.max(1, completedGaps.length) / 2);
+    const contextLabel = dayTypeLabel(dayType);
+    const dayWord = isToday ? "today" : "this day";
+    const summary = [];
+
+    if (!foodLogs.length) {
+      summary.push("No food logs recorded for this day.");
+      summary.push("More weekly data will make this pattern clearer.");
+    } else if (!gaps.length) {
+      summary.push(`Only one food log is available for ${dayWord}.`);
+      summary.push("More food logs are needed before Fuel Guard can identify a danger window.");
+    } else {
+      summary.push(`Your longest fuel gap ${dayWord} was ${duration(longestGap)}.`);
+      if (dangerStart) {
+        summary.push(`Your danger window started around ${formatClock(dangerStart)}.`);
+        summary.push(`You needed food available before ${formatClock(foodNeededBefore)}.`);
+      } else {
+        summary.push("No 5h danger window was detected from the available food logs.");
+      }
+      if (reactive) {
+        summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
+      }
+      if (["shift", "training-work", "double-training"].includes(dayType) && riskyGaps.length) {
+        summary.push(`${contextLabel} context: long gaps on this day type need food available before the danger window.`);
+      }
+      if (foodLogs.length < 3 || !dangerStart) {
+        summary.push("More weekly data will make this pattern clearer.");
+      }
+    }
+
+    return {
+      date: key,
+      dateLabel: formatArchiveDateKey(key),
+      dayType,
+      dayTypeLabel: contextLabel,
+      logs,
+      foodLogs,
+      hydrationLogs,
+      gaps,
+      longestGap,
+      averageGap,
+      riskyCount: riskyGaps.length,
+      completedRiskyCount: completedRiskyGaps.length,
+      dangerStart,
+      dangerStartMinute: dangerStart ? minutesIntoDay(dangerStart) : null,
+      dangerWindow: firstRisk && dangerStart ? `${formatClock(dangerStart)}-${formatClock(firstRisk.end)}` : "Not detected",
+      foodNeededBefore,
+      reactive,
+      endedAt: endedDate ? endedDate.toISOString() : "",
+      summary
+    };
+  }
+
+  function buildDayArchiveEntry(key, options = {}) {
+    const analysis = analyseFuelDay(key, options);
+    return {
+      date: key,
+      dateLabel: analysis.dateLabel,
+      dayType: analysis.dayType,
+      dayTypeLabel: analysis.dayTypeLabel,
+      endedAt: analysis.endedAt || options.endedAt || "",
+      logs: analysis.logs.map(log => ({
+        id: log.id || uid(),
+        timestamp: log.date.toISOString(),
+        type: normaliseFoodType(log.type),
+        typeLabel: FOOD_TYPE_LABELS[normaliseFoodType(log.type)],
+        note: log.note || ""
+      })),
+      stats: {
+        longestGapMinutes: analysis.longestGap,
+        longestGap: insightValue(analysis.longestGap),
+        averageGapMinutes: analysis.averageGap,
+        averageGap: insightValue(analysis.averageGap),
+        riskyCount: analysis.riskyCount
+      },
+      dangerStartMinute: analysis.dangerStartMinute,
+      dangerWindow: analysis.dangerWindow,
+      reactive: analysis.reactive,
+      analysis: analysis.summary
+    };
+  }
+
+  function storeArchiveForKey(key, options = {}) {
+    const gap = fuelArchiveState();
+    const previous = gap.archive[key] || {};
+    const endedAt = Object.prototype.hasOwnProperty.call(options, "endedAt")
+      ? options.endedAt
+      : previous.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "");
+    const entry = buildDayArchiveEntry(key, { endedAt });
+    gap.archive[key] = entry;
+    return entry;
+  }
+
+  function archiveEntries() {
+    const gap = fuelArchiveState();
+    const keys = new Set([todayKey()]);
+    Object.keys(gap.archive).forEach(key => keys.add(key));
+    Object.keys(gap.dayTypes).forEach(key => keys.add(key));
+    logsWithDates().forEach(log => keys.add(todayKey(log.date)));
+
+    return [...keys]
+      .sort()
+      .reverse()
+      .map(key => buildDayArchiveEntry(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") }));
+  }
+
+  function dailyGapSummary(now = new Date()) {
+    const logs = todaysFoodLogsOnly(now);
+    const gaps = gapsFromFoodLogs(logs, now, true, true);
+    const total = gaps.reduce((sum, gap) => sum + gap.minutes, 0);
+
+    return {
+      logs,
+      gaps,
+      longest: gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : 0,
+      average: gaps.length ? total / gaps.length : 0,
+      riskyCount: gaps.filter(gap => gap.minutes >= RISK_GAP_THRESHOLD_MINUTES).length
+    };
+  }
+
+  function weeklyGapSummary(now = new Date()) {
+    const cutoff = startOfLocalDay(now);
+    cutoff.setDate(cutoff.getDate() - 6);
+    const entries = archiveEntries().filter(entry => {
+      const date = dateFromKey(entry.date);
+      return date >= cutoff && date <= now && (entry.logs.length || entry.dayType);
+    });
+    const allLongest = entries.map(entry => entry.stats.longestGapMinutes).filter(value => value > 0);
+    const riskyCount = entries.reduce((sum, entry) => sum + Number(entry.stats.riskyCount || 0), 0);
+    const dangerCounts = {};
+    const typeStats = {};
+
+    entries.forEach(entry => {
+      if (Number.isFinite(entry.dangerStartMinute)) {
+        const bucket = timeWindowBucketForMinutes(entry.dangerStartMinute);
+        dangerCounts[bucket] = (dangerCounts[bucket] || 0) + 1;
+      }
+
+      const type = entry.dayType || "not-set";
+      const label = entry.dayType ? entry.dayTypeLabel : "Day type not set";
+      if (!typeStats[type]) {
+        typeStats[type] = { label, count: 0, riskyDays: 0, reactiveDays: 0, longestTotal: 0, averageTotal: 0, longestMax: 0 };
+      }
+      const stat = typeStats[type];
+      stat.count += 1;
+      stat.riskyDays += entry.stats.riskyCount > 0 ? 1 : 0;
+      stat.reactiveDays += entry.reactive ? 1 : 0;
+      stat.longestTotal += Number(entry.stats.longestGapMinutes || 0);
+      stat.averageTotal += Number(entry.stats.averageGapMinutes || 0);
+      stat.longestMax = Math.max(stat.longestMax, Number(entry.stats.longestGapMinutes || 0));
+    });
+
+    const topDanger = Object.entries(dangerCounts).sort((a, b) => b[1] - a[1])[0] || null;
+    const typeList = Object.values(typeStats).filter(item => item.label !== "Day type not set");
+    const riskType = [...typeList].sort((a, b) => b.riskyDays - a.riskyDays || b.longestMax - a.longestMax)[0] || null;
+    const averageType = [...typeList].sort((a, b) => (b.averageTotal / Math.max(1, b.count)) - (a.averageTotal / Math.max(1, a.count)))[0] || null;
+    const reactiveType = [...typeList].sort((a, b) => b.reactiveDays - a.reactiveDays || b.riskyDays - a.riskyDays)[0] || null;
+    const repeatedDays = entries
+      .filter(entry => Number(entry.stats.riskyCount || 0) >= 2)
+      .map(entry => dateFromKey(entry.date).toLocaleDateString(undefined, { weekday: "short" }));
+
+    return {
+      entries,
+      longest: allLongest.length ? Math.max(...allLongest) : 0,
+      riskyCount,
+      topWindow: topDanger,
+      repeatedDays,
+      typePatternText: riskType && riskType.riskyDays
+        ? `Long gaps are showing most on ${riskType.label.toLowerCase()}.`
+        : "Set day type for a few days to compare patterns.",
+      dangerPatternText: topDanger && topDanger[1] >= 2
+        ? `Danger window often appeared around ${topDanger[0]}.`
+        : "More weekly data is needed for a common danger window.",
+      reactivePatternText: reactiveType && reactiveType.reactiveDays
+        ? `Food was logged late most often on ${reactiveType.label.toLowerCase()}.`
+        : "Reactive fuelling pattern not clear yet.",
+      longestAverageTypeText: averageType && averageType.averageTotal > 0
+        ? `${averageType.label} has the longest average gaps so far.`
+        : "Average gaps by day type need more data."
+    };
+  }
+
+  function renderFuelGapInsights(now = new Date()) {
+    const target = document.getElementById("fuelGapInsights");
+    if (!target) return;
+
+    const daily = dailyGapSummary(now);
+    const weekly = weeklyGapSummary(now);
+    const dayType = dayTypeForKey(todayKey(now));
+    const riskyWindowText = weekly.topWindow && weekly.riskyCount >= 2
+      ? `${weekly.topWindow[0]} (${weekly.topWindow[1]} day${weekly.topWindow[1] === 1 ? "" : "s"})`
+      : "Needs more data";
+    const repeatedDaysText = weekly.repeatedDays.length ? weekly.repeatedDays.join(", ") : "None yet";
+
+    target.innerHTML = `
+      <div class="fuel-gap-insight">
+        <span>Longest gap today</span>
+        <strong>${safeText(insightValue(daily.longest))}</strong>
+        <small>${daily.logs.length ? "Tracks the biggest food gap so far." : "Log food to start today's pattern."}</small>
+      </div>
+      <div class="fuel-gap-insight">
+        <span>Average gap today</span>
+        <strong>${safeText(insightValue(daily.average))}</strong>
+        <small>Based on food logs, plus the current gap.</small>
+      </div>
+      <div class="fuel-gap-insight">
+        <span>Gaps over 5h today</span>
+        <strong>${daily.riskyCount}</strong>
+        <small>${daily.riskyCount ? "Long gaps are building risk." : "No 5h gaps logged today."}</small>
+      </div>
+      <div class="fuel-gap-insight">
+        <span>Day type</span>
+        <strong>${safeText(dayTypeLabel(dayType))}</strong>
+        <small>${safeText(weekly.typePatternText)}</small>
+      </div>
+      <div class="fuel-gap-insight">
+        <span>Weekly danger window</span>
+        <strong>${safeText(riskyWindowText)}</strong>
+        <small>${safeText(weekly.dangerPatternText)}</small>
+      </div>
+      <div class="fuel-gap-insight">
+        <span>Weekly pattern</span>
+        <strong>${safeText(repeatedDaysText)}</strong>
+        <small>${safeText(weekly.reactivePatternText)}</small>
+      </div>
+    `;
+  }
+
+  function renderDayTypeControls() {
+    const select = document.getElementById("fuelDayType");
+    const saved = document.getElementById("fuelDayTypeSaved");
+    if (!select) return;
+
+    const key = todayKey();
+    const value = dayTypeForKey(key);
+    if (select.value !== value) select.value = value;
+    if (saved) {
+      saved.textContent = value
+        ? `Saved for today: ${dayTypeLabel(value)}. You can edit it.`
+        : "Set once for today. You can edit it later.";
+    }
+  }
+
+  function renderAnalysisList(items) {
+    return `<ul class="fuel-analysis-list">${items.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
+  }
+
+  function renderFuelDayAnalysis() {
+    const target = document.getElementById("fuelDayAnalysis");
+    if (!target) return;
+
+    const key = todayKey();
+    const gap = fuelArchiveState();
+    const end = fuelDayEndSnapshot();
+    if (!end.dayEnded) {
+      target.innerHTML = "";
+      return;
+    }
+
+    const entry = gap.archive[key] || buildDayArchiveEntry(key, { endedAt: gap.dayEndedAt });
+    target.innerHTML = `
+      <p class="label">End-of-day analysis</p>
+      ${renderAnalysisList(entry.analysis)}
+    `;
+  }
+
+  function renderArchiveDetail(entry) {
+    if (!entry) return `<p class="muted">No archive data available yet.</p>`;
+    const foodLogs = entry.logs.filter(log => normaliseFoodType(log.type) !== "hydration");
+    const allLogsHtml = entry.logs.length
+      ? entry.logs.map(log => `
+          <div class="row fuel-archive-log-row">
+            <div>
+              <div class="item-name">${formatClock(fuelLogDate(log.timestamp))} - ${safeText(log.typeLabel || FOOD_TYPE_LABELS[normaliseFoodType(log.type)])}</div>
+              ${log.note ? `<div class="row-note">${safeText(log.note)}</div>` : ""}
+            </div>
+          </div>
+        `).join("")
+      : `<p class="muted">No fuel logs stored for this day.</p>`;
+
+    return `
+      <div class="fuel-archive-head">
+        <div>
+          <p class="label">${safeText(entry.dateLabel)}</p>
+          <h3>${safeText(dayTypeLabel(entry.dayType))}</h3>
+        </div>
+        <span class="status-pill ${entry.stats.riskyCount ? "amber" : "green"}">${entry.stats.riskyCount ? "GAPS FOUND" : "STABLE"}</span>
+      </div>
+      <div class="fuel-archive-stats">
+        <div><span>Food logs</span><strong>${foodLogs.length}</strong></div>
+        <div><span>Longest gap</span><strong>${safeText(entry.stats.longestGap)}</strong></div>
+        <div><span>Average gap</span><strong>${safeText(entry.stats.averageGap)}</strong></div>
+        <div><span>Risky gaps</span><strong>${entry.stats.riskyCount}</strong></div>
+        <div><span>Danger window</span><strong>${safeText(entry.dangerWindow)}</strong></div>
+      </div>
+      <div class="fuel-archive-section">
+        <h4>Food log pattern</h4>
+        <div class="list">${allLogsHtml}</div>
+      </div>
+      <div class="fuel-archive-section">
+        <h4>Analysis summary</h4>
+        ${renderAnalysisList(entry.analysis)}
+      </div>
+    `;
+  }
+
+  function renderFuelArchive() {
+    const select = document.getElementById("fuelArchiveDate");
+    const detail = document.getElementById("fuelArchiveDetail");
+    const count = document.getElementById("fuelArchiveCount");
+    if (!select || !detail) return;
+
+    const entries = archiveEntries();
+    if (!selectedArchiveKey || !entries.some(entry => entry.date === selectedArchiveKey)) {
+      selectedArchiveKey = entries[0]?.date || todayKey();
+    }
+
+    select.innerHTML = entries.map(entry => `
+      <option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${entry.dayType ? ` - ${safeText(entry.dayTypeLabel)}` : ""}</option>
+    `).join("");
+    select.value = selectedArchiveKey;
+    if (count) count.textContent = `${entries.length} day${entries.length === 1 ? "" : "s"} stored`;
+
+    detail.innerHTML = renderArchiveDetail(entries.find(entry => entry.date === selectedArchiveKey));
+  }
+
   recordFuelled = function recordFuelledOverride(note = "") {
     if (fuelDayEndSnapshot().dayEnded) return;
 
@@ -205,15 +672,19 @@
     const noteText = String(note || document.getElementById("foodLogNote")?.value || "").trim();
     const type = selectedFoodLogType();
     const typeLabel = FOOD_TYPE_LABELS[type];
+    const key = todayKey();
+    const dayType = dayTypeForKey(key);
 
     fuelGapState().logs.push({
       id: uid(),
       timestamp: new Date().toISOString(),
       label: `${typeLabel} logged`,
       note: noteText,
-      type
+      type,
+      dayType
     });
     setFoodLogCooldown();
+    storeArchiveForKey(key);
 
     const noteField = document.getElementById("foodLogNote");
     if (noteField) noteField.value = "";
@@ -237,171 +708,44 @@
 
     fuelGapState().logs.splice(index, 1);
     clearFoodLogCooldown();
+    storeArchiveForKey(todayKey());
     state.completed.liveFuelStatus = todaysAllLogs().length > 0;
     addActivityEntry("foodLogUndo", "Latest food log undone.", { dedupeDaily: false });
     save();
     renderAll();
   }
 
-  function gapsFromFoodLogs(logs, now = new Date(), includeCurrent = false) {
-    const sorted = [...logs].filter(isFoodLog).sort((a, b) => a.date - b.date);
-    const gaps = [];
+  endFuelDayAndStartFasting = function endFuelDayAndStartFastingOverride() {
+    const now = new Date();
+    const key = todayKey(now);
+    const gap = fuelArchiveState();
+    gap.dayEndedDate = key;
+    gap.dayEndedAt = now.toISOString();
+    gap.fastingStartedAt = now.toISOString();
+    const entry = storeArchiveForKey(key, { endedAt: now.toISOString() });
+    addActivityEntry("fastingStarted", "Day ended. Fasting started. Daily analysis generated.", { dedupeDaily: true });
+    if (entry.reactive) addActivityEntry("reactiveFuelDay", "Reactive fuelling pattern detected.", { dedupeDaily: true });
+    save();
+    renderAll();
+  };
 
-    for (let index = 1; index < sorted.length; index += 1) {
-      const minutes = (sorted[index].date - sorted[index - 1].date) / 60000;
-      if (Number.isFinite(minutes) && minutes >= 0) {
-        gaps.push({
-          minutes,
-          start: sorted[index - 1].date,
-          end: sorted[index].date,
-          ongoing: false
-        });
-      }
-    }
+  continueFuelDayTracking = function continueFuelDayTrackingOverride() {
+    const wasEnded = fuelDayEndSnapshot().dayEnded;
+    const key = todayKey();
+    const gap = fuelArchiveState();
 
-    if (includeCurrent && sorted.length) {
-      const last = sorted[sorted.length - 1];
-      const minutes = (now - last.date) / 60000;
-      if (Number.isFinite(minutes) && minutes >= 0) {
-        gaps.push({
-          minutes,
-          start: last.date,
-          end: now,
-          ongoing: true
-        });
-      }
-    }
-
-    return gaps;
-  }
-
-  function insightValue(minutes) {
-    return minutes > 0 ? duration(minutes) : "Not enough data";
-  }
-
-  function dailyGapSummary(now = new Date()) {
-    const logs = todaysFoodLogsOnly(now);
-    const gaps = gapsFromFoodLogs(logs, now, true);
-    const total = gaps.reduce((sum, gap) => sum + gap.minutes, 0);
-
-    return {
-      logs,
-      gaps,
-      longest: gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : 0,
-      average: gaps.length ? total / gaps.length : 0,
-      riskyCount: gaps.filter(gap => gap.minutes >= RISK_GAP_THRESHOLD_MINUTES).length
+    state.fuelGap = {
+      ...gap,
+      dayEndedDate: "",
+      dayEndedAt: "",
+      fastingStartedAt: ""
     };
-  }
+    fuelArchiveState().archive[key] = buildDayArchiveEntry(key, { endedAt: "" });
 
-  function logsForLastSevenDays(now = new Date()) {
-    const start = startOfLocalDay(now);
-    start.setDate(start.getDate() - 6);
-    const end = new Date(now);
-    return logsWithDates().filter(log => log.date >= start && log.date <= end && isFoodLog(log));
-  }
-
-  function riskyWindowLabel(date) {
-    const hour = date.getHours();
-    if (hour >= 9 && hour < 18) return "work hours";
-    if (hour >= 5 && hour < 11) return "morning";
-    if (hour >= 11 && hour < 15) return "midday";
-    if (hour >= 15 && hour < 18) return "late afternoon";
-    if (hour >= 18 && hour < 22) return "evening";
-    return "late/overnight";
-  }
-
-  function weeklyGapSummary(now = new Date()) {
-    const logs = logsForLastSevenDays(now);
-    const byDay = new Map();
-
-    logs.forEach(log => {
-      const key = todayKey(log.date);
-      if (!byDay.has(key)) byDay.set(key, []);
-      byDay.get(key).push(log);
-    });
-
-    const allGaps = [];
-    byDay.forEach(dayLogs => {
-      const includeCurrent = dayLogs.some(log => sameLocalDay(log.date, now));
-      allGaps.push(...gapsFromFoodLogs(dayLogs, now, includeCurrent));
-    });
-
-    const riskyGaps = allGaps.filter(gap => gap.minutes >= RISK_GAP_THRESHOLD_MINUTES);
-    const windowCounts = riskyGaps.reduce((counts, gap) => {
-      const label = riskyWindowLabel(gap.end);
-      counts[label] = (counts[label] || 0) + 1;
-      return counts;
-    }, {});
-    const topWindow = Object.entries(windowCounts).sort((a, b) => b[1] - a[1])[0] || null;
-
-    const riskyByDay = new Map();
-    riskyGaps.forEach(gap => {
-      const key = todayKey(gap.end);
-      riskyByDay.set(key, (riskyByDay.get(key) || 0) + 1);
-    });
-    const repeatedDays = [...riskyByDay.entries()]
-      .filter(([, count]) => count >= 2)
-      .map(([key]) => {
-        const date = new Date(`${key}T12:00:00`);
-        return date.toLocaleDateString(undefined, { weekday: "short" });
-      });
-
-    return {
-      longest: allGaps.length ? Math.max(...allGaps.map(gap => gap.minutes)) : 0,
-      riskyCount: riskyGaps.length,
-      topWindow,
-      repeatedDays
-    };
-  }
-
-  function renderFuelGapInsights(now = new Date()) {
-    const target = document.getElementById("fuelGapInsights");
-    if (!target) return;
-
-    const daily = dailyGapSummary(now);
-    const weekly = weeklyGapSummary(now);
-    const riskyWindowText = weekly.topWindow && weekly.riskyCount >= 2
-      ? `${weekly.topWindow[0]} (${weekly.topWindow[1]} gap${weekly.topWindow[1] === 1 ? "" : "s"})`
-      : "Needs more data";
-    const repeatedDaysText = weekly.repeatedDays.length ? weekly.repeatedDays.join(", ") : "None yet";
-
-    target.innerHTML = `
-      <div class="fuel-gap-insight">
-        <span>Longest gap today</span>
-        <strong>${safeText(insightValue(daily.longest))}</strong>
-        <small>${daily.logs.length ? "Tracks the biggest food gap so far." : "Log food to start today's pattern."}</small>
-      </div>
-      <div class="fuel-gap-insight">
-        <span>Average gap today</span>
-        <strong>${safeText(insightValue(daily.average))}</strong>
-        <small>Based on food logs, plus the current gap.</small>
-      </div>
-      <div class="fuel-gap-insight">
-        <span>Gaps over 5h today</span>
-        <strong>${daily.riskyCount}</strong>
-        <small>${daily.riskyCount ? "Long gaps are building risk." : "No 5h gaps logged today."}</small>
-      </div>
-      <div class="fuel-gap-insight">
-        <span>Longest gap this week</span>
-        <strong>${safeText(insightValue(weekly.longest))}</strong>
-        <small>Uses the last seven days of food logs.</small>
-      </div>
-      <div class="fuel-gap-insight">
-        <span>Risky time window</span>
-        <strong>${safeText(riskyWindowText)}</strong>
-        <small>Shows when long gaps repeat often enough.</small>
-      </div>
-      <div class="fuel-gap-insight">
-        <span>Repeated long-gap days</span>
-        <strong>${safeText(repeatedDaysText)}</strong>
-        <small>Days with two or more 5h gaps.</small>
-      </div>
-    `;
-  }
-
-  function minutesIntoDay(date) {
-    return date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
-  }
+    if (wasEnded) addActivityEntry("fuelTrackingContinued", "Continued today's fuel tracking.", { dedupeDaily: true });
+    save();
+    renderAll();
+  };
 
   function decayFuelValue(value, minutes) {
     return clamp(value - Math.max(0, minutes) * 0.11, 8, 95);
@@ -660,7 +1004,10 @@
         : `<p class="muted fuel-daily-empty">No food logged today.</p>`;
     }
 
+    renderDayTypeControls();
     renderFuelGapInsights();
+    renderFuelDayAnalysis();
+    renderFuelArchive();
     drawFuelRhythmGraph();
   };
 
@@ -719,6 +1066,23 @@
 
   const foodLogType = document.getElementById("foodLogType");
   if (foodLogType) foodLogType.addEventListener("change", () => drawFuelRhythmGraph());
+
+  const dayTypeSelect = document.getElementById("fuelDayType");
+  if (dayTypeSelect) {
+    dayTypeSelect.addEventListener("change", () => {
+      setDayTypeForKey(todayKey(), dayTypeSelect.value);
+      save();
+      renderAll();
+    });
+  }
+
+  const archiveSelect = document.getElementById("fuelArchiveDate");
+  if (archiveSelect) {
+    archiveSelect.addEventListener("change", () => {
+      selectedArchiveKey = archiveSelect.value;
+      renderFuelArchive();
+    });
+  }
 
   let graphResizeTimer = null;
   window.addEventListener("resize", () => {
