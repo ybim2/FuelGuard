@@ -314,9 +314,22 @@ document.querySelectorAll(".nav-item").forEach(button => {
 });
 
 document.addEventListener("click", event => {
-  const fuelledButton = event.target.closest("#fuelledButton");
-  if (fuelledButton) recordFuelled();
+  const fuelActionButton = event.target.closest("[data-fuel-action]");
+  if (!fuelActionButton || fuelActionButton.disabled) return;
 
+  const fuelActions = {
+    "log-fuel": recordFuelled,
+    "end-day": endFuelDayAndStartFasting,
+    "continue-tracking": continueFuelDayTracking
+  };
+  const action = fuelActions[fuelActionButton.dataset.fuelAction];
+  if (!action) return;
+
+  event.preventDefault();
+  action();
+}, true);
+
+document.addEventListener("click", event => {
   const saveShoppingButton = event.target.closest("#saveShopping");
   if (saveShoppingButton) {
     readForecastForm();
