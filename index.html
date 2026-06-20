@@ -13,7 +13,8 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=2026-06-20-pwa-scroll-fix" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=2026-06-20-mobile-ux" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-gap-mobile" />
 </head>
 <body>
   <div class="layout">
@@ -39,7 +40,7 @@
 
     <main class="app">
       <header class="topbar">
-        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">Live Fuel Status</h1><p id="pageSubtitle">Check current fuel risk and log fuel fast.</p></div>
+        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">Live Fuel Status</h1><p id="pageSubtitle">See when you last ate and log food fast.</p></div>
         <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Calculating</strong></div>
       </header>
 
@@ -47,18 +48,34 @@
         <article class="card fuel-gap-card">
           <div class="fuel-gap-header">
             <div>
-              <p class="label">Fuel Gap</p>
-              <h2>Live fuel status</h2>
+              <p class="label">Today</p>
+              <h2>How long since you last ate?</h2>
             </div>
-            <button id="fuelledButton" class="fuelled-button" type="button" data-fuel-action="log-fuel">I fuelled</button>
+            <div class="food-log-actions">
+              <button id="fuelledButton" class="fuelled-button" type="button" data-fuel-action="log-fuel">Log food</button>
+              <label class="food-log-note">
+                <span>Optional note</span>
+                <input id="foodLogNote" type="text" placeholder="Bagel, shake, snack..." autocomplete="off">
+              </label>
+            </div>
           </div>
 
           <div class="grid two fuel-status-grid">
-            <div class="mini-card"><p class="label">Last fuelled</p><h3 id="fuelLastFuelled">--</h3></div>
-            <div class="mini-card"><p class="label">Time since fuel</p><h3 id="fuelTimeSince">--</h3></div>
+            <div class="mini-card"><p class="label">Last ate</p><h3 id="fuelLastFuelled">--</h3></div>
+            <div class="mini-card"><p class="label">Time since last food</p><h3 id="fuelTimeSince">--</h3></div>
           </div>
 
           <div id="fuelGapNextAction" class="fuel-next-action"></div>
+          <div id="fuelStatusContext" class="fuel-status-context"></div>
+          <details class="fuel-status-guide">
+            <summary>How gap risk works</summary>
+            <div class="fuel-status-guide-grid">
+              <span>Fuel Guard tracks the gap before the crash.</span>
+              <span><strong>Green</strong> recently eaten / no immediate gap concern.</span>
+              <span><strong>Amber</strong> gap is building and food should be planned soon.</span>
+              <span><strong>Red</strong> long gap or missed fuel window; action needed soon.</span>
+            </div>
+          </details>
 
           <div class="fuel-day-controls">
             <div class="button-row fuel-day-actions">
@@ -121,9 +138,12 @@
 
 
       <section id="nutritionBarriers" class="screen">
-        <article class="card">
-          <h2>Nutrition Diary</h2>
-          <p class="muted">Reflect on what's influencing your fuelling.</p>
+        <article class="card diary-quick-context">
+          <div>
+            <h2>Nutrition Diary</h2>
+            <p class="muted">Reflect on what's influencing your fuelling.</p>
+          </div>
+          <div id="diaryLastFoodLogged" class="diary-last-food"></div>
         </article>
 
         <article class="card">
@@ -160,11 +180,34 @@
 
     </main>
   </div>
-  <script src="app-state.js?v=2026-06-20-live-fuel-status"></script>
-  <script src="app-dashboard.js?v=2026-06-20-live-fuel-status"></script>
+  <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
+    <button class="mobile-nav-item active" type="button" data-mobile-screen="dashboard" data-mobile-tab="today">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Today</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="nutritionBarriers" data-mobile-tab="diary">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 13h6"/></svg>
+      <span>Diary</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="fuelConfirmation" data-mobile-tab="forecast">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-7"/></svg>
+      <span>Forecast</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="logs" data-mobile-tab="activity">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/><path d="M8 5v14"/></svg>
+      <span>Activity</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="checklist" data-mobile-tab="setup">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="m4 6 1 1 2-2"/><path d="m4 12 1 1 2-2"/><path d="m4 18 1 1 2-2"/></svg>
+      <span>Setup</span>
+    </button>
+  </nav>
+  <script src="app-state.js?v=2026-06-20-mobile-ux"></script>
+  <script src="app-dashboard.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-forecast.js?v=2026-06-20-live-fuel-status"></script>
-  <script src="app-barriers.js?v=2026-06-20-live-fuel-status"></script>
-  <script src="app-ui.js?v=2026-06-20-live-fuel-status"></script>
+  <script src="app-barriers.js?v=2026-06-20-mobile-ux"></script>
+  <script src="app-ui.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-pwa.js?v=2026-06-20-pwa"></script>
+  <script src="app-mobile-overrides.js?v=2026-06-20-gap-mobile"></script>
 </body>
 </html>
