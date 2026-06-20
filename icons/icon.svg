@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fuel Guard icon">
+  <rect width="512" height="512" rx="112" fill="#07130f"/>
+  <path d="M132 119h248c18 0 32 14 32 32v210c0 18-14 32-32 32H132c-18 0-32-14-32-32V151c0-18 14-32 32-32Z" fill="#101d18" stroke="#2dff88" stroke-width="18"/>
+  <path d="M156 255c0-56 45-101 100-101s100 45 100 101-45 101-100 101-100-45-100-101Z" fill="#0b1511" stroke="#20d6ff" stroke-width="16"/>
+  <path d="M256 181v82l54 35" fill="none" stroke="#2dff88" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M149 410h214" stroke="#2dff88" stroke-width="22" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,394 @@
+/* PWA/mobile usability pass */
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+h1,
+.ring strong,
+.metric-card h2,
+#dashboardProactivityScore {
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 3rem;
+}
+
+button,
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+button,
+.nav-item,
+.flow-card,
+details summary {
+  touch-action: manipulation;
+}
+
+button.primary,
+button.secondary,
+.nav-item,
+.flow-card,
+.small-btn,
+.remove-btn {
+  min-height: 44px;
+}
+
+input,
+select,
+textarea {
+  min-height: 44px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.nav-item,
+.flow-card,
+button.primary,
+button.secondary,
+.fuelled-button {
+  -webkit-tap-highlight-color: rgba(45,255,136,.2);
+}
+
+.screen {
+  min-width: 0;
+}
+
+.list .row,
+.row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.item-name,
+.row-note,
+.muted,
+p,
+strong,
+h2,
+h3 {
+  overflow-wrap: anywhere;
+}
+
+.forecast-field,
+.confirmation-row > div,
+.meal-prep-check-row > div,
+.meal-prep-risk-row > div {
+  min-width: 0;
+}
+
+.fuel-confirmation-scroll,
+.horizontal-timeline {
+  scrollbar-color: rgba(45,255,136,.55) rgba(255,255,255,.08);
+}
+
+.fuel-confirmation-scroll::-webkit-scrollbar,
+.horizontal-timeline::-webkit-scrollbar {
+  height: 8px;
+}
+
+.fuel-confirmation-scroll::-webkit-scrollbar-track,
+.horizontal-timeline::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.08);
+  border-radius: 999px;
+}
+
+.fuel-confirmation-scroll::-webkit-scrollbar-thumb,
+.horizontal-timeline::-webkit-scrollbar-thumb {
+  background: rgba(45,255,136,.55);
+  border-radius: 999px;
+}
+
+@media(max-width:720px) {
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(45,255,136,.18), transparent 32%),
+      linear-gradient(180deg, #08110e, var(--bg));
+  }
+
+  .layout {
+    display: block;
+    min-height: 100dvh;
+  }
+
+  .sidebar {
+    position: static;
+    z-index: auto;
+    height: auto;
+    padding: calc(10px + env(safe-area-inset-top)) 12px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    background: rgba(5,10,8,.9);
+    backdrop-filter: blur(20px);
+  }
+
+  .brand {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .brand strong {
+    font-size: 1rem;
+  }
+
+  .brand span {
+    font-size: .74rem;
+    line-height: 1.25;
+  }
+
+  .side-nav {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .nav-item,
+  .nav-item.sub {
+    width: 100%;
+    padding: 11px 12px;
+  }
+
+  .nav-group {
+    padding: 7px;
+    border-radius: 14px;
+  }
+
+  .nav-group summary {
+    min-height: 42px;
+    padding: 10px;
+  }
+
+  .sidebar-card {
+    display: none;
+  }
+
+  .app {
+    width: 100%;
+    padding: 14px 12px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .eyebrow {
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-size: 2rem;
+    line-height: 1.05;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 1.28rem;
+    line-height: 1.18;
+  }
+
+  h3 {
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .status-card {
+    min-width: 0;
+    padding: 12px;
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 14px;
+    border-radius: 18px;
+  }
+
+  .fuel-gap-header {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .fuelled-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 68px;
+    border-radius: 16px;
+    font-size: 1rem;
+  }
+
+  .fuel-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .mini-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .mini-card h3,
+  .fuel-status-grid h3 {
+    font-size: 1.05rem;
+  }
+
+  .button-row {
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .button-row button.primary,
+  .button-row button.secondary,
+  .fuel-day-actions button,
+  .pantry-import-row button,
+  .meal-prep-check-actions button,
+  .confirmation-submit-row button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .fuel-day-summary {
+    padding: 12px;
+  }
+
+  .fuel-gap-lower {
+    display: block;
+  }
+
+  .section-heading-row {
+    align-items: flex-start;
+  }
+
+  .pantry-import-panel {
+    padding: 14px;
+    margin: 18px 0;
+  }
+
+  .import-help p {
+    margin-bottom: 8px;
+  }
+
+  .form-grid,
+  .two,
+  .three,
+  .recipe-grid,
+  .fuel-grid,
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+
+  .list .row,
+  .row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: start;
+  }
+
+  .row > strong,
+  .row > button,
+  .row > .status-pill {
+    justify-self: start;
+  }
+
+  .forecast-confirmation summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .forecast-confirmation-body {
+    padding: 0 12px 12px;
+  }
+
+  .fuel-confirmation-review {
+    padding: 6px;
+  }
+
+  .fuel-confirmation-review summary {
+    padding: 12px;
+  }
+
+  .fuel-confirmation-table {
+    min-width: 880px;
+    gap: 8px;
+  }
+
+  .confirmation-row {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .forecast-section-actions {
+    align-items: stretch;
+  }
+
+  .category-fuel-status {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .meal-prep-warning {
+    padding: 14px;
+  }
+
+  .meal-prep-check-row,
+  .meal-prep-risk-row {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .meal-prep-status-stack,
+  .meal-prep-check-row .status-pill,
+  .meal-prep-risk-row .status-pill {
+    justify-items: start;
+    justify-self: start;
+  }
+
+  .fuel-momentum-header,
+  .fuel-momentum-item {
+    grid-template-columns: 1fr;
+  }
+
+  .insight.dismissible {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+
+  .tip-close {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media(max-width:380px) {
+  .fuel-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .brand span {
+    display: none;
+  }
+
+  .app {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}

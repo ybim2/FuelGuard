@@ -1,0 +1,19 @@
+{
+  "name": "Fuel Guard",
+  "short_name": "Fuel Guard",
+  "description": "Prevent under-fuelling before it happens.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#07130f",
+  "background_color": "#07130f",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
