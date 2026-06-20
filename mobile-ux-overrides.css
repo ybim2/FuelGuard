@@ -531,3 +531,215 @@
     padding-right: 10px;
   }
 }
+
+/* Live Fuel Rhythm archive pass */
+.fuel-gap-card > .fuel-rhythm-panel:first-child {
+  margin-top: 0;
+}
+
+.fuel-rhythm-header h2 {
+  margin: 2px 0 0;
+}
+
+.fuel-day-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: end;
+  margin: 0 0 12px;
+}
+
+.day-type-field {
+  display: grid;
+  gap: 6px;
+  min-width: min(280px, 100%);
+}
+
+.day-type-field span {
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+.day-type-field select {
+  min-height: 42px;
+  border-radius: 13px;
+}
+
+.fuel-log-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, .7fr) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.fuel-log-panel .fuel-graph-actions {
+  margin-top: 0;
+  align-self: end;
+}
+
+.fuel-day-analysis {
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255,176,32,.22);
+  border-radius: 16px;
+  background: rgba(255,176,32,.07);
+}
+
+.fuel-day-analysis:empty {
+  display: none;
+}
+
+.fuel-analysis-list {
+  display: grid;
+  gap: 7px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--text);
+}
+
+.fuel-analysis-list li {
+  line-height: 1.38;
+}
+
+.fuel-archive-panel {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,.035);
+  overflow: hidden;
+}
+
+.fuel-archive-panel summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 900;
+}
+
+.fuel-archive-panel summary small {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.fuel-archive-controls {
+  padding: 0 14px 12px;
+}
+
+.fuel-archive-detail {
+  display: grid;
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.fuel-archive-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.fuel-archive-head h3 {
+  margin: 2px 0 0;
+}
+
+.fuel-archive-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.fuel-archive-stats div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 13px;
+  background: rgba(255,255,255,.035);
+}
+
+.fuel-archive-stats span,
+.fuel-archive-stats strong {
+  display: block;
+}
+
+.fuel-archive-stats span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.fuel-archive-stats strong {
+  margin-top: 4px;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.fuel-archive-section h4 {
+  margin: 0 0 8px;
+}
+
+.fuel-archive-log-row {
+  border-radius: 12px;
+}
+
+@media(max-width:900px) {
+  .fuel-log-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .fuel-log-panel .fuel-graph-actions {
+    grid-column: 1 / -1;
+  }
+
+  .fuel-archive-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media(max-width:720px) {
+  .fuel-rhythm-header h2 {
+    font-size: 1.36rem;
+  }
+
+  .fuel-day-type-row,
+  .fuel-log-panel {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .fuel-log-panel .fuel-graph-actions {
+    grid-column: auto;
+  }
+
+  .day-type-field {
+    min-width: 0;
+  }
+
+  .fuel-day-analysis {
+    padding: 12px;
+    border-radius: 15px;
+  }
+
+  .fuel-archive-panel summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fuel-archive-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fuel-archive-stats {
+    grid-template-columns: 1fr;
+  }
+}
