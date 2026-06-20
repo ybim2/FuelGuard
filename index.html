@@ -41,25 +41,31 @@
               <p class="label">Fuel Gap</p>
               <h2>Live fuel status</h2>
             </div>
-            <button id="fuelledButton" class="fuelled-button" type="button">I fuelled</button>
+            <button id="fuelledButton" class="fuelled-button" type="button" data-fuel-action="log-fuel">I fuelled</button>
           </div>
 
-          <div class="grid three fuel-status-grid">
+          <div class="grid two fuel-status-grid">
             <div class="mini-card"><p class="label">Last fuelled</p><h3 id="fuelLastFuelled">--</h3></div>
             <div class="mini-card"><p class="label">Time since fuel</p><h3 id="fuelTimeSince">--</h3></div>
-            <div class="mini-card"><p class="label">Status</p><h3><span id="fuelGapStatus" class="status-pill amber">AMBER</span></h3></div>
           </div>
 
           <div id="fuelGapNextAction" class="fuel-next-action"></div>
 
-          <div class="grid two fuel-gap-lower">
-            <div>
-              <h3>Daily fuel log</h3>
-              <div id="fuelDailyLog" class="list"></div>
+          <div class="fuel-day-controls">
+            <div class="button-row fuel-day-actions">
+              <button id="endFuelDayButton" class="secondary" type="button" data-fuel-action="end-day">End day and start fasting</button>
+              <button id="continueFuelDayButton" class="secondary" type="button" data-fuel-action="continue-tracking">Continue today's tracking</button>
             </div>
+            <div id="fuelDaySummary" class="fuel-day-summary"></div>
+          </div>
+
+          <div class="fuel-gap-lower">
             <div>
-              <h3>Weekly insight</h3>
-              <div id="fuelWeeklyInsight" class="fuel-insight-list"></div>
+              <div class="section-heading-row">
+                <h3>Daily fuel log</h3>
+                <span id="fuelDailyLogDate" class="row-note"></span>
+              </div>
+              <div id="fuelDailyLog" class="list"></div>
             </div>
           </div>
         </article>
@@ -109,7 +115,6 @@
         <article class="card">
           <h2>Nutrition Diary</h2>
           <p class="muted">Reflect on what's influencing your fuelling.</p>
-          <div id="barrierSummary" class="grid three"></div>
         </article>
 
         <article class="card">
@@ -146,6 +151,10 @@
 
     </main>
   </div>
-  <script src="app.js"></script>
+  <script src="app-state.js?v=2026-06-20-live-fuel-status"></script>
+  <script src="app-dashboard.js?v=2026-06-20-live-fuel-status"></script>
+  <script src="app-forecast.js?v=2026-06-20-live-fuel-status"></script>
+  <script src="app-barriers.js?v=2026-06-20-live-fuel-status"></script>
+  <script src="app-ui.js?v=2026-06-20-live-fuel-status"></script>
 </body>
 </html>
