@@ -240,7 +240,10 @@ const DEFAULT_STATE = {
     }
   },
   fuelGap: {
-    logs: []
+    logs: [],
+    dayEndedDate: "",
+    dayEndedAt: "",
+    fastingStartedAt: ""
   },
   fuelMomentum: {
     lastMessage: "",
@@ -410,6 +413,50 @@ function fuelGapSnapshot(now = new Date()) {
   };
 }
 
+function fuelTrackingDateLabel(now = new Date()) {
+  return now.toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+}
+
+function fuelDayEndSnapshot(now = new Date()) {
+  const gap = fuelGapState();
+  const endedAt = fuelLogDate(gap.dayEndedAt);
+  const endedToday = Boolean(
+    gap.dayEndedDate === todayKey(now) ||
+    (endedAt && todayKey(endedAt) === todayKey(now))
+  );
+
+  return {
+    dayEnded: endedToday,
+    endTime: endedToday ? formatClock(endedAt) : "",
+    fastingStarted: endedToday && Boolean(gap.fastingStartedAt)
+  };
+}
+
+function fuelDaySummary(now = new Date()) {
+  const logs = todaysFuelLogs(now);
+  const last = logs[logs.length - 1] || null;
+  const end = fuelDayEndSnapshot(now);
+  const fuelLogText = `${logs.length} fuel log${logs.length === 1 ? "" : "s"}`;
+  const lastFuelled = last ? formatClock(last.date) : "No fuel logged";
+  const endText = end.dayEnded
+    ? `Day ended at ${end.endTime}. Fasting started.`
+    : "Today's tracking is still open.";
+
+  return {
+    date: fuelTrackingDateLabel(now),
+    fuelLogs: logs.length,
+    lastFuelled,
+    dayEnded: end.dayEnded,
+    endTime: end.endTime,
+    message: `Today's fuelling summary: ${fuelLogText}. Last fuelled: ${lastFuelled}. ${endText}`
+  };
+}
+
 function fuelGapDurationsToday(now = new Date()) {
   const logs = todaysFuelLogs(now);
   const gaps = [];
@@ -434,6 +481,8 @@ function fuelGapInsight(now = new Date()) {
 }
 
 function recordFuelled() {
+  if (fuelDayEndSnapshot().dayEnded) return;
+
   fuelGapState().logs.push({
     id: uid(),
     timestamp: new Date().toISOString(),
@@ -446,6 +495,32 @@ function recordFuelled() {
     "Fuel logged. Your system is up to date. +1 Fuel Momentum",
     { dedupeDaily: false }
   );
+  save();
+  renderAll();
+}
+
+function endFuelDayAndStartFasting() {
+  const now = new Date();
+  const gap = fuelGapState();
+  gap.dayEndedDate = todayKey(now);
+  gap.dayEndedAt = now.toISOString();
+  gap.fastingStartedAt = now.toISOString();
+  addActivityEntry("fastingStarted", "Day ended. Fasting started.", { dedupeDaily: true });
+  save();
+  renderAll();
+}
+
+function continueFuelDayTracking() {
+  const wasEnded = fuelDayEndSnapshot().dayEnded;
+
+  state.fuelGap = {
+    ...fuelGapState(),
+    dayEndedDate: "",
+    dayEndedAt: "",
+    fastingStartedAt: ""
+  };
+
+  if (wasEnded) addActivityEntry("fuelTrackingContinued", "Continued today's fuel tracking.", { dedupeDaily: true });
   save();
   renderAll();
 }
