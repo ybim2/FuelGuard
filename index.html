@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="mobile-pwa.css?v=2026-06-20-mobile-ux" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-gap-mobile" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-gap-graph" />
 </head>
 <body>
   <div class="layout">
@@ -53,6 +53,15 @@
             </div>
             <div class="food-log-actions">
               <button id="fuelledButton" class="fuelled-button" type="button" data-fuel-action="log-fuel">Log food</button>
+              <label class="food-log-type">
+                <span>Type</span>
+                <select id="foodLogType">
+                  <option value="meal">Meal</option>
+                  <option value="snack">Snack</option>
+                  <option value="takeout">Takeout</option>
+                  <option value="hydration">Hydration</option>
+                </select>
+              </label>
               <label class="food-log-note">
                 <span>Optional note</span>
                 <input id="foodLogNote" type="text" placeholder="Bagel, shake, snack..." autocomplete="off">
@@ -67,6 +76,26 @@
 
           <div id="fuelGapNextAction" class="fuel-next-action"></div>
           <div id="fuelStatusContext" class="fuel-status-context"></div>
+
+          <section class="fuel-rhythm-panel" aria-label="Daily fuel pattern">
+            <div class="fuel-rhythm-header">
+              <div>
+                <p class="label">Fuel rhythm</p>
+                <h3>Daily fuel pattern</h3>
+              </div>
+              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last ate: --</strong>
+            </div>
+            <div class="fuel-graph-wrap">
+              <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Estimated fuel curve across today"></canvas>
+            </div>
+            <div class="fuel-graph-actions">
+              <button id="graphLogFoodButton" class="primary" type="button" data-fuel-action="log-fuel">Log food</button>
+              <button id="undoLatestFoodLog" class="secondary" type="button">Undo latest log</button>
+            </div>
+            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
+            <div id="fuelGapInsights" class="fuel-gap-insights"></div>
+          </section>
+
           <details class="fuel-status-guide">
             <summary>How gap risk works</summary>
             <div class="fuel-status-guide-grid">
@@ -208,6 +237,6 @@
   <script src="app-barriers.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-ui.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-pwa.js?v=2026-06-20-pwa"></script>
-  <script src="app-mobile-overrides.js?v=2026-06-20-gap-mobile"></script>
+  <script src="app-mobile-overrides.js?v=2026-06-20-gap-graph"></script>
 </body>
 </html>
