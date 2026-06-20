@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="mobile-pwa.css?v=2026-06-20-mobile-ux" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-gap-graph" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-rhythm-archive" />
 </head>
 <body>
   <div class="layout">
@@ -46,15 +46,41 @@
 
       <section id="dashboard" class="screen active">
         <article class="card fuel-gap-card">
-          <div class="fuel-gap-header">
-            <div>
-              <p class="label">Today</p>
-              <h2>How long since you last ate?</h2>
+          <section class="fuel-rhythm-panel" aria-label="Live Fuel Rhythm">
+            <div class="fuel-rhythm-header">
+              <div>
+                <p class="label">Live Fuel Status</p>
+                <h2>Live Fuel Rhythm</h2>
+              </div>
+              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last ate: --</strong>
             </div>
-            <div class="food-log-actions">
-              <button id="fuelledButton" class="fuelled-button" type="button" data-fuel-action="log-fuel">Log food</button>
+
+            <div id="fuelGapNextAction" class="fuel-next-action"></div>
+            <div id="fuelStatusContext" class="fuel-status-context"></div>
+
+            <div class="fuel-day-type-row">
+              <label class="day-type-field">
+                <span>Day type</span>
+                <select id="fuelDayType">
+                  <option value="">Select day type</option>
+                  <option value="training-work">Training + work day</option>
+                  <option value="double-training">Double training day</option>
+                  <option value="shift">Shift day</option>
+                  <option value="rest">Rest day</option>
+                  <option value="other">Other</option>
+                  <option value="standalone-training">Standalone training</option>
+                </select>
+              </label>
+              <span id="fuelDayTypeSaved" class="row-note"></span>
+            </div>
+
+            <div class="fuel-graph-wrap">
+              <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Estimated fuel curve across today"></canvas>
+            </div>
+
+            <div class="fuel-log-panel">
               <label class="food-log-type">
-                <span>Type</span>
+                <span>Log type</span>
                 <select id="foodLogType">
                   <option value="meal">Meal</option>
                   <option value="snack">Snack</option>
@@ -66,32 +92,12 @@
                 <span>Optional note</span>
                 <input id="foodLogNote" type="text" placeholder="Bagel, shake, snack..." autocomplete="off">
               </label>
-            </div>
-          </div>
-
-          <div class="grid two fuel-status-grid">
-            <div class="mini-card"><p class="label">Last ate</p><h3 id="fuelLastFuelled">--</h3></div>
-            <div class="mini-card"><p class="label">Time since last food</p><h3 id="fuelTimeSince">--</h3></div>
-          </div>
-
-          <div id="fuelGapNextAction" class="fuel-next-action"></div>
-          <div id="fuelStatusContext" class="fuel-status-context"></div>
-
-          <section class="fuel-rhythm-panel" aria-label="Daily fuel pattern">
-            <div class="fuel-rhythm-header">
-              <div>
-                <p class="label">Fuel rhythm</p>
-                <h3>Daily fuel pattern</h3>
+              <div class="fuel-graph-actions">
+                <button id="graphLogFoodButton" class="primary" type="button" data-fuel-action="log-fuel">Log food</button>
+                <button id="undoLatestFoodLog" class="secondary" type="button">Undo latest log</button>
               </div>
-              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last ate: --</strong>
             </div>
-            <div class="fuel-graph-wrap">
-              <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Estimated fuel curve across today"></canvas>
-            </div>
-            <div class="fuel-graph-actions">
-              <button id="graphLogFoodButton" class="primary" type="button" data-fuel-action="log-fuel">Log food</button>
-              <button id="undoLatestFoodLog" class="secondary" type="button">Undo latest log</button>
-            </div>
+
             <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
             <div id="fuelGapInsights" class="fuel-gap-insights"></div>
           </section>
@@ -102,6 +108,7 @@
               <button id="continueFuelDayButton" class="secondary" type="button" data-fuel-action="continue-tracking">Continue today's tracking</button>
             </div>
             <div id="fuelDaySummary" class="fuel-day-summary"></div>
+            <div id="fuelDayAnalysis" class="fuel-day-analysis"></div>
           </div>
 
           <div class="fuel-gap-lower">
@@ -113,6 +120,20 @@
               <div id="fuelDailyLog" class="list"></div>
             </div>
           </div>
+
+          <details class="fuel-archive-panel">
+            <summary>
+              <span>Fuel Archive</span>
+              <small id="fuelArchiveCount">Review previous days</small>
+            </summary>
+            <div class="fuel-archive-controls">
+              <label class="day-type-field">
+                <span>Review date</span>
+                <select id="fuelArchiveDate"></select>
+              </label>
+            </div>
+            <div id="fuelArchiveDetail" class="fuel-archive-detail"></div>
+          </details>
         </article>
 
         <article class="card insight dismissible" id="dashboardTip">
@@ -227,6 +248,6 @@
   <script src="app-barriers.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-ui.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-pwa.js?v=2026-06-20-pwa"></script>
-  <script src="app-mobile-overrides.js?v=2026-06-20-gap-graph"></script>
+  <script src="app-mobile-overrides.js?v=2026-06-20-rhythm-archive"></script>
 </body>
 </html>
