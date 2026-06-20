@@ -1,7 +1,7 @@
 
 function renderFuelGap() {
   const snapshot = fuelGapSnapshot();
-  const insight = fuelGapInsight();
+  const daySummary = fuelDaySummary();
 
   const fuelLastFuelled = document.getElementById("fuelLastFuelled");
   if (fuelLastFuelled) fuelLastFuelled.textContent = snapshot.lastFuelled;
@@ -9,17 +9,37 @@ function renderFuelGap() {
   const fuelTimeSince = document.getElementById("fuelTimeSince");
   if (fuelTimeSince) fuelTimeSince.textContent = snapshot.timeSinceFuel;
 
-  const fuelGapStatusEl = document.getElementById("fuelGapStatus");
-  if (fuelGapStatusEl) {
-    fuelGapStatusEl.textContent = snapshot.status.toUpperCase();
-    fuelGapStatusEl.className = `status-pill ${snapshot.status}`;
-  }
-
   const fuelGapNextAction = document.getElementById("fuelGapNextAction");
   if (fuelGapNextAction) {
     fuelGapNextAction.textContent = snapshot.nextAction;
     fuelGapNextAction.className = `fuel-next-action ${snapshot.status === "red" ? "red" : ""}`;
   }
+
+  const fuelledButton = document.getElementById("fuelledButton");
+  if (fuelledButton) {
+    fuelledButton.disabled = daySummary.dayEnded;
+  }
+
+  const endFuelDayButton = document.getElementById("endFuelDayButton");
+  if (endFuelDayButton) {
+    endFuelDayButton.disabled = daySummary.dayEnded;
+  }
+
+  const continueFuelDayButton = document.getElementById("continueFuelDayButton");
+  if (continueFuelDayButton) {
+    continueFuelDayButton.disabled = !daySummary.dayEnded;
+  }
+
+  const fuelDaySummaryEl = document.getElementById("fuelDaySummary");
+  if (fuelDaySummaryEl) {
+    fuelDaySummaryEl.innerHTML = `
+      <p class="label">Daily fuelling summary</p>
+      <p>${daySummary.message}</p>
+    `;
+  }
+
+  const fuelDailyLogDate = document.getElementById("fuelDailyLogDate");
+  if (fuelDailyLogDate) fuelDailyLogDate.textContent = daySummary.date;
 
   const fuelDailyLog = document.getElementById("fuelDailyLog");
   if (fuelDailyLog) {
@@ -33,15 +53,6 @@ function renderFuelGap() {
         `)
         .join("")
       : `<p class="muted fuel-daily-empty">No fuel confirmations today.</p>`;
-  }
-
-  const fuelWeeklyInsight = document.getElementById("fuelWeeklyInsight");
-  if (fuelWeeklyInsight) {
-    fuelWeeklyInsight.innerHTML = `
-      <div class="mini-card"><p class="label">Longest gap today</p><h3>${duration(insight.longestGap)}</h3></div>
-      <div class="mini-card"><p class="label">Fuel confirmations today</p><h3>${insight.confirmations}</h3></div>
-      <div class="mini-card"><p class="label">High-risk gaps</p><h3>${insight.highRiskGaps}</h3></div>
-    `;
   }
 }
 
