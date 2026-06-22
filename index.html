@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07130f" />
-  <meta name="description" content="Fuel Guard helps prevent under-fuelling before it happens." />
+  <meta name="description" content="Fuel Guard tracks fuelling gaps and danger windows." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Fuel Guard" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -15,143 +15,138 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="mobile-pwa.css?v=2026-06-20-mobile-ux" />
   <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-rhythm-archive" />
+  <link rel="stylesheet" href="fuel-beta.css?v=2026-06-22-gap-beta" />
 </head>
-<body>
+<body class="beta-mvp">
   <div class="layout">
     <aside class="sidebar">
-      <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Prevent under-fuelling before it happens</span></div></div>
-      <nav class="side-nav">
-        <button class="nav-item active" data-screen="dashboard">Live Fuel Status</button>
-
-        <details class="nav-group" open>
-          <summary>Fuel Operations</summary>
-          <button class="nav-item sub" data-screen="fuelConfirmation">Fuel Confirmation</button>
-          <button class="nav-item sub" data-screen="nutritionBarriers">Nutrition Diary</button>
-        </details>
-
-        <details class="nav-group">
-          <summary>Support</summary>
-          <button class="nav-item sub" data-screen="checklist">Process Checklist</button>
-          <button class="nav-item sub" data-screen="logs">Activity Log</button>
-        </details>
+      <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Spot fuelling gaps before you crash</span></div></div>
+      <nav class="side-nav beta-nav">
+        <button class="nav-item active" data-screen="dashboard">Live Fuel Rhythm</button>
+        <button class="nav-item" data-screen="logs">Insights / History</button>
+        <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
-      <div class="sidebar-card"><span class="tiny">Today</span><strong id="sideCompletion">0/4 complete</strong><p>Complete your daily fuel maintenance.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel gap tracker</strong><p>Log when you fuel, then use the gaps to find your danger window.</p></div>
     </aside>
 
     <main class="app">
-      <header class="topbar">
-        <div><p class="eyebrow">Fuel Guard MVP V20</p><h1 id="pageTitle">Live Fuel Status</h1><p id="pageSubtitle">See when you last ate and log food fast.</p></div>
-        <div class="status-card"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Calculating</strong></div>
+      <header class="topbar beta-topbar">
+        <div><p class="eyebrow">Fuel Guard Beta</p><h1 id="pageTitle">Live Fuel Rhythm</h1><p id="pageSubtitle">Track your fuel rhythm and spot fuelling gaps before you crash.</p></div>
+        <div class="status-card beta-hidden-feature" aria-hidden="true"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Calculating</strong></div>
       </header>
 
       <section id="dashboard" class="screen active">
-        <article class="card fuel-gap-card">
-          <section class="fuel-rhythm-panel" aria-label="Live Fuel Rhythm">
-            <div class="fuel-rhythm-header">
+        <article class="card fuel-gap-card beta-live-card">
+          <section class="fuel-rhythm-panel beta-rhythm-panel" aria-label="Live Fuel Rhythm">
+            <div class="fuel-rhythm-header beta-rhythm-header">
               <div>
-                <p class="label">Live Fuel Status</p>
+                <p class="label">Fuel gap tracker</p>
                 <h2>Live Fuel Rhythm</h2>
+                <p class="muted beta-panel-copy">Log when you fuel. Fuel Guard tracks the gap before the crash.</p>
               </div>
-              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last ate: --</strong>
+              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
             </div>
+
+            <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">I fuelled</button>
+            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
 
             <div id="fuelGapNextAction" class="fuel-next-action"></div>
             <div id="fuelStatusContext" class="fuel-status-context"></div>
+            <div id="fuelPredictionPanel" class="fuel-prediction-panel"></div>
 
-            <div class="fuel-day-type-row">
+            <div class="fuel-day-type-row beta-day-type-row">
               <label class="day-type-field">
                 <span>Day type</span>
                 <select id="fuelDayType">
                   <option value="">Select day type</option>
                   <option value="training-work">Training + work day</option>
-                  <option value="double-training">Double training day</option>
+                  <option value="training">Training day</option>
+                  <option value="work">Work day</option>
                   <option value="shift">Shift day</option>
                   <option value="rest">Rest day</option>
-                  <option value="other">Other</option>
-                  <option value="standalone-training">Standalone training</option>
                 </select>
               </label>
               <span id="fuelDayTypeSaved" class="row-note"></span>
             </div>
 
-            <div class="fuel-graph-wrap">
-              <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Estimated fuel curve across today"></canvas>
+            <div class="fuel-graph-wrap beta-graph-wrap">
+              <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Live Fuel Rhythm curve across today"></canvas>
             </div>
 
-            <div class="fuel-log-panel">
-              <label class="food-log-type">
-                <span>Log type</span>
-                <select id="foodLogType">
-                  <option value="meal">Meal</option>
-                  <option value="snack">Snack</option>
-                  <option value="takeout">Takeout</option>
-                  <option value="hydration">Hydration</option>
-                </select>
-              </label>
-              <label class="food-log-note">
-                <span>Optional note</span>
-                <input id="foodLogNote" type="text" placeholder="Bagel, shake, snack..." autocomplete="off">
-              </label>
-              <div class="fuel-graph-actions">
-                <button id="graphLogFoodButton" class="primary" type="button" data-fuel-action="log-fuel">Log food</button>
-                <button id="undoLatestFoodLog" class="secondary" type="button">Undo latest log</button>
-              </div>
-            </div>
-
-            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
-            <div id="fuelGapInsights" class="fuel-gap-insights"></div>
+            <div id="fuelGapInsights" class="fuel-gap-insights beta-gap-insights"></div>
           </section>
 
-          <div class="fuel-day-controls">
+          <div class="fuel-day-controls beta-day-controls">
             <div class="button-row fuel-day-actions">
-              <button id="endFuelDayButton" class="secondary" type="button" data-fuel-action="end-day">End day and start fasting</button>
+              <button id="endFuelDayButton" class="secondary" type="button" data-fuel-action="end-day">End day / start fasting</button>
               <button id="continueFuelDayButton" class="secondary" type="button" data-fuel-action="continue-tracking">Continue today's tracking</button>
+              <button id="undoLatestFoodLog" class="secondary" type="button">Undo latest log</button>
             </div>
             <div id="fuelDaySummary" class="fuel-day-summary"></div>
             <div id="fuelDayAnalysis" class="fuel-day-analysis"></div>
           </div>
 
-          <div class="fuel-gap-lower">
+          <div class="fuel-gap-lower beta-today-log">
             <div>
               <div class="section-heading-row">
-                <h3>Daily fuel log</h3>
+                <h3>Today's fuel logs</h3>
                 <span id="fuelDailyLogDate" class="row-note"></span>
               </div>
               <div id="fuelDailyLog" class="list"></div>
             </div>
           </div>
-
-          <details class="fuel-archive-panel">
-            <summary>
-              <span>Fuel Archive</span>
-              <small id="fuelArchiveCount">Review previous days</small>
-            </summary>
-            <div class="fuel-archive-controls">
-              <label class="day-type-field">
-                <span>Review date</span>
-                <select id="fuelArchiveDate"></select>
-              </label>
-            </div>
-            <div id="fuelArchiveDetail" class="fuel-archive-detail"></div>
-          </details>
         </article>
 
-        <article class="card insight dismissible" id="dashboardTip">
-          <div class="icon">💡</div>
+        <article class="card insight dismissible beta-hidden-feature" id="dashboardTip" aria-hidden="true">
+          <div class="icon">!</div>
           <p id="dashboardInsight">Live Fuel Status is your default daily check-in.</p>
-          <button class="tip-close" data-close-tip="dashboardTip" aria-label="Close tip">×</button>
+          <button class="tip-close" data-close-tip="dashboardTip" aria-label="Close tip">x</button>
         </article>
+      </section>
+
+      <section id="logs" class="screen">
+        <article class="card">
+          <h2>Insights / History</h2>
+          <p class="muted">Review previous daily summaries, repeated danger windows, and long-gap patterns.</p>
+          <div id="fuelHistorySummary" class="fuel-gap-insights beta-history-summary"></div>
+        </article>
+
+        <article class="card">
+          <div class="section-heading-row">
+            <h2>Daily Summaries</h2>
+            <span id="fuelHistoryCount" class="row-note"></span>
+          </div>
+          <label class="day-type-field beta-history-date">
+            <span>Review day</span>
+            <select id="fuelHistoryArchiveDate"></select>
+          </label>
+          <div id="fuelHistoryArchiveDetail" class="fuel-archive-detail"></div>
+        </article>
+
+        <div class="beta-hidden-feature" aria-hidden="true">
+          <div id="weeklyLogSummary" class="grid three"></div>
+          <div id="activityLog" class="list"></div>
+        </div>
       </section>
 
       <section id="checklist" class="screen">
         <article class="card">
-          <h2>Process Checklist</h2>
-          <p class="muted">Each operational stage turns green as it is complete.</p>
-          <section class="fast-flow" id="fastFlow"></section>
+          <h2>Settings</h2>
+          <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
+          <div class="form-grid beta-settings-grid">
+            <label>Green under (minutes)<input id="greenThresholdMinutes" type="number" min="60" max="360" step="15"></label>
+            <label>Red at (minutes)<input id="redThresholdMinutes" type="number" min="120" max="720" step="15"></label>
+          </div>
+          <div class="button-row beta-settings-actions">
+            <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
+            <button id="clearFuelBetaData" class="secondary danger-secondary" type="button">Clear fuel beta data</button>
+          </div>
+          <p id="fuelSettingsStatus" class="row-note"></p>
+          <section class="fast-flow beta-hidden-feature" id="fastFlow" aria-hidden="true"></section>
         </article>
       </section>
 
-      <section id="fuelConfirmation" class="screen">
+      <section id="fuelConfirmation" class="screen beta-hidden-feature" aria-hidden="true">
         <article class="card">
           <h2>Fuel Confirmation</h2>
           <p class="muted">Confirm stock by category, review run-out risk in the table, then check whether tomorrow is protected.</p>
@@ -168,16 +163,15 @@
         </article>
       </section>
 
-      <section id="adherence" class="screen">
+      <section id="adherence" class="screen beta-hidden-feature" aria-hidden="true">
         <article class="card"><h2>Adherence Log</h2><p class="muted">Updates automatically when you confirm each stage. You can also adjust it manually.</p><div id="adherenceActions" class="check-grid"></div><button id="saveManualAdherence" class="primary">Save Manual Adherence</button></article>
       </section>
 
-      <section id="bodyMind" class="screen">
+      <section id="bodyMind" class="screen beta-hidden-feature" aria-hidden="true">
         <article class="card"><h2>Body &amp; Mind</h2><label>Energy today<select id="energyToday"><option>Low</option><option selected>Stable</option><option>High</option></select></label><label>Mood today<select id="moodToday"><option>Flat</option><option selected>Calm</option><option>Motivated</option></select></label><label>Hunger/crash risk<select id="hungerToday"><option selected>Managed</option><option>Distracting</option><option>Crashed</option></select></label><label>Recovery note<textarea id="recoveryNote" rows="4" placeholder="How did your fuel system feel today?"></textarea></label><button id="logBodyMind" class="primary">Log Body + Mind</button></article>
       </section>
 
-
-      <section id="nutritionBarriers" class="screen">
+      <section id="nutritionBarriers" class="screen beta-hidden-feature" aria-hidden="true">
         <article class="card diary-quick-context">
           <div>
             <h2>Nutrition Diary</h2>
@@ -208,40 +202,27 @@
         </article>
       </section>
 
-      <section id="logs" class="screen">
-        <article class="card"><h2>Activity Log</h2><p class="muted">A customer-success style activity log for your fuel checks.</p><div id="weeklyLogSummary" class="grid three"></div></article>
-        <article class="card"><h2>Recent Activity</h2><div id="activityLog" class="list"></div></article>
-      </section>
-
-      <section id="future" class="screen">
+      <section id="future" class="screen beta-hidden-feature" aria-hidden="true">
         <article class="card"><h2>Future Ideas Parked</h2><p class="muted">Social posting, PT mode, WhatsApp sharing and recovery logistics are intentionally parked. The MVP needs to work for you first.</p></article>
       </section>
-
-
     </main>
   </div>
-  <nav class="mobile-bottom-nav" aria-label="Mobile primary navigation">
-    <button class="mobile-nav-item active" type="button" data-mobile-screen="dashboard" data-mobile-tab="today">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
-      <span>Today</span>
+
+  <nav class="mobile-bottom-nav beta-mobile-nav" aria-label="Mobile primary navigation">
+    <button class="mobile-nav-item active" type="button" data-mobile-screen="dashboard" data-mobile-tab="rhythm">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 3-4 3 3 5-7 1 2"/></svg>
+      <span>Rhythm</span>
     </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="nutritionBarriers" data-mobile-tab="diary">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 13h6"/></svg>
-      <span>Diary</span>
-    </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="fuelConfirmation" data-mobile-tab="forecast">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-7"/></svg>
-      <span>Forecast</span>
-    </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="logs" data-mobile-tab="activity">
+    <button class="mobile-nav-item" type="button" data-mobile-screen="logs" data-mobile-tab="history">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/><path d="M8 5v14"/></svg>
-      <span>Activity</span>
+      <span>History</span>
     </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="checklist" data-mobile-tab="setup">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="m4 6 1 1 2-2"/><path d="m4 12 1 1 2-2"/><path d="m4 18 1 1 2-2"/></svg>
-      <span>Setup</span>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="checklist" data-mobile-tab="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9.1 1.7 1.7 0 0 0-.9 1.6v.2h-4v-.2a1.7 1.7 0 0 0-.9-1.6 1.7 1.7 0 0 0-1.9-.1l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 6.2 15a1.7 1.7 0 0 0-1.4-1H4.6v-4h.2a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9-.1 1.7 1.7 0 0 0 .9-1.6V1.8h4V2a1.7 1.7 0 0 0 .9 1.6 1.7 1.7 0 0 0 1.9.1l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
+      <span>Settings</span>
     </button>
   </nav>
+
   <script src="app-state.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-dashboard.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-forecast.js?v=2026-06-20-live-fuel-status"></script>
@@ -249,5 +230,6 @@
   <script src="app-ui.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-pwa.js?v=2026-06-20-pwa"></script>
   <script src="app-mobile-overrides.js?v=2026-06-20-rhythm-archive"></script>
+  <script src="fuel-beta.js?v=2026-06-22-gap-beta"></script>
 </body>
 </html>
