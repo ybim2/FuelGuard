@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v4-gap-beta";
+const CACHE_NAME = "fuel-guard-pwa-v5-beta-flicker";
 const APP_SHELL = [
   "./",
   "./index.html",
