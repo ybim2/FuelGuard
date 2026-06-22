@@ -51,6 +51,21 @@
   letter-spacing: 0;
 }
 
+.beta-mvp #graphLogFoodButton {
+  position: relative;
+  color: transparent !important;
+}
+
+.beta-mvp #graphLogFoodButton::after {
+  content: "Log food";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #06130d;
+  pointer-events: none;
+}
+
 .beta-graph-wrap {
   margin-top: 12px;
 }
