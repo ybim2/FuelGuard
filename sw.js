@@ -1,10 +1,11 @@
-const CACHE_NAME = "fuel-guard-pwa-v3-rhythm-archive";
+const CACHE_NAME = "fuel-guard-pwa-v4-gap-beta";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./mobile-pwa.css",
   "./mobile-ux-overrides.css",
+  "./fuel-beta.css",
   "./app-state.js",
   "./app-dashboard.js",
   "./app-forecast.js",
@@ -12,6 +13,7 @@ const APP_SHELL = [
   "./app-ui.js",
   "./app-pwa.js",
   "./app-mobile-overrides.js",
+  "./fuel-beta.js",
   "./manifest.webmanifest",
   "./icons/icon.svg"
 ];
