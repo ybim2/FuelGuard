@@ -1,0 +1,190 @@
+/* Fuel Guard beta MVP focus layer */
+.beta-hidden-feature {
+  display: none !important;
+}
+
+.beta-mvp .beta-nav {
+  display: grid;
+  gap: 8px;
+}
+
+.beta-mvp .beta-sidebar-card strong {
+  display: block;
+  margin: 4px 0;
+}
+
+.beta-live-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.beta-rhythm-panel {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(45,255,136,.16), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+}
+
+.beta-rhythm-header {
+  margin-bottom: 14px;
+}
+
+.beta-rhythm-header h2 {
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  line-height: 1.05;
+}
+
+.beta-panel-copy {
+  margin: 7px 0 0;
+  max-width: 560px;
+}
+
+.beta-fuelled-button {
+  width: 100%;
+  min-height: 76px;
+  margin: 4px 0 12px;
+  border-radius: 18px;
+  font-size: clamp(1.18rem, 2.5vw, 1.65rem);
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.beta-graph-wrap {
+  margin-top: 12px;
+}
+
+.fuel-prediction-panel {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 13px;
+  padding: 12px 13px;
+  border: 1px solid rgba(32,214,255,.24);
+  border-radius: 15px;
+  background: rgba(32,214,255,.075);
+}
+
+.fuel-prediction-panel:empty {
+  display: none;
+}
+
+.fuel-prediction-panel strong,
+.fuel-prediction-panel span,
+.fuel-prediction-panel small {
+  display: block;
+}
+
+.fuel-prediction-panel strong {
+  color: var(--text);
+  font-size: 1.03rem;
+}
+
+.fuel-prediction-panel span,
+.fuel-prediction-panel small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.beta-day-controls,
+.beta-today-log {
+  padding: 0 16px 16px;
+}
+
+.beta-day-controls {
+  padding-top: 14px;
+}
+
+.beta-today-log {
+  padding-bottom: 18px;
+}
+
+.beta-history-summary {
+  margin-top: 14px;
+}
+
+.beta-history-date {
+  margin: 10px 0 14px;
+}
+
+.beta-settings-grid {
+  margin-top: 14px;
+}
+
+.beta-settings-actions {
+  margin-top: 14px;
+}
+
+.beta-mvp .fuel-gap-insight strong {
+  overflow-wrap: anywhere;
+}
+
+.beta-mvp .fuel-archive-detail {
+  padding: 0;
+}
+
+.beta-mvp .fuel-archive-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.beta-mvp .fuel-archive-section {
+  min-width: 0;
+}
+
+.beta-mvp .fuel-analysis-list {
+  margin-top: 8px;
+}
+
+.beta-mvp .fuel-next-action,
+.beta-mvp .fuel-status-context {
+  margin-bottom: 12px;
+}
+
+.beta-mvp .fuel-status-context .status-pill {
+  flex: 0 0 auto;
+}
+
+.beta-mvp .mobile-bottom-nav {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media(max-width:720px) {
+  .beta-mvp .topbar {
+    margin-bottom: 10px;
+  }
+
+  .beta-live-card {
+    border-radius: 18px;
+  }
+
+  .beta-rhythm-panel {
+    border-radius: 18px 18px 0 0;
+  }
+
+  .beta-rhythm-header h2 {
+    font-size: 1.65rem;
+  }
+
+  .beta-panel-copy {
+    font-size: .92rem;
+  }
+
+  .beta-fuelled-button {
+    min-height: 70px;
+    border-radius: 17px;
+  }
+
+  .beta-day-controls,
+  .beta-today-log {
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+
+  .beta-mvp .fuel-archive-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .beta-mvp .mobile-nav-item {
+    min-height: 56px;
+  }
+}
