@@ -106,12 +106,6 @@
 
       <section id="logs" class="screen">
         <article class="card">
-          <h2>Insights / History</h2>
-          <p class="muted">Review previous daily summaries, repeated danger windows, and long-gap patterns.</p>
-          <div id="fuelHistorySummary" class="fuel-gap-insights beta-history-summary"></div>
-        </article>
-
-        <article class="card">
           <div class="section-heading-row">
             <h2>Daily Summaries</h2>
             <span id="fuelHistoryCount" class="row-note"></span>
@@ -124,6 +118,7 @@
         </article>
 
         <div class="beta-hidden-feature" aria-hidden="true">
+          <div id="fuelHistorySummary" class="fuel-gap-insights beta-history-summary"></div>
           <div id="weeklyLogSummary" class="grid three"></div>
           <div id="activityLog" class="list"></div>
         </div>
@@ -229,6 +224,7 @@
   <script src="app-barriers.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-ui.js?v=2026-06-20-mobile-ux"></script>
   <script src="app-pwa.js?v=2026-06-20-pwa"></script>
+  <script src="fuel-history-render-guard.js?v=2026-06-23-history-flicker-fix"></script>
   <script src="fuel-beta.js?v=2026-06-22-beta-flicker"></script>
   <script src="fuel-beta-ui-polish.js?v=2026-06-23-rhythm-cleanup"></script>
 </body>
