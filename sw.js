@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v14-rhythm-time-labels";
+const CACHE_NAME = "fuel-guard-pwa-v15-rhythm-axis-labels";
 const APP_SHELL = [
   "./",
   "./index.html",
