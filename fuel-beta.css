@@ -19,6 +19,8 @@
 }
 
 .beta-rhythm-panel {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   border: 0;
   border-radius: 0;
@@ -28,7 +30,40 @@
 }
 
 .beta-rhythm-header {
+  order: 1;
   margin-bottom: 12px;
+}
+
+.beta-day-type-row {
+  order: 2;
+}
+
+.beta-mvp #fuelGapNextAction {
+  order: 3;
+}
+
+.beta-fuelled-button {
+  order: 4;
+}
+
+.beta-mvp .fuel-cooldown-message {
+  order: 5;
+}
+
+.beta-mvp #fuelStatusContext {
+  order: 6;
+}
+
+.beta-graph-wrap {
+  order: 7;
+}
+
+.fuel-prediction-panel {
+  order: 8;
+}
+
+.beta-gap-insights {
+  order: 9;
 }
 
 .beta-rhythm-status-row {
