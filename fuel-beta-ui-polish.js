@@ -50,11 +50,6 @@
     return typeof duration === "function" ? duration(minutes) : `${Math.round(minutes)}m`;
   }
 
-  function currentStatus() {
-    const snapshot = typeof fuelGapSnapshot === "function" ? fuelGapSnapshot() : null;
-    return snapshot?.status || "red";
-  }
-
   function riskLabel(status) {
     return RISK_LABELS[status] || "High risk";
   }
@@ -92,13 +87,14 @@
     const risk = document.getElementById("fuelGapNextAction");
     const duplicate = document.getElementById("fuelStatusContext");
     const lastBadge = document.getElementById("fuelGraphLastAte");
-    if (duplicate) duplicate.classList.add("beta-hidden-duplicate-risk");
+    if (duplicate && !duplicate.classList.contains("beta-hidden-duplicate-risk")) duplicate.classList.add("beta-hidden-duplicate-risk");
 
     const status = snapshot.status || "red";
     const hasLog = snapshot.lastFuelled && !/no fuel logged/i.test(snapshot.lastFuelled);
     const nextText = `${riskLabel(status)}: ${riskAction(status, hasLog)}`;
+    const nextClass = `fuel-next-action beta-risk-pill ${status}`;
     if (risk) {
-      risk.className = `fuel-next-action beta-risk-pill ${status}`;
+      if (risk.className !== nextClass) risk.className = nextClass;
       if (risk.textContent !== nextText) risk.textContent = nextText;
     }
     if (lastBadge && snapshot.timeSinceFuel) {
@@ -231,8 +227,16 @@
     const settingsCopy = document.querySelector("#checklist article.card > p.muted");
     if (settingsCopy) settingsCopy.textContent = "Set the food-gap thresholds in hours. Medium risk sits between low and high risk.";
 
-    document.getElementById("lowRiskHours")?.addEventListener("input", updateMediumRange);
-    document.getElementById("highRiskHours")?.addEventListener("input", updateMediumRange);
+    const low = document.getElementById("lowRiskHours");
+    const high = document.getElementById("highRiskHours");
+    if (low && low.dataset.mediumHandler !== "true") {
+      low.dataset.mediumHandler = "true";
+      low.addEventListener("input", updateMediumRange);
+    }
+    if (high && high.dataset.mediumHandler !== "true") {
+      high.dataset.mediumHandler = "true";
+      high.addEventListener("input", updateMediumRange);
+    }
   }
 
   function updateMediumRange() {
@@ -240,7 +244,8 @@
     const high = document.getElementById("highRiskHours");
     const medium = document.getElementById("mediumRiskRange");
     if (!low || !high || !medium) return;
-    medium.value = `${low.value || trimHour(limits().greenMinutes / 60)}-${high.value || trimHour(limits().redMinutes / 60)} hours`;
+    const nextValue = `${low.value || trimHour(limits().greenMinutes / 60)}-${high.value || trimHour(limits().redMinutes / 60)} hours`;
+    if (medium.value !== nextValue) medium.value = nextValue;
   }
 
   function renderHourSettings() {
@@ -248,8 +253,14 @@
     const low = document.getElementById("lowRiskHours");
     const high = document.getElementById("highRiskHours");
     const active = document.activeElement;
-    if (low && active !== low) low.value = trimHour(limits().greenMinutes / 60);
-    if (high && active !== high) high.value = trimHour(limits().redMinutes / 60);
+    if (low && active !== low) {
+      const value = trimHour(limits().greenMinutes / 60);
+      if (low.value !== value) low.value = value;
+    }
+    if (high && active !== high) {
+      const value = trimHour(limits().redMinutes / 60);
+      if (high.value !== value) high.value = value;
+    }
     updateMediumRange();
   }
 
@@ -298,7 +309,7 @@
     const target = document.getElementById(id);
     if (!target) return;
     const observer = new MutationObserver(() => requestAnimationFrame(callback));
-    observer.observe(target, { childList: true, subtree: true, characterData: true, attributes: true });
+    observer.observe(target, { childList: true, subtree: true, characterData: true });
   }
 
   document.addEventListener("DOMContentLoaded", applyUiPolish);
