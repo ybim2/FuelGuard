@@ -74,10 +74,20 @@
     const risk = document.getElementById("fuelGapNextAction");
     const graph = document.querySelector(".beta-graph-wrap");
     const prediction = document.getElementById("fuelPredictionPanel");
+    const todayLog = document.querySelector(".beta-today-log");
+    const dayControls = document.querySelector(".beta-day-controls");
     moveElementBefore(dayType, logButton);
     moveElementAfter(risk, cooldown || logButton);
     moveElementBefore(risk, graph);
     moveElementAfter(prediction, graph);
+    moveElementBefore(todayLog, dayControls);
+  }
+
+  function updateDayControlsCopy() {
+    const continueButton = document.getElementById("continueFuelDayButton");
+    if (continueButton && continueButton.textContent !== "Continue tracking") {
+      continueButton.textContent = "Continue tracking";
+    }
   }
 
   function updateRiskCopy() {
@@ -298,6 +308,7 @@
     if (applying) return;
     applying = true;
     orderLiveRhythm();
+    updateDayControlsCopy();
     updateRiskCopy();
     queueHistoryPolish();
     renderHourSettings();
