@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v12-history-cleanup";
+const CACHE_NAME = "fuel-guard-pwa-v13-history-flicker-fix";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const APP_SHELL = [
   "./app-ui.js",
   "./app-pwa.js",
   "./app-mobile-overrides.js",
+  "./fuel-history-render-guard.js",
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
   "./manifest.webmanifest",
