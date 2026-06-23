@@ -23,10 +23,6 @@
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
   }
 
-  function localDateKey(date = new Date()) {
-    return typeof todayKey === "function" ? todayKey(date) : date.toISOString().slice(0, 10);
-  }
-
   function gapState() {
     return typeof fuelGapState === "function" ? fuelGapState() : (window.state?.fuelGap || {});
   }
@@ -124,8 +120,20 @@
     `;
   }
 
+  function reorderHistorySections() {
+    const screen = document.getElementById("logs");
+    if (!screen) return;
+    const cards = [...screen.querySelectorAll(":scope > article.card")];
+    const daily = cards.find(card => /daily summaries/i.test(card.querySelector("h2")?.textContent || ""));
+    const insight = cards.find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
+    if (daily && insight && daily.compareDocumentPosition(insight) & Node.DOCUMENT_POSITION_PRECEDING) {
+      screen.insertBefore(daily, insight);
+    }
+  }
+
   function renderHistoryVisuals() {
-    const summaryCard = document.querySelector("#logs article.card");
+    const summaryCard = [...document.querySelectorAll("#logs article.card")]
+      .find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
     if (!summaryCard) return;
     let target = document.getElementById("fuelHistoryVisuals");
     if (!target) {
@@ -167,10 +175,18 @@
     `;
   }
 
+  function setLabelText(input, text) {
+    const label = input?.closest("label");
+    if (!label) return;
+    const textNode = [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+    if (textNode) textNode.textContent = text;
+  }
+
   function setupHourSettings() {
     const green = document.getElementById("greenThresholdMinutes");
     const red = document.getElementById("redThresholdMinutes");
     if (green) {
+      setLabelText(green, "Low risk under (hours)");
       green.min = "1";
       green.max = "6";
       green.step = "0.25";
@@ -178,11 +194,16 @@
       green.setAttribute("aria-label", "Low risk under hours");
     }
     if (red) {
+      setLabelText(red, "High risk after (hours)");
       red.min = "2";
       red.max = "12";
       red.step = "0.25";
       red.inputMode = "decimal";
       red.setAttribute("aria-label", "High risk after hours");
+    }
+    const settingsCopy = document.querySelector("#checklist article.card > p.muted");
+    if (settingsCopy) {
+      settingsCopy.textContent = "Adjust beta gap thresholds in hours. Low risk under 3 hours, medium risk from 3-5 hours, high risk after 5+ hours.";
     }
   }
 
@@ -221,6 +242,7 @@
 
   function applyUiPolish() {
     updateLiveRhythm();
+    reorderHistorySections();
     renderHistoryVisuals();
     renderHourSettings();
     installHourSettingsHandler();
