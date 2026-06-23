@@ -56,7 +56,7 @@
 .beta-fuelled-button {
   width: 100%;
   min-height: 76px;
-  margin: 4px 0 10px;
+  margin: 4px 0 3px;
   border-radius: 18px;
   font-size: clamp(1.18rem, 2.5vw, 1.65rem);
   font-weight: 950;
@@ -78,14 +78,19 @@
   pointer-events: none;
 }
 
+.beta-mvp .fuel-cooldown-message {
+  min-height: 0;
+  margin: 0 0 3px;
+}
+
 .beta-graph-wrap {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .fuel-prediction-panel {
   display: grid;
   gap: 5px;
-  margin: 10px 0 10px;
+  margin: 9px 0 8px;
   padding: 11px 12px;
   border: 1px solid rgba(32,214,255,.24);
   border-radius: 15px;
@@ -119,7 +124,7 @@
 }
 
 .beta-day-controls {
-  padding-top: 8px;
+  padding-top: 2px;
 }
 
 .beta-today-log {
@@ -154,6 +159,15 @@
   color: var(--muted);
 }
 
+.beta-mvp .fuel-gap-insights {
+  margin-top: 7px;
+  margin-bottom: 0;
+}
+
+.beta-mvp #fuelGapInsights .fuel-gap-insight:nth-child(-n+4) {
+  display: none !important;
+}
+
 .beta-mvp .fuel-gap-insight strong {
   overflow-wrap: anywhere;
 }
@@ -186,7 +200,7 @@
 
 .beta-mvp .fuel-next-action,
 .beta-mvp .fuel-status-context {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .beta-mvp .fuel-status-context .status-pill {
@@ -203,8 +217,8 @@
 
 .beta-risk-pill {
   width: 100%;
-  margin: 0 0 10px;
-  padding: 10px 12px;
+  margin: 0 0 5px;
+  padding: 9px 12px;
   border-radius: 14px;
   font-size: .88rem;
   font-weight: 850;
@@ -353,16 +367,18 @@
 
   .beta-risk-pill {
     font-size: .82rem;
+    margin-bottom: 4px;
   }
 
   .beta-fuelled-button {
     min-height: 70px;
     border-radius: 17px;
+    margin-bottom: 2px;
   }
 
   .beta-mvp .fuel-gap-insights {
-    gap: 8px;
-    margin-top: 10px;
+    gap: 7px;
+    margin-top: 6px;
   }
 
   .beta-mvp .fuel-gap-insight {
@@ -373,6 +389,10 @@
   .beta-today-log {
     padding-left: 13px;
     padding-right: 13px;
+  }
+
+  .beta-day-controls {
+    padding-top: 1px;
   }
 
   .beta-mvp .fuel-archive-stats {
