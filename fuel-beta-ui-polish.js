@@ -1,11 +1,20 @@
 // Fuel Guard beta UI polish layer.
-// Keeps existing beta state/calculation logic, then adjusts the visible mobile-first layout.
+// Event-driven UI adjustments only: no extra one-second render loop.
 (() => {
   const RISK_LABELS = {
     green: "Low risk",
     amber: "Medium risk",
     red: "High risk"
   };
+
+  const RISK_ACTIONS = {
+    green: "timing looks okay",
+    amber: "plan food soon",
+    red: "get fuel available now"
+  };
+
+  let applying = false;
+  let historyQueued = false;
 
   function safeText(value) {
     if (typeof escapeHtml === "function") return escapeHtml(value || "");
@@ -41,11 +50,18 @@
     return typeof duration === "function" ? duration(minutes) : `${Math.round(minutes)}m`;
   }
 
-  function actionForStatus(status, hasLog) {
+  function currentStatus() {
+    const snapshot = typeof fuelGapSnapshot === "function" ? fuelGapSnapshot() : null;
+    return snapshot?.status || "red";
+  }
+
+  function riskLabel(status) {
+    return RISK_LABELS[status] || "High risk";
+  }
+
+  function riskAction(status, hasLog) {
     if (!hasLog) return "log food or eat a quick available option";
-    if (status === "green") return "timing looks okay";
-    if (status === "amber") return "plan food soon";
-    return "get fuel available now";
+    return RISK_ACTIONS[status] || RISK_ACTIONS.red;
   }
 
   function moveElementBefore(element, target) {
@@ -56,36 +72,38 @@
     if (element && target && element.previousElementSibling !== target) target.parentNode.insertBefore(element, target.nextSibling);
   }
 
-  function updateLiveRhythm() {
+  function orderLiveRhythm() {
     const dayType = document.querySelector(".beta-day-type-row");
     const logButton = document.getElementById("graphLogFoodButton");
+    const cooldown = document.getElementById("foodLogCooldownMessage");
+    const risk = document.getElementById("fuelGapNextAction");
     const graph = document.querySelector(".beta-graph-wrap");
     const prediction = document.getElementById("fuelPredictionPanel");
     moveElementBefore(dayType, logButton);
+    moveElementAfter(risk, cooldown || logButton);
+    moveElementBefore(risk, graph);
     moveElementAfter(prediction, graph);
+  }
 
+  function updateRiskCopy() {
     const snapshot = typeof fuelGapSnapshot === "function" ? fuelGapSnapshot() : null;
     if (!snapshot) return;
 
+    const risk = document.getElementById("fuelGapNextAction");
+    const duplicate = document.getElementById("fuelStatusContext");
     const lastBadge = document.getElementById("fuelGraphLastAte");
-    const riskPill = document.getElementById("fuelGapNextAction");
-    const duplicateContext = document.getElementById("fuelStatusContext");
-    const header = document.querySelector(".beta-rhythm-header");
-
-    if (riskPill && header && riskPill.parentElement !== header) header.appendChild(riskPill);
-    if (header) header.classList.add("beta-rhythm-status-row");
-    if (duplicateContext) duplicateContext.classList.add("beta-hidden-duplicate-risk");
+    if (duplicate) duplicate.classList.add("beta-hidden-duplicate-risk");
 
     const status = snapshot.status || "red";
-    const riskLabel = RISK_LABELS[status] || "High risk";
     const hasLog = snapshot.lastFuelled && !/no fuel logged/i.test(snapshot.lastFuelled);
-    if (riskPill) {
-      riskPill.textContent = `${riskLabel}: ${actionForStatus(status, hasLog)}`;
-      riskPill.className = `fuel-next-action beta-risk-pill ${status}`;
-      riskPill.hidden = false;
+    const nextText = `${riskLabel(status)}: ${riskAction(status, hasLog)}`;
+    if (risk) {
+      risk.className = `fuel-next-action beta-risk-pill ${status}`;
+      if (risk.textContent !== nextText) risk.textContent = nextText;
     }
     if (lastBadge && snapshot.timeSinceFuel) {
-      lastBadge.textContent = hasLog ? `Last fuel: ${snapshot.timeSinceFuel} ago` : "Last fuel: not logged yet";
+      const lastText = hasLog ? `Last fuel: ${snapshot.timeSinceFuel} ago` : "Last fuel: not logged yet";
+      if (lastBadge.textContent !== lastText) lastBadge.textContent = lastText;
     }
 
     document.querySelectorAll(".fuel-gap-insight").forEach(card => {
@@ -93,11 +111,12 @@
       if (label !== "current gap risk") return;
       const strong = card.querySelector("strong");
       const small = card.querySelector("small");
-      if (strong) strong.textContent = riskLabel;
+      if (strong && strong.textContent !== riskLabel(status)) strong.textContent = riskLabel(status);
       if (small) {
         const greenHours = trimHour(limits().greenMinutes / 60);
         const redHours = trimHour(limits().redMinutes / 60);
-        small.textContent = `Low risk under ${greenHours}h. High risk after ${redHours}h.`;
+        const copy = `Low risk under ${greenHours}h. Medium risk from ${greenHours}-${redHours}h. High risk after ${redHours}h.`;
+        if (small.textContent !== copy) small.textContent = copy;
       }
     });
   }
@@ -131,6 +150,13 @@
     }
   }
 
+  function removeEndOfDayAnalysis() {
+    document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-section").forEach(section => {
+      const heading = section.querySelector("h4")?.textContent?.trim().toLowerCase();
+      if (heading === "end-of-day analysis") section.remove();
+    });
+  }
+
   function renderHistoryVisuals() {
     const summaryCard = [...document.querySelectorAll("#logs article.card")]
       .find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
@@ -162,7 +188,6 @@
       const value = Number(entry.fuelLogCount || 0);
       return renderBar(entry.dateLabel || entry.date, value, maxLogs, `${value} fuel logs`, "blue");
     }).join("");
-
     const windows = entries
       .filter(entry => entry.actualDangerWindow && entry.actualDangerWindow !== "Not detected")
       .map(entry => `<li><strong>${safeText(entry.dateLabel || entry.date)}</strong><span>${safeText(entry.actualDangerWindow)}</span></li>`)
@@ -171,63 +196,81 @@
     target.innerHTML = `
       <section class="beta-history-chart"><h3>Longest fuel gap by day</h3>${gapBars}</section>
       <section class="beta-history-chart"><h3>Fuel logs per day</h3>${logBars}</section>
-      <section class="beta-history-chart"><h3>Common danger windows</h3>${windows ? `<ul class="beta-danger-window-list">${windows}</ul>` : `<p class="muted">No repeated danger window detected yet.</p>`}</section>
+      <section class="beta-history-chart"><h3>Danger windows</h3>${windows ? `<ul class="beta-danger-window-list">${windows}</ul>` : `<p class="muted">No danger window detected yet.</p>`}</section>
     `;
   }
 
-  function setLabelText(input, text) {
-    const label = input?.closest("label");
-    if (!label) return;
-    const textNode = [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
-    if (textNode) textNode.textContent = text;
+  function queueHistoryPolish() {
+    if (historyQueued) return;
+    historyQueued = true;
+    requestAnimationFrame(() => {
+      historyQueued = false;
+      reorderHistorySections();
+      removeEndOfDayAnalysis();
+      renderHistoryVisuals();
+    });
   }
 
-  function setupHourSettings() {
-    const green = document.getElementById("greenThresholdMinutes");
-    const red = document.getElementById("redThresholdMinutes");
-    if (green) {
-      setLabelText(green, "Low risk under (hours)");
-      green.min = "1";
-      green.max = "6";
-      green.step = "0.25";
-      green.inputMode = "decimal";
-      green.setAttribute("aria-label", "Low risk under hours");
+  function ensureHourSettingsUi() {
+    const originalGreen = document.getElementById("greenThresholdMinutes");
+    const originalRed = document.getElementById("redThresholdMinutes");
+    const grid = document.querySelector(".beta-settings-grid");
+    if (!originalGreen || !originalRed || !grid) return;
+
+    originalGreen.closest("label")?.classList.add("beta-minute-setting");
+    originalRed.closest("label")?.classList.add("beta-minute-setting");
+
+    if (!document.getElementById("lowRiskHours")) {
+      grid.insertAdjacentHTML("beforeend", `
+        <label class="beta-hour-setting">Low risk under (hours)<input id="lowRiskHours" type="number" min="1" max="6" step="0.25" inputmode="decimal"></label>
+        <label class="beta-hour-setting beta-medium-setting">Medium risk range<input id="mediumRiskRange" type="text" readonly></label>
+        <label class="beta-hour-setting">High risk after (hours)<input id="highRiskHours" type="number" min="2" max="12" step="0.25" inputmode="decimal"></label>
+      `);
     }
-    if (red) {
-      setLabelText(red, "High risk after (hours)");
-      red.min = "2";
-      red.max = "12";
-      red.step = "0.25";
-      red.inputMode = "decimal";
-      red.setAttribute("aria-label", "High risk after hours");
-    }
+
     const settingsCopy = document.querySelector("#checklist article.card > p.muted");
-    if (settingsCopy) {
-      settingsCopy.textContent = "Adjust beta gap thresholds in hours. Low risk under 3 hours, medium risk from 3-5 hours, high risk after 5+ hours.";
-    }
+    if (settingsCopy) settingsCopy.textContent = "Set the food-gap thresholds in hours. Medium risk sits between low and high risk.";
+
+    document.getElementById("lowRiskHours")?.addEventListener("input", updateMediumRange);
+    document.getElementById("highRiskHours")?.addEventListener("input", updateMediumRange);
+  }
+
+  function updateMediumRange() {
+    const low = document.getElementById("lowRiskHours");
+    const high = document.getElementById("highRiskHours");
+    const medium = document.getElementById("mediumRiskRange");
+    if (!low || !high || !medium) return;
+    medium.value = `${low.value || trimHour(limits().greenMinutes / 60)}-${high.value || trimHour(limits().redMinutes / 60)} hours`;
   }
 
   function renderHourSettings() {
-    setupHourSettings();
-    const green = document.getElementById("greenThresholdMinutes");
-    const red = document.getElementById("redThresholdMinutes");
+    ensureHourSettingsUi();
+    const low = document.getElementById("lowRiskHours");
+    const high = document.getElementById("highRiskHours");
     const active = document.activeElement;
-    if (green && active !== green) green.value = trimHour(limits().greenMinutes / 60);
-    if (red && active !== red) red.value = trimHour(limits().redMinutes / 60);
+    if (low && active !== low) low.value = trimHour(limits().greenMinutes / 60);
+    if (high && active !== high) high.value = trimHour(limits().redMinutes / 60);
+    updateMediumRange();
   }
 
   function saveHourSettings(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    const greenHours = Number(document.getElementById("greenThresholdMinutes")?.value || 3);
-    const redHours = Number(document.getElementById("redThresholdMinutes")?.value || 5);
-    const threshold = limits();
+    const greenHours = Number(document.getElementById("lowRiskHours")?.value || 3);
+    const redHours = Number(document.getElementById("highRiskHours")?.value || 5);
     const lowMinutes = Math.round(Math.min(6, Math.max(1, greenHours)) * 60);
     const highMinutes = Math.round(Math.min(12, Math.max(2, Math.max(redHours, greenHours + .5))) * 60);
+    const threshold = limits();
     threshold.greenMinutes = lowMinutes;
     threshold.redMinutes = highMinutes;
+
+    const hiddenGreen = document.getElementById("greenThresholdMinutes");
+    const hiddenRed = document.getElementById("redThresholdMinutes");
+    if (hiddenGreen) hiddenGreen.value = lowMinutes;
+    if (hiddenRed) hiddenRed.value = highMinutes;
+
     const status = document.getElementById("fuelSettingsStatus");
-    if (status) status.textContent = "Risk thresholds saved in hours.";
+    if (status) status.textContent = "Risk thresholds saved: low, medium and high risk updated.";
     if (typeof save === "function") save();
     if (typeof renderAll === "function") renderAll();
     requestAnimationFrame(applyUiPolish);
@@ -241,15 +284,37 @@
   }
 
   function applyUiPolish() {
-    updateLiveRhythm();
-    reorderHistorySections();
-    renderHistoryVisuals();
+    if (applying) return;
+    applying = true;
+    orderLiveRhythm();
+    updateRiskCopy();
+    queueHistoryPolish();
     renderHourSettings();
     installHourSettingsHandler();
+    applying = false;
   }
 
-  window.addEventListener("resize", applyUiPolish);
+  function observeElement(id, callback) {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const observer = new MutationObserver(() => requestAnimationFrame(callback));
+    observer.observe(target, { childList: true, subtree: true, characterData: true, attributes: true });
+  }
+
   document.addEventListener("DOMContentLoaded", applyUiPolish);
+  document.querySelectorAll(".mobile-nav-item, .nav-item").forEach(button => {
+    button.addEventListener("click", () => requestAnimationFrame(applyUiPolish));
+  });
+  document.getElementById("fuelDayType")?.addEventListener("change", () => requestAnimationFrame(applyUiPolish));
+  document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", () => requestAnimationFrame(queueHistoryPolish));
+  document.getElementById("clearFuelBetaData")?.addEventListener("click", () => setTimeout(applyUiPolish, 50));
+  window.addEventListener("resize", applyUiPolish);
+
+  observeElement("fuelGapNextAction", updateRiskCopy);
+  observeElement("fuelGapInsights", updateRiskCopy);
+  observeElement("fuelHistoryArchiveDetail", queueHistoryPolish);
+  observeElement("fuelHistorySummary", queueHistoryPolish);
+  observeElement("checklist", renderHourSettings);
+
   requestAnimationFrame(applyUiPolish);
-  setInterval(applyUiPolish, 1000);
 })();
