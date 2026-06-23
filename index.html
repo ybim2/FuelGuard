@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="mobile-pwa.css?v=2026-06-20-mobile-ux" />
   <link rel="stylesheet" href="mobile-ux-overrides.css?v=2026-06-20-rhythm-archive" />
-  <link rel="stylesheet" href="fuel-beta.css?v=2026-06-23-rhythm-cleanup" />
+  <link rel="stylesheet" href="fuel-beta.css?v=2026-06-23-rhythm-copy" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -26,12 +26,12 @@
         <button class="nav-item" data-screen="logs">Insights / History</button>
         <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel gap tracker</strong><p>Log when you fuel, then use the gaps to find your danger window.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Live Fuel Rhythm</strong><p>Log when you fuel, then use the gaps to find your danger window.</p></div>
     </aside>
 
     <main class="app">
       <header class="topbar beta-topbar">
-        <div><p class="eyebrow">Fuel Guard Beta</p><h1 id="pageTitle">Live Fuel Rhythm</h1><p id="pageSubtitle">Track your fuel rhythm and spot fuelling gaps before you crash.</p></div>
+        <div><p class="eyebrow">Fuel Guard Beta</p><h1 id="pageTitle">Live Fuel Rhythm</h1><p id="pageSubtitle">Fuelling gap tracker. Log when you fuel, avoid crashing.</p></div>
         <div class="status-card beta-hidden-feature" aria-hidden="true"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Calculating</strong></div>
       </header>
 
@@ -40,9 +40,8 @@
           <section class="fuel-rhythm-panel beta-rhythm-panel" aria-label="Live Fuel Rhythm">
             <div class="fuel-rhythm-header beta-rhythm-header">
               <div>
-                <p class="label">Fuel gap tracker</p>
-                <h2>Live Fuel Rhythm</h2>
-                <p class="muted beta-panel-copy">Log when you fuel. Fuel Guard tracks the gap before the crash.</p>
+                <p class="label">Live Fuel Rhythm</p>
+                <p class="muted beta-panel-copy">Fuelling gap tracker. Log when you fuel, avoid crashing.</p>
               </div>
               <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
             </div>
@@ -90,7 +89,7 @@
           <div class="fuel-gap-lower beta-today-log">
             <div>
               <div class="section-heading-row">
-                <h3>Today's fuel logs</h3>
+                <h3>Today's fuel log</h3>
                 <span id="fuelDailyLogDate" class="row-note"></span>
               </div>
               <div id="fuelDailyLog" class="list"></div>
