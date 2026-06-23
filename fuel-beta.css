@@ -164,7 +164,11 @@
   margin-bottom: 0;
 }
 
-.beta-mvp #fuelGapInsights .fuel-gap-insight:nth-child(-n+4) {
+.beta-mvp #fuelGapInsights .fuel-gap-insight:nth-child(-n+5) {
+  display: none !important;
+}
+
+.beta-mvp #fuelDaySummary {
   display: none !important;
 }
 
