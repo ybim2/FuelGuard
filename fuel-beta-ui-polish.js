@@ -145,12 +145,30 @@
     `;
   }
 
+  function historyOverviewCard() {
+    return [...document.querySelectorAll("#logs > article.card")]
+      .find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
+  }
+
+  function removeHistoryOverviewCard() {
+    historyOverviewCard()?.remove();
+  }
+
+  function renameHighRiskGapLabels() {
+    document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-stats span").forEach(label => {
+      if (label.textContent.trim().toLowerCase() === "long gaps") label.textContent = "High-risk gaps";
+    });
+    document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-head .status-pill").forEach(pill => {
+      if (pill.textContent.trim() === "GAPS FOUND") pill.textContent = "HIGH-RISK GAPS";
+    });
+  }
+
   function reorderHistorySections() {
     const screen = document.getElementById("logs");
     if (!screen) return;
     const cards = [...screen.querySelectorAll(":scope > article.card")];
     const daily = cards.find(card => /daily summaries/i.test(card.querySelector("h2")?.textContent || ""));
-    const insight = cards.find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
+    const insight = historyOverviewCard();
     if (daily && insight && daily.compareDocumentPosition(insight) & Node.DOCUMENT_POSITION_PRECEDING) {
       screen.insertBefore(daily, insight);
     }
@@ -164,8 +182,7 @@
   }
 
   function renderHistoryVisuals() {
-    const summaryCard = [...document.querySelectorAll("#logs article.card")]
-      .find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
+    const summaryCard = historyOverviewCard();
     if (!summaryCard) return;
     let target = document.getElementById("fuelHistoryVisuals");
     if (!target) {
@@ -212,7 +229,9 @@
     requestAnimationFrame(() => {
       historyQueued = false;
       reorderHistorySections();
+      removeHistoryOverviewCard();
       removeEndOfDayAnalysis();
+      renameHighRiskGapLabels();
       renderHistoryVisuals();
     });
   }
