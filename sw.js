@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v13-history-flicker-fix";
+const CACHE_NAME = "fuel-guard-pwa-v14-rhythm-time-labels";
 const APP_SHELL = [
   "./",
   "./index.html",
