@@ -7,6 +7,8 @@
     red: "#ff4d6d"
   };
   const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
+  let drawingRiskSegments = false;
+  let nativeStroke = null;
 
   function gapState() {
     if (typeof fuelGapState === "function") return fuelGapState();
@@ -214,28 +216,34 @@
 
     const fuelDates = fuelDatesUntil(now);
     ctx.save();
-    ctx.lineWidth = 3.5;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 5.25;
     ctx.lineCap = "butt";
     ctx.lineJoin = "round";
 
-    let activeStatus = statusAtMinute((samples[0].minute + samples[1].minute) / 2, now, fuelDates);
-    let activePoints = [samples[0], samples[1]];
+    drawingRiskSegments = true;
+    try {
+      let activeStatus = statusAtMinute((samples[0].minute + samples[1].minute) / 2, now, fuelDates);
+      let activePoints = [samples[0], samples[1]];
 
-    for (let index = 2; index < samples.length; index += 1) {
-      const previous = samples[index - 1];
-      const current = samples[index];
-      const status = statusAtMinute((previous.minute + current.minute) / 2, now, fuelDates);
-      if (status !== activeStatus) {
-        drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
-        activeStatus = status;
-        activePoints = [previous, current];
-      } else {
-        activePoints.push(current);
+      for (let index = 2; index < samples.length; index += 1) {
+        const previous = samples[index - 1];
+        const current = samples[index];
+        const status = statusAtMinute((previous.minute + current.minute) / 2, now, fuelDates);
+        if (status !== activeStatus) {
+          drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
+          activeStatus = status;
+          activePoints = [previous, current];
+        } else {
+          activePoints.push(current);
+        }
       }
-    }
 
-    drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
-    ctx.restore();
+      drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
+    } finally {
+      drawingRiskSegments = false;
+      ctx.restore();
+    }
   }
 
   function isRhythmLineStroke(ctx) {
@@ -246,13 +254,14 @@
     const canvasContext = window.CanvasRenderingContext2D?.prototype;
     if (!canvasContext || canvasContext.__fuelGuardSegmentStroke) return;
 
-    const baseStroke = canvasContext.stroke;
+    nativeStroke = canvasContext.stroke;
     canvasContext.stroke = function fuelGuardStroke(path) {
+      if (drawingRiskSegments) return nativeStroke.apply(this, arguments);
       if (isRhythmLineStroke(this)) {
         drawRiskSegments(this);
         return undefined;
       }
-      return baseStroke.apply(this, arguments);
+      return nativeStroke.apply(this, arguments);
     };
 
     canvasContext.__fuelGuardSegmentStroke = true;
