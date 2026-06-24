@@ -1,5 +1,5 @@
 // Fuel Guard risk visual layer.
-// Applies after the beta renderer so the live graph and history layout do not depend on timing-sensitive overlays.
+// Keeps the original smooth graph behaviour and colours that same curve by risk section.
 (() => {
   const RISK_COLOURS = {
     green: "#2dff88",
@@ -7,9 +7,8 @@
     red: "#ff4d6d"
   };
   const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
-  let queued = false;
   let installed = false;
-  let observerInstalled = false;
+  let queued = false;
 
   function gapState() {
     if (typeof fuelGapState === "function") return fuelGapState();
@@ -77,7 +76,7 @@
       .sort((a, b) => a.date - b.date);
   }
 
-  function todaysLogs(now = new Date()) {
+  function todayLogs(now = new Date()) {
     const key = dateKey(now);
     return logsWithDates().filter(log => dateKey(log.date) === key && log.date <= now);
   }
@@ -86,31 +85,17 @@
     return logsWithDates().filter(log => isFuelLog(log) && log.date <= now).map(log => log.date);
   }
 
+  // Matches the beta graph's original point physics: same decline rate, same fuel spike, same current marker.
   function buildCurve(now = new Date()) {
-    const logs = todaysLogs(now);
+    const logs = todayLogs(now);
     const currentMinute = clamp(minutesIntoDay(now), 0, 1440);
-    const limits = thresholds();
     const points = [{ minute: 0, value: 42 }];
     const markers = [];
     let value = 42;
     let lastMinute = 0;
-    let lastFuelMinute = null;
-
-    function addBoundaryPoints(toMinute) {
-      if (lastFuelMinute === null) return;
-      [limits.greenMinutes, limits.redMinutes].forEach(limit => {
-        const boundary = lastFuelMinute + limit;
-        if (boundary > lastMinute && boundary < toMinute) {
-          value = clamp(value - Math.max(0, boundary - lastMinute) * 0.11, 8, 95);
-          points.push({ minute: boundary, value, boundary: true });
-          lastMinute = boundary;
-        }
-      });
-    }
 
     logs.forEach(log => {
       const minute = clamp(minutesIntoDay(log.date), 0, currentMinute);
-      addBoundaryPoints(minute);
       value = clamp(value - Math.max(0, minute - lastMinute) * 0.11, 8, 95);
       points.push({ minute, value });
       if (isFuelLog(log)) {
@@ -118,15 +103,27 @@
         const marker = { minute: Math.min(1440, minute + 0.45), value, log };
         markers.push(marker);
         points.push(marker);
-        lastFuelMinute = minute;
       }
       lastMinute = minute;
     });
 
-    addBoundaryPoints(currentMinute);
     value = clamp(value - Math.max(0, currentMinute - lastMinute) * 0.11, 8, 95);
     points.push({ minute: currentMinute, value, current: true });
-    return { points, markers, currentMinute };
+    return { points, markers };
+  }
+
+  function tracePath(ctx, coordinates) {
+    if (!coordinates.length) return;
+    ctx.moveTo(coordinates[0].x, coordinates[0].y);
+    for (let index = 1; index < coordinates.length; index += 1) {
+      const previous = coordinates[index - 1];
+      const current = coordinates[index];
+      const midX = (previous.x + current.x) / 2;
+      const midY = (previous.y + current.y) / 2;
+      ctx.quadraticCurveTo(previous.x, previous.y, midX, midY);
+    }
+    const last = coordinates[coordinates.length - 1];
+    ctx.lineTo(last.x, last.y);
   }
 
   function latestFuelBefore(fuelDates, date) {
@@ -136,26 +133,64 @@
     return null;
   }
 
-  function statusForSegment(startMinute, endMinute, fuelDates, now) {
-    const midpoint = (startMinute + endMinute) / 2;
-    const segmentDate = new Date(startOfDay(now).getTime() + midpoint * 60000);
-    const latest = latestFuelBefore(fuelDates, segmentDate);
+  function statusAtMinute(minute, now, fuelDates) {
+    const date = new Date(startOfDay(now).getTime() + minute * 60000);
+    const latest = latestFuelBefore(fuelDates, date);
     if (!latest) return "red";
-    return statusForMinutes((segmentDate - latest) / 60000);
+    return statusForMinutes((date - latest) / 60000);
   }
 
-  function drawLineSegment(ctx, previous, current, colour, width) {
-    ctx.strokeStyle = colour;
-    ctx.lineWidth = width;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(previous.x, previous.y);
-    ctx.lineTo(current.x, current.y);
-    ctx.stroke();
+  function gradientStopPoints(now, currentMinute, fuelDates) {
+    const start = startOfDay(now);
+    const limits = thresholds();
+    const points = new Set([0, currentMinute]);
+
+    fuelDates.forEach(date => {
+      const fuelMinute = (date - start) / 60000;
+      [fuelMinute, fuelMinute + limits.greenMinutes, fuelMinute + limits.redMinutes].forEach(point => {
+        if (point >= 0 && point <= currentMinute) points.add(clamp(point, 0, currentMinute));
+      });
+    });
+
+    return [...points].filter(Number.isFinite).sort((a, b) => a - b);
   }
 
-  function drawRiskSegments(now = new Date()) {
+  function addGradientStop(gradient, stop, colour) {
+    gradient.addColorStop(clamp(stop, 0, 1), colour);
+  }
+
+  function createRiskGradient(ctx, padding, cssWidth, now, currentMinute) {
+    const gradient = ctx.createLinearGradient(padding.left, 0, cssWidth - padding.right, 0);
+    const fuelDates = fuelDatesUntil(now);
+    const stops = gradientStopPoints(now, currentMinute, fuelDates);
+    const stopForMinute = minute => clamp(minute / 1440, 0, 1);
+    const nudge = 0.0001;
+
+    if (stops.length < 2) {
+      const colour = RISK_COLOURS[statusAtMinute(currentMinute, now, fuelDates)] || RISK_COLOURS.red;
+      gradient.addColorStop(0, colour);
+      gradient.addColorStop(1, colour);
+      return gradient;
+    }
+
+    stops.forEach((minute, index) => {
+      if (index === stops.length - 1) return;
+      const nextMinute = stops[index + 1];
+      const midpoint = (minute + nextMinute) / 2;
+      const colour = RISK_COLOURS[statusAtMinute(midpoint, now, fuelDates)] || RISK_COLOURS.red;
+      const start = stopForMinute(minute);
+      const end = stopForMinute(nextMinute);
+      addGradientStop(gradient, Math.max(0, start - (index ? 0 : 0)), colour);
+      addGradientStop(gradient, Math.max(start, end - nudge), colour);
+    });
+
+    const finalColour = RISK_COLOURS[statusAtMinute(currentMinute, now, fuelDates)] || RISK_COLOURS.red;
+    addGradientStop(gradient, stopForMinute(currentMinute), finalColour);
+    addGradientStop(gradient, 1, finalColour);
+    return gradient;
+  }
+
+  function drawSmoothRiskCurve(now = new Date()) {
     const canvas = document.getElementById("fuelRhythmGraph");
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -171,27 +206,27 @@
     const xForMinute = minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth;
     const yForValue = value => padding.top + (1 - clamp(value, 0, 100) / 100) * plotHeight;
     const { points, markers } = buildCurve(now);
-    const fuelDates = fuelDatesUntil(now);
     const coordinates = points.map(point => ({ ...point, x: xForMinute(point.minute), y: yForValue(point.value) }));
+    if (coordinates.length < 2) return;
 
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    for (let index = 1; index < coordinates.length; index += 1) {
-      const previous = coordinates[index - 1];
-      const current = coordinates[index];
-      const status = statusForSegment(previous.minute, current.minute, fuelDates, now);
-      drawLineSegment(ctx, previous, current, "rgba(2,8,6,.48)", 7.2);
-      drawLineSegment(ctx, previous, current, RISK_COLOURS[status] || RISK_COLOURS.red, 4.9);
-    }
+    ctx.strokeStyle = createRiskGradient(ctx, padding, cssWidth, now, clamp(minutesIntoDay(now), 0, 1440));
+    ctx.lineWidth = 3.7;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    tracePath(ctx, coordinates);
+    ctx.stroke();
 
     markers.forEach(marker => {
       const x = xForMinute(marker.minute);
       const y = yForValue(marker.value);
       ctx.fillStyle = RISK_COLOURS.green;
-      ctx.strokeStyle = "rgba(3,10,8,.9)";
-      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = "rgba(3,10,8,.86)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, 5.8, 0, Math.PI * 2);
+      ctx.arc(x, y, 5.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     });
@@ -209,98 +244,54 @@
       .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div {
         min-width: 0;
       }
-      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(3),
-      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(4) {
-        border-color: rgba(45,255,136,.2);
-      }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(1) { order: 1; }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(2) { order: 2; }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(5) { order: 3; border-color: rgba(45,255,136,.2); }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(4) { order: 4; border-color: rgba(45,255,136,.2); }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(3) { order: 5; }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(6) { order: 6; }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(7) { order: 7; }
+      .beta-mvp #fuelHistoryArchiveDetail .fuel-archive-stats > div:nth-child(8) { order: 8; }
     `;
     document.head.appendChild(style);
   }
 
-  function reorderAverageGapMetric() {
-    const stats = document.querySelector("#fuelHistoryArchiveDetail .fuel-archive-stats");
-    if (!stats) return;
-    const cards = [...stats.children];
-    const used = new Set();
-    const cardByLabels = labels => {
-      const match = cards.find(card => {
-        if (used.has(card)) return false;
-        const text = card.querySelector("span")?.textContent.trim().toLowerCase();
-        return labels.includes(text);
-      });
-      if (match) used.add(match);
-      return match;
-    };
-    const orderedCards = [
-      cardByLabels(["first fuel"]),
-      cardByLabels(["last fuel"]),
-      cardByLabels(["average gap"]),
-      cardByLabels(["longest gap"]),
-      cardByLabels(["fuel logs"]),
-      cardByLabels(["high-risk gaps", "long gaps"]),
-      cardByLabels(["predicted danger"]),
-      cardByLabels(["actual danger"]),
-      ...cards.filter(card => !used.has(card))
-    ].filter(Boolean);
-
-    orderedCards.forEach(card => stats.appendChild(card));
-  }
-
   function applyVisualFixes() {
     injectHistoryGridStyle();
-    reorderAverageGapMetric();
-    drawRiskSegments();
+    drawSmoothRiskCurve();
   }
 
   function queueApply() {
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        queued = false;
-        applyVisualFixes();
-      });
+      queued = false;
+      applyVisualFixes();
     });
   }
 
   function installRenderHook() {
-    if (installed || typeof window.renderFuelGap !== "function") return;
+    if (installed || typeof window.renderFuelGap !== "function" || window.renderFuelGap.__riskSegmentsApplied) return;
     const original = window.renderFuelGap;
-    window.renderFuelGap = function renderFuelGapWithRiskSegments(...args) {
+    window.renderFuelGap = function renderFuelGapWithSmoothRiskCurve(...args) {
       const result = original.apply(this, args);
-      queueApply();
-      setTimeout(applyVisualFixes, 80);
+      applyVisualFixes();
       return result;
     };
     window.renderFuelGap.__riskSegmentsApplied = true;
     installed = true;
   }
 
-  function installHistoryObserver() {
-    if (observerInstalled) return;
-    const target = document.getElementById("fuelHistoryArchiveDetail");
-    if (!target) return;
-    const observer = new MutationObserver(queueApply);
-    observer.observe(target, { childList: true, subtree: true, characterData: true });
-    observerInstalled = true;
-  }
-
   function boot() {
     installRenderHook();
-    installHistoryObserver();
-    queueApply();
-    setTimeout(() => {
-      installRenderHook();
-      installHistoryObserver();
-      applyVisualFixes();
-    }, 100);
+    applyVisualFixes();
   }
 
   document.addEventListener("DOMContentLoaded", boot);
   document.querySelectorAll(".mobile-nav-item, .nav-item").forEach(button => {
-    button.addEventListener("click", () => setTimeout(boot, 40));
+    button.addEventListener("click", () => setTimeout(boot, 30));
   });
-  document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", () => setTimeout(applyVisualFixes, 40));
+  document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", queueApply);
   window.addEventListener("resize", queueApply);
   window.addEventListener("storage", queueApply);
   setTimeout(boot, 0);
