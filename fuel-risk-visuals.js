@@ -1,5 +1,5 @@
 // Fuel Guard risk visual layer.
-// Colours the main Live Fuel Rhythm canvas stroke directly, without drawing a second overlay graph.
+// Replaces the main rhythm line stroke with clean, non-overlapping risk-coloured segments.
 (() => {
   const RISK_COLOURS = {
     green: "#2dff88",
@@ -74,6 +74,11 @@
       .sort((a, b) => a.date - b.date);
   }
 
+  function todayLogs(now = new Date()) {
+    const key = dateKey(now);
+    return logsWithDates().filter(log => dateKey(log.date) === key && log.date <= now);
+  }
+
   function fuelDatesUntil(now = new Date()) {
     return logsWithDates().filter(log => isFuelLog(log) && log.date <= now).map(log => log.date);
   }
@@ -92,90 +97,165 @@
     return statusForMinutes((date - latest) / 60000);
   }
 
-  function currentMinute(now = new Date()) {
-    return clamp(minutesIntoDay(now), 0, 1440);
-  }
+  function buildCurve(now = new Date()) {
+    const logs = todayLogs(now);
+    const currentMinute = clamp(minutesIntoDay(now), 0, 1440);
+    const points = [{ minute: 0, value: 42 }];
+    const markers = [];
+    let value = 42;
+    let lastMinute = 0;
 
-  function gradientStops(now, current, fuelDates) {
-    const dayStart = startOfDay(now);
-    const limits = thresholds();
-    const stops = new Set([0, current]);
-
-    fuelDates.forEach(date => {
-      const fuelMinute = (date - dayStart) / 60000;
-      [fuelMinute, fuelMinute + limits.greenMinutes, fuelMinute + limits.redMinutes].forEach(stop => {
-        if (Number.isFinite(stop) && stop >= 0 && stop <= current) stops.add(clamp(stop, 0, current));
-      });
+    logs.forEach(log => {
+      const minute = clamp(minutesIntoDay(log.date), 0, currentMinute);
+      value = clamp(value - Math.max(0, minute - lastMinute) * 0.11, 8, 95);
+      points.push({ minute, value });
+      if (isFuelLog(log)) {
+        value = clamp(Math.max(value + 42, 86), 8, 95);
+        const marker = { minute: Math.min(1440, minute + 0.45), value, log };
+        markers.push(marker);
+        points.push(marker);
+      }
+      lastMinute = minute;
     });
 
-    return [...stops].sort((a, b) => a - b);
+    value = clamp(value - Math.max(0, currentMinute - lastMinute) * 0.11, 8, 95);
+    points.push({ minute: currentMinute, value, current: true });
+    return { points, markers, currentMinute };
   }
 
-  function addStop(addColorStop, gradient, stop, colour) {
-    addColorStop.call(gradient, clamp(stop, 0, 1), colour);
+  function chartMapper(ctx) {
+    const canvas = ctx.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = Math.max(320, Math.round(rect.width || canvas.width / dpr || canvas.width));
+    const cssHeight = Math.max(180, Math.round(rect.height || canvas.height / dpr || canvas.height));
+    const padding = { left: 34, right: 18, top: 18, bottom: 31 };
+    const plotWidth = cssWidth - padding.left - padding.right;
+    const plotHeight = cssHeight - padding.top - padding.bottom;
+
+    return {
+      xForMinute: minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth,
+      yForValue: value => padding.top + (1 - clamp(value, 0, 100) / 100) * plotHeight,
+      minuteForX: x => clamp(((x - padding.left) / plotWidth) * 1440, 0, 1440)
+    };
   }
 
-  function paintRiskGradient(gradient, addColorStop, now = new Date()) {
-    const fuelDates = fuelDatesUntil(now);
-    const current = currentMinute(now);
-    const stops = gradientStops(now, current, fuelDates);
-    const toOffset = minute => clamp(minute / 1440, 0, 1);
-    const nudge = 0.0001;
+  function midpoint(a, b) {
+    return {
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2,
+      minute: (a.minute + b.minute) / 2
+    };
+  }
 
-    if (stops.length < 2) {
-      const colour = RISK_COLOURS[statusAtMinute(current, now, fuelDates)] || RISK_COLOURS.red;
-      addStop(addColorStop, gradient, 0, colour);
-      addStop(addColorStop, gradient, 1, colour);
-      return;
+  function quadraticPoint(start, control, end, t) {
+    const inverse = 1 - t;
+    return {
+      x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+      y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+      minute: inverse * inverse * start.minute + 2 * inverse * t * control.minute + t * t * end.minute
+    };
+  }
+
+  function sampledSmoothCurve(coordinates) {
+    if (!coordinates.length) return [];
+    const samples = [coordinates[0]];
+    let cursor = coordinates[0];
+    let cursorMinute = coordinates[0].minute;
+    const density = 18;
+
+    for (let index = 1; index < coordinates.length; index += 1) {
+      const previous = coordinates[index - 1];
+      const current = coordinates[index];
+      const end = midpoint(previous, current);
+      const start = { ...cursor, minute: cursorMinute };
+      for (let step = 1; step <= density; step += 1) {
+        samples.push(quadraticPoint(start, previous, end, step / density));
+      }
+      cursor = end;
+      cursorMinute = end.minute;
     }
 
-    stops.forEach((minute, index) => {
-      if (index === stops.length - 1) return;
-      const nextMinute = stops[index + 1];
-      const midpoint = (minute + nextMinute) / 2;
-      const colour = RISK_COLOURS[statusAtMinute(midpoint, now, fuelDates)] || RISK_COLOURS.red;
-      const start = toOffset(minute);
-      const end = toOffset(nextMinute);
-      addStop(addColorStop, gradient, start, colour);
-      addStop(addColorStop, gradient, Math.max(start, end - nudge), colour);
-    });
+    const last = coordinates[coordinates.length - 1];
+    const lineSteps = 8;
+    for (let step = 1; step <= lineSteps; step += 1) {
+      const t = step / lineSteps;
+      samples.push({
+        x: cursor.x + (last.x - cursor.x) * t,
+        y: cursor.y + (last.y - cursor.y) * t,
+        minute: cursorMinute + (last.minute - cursorMinute) * t
+      });
+    }
 
-    const finalColour = RISK_COLOURS[statusAtMinute(current, now, fuelDates)] || RISK_COLOURS.red;
-    addStop(addColorStop, gradient, toOffset(current), finalColour);
-    addStop(addColorStop, gradient, 1, finalColour);
+    return samples;
   }
 
-  function isRhythmStrokeGradient(ctx, x0, y0, x1, y1) {
-    if (ctx.canvas?.id !== "fuelRhythmGraph") return false;
-    if (Math.abs(y0) > 0.01 || Math.abs(y1) > 0.01) return false;
-    if (x1 <= x0) return false;
-    return x0 >= 20;
+  function drawPolyline(ctx, points, colour) {
+    if (points.length < 2) return;
+    ctx.strokeStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) {
+      ctx.lineTo(points[index].x, points[index].y);
+    }
+    ctx.stroke();
   }
 
-  function installRiskStrokeGradient() {
+  function drawRiskSegments(ctx, now = new Date()) {
+    const mapper = chartMapper(ctx);
+    const { points } = buildCurve(now);
+    const coordinates = points.map(point => ({
+      ...point,
+      x: mapper.xForMinute(point.minute),
+      y: mapper.yForValue(point.value)
+    }));
+    const samples = sampledSmoothCurve(coordinates);
+    if (samples.length < 2) return;
+
+    const fuelDates = fuelDatesUntil(now);
+    ctx.save();
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "round";
+
+    let activeStatus = statusAtMinute((samples[0].minute + samples[1].minute) / 2, now, fuelDates);
+    let activePoints = [samples[0], samples[1]];
+
+    for (let index = 2; index < samples.length; index += 1) {
+      const previous = samples[index - 1];
+      const current = samples[index];
+      const status = statusAtMinute((previous.minute + current.minute) / 2, now, fuelDates);
+      if (status !== activeStatus) {
+        drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
+        activeStatus = status;
+        activePoints = [previous, current];
+      } else {
+        activePoints.push(current);
+      }
+    }
+
+    drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
+    ctx.restore();
+  }
+
+  function isRhythmLineStroke(ctx) {
+    return ctx.canvas?.id === "fuelRhythmGraph" && Math.abs(Number(ctx.lineWidth) - 3.5) < 0.2;
+  }
+
+  function installSegmentStroke() {
     const canvasContext = window.CanvasRenderingContext2D?.prototype;
-    const gradientProto = window.CanvasGradient?.prototype;
-    if (!canvasContext || !gradientProto || canvasContext.__fuelGuardRiskStroke) return;
+    if (!canvasContext || canvasContext.__fuelGuardSegmentStroke) return;
 
-    const baseCreateLinearGradient = canvasContext.createLinearGradient;
-    const baseAddColorStop = gradientProto.addColorStop;
-    const lockedGradients = new WeakSet();
-
-    gradientProto.addColorStop = function fuelGuardAddColorStop(offset, colour) {
-      if (lockedGradients.has(this)) return undefined;
-      return baseAddColorStop.call(this, offset, colour);
+    const baseStroke = canvasContext.stroke;
+    canvasContext.stroke = function fuelGuardStroke(path) {
+      if (isRhythmLineStroke(this)) {
+        drawRiskSegments(this);
+        return undefined;
+      }
+      return baseStroke.apply(this, arguments);
     };
 
-    canvasContext.createLinearGradient = function fuelGuardCreateLinearGradient(x0, y0, x1, y1) {
-      const gradient = baseCreateLinearGradient.call(this, x0, y0, x1, y1);
-      if (!isRhythmStrokeGradient(this, x0, y0, x1, y1)) return gradient;
-
-      paintRiskGradient(gradient, baseAddColorStop);
-      lockedGradients.add(gradient);
-      return gradient;
-    };
-
-    canvasContext.__fuelGuardRiskStroke = true;
+    canvasContext.__fuelGuardSegmentStroke = true;
   }
 
   function injectHistoryGridStyle() {
@@ -201,9 +281,9 @@
     document.head.appendChild(style);
   }
 
-  installRiskStrokeGradient();
+  installSegmentStroke();
   document.addEventListener("DOMContentLoaded", () => {
-    installRiskStrokeGradient();
+    installSegmentStroke();
     injectHistoryGridStyle();
   });
 })();
