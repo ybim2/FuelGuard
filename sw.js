@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v15-rhythm-axis-labels";
+const CACHE_NAME = "fuel-guard-pwa-v16-risk-segments";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -14,6 +14,7 @@ const APP_SHELL = [
   "./app-pwa.js",
   "./app-mobile-overrides.js",
   "./fuel-history-render-guard.js",
+  "./fuel-risk-visuals.js",
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
   "./manifest.webmanifest",
