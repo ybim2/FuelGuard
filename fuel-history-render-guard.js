@@ -18,7 +18,9 @@
         return descriptor.get.call(this);
       },
       set(value) {
-        descriptor.set.call(this, cleanHistoryMarkup(value, this));
+        const cleaned = cleanHistoryMarkup(value, this);
+        if (this?.id === "fuelHistoryArchiveDetail" && descriptor.get.call(this) === cleaned) return;
+        descriptor.set.call(this, cleaned);
       }
     });
   }
