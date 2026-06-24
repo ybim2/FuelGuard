@@ -159,11 +159,18 @@
     if (!stats) return;
     const cards = [...stats.children];
     const cardByLabel = label => cards.find(card => card.querySelector("span")?.textContent.trim().toLowerCase() === label);
-    const average = cardByLabel("average gap");
-    const longest = cardByLabel("longest gap");
-    if (average && longest && average.nextElementSibling !== longest) {
-      stats.insertBefore(average, longest);
-    }
+    const orderedCards = [
+      cardByLabel("first fuel"),
+      cardByLabel("last fuel"),
+      cardByLabel("average gap"),
+      cardByLabel("longest gap"),
+      cardByLabel("fuel logs"),
+      cardByLabel("high-risk gaps") || cardByLabel("long gaps"),
+      cardByLabel("predicted danger"),
+      cardByLabel("actual danger")
+    ].filter(Boolean);
+
+    orderedCards.forEach(card => stats.appendChild(card));
   }
 
   function applyRiskVisuals() {
