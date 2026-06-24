@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v17-risk-segments";
+const CACHE_NAME = "fuel-guard-pwa-v18-risk-visual-fix";
 const APP_SHELL = [
   "./",
   "./index.html",
