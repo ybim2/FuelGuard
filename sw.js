@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v23-equilibrium-rhythm";
+const CACHE_NAME = "fuel-guard-pwa-v24-day-type-labels";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -17,6 +17,7 @@ const APP_SHELL = [
   "./fuel-risk-visuals.js",
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
+  "./day-type-overrides.js",
   "./manifest.webmanifest",
   "./icons/icon.svg"
 ];
