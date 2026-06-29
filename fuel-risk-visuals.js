@@ -134,11 +134,17 @@
     const padding = { left: 34, right: 18, top: 18, bottom: 31 };
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
+    const centreY = padding.top + plotHeight * 0.5;
+    const amplitude = plotHeight * 0.31;
 
     return {
       xForMinute: minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth,
       yForValue: value => padding.top + (1 - clamp(value, 0, 100) / 100) * plotHeight,
-      minuteForX: x => clamp(((x - padding.left) / plotWidth) * 1440, 0, 1440)
+      yForBalance: value => centreY - clamp(value, -1.15, 1.15) * amplitude,
+      minuteForX: x => clamp(((x - padding.left) / plotWidth) * 1440, 0, 1440),
+      leftX: padding.left,
+      rightX: cssWidth - padding.right,
+      centreY
     };
   }
 
@@ -192,6 +198,37 @@
     return samples;
   }
 
+  function balanceForStatus(status, minute) {
+    const rhythm = Math.sin(minute / 38) * 0.1 + Math.sin(minute / 17) * 0.04;
+    if (status === "green") return 0.74 + rhythm;
+    if (status === "amber") return Math.sin(minute / 26) * 0.24;
+    return -0.78 + rhythm;
+  }
+
+  function balancedSamples(samples, now, fuelDates, mapper) {
+    return samples.map(sample => {
+      const status = statusAtMinute(sample.minute, now, fuelDates);
+      return {
+        ...sample,
+        status,
+        y: mapper.yForBalance(balanceForStatus(status, sample.minute))
+      };
+    });
+  }
+
+  function drawEquilibriumLine(ctx, mapper) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(245,255,248,.32)";
+    ctx.lineWidth = 1.35;
+    ctx.lineCap = "round";
+    ctx.setLineDash([5, 6]);
+    ctx.beginPath();
+    ctx.moveTo(mapper.leftX, mapper.centreY);
+    ctx.lineTo(mapper.rightX, mapper.centreY);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawPolyline(ctx, points, colour) {
     if (points.length < 2) return;
     ctx.strokeStyle = colour;
@@ -211,10 +248,11 @@
       x: mapper.xForMinute(point.minute),
       y: mapper.yForValue(point.value)
     }));
-    const samples = sampledSmoothCurve(coordinates);
-    if (samples.length < 2) return;
+    const rawSamples = sampledSmoothCurve(coordinates);
+    if (rawSamples.length < 2) return;
 
     const fuelDates = fuelDatesUntil(now);
+    const samples = balancedSamples(rawSamples, now, fuelDates, mapper);
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.lineWidth = 5.25;
@@ -223,13 +261,15 @@
 
     drawingRiskSegments = true;
     try {
-      let activeStatus = statusAtMinute((samples[0].minute + samples[1].minute) / 2, now, fuelDates);
+      drawEquilibriumLine(ctx, mapper);
+
+      let activeStatus = samples[1].status || samples[0].status || "red";
       let activePoints = [samples[0], samples[1]];
 
       for (let index = 2; index < samples.length; index += 1) {
         const previous = samples[index - 1];
         const current = samples[index];
-        const status = statusAtMinute((previous.minute + current.minute) / 2, now, fuelDates);
+        const status = current.status || statusAtMinute((previous.minute + current.minute) / 2, now, fuelDates);
         if (status !== activeStatus) {
           drawPolyline(ctx, activePoints, RISK_COLOURS[activeStatus] || RISK_COLOURS.red);
           activeStatus = status;
