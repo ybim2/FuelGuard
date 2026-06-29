@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v24-day-type-labels";
+const CACHE_NAME = "fuel-guard-pwa-v25-day-type-training-removed";
 const APP_SHELL = [
   "./",
   "./index.html",
