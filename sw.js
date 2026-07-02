@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v25-day-type-training-removed";
+const CACHE_NAME = "fuel-guard-pwa-v26-ble-button";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -18,6 +18,7 @@ const APP_SHELL = [
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
+  "./fg-button-ble.js",
   "./manifest.webmanifest",
   "./icons/icon.svg"
 ];
