@@ -48,6 +48,10 @@
 
             <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log food</button>
             <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
+            <div class="button-row fg-button-row">
+              <button id="connectFgButton" class="secondary" type="button">Connect FG Button</button>
+              <span id="fgButtonStatus" class="row-note" aria-live="polite">FG Button: disconnected.</span>
+            </div>
 
             <div id="fuelGapNextAction" class="fuel-next-action"></div>
             <div id="fuelStatusContext" class="fuel-status-context"></div>
@@ -227,5 +231,6 @@
   <script src="fuel-beta.js?v=2026-06-22-beta-flicker"></script>
   <script src="fuel-beta-ui-polish.js?v=2026-06-23-rhythm-cleanup"></script>
   <script src="day-type-overrides.js?v=2026-06-29-day-types-training-v2"></script>
+  <script src="fg-button-ble.js?v=2026-07-02-ble-button"></script>
 </body>
 </html>
