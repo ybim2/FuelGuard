@@ -248,8 +248,31 @@
 }
 
 .beta-account-card,
-.beta-device-card {
+.beta-device-card,
+.beta-update-card {
   margin-top: 0;
+}
+
+.beta-update-build {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-update-build span {
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.beta-update-build strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .beta-version-marker {

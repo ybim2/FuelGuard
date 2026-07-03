@@ -27,6 +27,17 @@ These old parked features have been removed from the active app and must not be 
 - Nutrition Diary
 - Future Ideas Parked
 
+Mobile PWA update rules
+-----------------------
+
+- The canonical app is the 3-tab mobile PWA with Rhythm, History, and Settings.
+- The deployed Vercel URL is the source for the installed mobile PWA.
+- Settings must show the canonical marker and current build version so Safari and the installed PWA can be compared after deploys.
+- Service worker caches must be versioned for every deployed app-shell update.
+- Old Fuel Guard service worker caches must be cleaned during activation without clearing localStorage user logs.
+- The installed PWA may need the Settings update action after deploys to check for a waiting service worker and refresh safely.
+- Future Codex chats must inspect PWA cache/update behavior before assuming a visible Vercel update has reached installed iOS PWAs.
+
 Canonical files
 ---------------
 

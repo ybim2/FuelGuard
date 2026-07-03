@@ -3,7 +3,7 @@
   "short_name": "Fuel Guard",
   "description": "Prevent under-fuelling before it happens.",
   "id": "./",
-  "start_url": "./?v=mobile-pwa-v3-habits",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

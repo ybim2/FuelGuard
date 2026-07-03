@@ -667,6 +667,19 @@
     const red = document.getElementById("redThresholdMinutes");
     if (green) green.value = thresholds().greenMinutes;
     if (red) red.value = thresholds().redMinutes;
+    const buildInfo = window.FUEL_GUARD_BUILD || {};
+    const canonical = document.getElementById("canonicalAppVersion");
+    const buildMarker = document.getElementById("buildVersionMarker");
+    const currentBuild = document.getElementById("appUpdateCurrentBuild");
+    const updateStatus = document.getElementById("appUpdateStatus");
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v4-cache-fix"}`;
+    const buildText = buildInfo.buildVersion || "unknown build";
+    if (canonical) canonical.textContent = canonicalText;
+    if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
+    if (currentBuild) currentBuild.textContent = buildText;
+    if (updateStatus && !updateStatus.dataset.userMessage) {
+      updateStatus.textContent = "Update status: ready. User logs are stored separately and will not be cleared.";
+    }
     state.account = { email: "", status: "", ...(state.account || {}) };
     const email = document.getElementById("accountEmail");
     const status = document.getElementById("accountSetupStatus");
@@ -1314,6 +1327,24 @@
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
+  window.addEventListener("fuelguard:pwa-update-status", event => {
+    const status = document.getElementById("appUpdateStatus");
+    if (!status) return;
+    status.dataset.userMessage = "true";
+    status.textContent = event.detail?.message || "Update status changed.";
+  });
+  document.getElementById("checkAppUpdateButton")?.addEventListener("click", async () => {
+    const status = document.getElementById("appUpdateStatus");
+    if (status) {
+      status.dataset.userMessage = "true";
+      status.textContent = "Update status: checking for update...";
+    }
+    if (window.fuelGuardPwaUpdates?.checkForUpdate) {
+      await window.fuelGuardPwaUpdates.checkForUpdate();
+      return;
+    }
+    if (status) status.textContent = "Update status: update checker is not ready in this browser.";
+  });
   document.getElementById("accountSetupButton")?.addEventListener("click", () => {
     state.account = { email: "", status: "", ...(state.account || {}) };
     const email = document.getElementById("accountEmail")?.value.trim() || "";
