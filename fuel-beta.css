@@ -201,6 +201,26 @@
   margin-top: 0;
 }
 
+.beta-version-marker {
+  display: grid;
+  gap: 3px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(45,255,136,.22);
+  border-radius: 12px;
+  background: rgba(45,255,136,.065);
+}
+
+.beta-version-marker strong {
+  color: var(--text);
+  font-size: .88rem;
+}
+
+.beta-version-marker span {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
 .beta-settings-grid {
   margin-top: 14px;
 }
