@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuel-guard-pwa-v26-ble-button";
+const CACHE_NAME = "fuel-guard-pwa-v27-rhythm-history";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,7 +12,6 @@ const APP_SHELL = [
   "./app-barriers.js",
   "./app-ui.js",
   "./app-pwa.js",
-  "./app-mobile-overrides.js",
   "./fuel-history-render-guard.js",
   "./fuel-risk-visuals.js",
   "./fuel-beta.js",

@@ -245,6 +245,10 @@ const DEFAULT_STATE = {
     dayEndedAt: "",
     fastingStartedAt: ""
   },
+  account: {
+    email: "",
+    status: ""
+  },
   fuelMomentum: {
     lastMessage: "",
     lastDate: "",
@@ -279,6 +283,7 @@ function load() {
         ...(parsed.fuelGap || {}),
         logs: parsed.fuelGap?.logs || []
       },
+      account: { ...defaults.account, ...(parsed.account || {}) },
       fuelMomentum: { ...defaults.fuelMomentum, ...(parsed.fuelMomentum || {}) },
       adherenceHistory: parsed.adherenceHistory || []
     };

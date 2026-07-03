@@ -46,19 +46,19 @@
   order: 4;
 }
 
-.beta-mvp .fuel-cooldown-message {
+.beta-hydration-button {
   order: 5;
 }
 
-.beta-mvp #fuelStatusContext {
+.beta-mvp .fuel-cooldown-message {
   order: 6;
 }
 
-.beta-graph-wrap {
+.beta-mvp #fuelStatusContext {
   order: 7;
 }
 
-.fuel-prediction-panel {
+.beta-graph-wrap {
   order: 8;
 }
 
@@ -113,6 +113,12 @@
   pointer-events: none;
 }
 
+.beta-hydration-button {
+  width: 100%;
+  margin: 0 0 3px;
+  border-radius: 16px;
+}
+
 .beta-mvp .fuel-cooldown-message {
   min-height: 0;
   margin: 0 0 3px;
@@ -120,37 +126,6 @@
 
 .beta-graph-wrap {
   margin-top: 6px;
-}
-
-.fuel-prediction-panel {
-  display: grid;
-  gap: 5px;
-  margin: 9px 0 8px;
-  padding: 11px 12px;
-  border: 1px solid rgba(32,214,255,.24);
-  border-radius: 15px;
-  background: rgba(32,214,255,.075);
-}
-
-.fuel-prediction-panel:empty {
-  display: none;
-}
-
-.fuel-prediction-panel strong,
-.fuel-prediction-panel span,
-.fuel-prediction-panel small {
-  display: block;
-}
-
-.fuel-prediction-panel strong {
-  color: var(--text);
-  font-size: 1rem;
-}
-
-.fuel-prediction-panel span,
-.fuel-prediction-panel small {
-  color: var(--muted);
-  line-height: 1.35;
 }
 
 .beta-day-controls,
@@ -172,6 +147,58 @@
 
 .beta-history-date {
   margin: 8px 0 10px;
+}
+
+.beta-insight-heading {
+  align-items: start;
+  gap: 12px;
+}
+
+.beta-insight-heading h2 {
+  margin-bottom: 4px;
+}
+
+.beta-training-filter {
+  min-width: min(100%, 220px);
+}
+
+.beta-graph-mode {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.beta-graph-mode button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.055);
+  color: var(--muted);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.beta-graph-mode button.active {
+  border-color: rgba(45,255,136,.42);
+  background: rgba(45,255,136,.12);
+  color: var(--text);
+}
+
+.beta-averages-card .fuel-gap-insights {
+  margin-top: 12px;
+}
+
+.beta-pattern-graphs {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.beta-account-card {
+  margin-top: 0;
 }
 
 .beta-settings-grid {
@@ -197,10 +224,6 @@
 .beta-mvp .fuel-gap-insights {
   margin-top: 7px;
   margin-bottom: 0;
-}
-
-.beta-mvp #fuelGapInsights .fuel-gap-insight:nth-child(-n+5) {
-  display: none !important;
 }
 
 .beta-mvp #fuelDaySummary {
@@ -357,7 +380,11 @@
   background: #20d6ff;
 }
 
-.beta-danger-window-list {
+.beta-history-bar-track i.amber {
+  background: #ffb020;
+}
+
+.beta-high-risk-window-list {
   display: grid;
   gap: 7px;
   margin: 0;
@@ -365,7 +392,7 @@
   list-style: none;
 }
 
-.beta-danger-window-list li {
+.beta-high-risk-window-list li {
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -374,7 +401,7 @@
   background: rgba(255,255,255,.045);
 }
 
-.beta-danger-window-list span {
+.beta-high-risk-window-list span {
   color: var(--muted);
 }
 
@@ -422,6 +449,24 @@
 
   .beta-mvp .fuel-gap-insight {
     padding: 10px;
+  }
+
+  .beta-graph-mode {
+    gap: 5px;
+  }
+
+  .beta-graph-mode button {
+    min-height: 40px;
+    padding: 6px 4px;
+    font-size: .74rem;
+  }
+
+  .beta-insight-heading {
+    display: grid;
+  }
+
+  .beta-training-filter {
+    width: 100%;
   }
 
   .beta-day-controls,

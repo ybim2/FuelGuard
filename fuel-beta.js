@@ -11,15 +11,28 @@
 
   const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
   const FOOD_LOG_COOLDOWN_MS = 60000;
-  const PREDICTION_MIN_SIMILAR_DAYS = 2;
-  const PLANNING_BUFFER_MINUTES = 45;
   const DAY_TYPE_OPTIONS = [
     { value: "training-work", label: "Training + work day" },
     { value: "training", label: "Training day" },
-    { value: "work", label: "Work day" },
+    { value: "race", label: "Competition/Race Day" },
+    { value: "work", label: "Working Day" },
     { value: "shift", label: "Shift day" },
     { value: "rest", label: "Rest day" }
   ];
+  const TRAINING_SESSION_OPTIONS = [
+    { value: "", label: "Not set" },
+    { value: "run", label: "Run" },
+    { value: "bike", label: "Bike" },
+    { value: "swim", label: "Swim" },
+    { value: "strength", label: "Strength" },
+    { value: "brick", label: "Brick" },
+    { value: "rest", label: "Rest day / no training" }
+  ];
+  const TRAINING_SESSION_LABELS = TRAINING_SESSION_OPTIONS.reduce((labels, option) => {
+    labels[option.value] = option.label;
+    return labels;
+  }, {});
+  const GRAPH_MODES = new Set(["fuel", "hydration", "combined"]);
   const DAY_TYPE_LABELS = DAY_TYPE_OPTIONS.reduce((labels, option) => {
     labels[option.value] = option.label;
     return labels;
@@ -30,6 +43,7 @@
   });
 
   let selectedHistoryKey = "";
+  let selectedTrainingFilter = "all";
 
   function safeText(value) {
     if (typeof escapeHtml === "function") return escapeHtml(value || "");
@@ -49,11 +63,13 @@
   function betaState() {
     const gap = fuelGapState();
     if (!gap.dayTypes || Array.isArray(gap.dayTypes)) gap.dayTypes = {};
+    if (!gap.trainingSessions || Array.isArray(gap.trainingSessions)) gap.trainingSessions = {};
     if (!gap.archive || Array.isArray(gap.archive)) gap.archive = {};
     if (!gap.thresholds || typeof gap.thresholds !== "object") gap.thresholds = { ...DEFAULT_THRESHOLDS };
     gap.thresholds.greenMinutes = Number(gap.thresholds.greenMinutes || DEFAULT_THRESHOLDS.greenMinutes);
     gap.thresholds.redMinutes = Number(gap.thresholds.redMinutes || DEFAULT_THRESHOLDS.redMinutes);
     if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 60;
+    if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "combined";
     return gap;
   }
 
@@ -156,9 +172,26 @@
     return value ? (DAY_TYPE_LABELS[value] || value) : "Not set";
   }
 
+  function trainingSessionLabel(value) {
+    return value ? (TRAINING_SESSION_LABELS[value] || value) : "Not set";
+  }
+
   function dayTypeForKey(key) {
     const gap = betaState();
     return gap.dayTypes[key] || gap.archive[key]?.dayType || "";
+  }
+
+  function trainingSessionForKey(key) {
+    const gap = betaState();
+    return gap.trainingSessions[key] || gap.archive[key]?.trainingSession || "";
+  }
+
+  function isTrainingSession(value) {
+    return ["run", "bike", "swim", "strength", "brick"].includes(String(value || ""));
+  }
+
+  function isTrainingDayValue(dayType, session = "") {
+    return isTrainingSession(session) || ["training", "training-work", "race", "double-training", "standalone-training"].includes(String(dayType || ""));
   }
 
   function setDayType(key, value) {
@@ -172,6 +205,23 @@
     });
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
+  }
+
+  function setTrainingSession(key, value) {
+    const gap = betaState();
+    if (value) gap.trainingSessions[key] = value;
+    else delete gap.trainingSessions[key];
+
+    gap.logs.forEach(log => {
+      const date = logDate(log);
+      if (date && dateKey(date) === key) log.trainingSession = value || "";
+    });
+
+    storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
+  }
+
+  function graphMode() {
+    return GRAPH_MODES.has(betaState().graphMode) ? betaState().graphMode : "combined";
   }
 
   function cooldownRemainingSeconds(now = Date.now()) {
@@ -217,43 +267,44 @@
   function analyseDay(key, { now = new Date(), endedAt = "" } = {}) {
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(log => !isFuelLog(log));
     const endedDate = endedAt ? logDate(endedAt) : null;
     const isToday = key === dateKey(now);
     const reference = endedDate || (isToday ? now : fuelLogs[fuelLogs.length - 1]?.date || logs[logs.length - 1]?.date || dateFromKey(key));
     const gaps = gapsFromFuelLogs(fuelLogs, reference, Boolean(endedDate) || isToday, !endedDate && isToday);
     const completedGaps = gaps.filter(gap => !gap.ongoing);
-    const longGaps = gaps.filter(gap => gap.minutes >= riskLimit());
-    const completedLongGaps = completedGaps.filter(gap => gap.minutes >= riskLimit());
+    const highRiskGaps = gaps.filter(gap => gap.minutes >= riskLimit());
+    const completedHighRiskGaps = completedGaps.filter(gap => gap.minutes >= riskLimit());
     const longest = gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : 0;
     const average = gaps.length ? gaps.reduce((sum, gap) => sum + gap.minutes, 0) / gaps.length : 0;
-    const firstLongGap = longGaps[0] || null;
-    const dangerStart = firstLongGap ? addMinutes(firstLongGap.start, riskLimit()) : null;
-    const fuelNeededBefore = dangerStart ? addMinutes(dangerStart, -PLANNING_BUFFER_MINUTES) : null;
-    const reactive = completedLongGaps.length > 0 && completedLongGaps.length >= Math.ceil(Math.max(1, completedGaps.length) / 2);
+    const firstHighRiskGap = highRiskGaps[0] || null;
+    const highRiskStart = firstHighRiskGap ? addMinutes(firstHighRiskGap.start, riskLimit()) : null;
+    const reactive = completedHighRiskGaps.length > 0 && completedHighRiskGaps.length >= Math.ceil(Math.max(1, completedGaps.length) / 2);
     const firstFuel = fuelLogs[0] || null;
     const lastFuel = fuelLogs[fuelLogs.length - 1] || null;
     const dayType = dayTypeForKey(key);
+    const trainingSession = trainingSessionForKey(key);
     const summary = [];
 
     if (!fuelLogs.length) {
       summary.push("No fuel logs recorded for this day.");
-      summary.push("Log a few more days to predict your danger window.");
+      summary.push("Log a few more days to see your High Risk gap pattern.");
     } else if (!gaps.length) {
       summary.push("Only one fuel log is available for this day.");
-      summary.push("More fuel logs are needed before Fuel Guard can identify a danger window.");
+      summary.push("More fuel logs are needed before Fuel Guard can calculate gaps.");
     } else {
       summary.push(`Your longest fuel gap was ${duration(longest)}.`);
-      if (firstLongGap && dangerStart) {
-        summary.push(`Your danger window started around ${formatClock(dangerStart)}.`);
-        summary.push(`You needed fuel available before ${formatClock(fuelNeededBefore)}.`);
+      if (firstHighRiskGap && highRiskStart) {
+        summary.push(`Your first High Risk gap began around ${formatClock(highRiskStart)}.`);
+        summary.push(`That logged gap ended at ${formatClock(firstHighRiskGap.end)}.`);
       } else {
-        summary.push("No red danger window was detected from the available fuel logs.");
+        summary.push("No High Risk fuel gap was logged from the available fuel logs.");
       }
       if (reactive) summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
-      if (["shift", "training-work", "work"].includes(dayType) && longGaps.length) {
-        summary.push(`${dayTypeLabel(dayType)} context: high-output days need reliable fuel access before the gap turns red.`);
+      if (isTrainingDayValue(dayType, trainingSession) && highRiskGaps.length) {
+        summary.push(`${trainingSessionLabel(trainingSession)} context: high-output days need reliable fuel access before gaps turn High Risk.`);
       }
-      if (fuelLogs.length < 3 || !firstLongGap) summary.push("More weekly data will make this pattern clearer.");
+      if (fuelLogs.length < 3 || !firstHighRiskGap) summary.push("More weekly data will make this pattern clearer.");
     }
 
     return {
@@ -261,64 +312,28 @@
       dateLabel: formatDateKey(key),
       dayType,
       dayTypeLabel: dayTypeLabel(dayType),
+      trainingSession,
+      trainingSessionLabel: trainingSessionLabel(trainingSession),
       logs,
       fuelLogs,
+      hydrationLogs,
       firstFuelTime: firstFuel ? formatClock(firstFuel.date) : "Not logged",
       lastFuelTime: lastFuel ? formatClock(lastFuel.date) : "Not logged",
+      firstFuelMinute: firstFuel ? minutesIntoDay(firstFuel.date) : null,
+      lastFuelMinute: lastFuel ? minutesIntoDay(lastFuel.date) : null,
       fuelLogCount: fuelLogs.length,
+      hydrationLogCount: hydrationLogs.length,
       gaps,
       longestGapMinutes: longest,
       averageGapMinutes: average,
-      longGapCount: longGaps.length,
-      dangerStartMinute: dangerStart ? minutesIntoDay(dangerStart) : null,
-      dangerEndMinute: firstLongGap ? minutesIntoDay(firstLongGap.end) : null,
-      actualDangerWindow: firstLongGap && dangerStart ? `${formatClock(dangerStart)}-${formatClock(firstLongGap.end)}` : "Not detected",
-      fuelNeededBefore: fuelNeededBefore ? formatClock(fuelNeededBefore) : "Not detected",
+      longGapCount: highRiskGaps.length,
+      highRiskGapCount: highRiskGaps.length,
+      highRiskStartMinute: highRiskStart ? minutesIntoDay(highRiskStart) : null,
+      highRiskEndMinute: firstHighRiskGap ? minutesIntoDay(firstHighRiskGap.end) : null,
+      highRiskWindow: firstHighRiskGap && highRiskStart ? `${formatClock(highRiskStart)}-${formatClock(firstHighRiskGap.end)}` : "Not detected",
       reactive,
       endedAt: endedDate ? endedDate.toISOString() : "",
       summary
-    };
-  }
-
-  function storedEntries() {
-    return Object.values(betaState().archive || {}).filter(entry => entry && entry.date);
-  }
-
-  function predictedDangerWindowForKey(key = dateKey()) {
-    const dayType = dayTypeForKey(key);
-    if (!dayType) {
-      return { available: false, reason: "Select a day type to build predictions." };
-    }
-
-    const similar = storedEntries().filter(entry => {
-      return entry.date !== key && entry.dayType === dayType && Number.isFinite(entry.dangerStartMinute);
-    });
-
-    if (similar.length < PREDICTION_MIN_SIMILAR_DAYS) {
-      return {
-        available: false,
-        reason: "Not enough history yet. Log a few more similar days to predict your danger window.",
-        similarDays: similar.length
-      };
-    }
-
-    const start = similar.reduce((sum, entry) => sum + entry.dangerStartMinute, 0) / similar.length;
-    const end = similar.reduce((sum, entry) => {
-      return sum + (Number.isFinite(entry.dangerEndMinute) ? entry.dangerEndMinute : entry.dangerStartMinute + 150);
-    }, 0) / similar.length;
-    const startRounded = Math.round(start / 15) * 15;
-    const endRounded = Math.max(startRounded + 60, Math.round(end / 15) * 15);
-    const fuelBefore = Math.max(0, startRounded - PLANNING_BUFFER_MINUTES);
-
-    return {
-      available: true,
-      similarDays: similar.length,
-      startMinute: startRounded,
-      endMinute: endRounded,
-      fuelBeforeMinute: fuelBefore,
-      window: `${clockFromMinutes(startRounded)}-${clockFromMinutes(endRounded)}`,
-      fuelBefore: clockFromMinutes(fuelBefore),
-      message: `On similar ${dayTypeLabel(dayType).toLowerCase()}s, your fuel rhythm usually drops around this time.`
     };
   }
 
@@ -329,38 +344,41 @@
       ? options.endedAt
       : previous.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "");
     const analysis = analyseDay(key, { endedAt });
-    const prediction = predictedDangerWindowForKey(key);
 
     return {
       date: key,
       dateLabel: analysis.dateLabel,
       dayType: analysis.dayType,
       dayTypeLabel: analysis.dayTypeLabel,
+      trainingSession: analysis.trainingSession,
+      trainingSessionLabel: analysis.trainingSessionLabel,
       endedAt: analysis.endedAt || endedAt || "",
+      firstFuelMinute: analysis.firstFuelMinute,
+      lastFuelMinute: analysis.lastFuelMinute,
       firstFuelTime: analysis.firstFuelTime,
       lastFuelTime: analysis.lastFuelTime,
       fuelLogCount: analysis.fuelLogCount,
+      hydrationLogCount: analysis.hydrationLogCount,
       logs: analysis.logs.map(log => ({
         id: log.id || uid(),
         timestamp: log.date.toISOString(),
         type: logType(log),
         typeLabel: logType(log) === "hydration" ? "Hydration" : "Fuel",
+        dayType: log.dayType || analysis.dayType,
+        trainingSession: log.trainingSession || analysis.trainingSession,
         note: log.note || ""
       })),
       longestGapMinutes: analysis.longestGapMinutes,
       averageGapMinutes: analysis.averageGapMinutes,
       longGapCount: analysis.longGapCount,
+      highRiskGapCount: analysis.highRiskGapCount,
       longestGap: durationText(analysis.longestGapMinutes),
       averageGap: durationText(analysis.averageGapMinutes),
-      dangerStartMinute: analysis.dangerStartMinute,
-      dangerEndMinute: analysis.dangerEndMinute,
-      actualDangerWindow: analysis.actualDangerWindow,
-      predictedDangerWindow: prediction.available ? prediction.window : "Not enough history yet",
-      fuelNeededBefore: prediction.available ? prediction.fuelBefore : analysis.fuelNeededBefore,
+      highRiskStartMinute: analysis.highRiskStartMinute,
+      highRiskEndMinute: analysis.highRiskEndMinute,
+      highRiskWindow: analysis.highRiskWindow,
       reactive: analysis.reactive,
-      analysis: prediction.available
-        ? [...analysis.summary, `On similar days, get fuel available before ${prediction.fuelBefore}.`]
-        : analysis.summary
+      analysis: analysis.summary
     };
   }
 
@@ -385,13 +403,13 @@
     cutoff.setDate(cutoff.getDate() - 6);
     const entries = archiveEntries().filter(entry => dateFromKey(entry.date) >= cutoff && (entry.fuelLogCount || entry.dayType));
     const longEntries = entries.filter(entry => entry.longGapCount > 0);
-    const dangerCounts = {};
+    const highRiskWindowCounts = {};
     const typeStats = {};
 
     entries.forEach(entry => {
-      if (Number.isFinite(entry.dangerStartMinute)) {
-        const bucket = timeWindowBucket(entry.dangerStartMinute);
-        dangerCounts[bucket] = (dangerCounts[bucket] || 0) + 1;
+      if (Number.isFinite(entry.highRiskStartMinute)) {
+        const bucket = timeWindowBucket(entry.highRiskStartMinute);
+        highRiskWindowCounts[bucket] = (highRiskWindowCounts[bucket] || 0) + 1;
       }
       if (!entry.dayType) return;
       if (!typeStats[entry.dayType]) {
@@ -404,7 +422,7 @@
       stat.averageTotal += Number(entry.averageGapMinutes || 0);
     });
 
-    const topWindow = Object.entries(dangerCounts).sort((a, b) => b[1] - a[1])[0] || null;
+    const topWindow = Object.entries(highRiskWindowCounts).sort((a, b) => b[1] - a[1])[0] || null;
     const typeList = Object.values(typeStats);
     const riskType = [...typeList].sort((a, b) => b.longDays - a.longDays || b.averageTotal - a.averageTotal)[0] || null;
     const averageType = [...typeList].sort((a, b) => (b.averageTotal / Math.max(1, b.days)) - (a.averageTotal / Math.max(1, a.days)))[0] || null;
@@ -434,23 +452,19 @@
     const last = lastFuelLog();
     const minutes = minutesSinceLastFuel(now);
     const status = fuelGapStatus(minutes);
-    const prediction = predictedDangerWindowForKey(dateKey(now));
     const statusText = status === "green"
       ? "Fuel gap is currently under control."
       : status === "amber"
         ? "Fuel gap is building. Plan fuel soon."
-        : "Fuel gap is red. Get fuel available now.";
+        : "High Risk fuel gap. Get fuel available now.";
 
     return {
       lastFuelled: last ? formatClock(last.date) : "No fuel logged",
       timeSinceFuel: Number.isFinite(minutes) ? duration(minutes) : "No fuel logged",
       minutesSinceFuel: minutes,
       status,
-      nextAction: prediction.available
-        ? `Predicted danger window: ${prediction.window}. Get fuel available before ${prediction.fuelBefore}.`
-        : statusText,
-      statusContext: statusText,
-      prediction
+      nextAction: statusText,
+      statusContext: statusText
     };
   };
 
@@ -472,9 +486,10 @@
     };
   };
 
-  recordFuelled = function recordFuelledBeta() {
+  function recordRhythmLog(type = "fuel") {
     if (fuelDayEndSnapshot().dayEnded) return;
-    if (cooldownRemainingSeconds() > 0) {
+    const isHydration = type === "hydration";
+    if (!isHydration && cooldownRemainingSeconds() > 0) {
       renderFuelGap();
       return;
     }
@@ -483,39 +498,55 @@
     betaState().logs.push({
       id: uid(),
       timestamp: new Date().toISOString(),
-      label: "Fuelled",
-      type: "fuel",
-      dayType: dayTypeForKey(key)
+      label: isHydration ? "Hydration logged" : "Fuelled",
+      type: isHydration ? "hydration" : "fuel",
+      dayType: dayTypeForKey(key),
+      trainingSession: trainingSessionForKey(key)
     });
-    setCooldown();
+    if (!isHydration) setCooldown();
     storeArchive(key);
     state.completed.liveFuelStatus = true;
     if (typeof recordFuelMomentum === "function") {
-      recordFuelMomentum("fuelLogged", "Fuel logged. Gap tracker updated.", "Fuel logged. Your fuel rhythm is up to date. +1 Fuel Momentum", { dedupeDaily: false });
+      recordFuelMomentum(
+        isHydration ? "hydrationLogged" : "fuelLogged",
+        isHydration ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.",
+        isHydration ? "Hydration logged. Fuel rhythm comparison updated. +1 Fuel Momentum" : "Fuel logged. Your fuel rhythm is up to date. +1 Fuel Momentum",
+        { dedupeDaily: false }
+      );
     } else if (typeof addActivityEntry === "function") {
-      addActivityEntry("fuelLogged", "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
+      addActivityEntry(isHydration ? "hydrationLogged" : "fuelLogged", isHydration ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
     }
     save();
     renderAll();
+  }
+
+  recordFuelled = function recordFuelledBeta() {
+    recordRhythmLog("fuel");
   };
 
-  function undoLatestFuelLog() {
+  function recordHydration() {
+    recordRhythmLog("hydration");
+  }
+
+  function undoLatestRhythmLog() {
     const key = dateKey();
     let latestIndex = -1;
     let latestDate = null;
+    let latestType = "fuel";
     betaState().logs.forEach((log, index) => {
       const date = logDate(log);
-      if (!date || dateKey(date) !== key || !isFuelLog(log)) return;
+      if (!date || dateKey(date) !== key) return;
       if (!latestDate || date > latestDate) {
         latestDate = date;
         latestIndex = index;
+        latestType = logType(log);
       }
     });
     if (latestIndex < 0) return;
     betaState().logs.splice(latestIndex, 1);
-    clearCooldown();
+    if (latestType === "fuel") clearCooldown();
     storeArchive(key);
-    addActivityEntry("fuelLogUndo", "Latest fuel log undone.", { dedupeDaily: false });
+    addActivityEntry("fuelLogUndo", "Latest rhythm log undone.", { dedupeDaily: false });
     save();
     renderAll();
   }
@@ -547,40 +578,40 @@
     renderAll();
   };
 
-  function renderPredictionPanel(snapshot) {
-    const target = document.getElementById("fuelPredictionPanel");
-    if (!target) return;
-    const prediction = snapshot.prediction;
-    target.innerHTML = prediction.available
-      ? `<strong>Predicted danger window: ${safeText(prediction.window)}</strong><span>${safeText(prediction.message)}</span><small>Get fuel available before ${safeText(prediction.fuelBefore)}.</small>`
-      : `<strong>Predicted danger window</strong><span>${safeText(prediction.reason)}</span>`;
+  function renderGraphModeControls() {
+    const mode = graphMode();
+    document.querySelectorAll("[data-graph-mode]").forEach(button => {
+      button.classList.toggle("active", button.dataset.graphMode === mode);
+    });
   }
 
   function renderGapInsights(snapshot) {
     const target = document.getElementById("fuelGapInsights");
     if (!target) return;
     const analysis = analyseDay(dateKey());
-    const weekly = weeklySummary();
-    const prediction = snapshot.prediction;
     target.innerHTML = `
       <div class="fuel-gap-insight"><span>Time since last fuel</span><strong>${safeText(snapshot.timeSinceFuel)}</strong><small>Core beta signal.</small></div>
       <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.status.toUpperCase())}</strong><small>Green under ${thresholds().greenMinutes}m. Red at ${thresholds().redMinutes}m.</small></div>
       <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap I fuelled to start."}</small></div>
-      <div class="fuel-gap-insight"><span>Long gaps today</span><strong>${analysis.longGapCount}</strong><small>Gaps at or over red threshold.</small></div>
-      <div class="fuel-gap-insight"><span>Predicted danger window</span><strong>${safeText(prediction.available ? prediction.window : "Not enough history")}</strong><small>${safeText(prediction.available ? `Fuel before ${prediction.fuelBefore}.` : "Needs similar logged days.")}</small></div>
-      <div class="fuel-gap-insight"><span>Weekly pattern</span><strong>${safeText(weekly.topWindow ? weekly.topWindow[0] : "Building")}</strong><small>${safeText(weekly.riskType ? `Long gaps most common on ${weekly.riskType.label.toLowerCase()}.` : "More day types needed.")}</small></div>
+      <div class="fuel-gap-insight"><span>High Risk gaps today</span><strong>${analysis.highRiskGapCount}</strong><small>Gaps at or over red threshold.</small></div>
+      <div class="fuel-gap-insight"><span>Fuel logs today</span><strong>${analysis.fuelLogCount}</strong><small>Real logged fuel points.</small></div>
+      <div class="fuel-gap-insight"><span>Hydration logs today</span><strong>${analysis.hydrationLogCount}</strong><small>Real logged hydration points.</small></div>
     `;
   }
 
   function renderDayTypeControls() {
-    ["fuelDayType"].forEach(id => {
-      const select = document.getElementById(id);
-      if (select && select.value !== dayTypeForKey(dateKey())) select.value = dayTypeForKey(dateKey());
-    });
+    const key = dateKey();
+    const dayTypeSelect = document.getElementById("fuelDayType");
+    const sessionSelect = document.getElementById("fuelTrainingSession");
+    const dayType = dayTypeForKey(key);
+    const session = trainingSessionForKey(key);
+    if (dayTypeSelect && dayTypeSelect.value !== dayType) dayTypeSelect.value = dayType;
+    if (sessionSelect && sessionSelect.value !== session) sessionSelect.value = session;
     const saved = document.getElementById("fuelDayTypeSaved");
     if (saved) {
-      const value = dayTypeForKey(dateKey());
-      saved.textContent = value ? `Saved: ${dayTypeLabel(value)}. You can edit it.` : "Set once per day to improve predictions.";
+      const dayText = dayType ? dayTypeLabel(dayType) : "day type not set";
+      const sessionText = session ? trainingSessionLabel(session) : "session not set";
+      saved.textContent = `Saved: ${dayText}; ${sessionText}.`;
     }
   }
 
@@ -589,6 +620,11 @@
     const red = document.getElementById("redThresholdMinutes");
     if (green) green.value = thresholds().greenMinutes;
     if (red) red.value = thresholds().redMinutes;
+    state.account = { email: "", status: "", ...(state.account || {}) };
+    const email = document.getElementById("accountEmail");
+    const status = document.getElementById("accountSetupStatus");
+    if (email && document.activeElement !== email) email.value = state.account.email || "";
+    if (status) status.textContent = state.account.status || "Not logged in yet. Cloud sync backend is planned.";
   }
 
   function renderAnalysisList(items) {
@@ -611,33 +647,133 @@
     if (dateEl) dateEl.textContent = typeof fuelTrackingDateLabel === "function" ? fuelTrackingDateLabel() : formatDateKey(dateKey());
     const target = document.getElementById("fuelDailyLog");
     if (!target) return;
-    const logs = todayFuelLogs();
+    const logs = todayLogs();
     target.innerHTML = logs.length
-      ? logs.map(log => `<div class="row"><div><div class="item-name">${formatClock(log.date)} - Fuelled</div></div></div>`).join("")
-      : `<p class="muted fuel-daily-empty">No fuel logged today.</p>`;
+      ? logs.map(log => `<div class="row"><div><div class="item-name">${formatClock(log.date)} - ${logType(log) === "hydration" ? "Hydration" : "Fuel"} logged</div></div></div>`).join("")
+      : `<p class="muted fuel-daily-empty">No fuel or hydration logged today.</p>`;
   }
 
   function renderArchiveDetail(entry) {
     if (!entry) return `<p class="muted">No daily summaries yet.</p>`;
     const logsHtml = entry.logs.length
       ? entry.logs.map(log => `<div class="row fuel-archive-log-row"><div><div class="item-name">${formatClock(logDate(log.timestamp))} - ${safeText(log.typeLabel || "Fuel")}</div>${log.note ? `<div class="row-note">${safeText(log.note)}</div>` : ""}</div></div>`).join("")
-      : `<p class="muted">No fuel logs stored for this day.</p>`;
+      : `<p class="muted">No logs stored for this day.</p>`;
+    const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
+      .filter(Boolean)
+      .join(" - ");
 
     return `
-      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(dayTypeLabel(entry.dayType))}</h3></div><span class="status-pill ${entry.longGapCount ? "amber" : "green"}">${entry.longGapCount ? "GAPS FOUND" : "STABLE"}</span></div>
+      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day type not set")}</h3></div><span class="status-pill ${entry.highRiskGapCount ? "amber" : "green"}">${entry.highRiskGapCount ? "HIGH RISK GAPS" : "STABLE"}</span></div>
       <div class="fuel-archive-stats">
         <div><span>First fuel</span><strong>${safeText(entry.firstFuelTime)}</strong></div>
         <div><span>Last fuel</span><strong>${safeText(entry.lastFuelTime)}</strong></div>
         <div><span>Fuel logs</span><strong>${entry.fuelLogCount}</strong></div>
+        <div><span>Hydration logs</span><strong>${entry.hydrationLogCount || 0}</strong></div>
         <div><span>Longest gap</span><strong>${safeText(entry.longestGap)}</strong></div>
         <div><span>Average gap</span><strong>${safeText(entry.averageGap)}</strong></div>
-        <div><span>Long gaps</span><strong>${entry.longGapCount}</strong></div>
-        <div><span>Predicted danger</span><strong>${safeText(entry.predictedDangerWindow)}</strong></div>
-        <div><span>Actual danger</span><strong>${safeText(entry.actualDangerWindow)}</strong></div>
+        <div><span>High Risk gaps</span><strong>${entry.highRiskGapCount || 0}</strong></div>
       </div>
       <div class="fuel-archive-section"><h4>Fuel log times</h4><div class="list">${logsHtml}</div></div>
-      <div class="fuel-archive-section"><h4>End-of-day analysis</h4>${renderAnalysisList(entry.analysis)}</div>
+      <div class="fuel-archive-section"><h4>Logged behaviour notes</h4>${renderAnalysisList(entry.analysis)}</div>
     `;
+  }
+
+  function loggedHistoryEntries() {
+    return archiveEntries()
+      .filter(entry => Number(entry.fuelLogCount || 0) > 0 || Number(entry.hydrationLogCount || 0) > 0 || (entry.logs || []).length > 0)
+      .sort((a, b) => dateFromKey(a.date) - dateFromKey(b.date));
+  }
+
+  function entryMatchesTrainingFilter(entry, filter) {
+    if (filter === "all") return true;
+    const isTraining = isTrainingDayValue(entry.dayType, entry.trainingSession);
+    if (filter === "training-days") return isTraining;
+    if (filter === "non-training-days") return !isTraining;
+    if (filter === "rest") return entry.trainingSession === "rest" || entry.dayType === "rest";
+    return entry.trainingSession === filter;
+  }
+
+  function averageValue(values) {
+    const finite = values.filter(value => Number.isFinite(value));
+    return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : null;
+  }
+
+  function averageClock(values) {
+    const average = averageValue(values);
+    if (!Number.isFinite(average)) return "Not enough data";
+    const date = startOfDay();
+    date.setMinutes(Math.round(average));
+    return formatClock(date);
+  }
+
+  function averageNumber(values, digits = 1) {
+    const average = averageValue(values);
+    return Number.isFinite(average) ? average.toFixed(digits) : "0.0";
+  }
+
+  function trainingFilterLabel(filter) {
+    if (filter === "all") return "All stored days";
+    if (filter === "training-days") return "Training days";
+    if (filter === "non-training-days") return "Non-training days";
+    return trainingSessionLabel(filter);
+  }
+
+  function renderAverageMetric(label, value, note) {
+    return `<div class="fuel-gap-insight"><span>${safeText(label)}</span><strong>${safeText(value)}</strong><small>${safeText(note)}</small></div>`;
+  }
+
+  function renderPatternGraph(title, entries, valueForEntry, metaForEntry, { max = null, tone = "green" } = {}) {
+    if (!entries.length) return "";
+    const values = entries.map(valueForEntry).filter(value => Number.isFinite(value));
+    const maxValue = Number.isFinite(max) ? max : Math.max(...values, 1);
+    const rows = entries.map(entry => {
+      const raw = valueForEntry(entry);
+      const value = Number.isFinite(raw) ? Math.max(0, raw) : 0;
+      const width = maxValue > 0 && Number.isFinite(raw) ? Math.max(4, Math.min(100, Math.round((value / maxValue) * 100))) : 0;
+      return `
+        <div class="beta-history-bar-row">
+          <div class="beta-history-bar-label"><span>${safeText(entry.dateLabel || entry.date)}</span><small>${safeText(metaForEntry(entry))}</small></div>
+          <div class="beta-history-bar-track"><i class="${tone}" style="width:${width}%"></i></div>
+        </div>
+      `;
+    }).join("");
+    return `<section class="beta-history-chart"><h3>${safeText(title)}</h3>${rows}</section>`;
+  }
+
+  function renderHistoryAverages() {
+    const summaryTarget = document.getElementById("fuelAveragesSummary");
+    const graphTarget = document.getElementById("fuelAveragePatternGraphs");
+    if (!summaryTarget || !graphTarget) return;
+
+    const allEntries = loggedHistoryEntries();
+    const filteredEntries = allEntries.filter(entry => entryMatchesTrainingFilter(entry, selectedTrainingFilter));
+    if (!allEntries.length) {
+      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days yet. Log fuel for a few days and averages will appear here.</p>`;
+      graphTarget.innerHTML = "";
+      return;
+    }
+    if (!filteredEntries.length) {
+      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match ${safeText(trainingFilterLabel(selectedTrainingFilter))} yet.</p>`;
+      graphTarget.innerHTML = "";
+      return;
+    }
+
+    summaryTarget.innerHTML = [
+      renderAverageMetric("Average daily first fuel time", averageClock(filteredEntries.map(entry => entry.firstFuelMinute)), `${filteredEntries.length} logged day${filteredEntries.length === 1 ? "" : "s"}`),
+      renderAverageMetric("Average daily last fuel time", averageClock(filteredEntries.map(entry => entry.lastFuelMinute)), trainingFilterLabel(selectedTrainingFilter)),
+      renderAverageMetric("Average number of fuel logs per day", averageNumber(filteredEntries.map(entry => Number(entry.fuelLogCount || 0))), "Real logged fuel points"),
+      renderAverageMetric("Average number of High Risk gaps per day", averageNumber(filteredEntries.map(entry => Number(entry.highRiskGapCount || 0))), "Based on current red threshold"),
+      renderAverageMetric("Average longest fuel gap per day", durationText(averageValue(filteredEntries.map(entry => Number(entry.longestGapMinutes || 0))) || 0), "Average of each day's longest gap")
+    ].join("");
+
+    const maxGap = Math.max(...filteredEntries.map(entry => Number(entry.longestGapMinutes || 0)), 1);
+    const maxRisk = Math.max(...filteredEntries.map(entry => Number(entry.highRiskGapCount || 0)), 1);
+    graphTarget.innerHTML = [
+      renderPatternGraph("First fuel time by day", filteredEntries, entry => entry.firstFuelMinute, entry => entry.firstFuelTime, { max: 1440, tone: "blue" }),
+      renderPatternGraph("Last fuel time by day", filteredEntries, entry => entry.lastFuelMinute, entry => entry.lastFuelTime, { max: 1440, tone: "green" }),
+      renderPatternGraph("Longest fuel gap by day", filteredEntries, entry => Number(entry.longestGapMinutes || 0), entry => durationText(Number(entry.longestGapMinutes || 0)), { max: maxGap, tone: "amber" }),
+      renderPatternGraph("High Risk gap count by day", filteredEntries, entry => Number(entry.highRiskGapCount || 0), entry => `${entry.highRiskGapCount || 0} High Risk gap${Number(entry.highRiskGapCount || 0) === 1 ? "" : "s"}`, { max: maxRisk, tone: "red" })
+    ].join("");
   }
 
   function renderHistory() {
@@ -648,11 +784,12 @@
         <div class="fuel-gap-insight"><span>Days stored</span><strong>${weekly.entries.length}</strong><small>Local daily summaries.</small></div>
         <div class="fuel-gap-insight"><span>Fuel logs this week</span><strong>${weekly.totalLogs}</strong><small>One-tap fuel records.</small></div>
         <div class="fuel-gap-insight"><span>Longest weekly gap</span><strong>${safeText(durationText(weekly.longestGap))}</strong><small>Largest stored gap in the last 7 days.</small></div>
-        <div class="fuel-gap-insight"><span>Repeated danger window</span><strong>${safeText(weekly.topWindow ? weekly.topWindow[0] : "Building")}</strong><small>${safeText(weekly.topWindow ? "Common red-gap window." : "Needs more daily summaries.")}</small></div>
+        <div class="fuel-gap-insight"><span>Repeated High Risk window</span><strong>${safeText(weekly.topWindow ? weekly.topWindow[0] : "Building")}</strong><small>${safeText(weekly.topWindow ? "Common High Risk gap window." : "Needs more daily summaries.")}</small></div>
         <div class="fuel-gap-insight"><span>Day type pattern</span><strong>${safeText(weekly.riskType ? weekly.riskType.label : "Building")}</strong><small>${safeText(weekly.riskType ? "Longest gaps cluster here." : "Tag day type to compare patterns.")}</small></div>
         <div class="fuel-gap-insight"><span>Average gap pattern</span><strong>${safeText(weekly.averageType ? weekly.averageType.label : "Building")}</strong><small>${safeText(weekly.averageType ? "Highest average gaps so far." : "Needs more history.")}</small></div>
       `;
     }
+    renderHistoryAverages();
 
     const entries = archiveEntries();
     const select = document.getElementById("fuelHistoryArchiveDate");
@@ -660,48 +797,13 @@
     const detail = document.getElementById("fuelHistoryArchiveDetail");
     if (!select || !detail) return;
     if (!selectedHistoryKey || !entries.some(entry => entry.date === selectedHistoryKey)) selectedHistoryKey = entries[0]?.date || dateKey();
-    select.innerHTML = entries.map(entry => `<option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${entry.dayType ? ` - ${safeText(entry.dayTypeLabel)}` : ""}</option>`).join("");
+    select.innerHTML = entries.map(entry => {
+      const labels = [entry.dayType ? entry.dayTypeLabel : "", entry.trainingSession ? entry.trainingSessionLabel : ""].filter(Boolean);
+      return `<option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${labels.length ? ` - ${safeText(labels.join(" / "))}` : ""}</option>`;
+    }).join("");
     select.value = selectedHistoryKey;
-    if (count) count.textContent = `${entries.length} day${entries.length === 1 ? "" : "s"} stored`;
+    if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
     detail.innerHTML = renderArchiveDetail(entries.find(entry => entry.date === selectedHistoryKey));
-  }
-
-  function buildCurve(now = new Date()) {
-    const logs = todayLogs(now).filter(log => log.date <= now);
-    const currentMinute = clamp(minutesIntoDay(now), 0, 1440);
-    const points = [{ minute: 0, value: 42 }];
-    const markers = [];
-    let value = 42;
-    let lastMinute = 0;
-    logs.forEach(log => {
-      const minute = clamp(minutesIntoDay(log.date), 0, currentMinute);
-      value = clamp(value - Math.max(0, minute - lastMinute) * 0.11, 8, 95);
-      points.push({ minute, value });
-      if (isFuelLog(log)) {
-        value = clamp(Math.max(value + 42, 86), 8, 95);
-        const marker = { minute: Math.min(1440, minute + .45), value, log };
-        markers.push(marker);
-        points.push(marker);
-      }
-      lastMinute = minute;
-    });
-    value = clamp(value - Math.max(0, currentMinute - lastMinute) * 0.11, 8, 95);
-    points.push({ minute: currentMinute, value, current: true });
-    return { points, markers, currentMinute };
-  }
-
-  function tracePath(ctx, coordinates) {
-    if (!coordinates.length) return;
-    ctx.moveTo(coordinates[0].x, coordinates[0].y);
-    for (let index = 1; index < coordinates.length; index += 1) {
-      const previous = coordinates[index - 1];
-      const current = coordinates[index];
-      const midX = (previous.x + current.x) / 2;
-      const midY = (previous.y + current.y) / 2;
-      ctx.quadraticCurveTo(previous.x, previous.y, midX, midY);
-    }
-    const last = coordinates[coordinates.length - 1];
-    ctx.lineTo(last.x, last.y);
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -725,78 +827,87 @@
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
     const xForMinute = minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth;
-    const yForValue = value => padding.top + (1 - clamp(value, 0, 100) / 100) * plotHeight;
-    const prediction = predictedDangerWindowForKey(dateKey(now));
+    const selectedMode = graphMode();
+    const logs = todayLogs(now).filter(log => log.date <= now);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(log => !isFuelLog(log));
+    const series = [];
+    if (selectedMode === "fuel" || selectedMode === "combined") {
+      series.push({ label: "Fuel", color: "#2dff88", logs: fuelLogs });
+    }
+    if (selectedMode === "hydration" || selectedMode === "combined") {
+      series.push({ label: "Hydration", color: "#9fb7ff", logs: hydrationLogs });
+    }
+    const maxCount = Math.max(2, ...series.map(item => item.logs.length));
+    const yForCount = count => bottom - (clamp(count, 0, maxCount) / maxCount) * plotHeight;
 
     ctx.strokeStyle = "rgba(255,255,255,.08)";
     ctx.lineWidth = 1;
     ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top);
+    ctx.lineTo(padding.left, bottom);
     ctx.moveTo(padding.left, bottom);
     ctx.lineTo(cssWidth - padding.right, bottom);
     ctx.stroke();
-
-    if (prediction.available) {
-      const x = xForMinute(prediction.startMinute);
-      const width = Math.max(8, xForMinute(prediction.endMinute) - x);
-      ctx.fillStyle = "rgba(255,77,109,.11)";
-      ctx.fillRect(x, padding.top, width, plotHeight);
-      ctx.fillStyle = "rgba(255,180,190,.78)";
-      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillText("Predicted danger", Math.min(x + 6, cssWidth - 116), padding.top + 13);
-    }
 
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.fillStyle = "rgba(245,255,248,.55)";
     [360, 720, 1080].forEach((minute, index) => {
       ctx.fillText(["6am", "12pm", "6pm"][index], xForMinute(minute) - 12, cssHeight - 11);
     });
+    ctx.fillText("logs", 6, padding.top + 4);
+    ctx.fillText(String(maxCount), 11, yForCount(maxCount) + 4);
+    ctx.fillText("0", 18, bottom + 4);
 
-    const { points, markers, currentMinute } = buildCurve(now);
-    const coordinates = points.map(point => ({ ...point, x: xForMinute(point.minute), y: yForValue(point.value) }));
-    if (coordinates.length > 1) {
-      const fillGradient = ctx.createLinearGradient(0, padding.top, 0, bottom);
-      fillGradient.addColorStop(0, "rgba(45,255,136,.22)");
-      fillGradient.addColorStop(1, "rgba(32,214,255,.01)");
-      ctx.fillStyle = fillGradient;
-      ctx.beginPath();
-      tracePath(ctx, coordinates);
-      ctx.lineTo(coordinates[coordinates.length - 1].x, bottom);
-      ctx.lineTo(coordinates[0].x, bottom);
-      ctx.closePath();
-      ctx.fill();
-
-      const strokeGradient = ctx.createLinearGradient(padding.left, 0, cssWidth - padding.right, 0);
-      strokeGradient.addColorStop(0, "#20d6ff");
-      strokeGradient.addColorStop(.55, "#2dff88");
-      strokeGradient.addColorStop(1, "#ffb020");
-      ctx.strokeStyle = strokeGradient;
-      ctx.lineWidth = 3.5;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      tracePath(ctx, coordinates);
-      ctx.stroke();
+    const plotted = series.some(item => item.logs.length);
+    if (!plotted) {
+      ctx.fillStyle = "rgba(245,255,248,.62)";
+      ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      const empty = selectedMode === "hydration" ? "No hydration logs yet." : selectedMode === "fuel" ? "No fuel logs yet." : "No fuel or hydration logs yet.";
+      ctx.fillText(empty, padding.left + 12, padding.top + plotHeight / 2);
     }
 
-    markers.forEach(marker => {
-      ctx.fillStyle = "#2dff88";
-      ctx.strokeStyle = "rgba(3,10,8,.86)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(xForMinute(marker.minute), yForValue(marker.value), 5.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+    series.forEach((item, seriesIndex) => {
+      const coordinates = item.logs.map((log, index) => ({
+        log,
+        x: xForMinute(minutesIntoDay(log.date)),
+        y: yForCount(index + 1)
+      }));
+      if (coordinates.length > 1) {
+        ctx.strokeStyle = item.color;
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        coordinates.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.stroke();
+      }
+      coordinates.forEach(point => {
+        ctx.fillStyle = item.color;
+        ctx.strokeStyle = "rgba(3,10,8,.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, item.label === "Hydration" ? 4.5 : 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+      ctx.fillStyle = item.color;
+      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(item.label, padding.left + seriesIndex * 82, padding.top + 12);
     });
 
-    const currentX = xForMinute(currentMinute);
+    const currentX = xForMinute(minutesIntoDay(now));
     ctx.strokeStyle = "rgba(255,255,255,.12)";
     ctx.beginPath();
     ctx.moveTo(currentX, padding.top);
     ctx.lineTo(currentX, bottom);
     ctx.stroke();
     ctx.fillStyle = "rgba(245,255,248,.62)";
-    ctx.fillText("Now", Math.min(currentX + 5, cssWidth - 42), padding.top + 12);
+    ctx.fillText("Now", Math.min(currentX + 5, cssWidth - 42), padding.top + 27);
   }
-
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const summary = fuelDaySummary();
@@ -818,12 +929,15 @@
 
     const button = document.getElementById("graphLogFoodButton");
     if (button) {
-      button.textContent = "I fuelled";
+      button.textContent = "Log food";
       button.disabled = summary.dayEnded || cooldown > 0;
     }
 
+    const hydrationButton = document.getElementById("graphLogHydrationButton");
+    if (hydrationButton) hydrationButton.disabled = summary.dayEnded;
+
     const undo = document.getElementById("undoLatestFoodLog");
-    if (undo) undo.disabled = !todayFuelLogs().length;
+    if (undo) undo.disabled = !todayLogs().length;
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
@@ -836,7 +950,7 @@
     const daySummary = document.getElementById("fuelDaySummary");
     if (daySummary) daySummary.innerHTML = `<p class="label">Today</p><p>${safeText(summary.message)}</p>`;
 
-    renderPredictionPanel(snapshot);
+    renderGraphModeControls();
     renderGapInsights(snapshot);
     renderDayTypeControls();
     renderSettings();
@@ -858,7 +972,7 @@
     });
     const titles = {
       dashboard: ["Live Fuel Rhythm", "Track your fuel rhythm and spot fuelling gaps before you crash."],
-      logs: ["Insights / History", "Review daily summaries and repeated danger windows."],
+      logs: ["Insights / History", "Review daily summaries and High Risk gap patterns."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
     const title = document.getElementById("pageTitle");
@@ -885,6 +999,8 @@
     gap.logs = [];
     gap.archive = {};
     gap.dayTypes = {};
+    gap.trainingSessions = {};
+    gap.graphMode = "combined";
     gap.thresholds = { ...DEFAULT_THRESHOLDS };
     gap.dayEndedDate = "";
     gap.dayEndedAt = "";
@@ -902,18 +1018,45 @@
     };
   });
 
-  document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestFuelLog);
+  document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestRhythmLog);
+  document.getElementById("graphLogHydrationButton")?.addEventListener("click", recordHydration);
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
     setDayType(dateKey(), event.target.value);
     save();
     renderAll();
   });
+  document.getElementById("fuelTrainingSession")?.addEventListener("change", event => {
+    setTrainingSession(dateKey(), event.target.value);
+    save();
+    renderAll();
+  });
+  document.getElementById("fuelGraphModeControls")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-graph-mode]");
+    if (!button) return;
+    betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "combined";
+    save();
+    renderFuelGap();
+  });
   document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", event => {
     selectedHistoryKey = event.target.value;
     renderHistory();
   });
+  document.getElementById("trainingInsightFilter")?.addEventListener("change", event => {
+    selectedTrainingFilter = event.target.value || "all";
+    renderHistoryAverages();
+  });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
+  document.getElementById("accountSetupButton")?.addEventListener("click", () => {
+    state.account = { email: "", status: "", ...(state.account || {}) };
+    const email = document.getElementById("accountEmail")?.value.trim() || "";
+    state.account.email = email;
+    state.account.status = email
+      ? `Account setup ready for ${email}. Cloud sync backend not connected yet.`
+      : "Enter an email to set up or log in when cloud sync is connected.";
+    save();
+    renderSettings();
+  });
 
   window.addEventListener("resize", () => drawBetaGraph());
 

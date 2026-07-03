@@ -73,13 +73,11 @@
     const cooldown = document.getElementById("foodLogCooldownMessage");
     const risk = document.getElementById("fuelGapNextAction");
     const graph = document.querySelector(".beta-graph-wrap");
-    const prediction = document.getElementById("fuelPredictionPanel");
     const todayLog = document.querySelector(".beta-today-log");
     const dayControls = document.querySelector(".beta-day-controls");
     moveElementBefore(dayType, logButton);
     moveElementAfter(risk, cooldown || logButton);
     moveElementBefore(risk, graph);
-    moveElementAfter(prediction, graph);
     moveElementBefore(todayLog, dayControls);
   }
 
@@ -212,14 +210,14 @@
       return renderBar(entry.dateLabel || entry.date, value, maxLogs, `${value} fuel logs`, "blue");
     }).join("");
     const windows = entries
-      .filter(entry => entry.actualDangerWindow && entry.actualDangerWindow !== "Not detected")
-      .map(entry => `<li><strong>${safeText(entry.dateLabel || entry.date)}</strong><span>${safeText(entry.actualDangerWindow)}</span></li>`)
+      .filter(entry => entry.highRiskWindow && entry.highRiskWindow !== "Not detected")
+      .map(entry => `<li><strong>${safeText(entry.dateLabel || entry.date)}</strong><span>${safeText(entry.highRiskWindow)}</span></li>`)
       .join("");
 
     target.innerHTML = `
       <section class="beta-history-chart"><h3>Longest fuel gap by day</h3>${gapBars}</section>
       <section class="beta-history-chart"><h3>Fuel logs per day</h3>${logBars}</section>
-      <section class="beta-history-chart"><h3>Danger windows</h3>${windows ? `<ul class="beta-danger-window-list">${windows}</ul>` : `<p class="muted">No danger window detected yet.</p>`}</section>
+      <section class="beta-history-chart"><h3>High Risk windows</h3>${windows ? `<ul class="beta-high-risk-window-list">${windows}</ul>` : `<p class="muted">No High Risk window detected yet.</p>`}</section>
     `;
   }
 
