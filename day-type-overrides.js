@@ -1,19 +1,48 @@
 // Fuel Guard day type compatibility layer.
-// Keeps older saved Shift Day entries safe while preserving training-day insights.
+// Keeps older saved day-type entries safe while training session remains separate.
 (() => {
-  const SHIFT_VALUES = new Set(["shift", "Shift day", "Shift Day", "shift day"]);
+  const ALLOWED_VALUES = new Set(["competition", "travel", "work", "holiday"]);
+  const LEGACY_DAY_TYPE_MAP = {
+    "competition/race day": "competition",
+    "competition day": "competition",
+    race: "competition",
+    shift: "work",
+    "shift day": "work",
+    "training + work day": "work",
+    "training-work": "work",
+    "work day": "work",
+    "working day": "work",
+    "travelling day": "travel",
+    "traveling day": "travel",
+    travel: "travel",
+    holiday: "holiday",
+    training: "",
+    "training day": "",
+    rest: "",
+    "rest day": "",
+    "double-training": "",
+    "standalone-training": ""
+  };
+  const LABELS = {
+    competition: "Competition Day",
+    travel: "Travelling Day",
+    work: "Working Day",
+    holiday: "Holiday"
+  };
   let applying = false;
 
-  function isShiftValue(value) {
-    return SHIFT_VALUES.has(String(value || "").trim());
-  }
-
   function isRemovedDayTypeValue(value) {
-    return isShiftValue(value);
+    const raw = String(value || "").trim();
+    if (!raw) return false;
+    return normalizeDayTypeValue(raw) !== raw;
   }
 
   function normalizeDayTypeValue(value) {
-    return isRemovedDayTypeValue(value) ? "work" : value;
+    const raw = String(value || "").trim();
+    const key = raw.toLowerCase();
+    if (!raw) return "";
+    if (Object.prototype.hasOwnProperty.call(LEGACY_DAY_TYPE_MAP, key)) return LEGACY_DAY_TYPE_MAP[key];
+    return ALLOWED_VALUES.has(raw) ? raw : "";
   }
 
   function normalizeStoredDayTypes() {
@@ -24,8 +53,11 @@
     if (gap.dayTypes && typeof gap.dayTypes === "object") {
       Object.keys(gap.dayTypes).forEach(key => {
         const next = normalizeDayTypeValue(gap.dayTypes[key]);
-        if (next !== gap.dayTypes[key]) {
+        if (next && next !== gap.dayTypes[key]) {
           gap.dayTypes[key] = next;
+          changed = true;
+        } else if (!next && gap.dayTypes[key]) {
+          delete gap.dayTypes[key];
           changed = true;
         }
       });
@@ -39,8 +71,9 @@
           entry.dayType = next;
           changed = true;
         }
-        if (/^(shift|work) day$/i.test(String(entry.dayTypeLabel || "").trim())) {
-          entry.dayTypeLabel = "Working Day";
+        const nextLabel = next ? LABELS[next] : "Not set";
+        if (entry.dayTypeLabel !== nextLabel) {
+          entry.dayTypeLabel = nextLabel;
           changed = true;
         }
       });
@@ -61,19 +94,19 @@
   }
 
   function cleanDayTypeOptions() {
-    document.querySelectorAll("select option").forEach(option => {
-      const label = option.textContent.trim();
-      if (option.value === "work" || /^work day$/i.test(label)) {
-        option.value = "work";
-        option.textContent = "Working Day";
-      }
-      if (option.value === "shift" || /^shift day$/i.test(label)) {
+    document.querySelectorAll("#fuelDayType option").forEach(option => {
+      if (!option.value) return;
+      const next = normalizeDayTypeValue(option.value || option.textContent);
+      if (!next || !ALLOWED_VALUES.has(next)) {
         option.remove();
+        return;
       }
+      option.value = next;
+      option.textContent = LABELS[next];
     });
 
     const dayType = document.getElementById("fuelDayType");
-    if (dayType && isRemovedDayTypeValue(dayType.value)) dayType.value = "work";
+    if (dayType && isRemovedDayTypeValue(dayType.value)) dayType.value = normalizeDayTypeValue(dayType.value);
   }
 
   function replaceDayTypeCopy(root = document.body) {
@@ -82,7 +115,7 @@
       acceptNode(node) {
         const parent = node.parentElement;
         if (!parent || ["SCRIPT", "STYLE", "NOSCRIPT"].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
-        return /shift day|work day|shift days|work days/i.test(node.nodeValue || "")
+        return /training \+ work day|training day|race day|competition\/race day|shift day|work day|rest day/i.test(node.nodeValue || "")
           ? NodeFilter.FILTER_ACCEPT
           : NodeFilter.FILTER_REJECT;
       }
@@ -92,6 +125,16 @@
     while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(node => {
       const next = node.nodeValue
+        .replace(/Training \+ work day/g, "Working Day")
+        .replace(/training \+ work day/g, "working day")
+        .replace(/Training Day/g, "day")
+        .replace(/Training day/g, "day")
+        .replace(/training day/g, "day")
+        .replace(/Competition\/Race Day/g, "Competition Day")
+        .replace(/Competition\/race day/g, "Competition Day")
+        .replace(/race day/g, "competition day")
+        .replace(/Rest day/g, "day")
+        .replace(/rest day/g, "day")
         .replace(/Shift Day/g, "Working Day")
         .replace(/Shift day/g, "Working Day")
         .replace(/shift day/g, "working day")
@@ -135,12 +178,10 @@
     applyDayTypeOverrides();
     wrapRender("renderFuelGap");
     wrapRender("renderAll");
-
-    const observer = new MutationObserver(scheduleApply);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    wrapRender("renderHistory");
 
     document.getElementById("fuelDayType")?.addEventListener("change", event => {
-      if (isRemovedDayTypeValue(event.target.value)) event.target.value = "work";
+      if (isRemovedDayTypeValue(event.target.value)) event.target.value = normalizeDayTypeValue(event.target.value);
       scheduleApply();
     });
   });

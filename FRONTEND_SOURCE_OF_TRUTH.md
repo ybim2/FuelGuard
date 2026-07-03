@@ -11,7 +11,7 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA  
-Canonical app version: mobile-pwa-v2-cleanup
+Canonical app version: mobile-pwa-v3-habits
 
 ## Removed legacy features
 
@@ -34,7 +34,6 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Rhythm, History, and Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `fuel-history-render-guard.js`: History rendering guard
-- `fuel-risk-visuals.js`: rhythm/history visual support
 - `day-type-overrides.js`: day type and training session support
 - `fg-button-ble.js`: Fuel Guard BLE button support
 - `manifest.webmanifest`: PWA manifest
@@ -83,7 +82,7 @@ When changing deployed frontend files:
 5. Deploy the repository root.
 6. Open the installed PWA, close and reopen it once if needed, then check Settings for the canonical version marker.
 
-The current canonical version is `mobile-pwa-v2-cleanup`.
+The current canonical version is `mobile-pwa-v3-habits`.
 
 ## Future frontend changes
 

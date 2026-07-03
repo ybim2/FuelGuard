@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v2-cleanup" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v2-cleanup" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v2-cleanup" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v3-habits" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v3-habits" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v3-habits" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -46,13 +46,11 @@
               <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
             </div>
 
-            <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log food</button>
-            <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log hydration</button>
-            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
-            <div class="button-row fg-button-row">
-              <button id="connectFgButton" class="secondary" type="button">Connect FG Button</button>
-              <span id="fgButtonStatus" class="row-note" aria-live="polite">FG Button: disconnected.</span>
+            <div class="beta-log-actions" aria-label="Log fuel or hydration">
+              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
+              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
             </div>
+            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
 
             <div id="fuelGapNextAction" class="fuel-next-action"></div>
             <div id="fuelStatusContext" class="fuel-status-context"></div>
@@ -62,11 +60,10 @@
                 <span>Day type</span>
                 <select id="fuelDayType">
                   <option value="">Select day type</option>
-                  <option value="training-work">Training + work day</option>
-                  <option value="training">Training day</option>
-                  <option value="race">Competition/Race Day</option>
+                  <option value="competition">Competition Day</option>
+                  <option value="travel">Travelling Day</option>
                   <option value="work">Working Day</option>
-                  <option value="rest">Rest day</option>
+                  <option value="holiday">Holiday</option>
                 </select>
               </label>
               <label class="day-type-field" id="trainingSessionField">
@@ -146,7 +143,8 @@
               </select>
             </label>
           </div>
-          <div id="fuelAveragesSummary" class="fuel-gap-insights beta-averages-summary"></div>
+          <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
+          <div id="fuelHabitChangeSummary" class="beta-habit-summary"></div>
           <div id="fuelAveragePatternGraphs" class="beta-pattern-graphs"></div>
         </article>
 
@@ -170,7 +168,7 @@
           <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
           <div class="beta-version-marker" aria-label="Canonical app version">
             <strong>Fuel Guard Mobile PWA</strong>
-            <span>Canonical app version: mobile-pwa-v2-cleanup</span>
+            <span>Canonical app version: mobile-pwa-v3-habits</span>
           </div>
           <div class="form-grid beta-settings-grid">
             <label>Green under (minutes)<input id="greenThresholdMinutes" type="number" min="60" max="360" step="15"></label>
@@ -181,6 +179,15 @@
             <button id="clearFuelBetaData" class="secondary danger-secondary" type="button">Clear fuel beta data</button>
           </div>
           <p id="fuelSettingsStatus" class="row-note"></p>
+        </article>
+
+        <article class="card beta-device-card">
+          <h2>FG Button</h2>
+          <p class="muted">Connect the optional hardware button for quick fuel logging.</p>
+          <div class="button-row beta-settings-actions fg-button-row">
+            <button id="connectFgButton" class="secondary" type="button">Connect FG Button</button>
+            <span id="fgButtonStatus" class="row-note" aria-live="polite">FG Button: disconnected.</span>
+          </div>
         </article>
 
         <article class="card beta-account-card">
@@ -214,14 +221,13 @@
     </button>
   </nav>
 
-  <script src="app-state.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="app-ui.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="fuel-risk-visuals.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v2-cleanup"></script>
-  <script src="fg-button-ble.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="app-state.js?v=mobile-pwa-v3-habits"></script>
+  <script src="app-ui.js?v=mobile-pwa-v3-habits"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v3-habits"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v3-habits"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v3-habits"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v3-habits"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v3-habits"></script>
+  <script src="fg-button-ble.js?v=mobile-pwa-v3-habits"></script>
 </body>
 </html>

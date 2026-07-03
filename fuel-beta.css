@@ -42,28 +42,28 @@
   order: 3;
 }
 
-.beta-fuelled-button {
+.beta-log-actions {
   order: 4;
-}
-
-.beta-hydration-button {
-  order: 5;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
 }
 
 .beta-mvp .fuel-cooldown-message {
-  order: 6;
+  order: 5;
 }
 
 .beta-mvp #fuelStatusContext {
-  order: 7;
+  order: 6;
 }
 
 .beta-graph-wrap {
-  order: 8;
+  order: 7;
 }
 
 .beta-gap-insights {
-  order: 9;
+  order: 8;
 }
 
 .beta-rhythm-status-row {
@@ -90,10 +90,10 @@
 
 .beta-fuelled-button {
   width: 100%;
-  min-height: 76px;
-  margin: 4px 0 3px;
-  border-radius: 18px;
-  font-size: clamp(1.18rem, 2.5vw, 1.65rem);
+  min-height: 60px;
+  margin: 0;
+  border-radius: 16px;
+  font-size: clamp(1rem, 2.1vw, 1.22rem);
   font-weight: 950;
   letter-spacing: 0;
 }
@@ -104,7 +104,7 @@
 }
 
 .beta-mvp #graphLogFoodButton::after {
-  content: "Log food";
+  content: "Log Fuel";
   position: absolute;
   inset: 0;
   display: grid;
@@ -115,7 +115,8 @@
 
 .beta-hydration-button {
   width: 100%;
-  margin: 0 0 3px;
+  min-height: 60px;
+  margin: 0;
   border-radius: 16px;
 }
 
@@ -125,7 +126,19 @@
 }
 
 .beta-graph-wrap {
-  margin-top: 6px;
+  display: grid;
+  grid-template-rows: auto minmax(200px, 1fr);
+  gap: 14px;
+  min-height: 282px;
+  aspect-ratio: auto;
+  margin-top: 12px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.beta-graph-wrap #fuelRhythmGraph {
+  height: 222px;
+  min-height: 200px;
 }
 
 .beta-day-controls,
@@ -165,8 +178,8 @@
 .beta-graph-mode {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 0;
 }
 
 .beta-graph-mode button {
@@ -187,17 +200,55 @@
   color: var(--text);
 }
 
-.beta-averages-card .fuel-gap-insights {
+.beta-average-grid,
+.beta-habit-grid {
   margin-top: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
 }
 
 .beta-pattern-graphs {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
 
-.beta-account-card {
+.beta-habit-trends {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.beta-habit-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: end;
+}
+
+.beta-habit-heading h3 {
+  margin: 0;
+}
+
+.beta-habit-heading span {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.beta-trend-card.good {
+  border-color: rgba(45,255,136,.24);
+  background: rgba(45,255,136,.055);
+}
+
+.beta-trend-card.watch {
+  border-color: rgba(255,176,32,.28);
+  background: rgba(255,176,32,.06);
+}
+
+.beta-account-card,
+.beta-device-card {
   margin-top: 0;
 }
 
@@ -457,12 +508,17 @@
   }
 
   .beta-fuelled-button {
-    min-height: 70px;
+    min-height: 58px;
     border-radius: 17px;
-    margin-bottom: 2px;
+    margin-bottom: 0;
+  }
+
+  .beta-hydration-button {
+    min-height: 58px;
   }
 
   .beta-mvp .fuel-gap-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
     margin-top: 6px;
   }
@@ -472,7 +528,7 @@
   }
 
   .beta-graph-mode {
-    gap: 5px;
+    gap: 6px;
   }
 
   .beta-graph-mode button {
@@ -503,12 +559,49 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .beta-graph-wrap {
+    grid-template-rows: auto minmax(205px, 1fr);
+    gap: 12px;
+    min-height: 274px;
+    padding: 10px;
+  }
+
+  .beta-graph-wrap #fuelRhythmGraph {
+    height: 214px;
+  }
+
+  .beta-habit-heading {
+    display: grid;
+    align-items: start;
+  }
+
+  .beta-habit-heading span {
+    text-align: left;
+  }
+
   .beta-history-bar-row {
     grid-template-columns: 1fr;
     gap: 6px;
   }
 
+  .beta-mvp .sidebar,
+  .beta-mvp .mobile-bottom-nav {
+    backdrop-filter: none;
+  }
+
+  .beta-mvp .mobile-bottom-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    box-shadow: none;
+  }
+
   .beta-mvp .mobile-nav-item {
     min-height: 56px;
+  }
+}
+
+@media(max-width:380px) {
+  .beta-log-actions,
+  .beta-mvp .fuel-gap-insights {
+    grid-template-columns: 1fr;
   }
 }

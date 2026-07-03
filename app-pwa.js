@@ -1,7 +1,7 @@
 (function registerFuelGuardPwa() {
   if (!("serviceWorker" in navigator)) return;
 
-  const SERVICE_WORKER_URL = "./sw.js?v=mobile-pwa-v2-cleanup";
+  const SERVICE_WORKER_URL = "./sw.js?v=mobile-pwa-v3-habits";
 
   let refreshing = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {

@@ -55,7 +55,7 @@
   }
 
   function riskAction(status, hasLog) {
-    if (!hasLog) return "log food or eat a quick available option";
+    if (!hasLog) return "log fuel or eat a quick available option";
     return RISK_ACTIONS[status] || RISK_ACTIONS.red;
   }
 
@@ -69,14 +69,14 @@
 
   function orderLiveRhythm() {
     const dayType = document.querySelector(".beta-day-type-row");
-    const logButton = document.getElementById("graphLogFoodButton");
+    const logActions = document.querySelector(".beta-log-actions");
     const cooldown = document.getElementById("foodLogCooldownMessage");
     const risk = document.getElementById("fuelGapNextAction");
     const graph = document.querySelector(".beta-graph-wrap");
     const todayLog = document.querySelector(".beta-today-log");
     const dayControls = document.querySelector(".beta-day-controls");
-    moveElementBefore(dayType, logButton);
-    moveElementAfter(risk, cooldown || logButton);
+    moveElementBefore(dayType, logActions);
+    moveElementAfter(risk, cooldown || logActions);
     moveElementBefore(risk, graph);
     moveElementBefore(todayLog, dayControls);
   }
@@ -321,9 +321,24 @@
     button.addEventListener("click", saveHourSettings, true);
   }
 
+  function wrapRenderFuelGapPolish() {
+    if (typeof window.renderFuelGap !== "function" || window.renderFuelGap.__betaPolishWrapped) return;
+    const original = window.renderFuelGap;
+    window.renderFuelGap = function renderFuelGapWithPolish() {
+      const result = original.apply(this, arguments);
+      requestAnimationFrame(() => {
+        updateRiskCopy();
+        renderHourSettings();
+      });
+      return result;
+    };
+    window.renderFuelGap.__betaPolishWrapped = true;
+  }
+
   function applyUiPolish() {
     if (applying) return;
     applying = true;
+    wrapRenderFuelGapPolish();
     orderLiveRhythm();
     updateDayControlsCopy();
     updateRiskCopy();
@@ -349,11 +364,10 @@
   document.getElementById("clearFuelBetaData")?.addEventListener("click", () => setTimeout(applyUiPolish, 50));
   window.addEventListener("resize", applyUiPolish);
 
-  observeElement("fuelGapNextAction", updateRiskCopy);
-  observeElement("fuelGapInsights", updateRiskCopy);
   observeElement("fuelHistoryArchiveDetail", queueHistoryPolish);
   observeElement("fuelHistorySummary", queueHistoryPolish);
   observeElement("checklist", renderHourSettings);
 
+  wrapRenderFuelGapPolish();
   requestAnimationFrame(applyUiPolish);
 })();

@@ -1,4 +1,4 @@
-const APP_VERSION = "mobile-pwa-v2-cleanup";
+const APP_VERSION = "mobile-pwa-v3-habits";
 const CACHE_NAME = `fuel-guard-${APP_VERSION}`;
 const APP_SHELL = [
   "./",
@@ -11,7 +11,6 @@ const APP_SHELL = [
   "./app-ui.js",
   "./app-pwa.js",
   "./fuel-history-render-guard.js",
-  "./fuel-risk-visuals.js",
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",

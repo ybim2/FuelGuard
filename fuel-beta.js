@@ -4,12 +4,10 @@
   const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
   const FOOD_LOG_COOLDOWN_MS = 60000;
   const DAY_TYPE_OPTIONS = [
-    { value: "training-work", label: "Training + work day" },
-    { value: "training", label: "Training day" },
-    { value: "race", label: "Competition/Race Day" },
+    { value: "competition", label: "Competition Day" },
+    { value: "travel", label: "Travelling Day" },
     { value: "work", label: "Working Day" },
-    { value: "shift", label: "Shift day" },
-    { value: "rest", label: "Rest day" }
+    { value: "holiday", label: "Holiday" }
   ];
   const TRAINING_SESSION_OPTIONS = [
     { value: "", label: "Not set" },
@@ -25,12 +23,38 @@
     return labels;
   }, {});
   const GRAPH_MODES = new Set(["fuel", "hydration", "combined"]);
+  const LEGACY_DAY_TYPE_MAP = {
+    "competition/race day": "competition",
+    "race": "competition",
+    "shift": "work",
+    "shift day": "work",
+    "training + work day": "work",
+    "training-work": "work",
+    "work day": "work",
+    "working day": "work",
+    "travelling day": "travel",
+    "traveling day": "travel",
+    "travel": "travel",
+    "holiday": "holiday",
+    "competition day": "competition",
+    "training": "",
+    "training day": "",
+    "rest": "",
+    "rest day": "",
+    "double-training": "",
+    "standalone-training": ""
+  };
   const DAY_TYPE_LABELS = DAY_TYPE_OPTIONS.reduce((labels, option) => {
     labels[option.value] = option.label;
     return labels;
   }, {
-    "double-training": "Training day",
-    "standalone-training": "Training day",
+    "training-work": "Working Day",
+    training: "Not set",
+    race: "Competition Day",
+    shift: "Working Day",
+    rest: "Not set",
+    "double-training": "Not set",
+    "standalone-training": "Not set",
     other: "Other"
   });
 
@@ -52,6 +76,34 @@
     return Math.min(max, Math.max(min, value));
   }
 
+  function normalizeDayType(value) {
+    const key = String(value || "").trim().toLowerCase();
+    if (!key) return "";
+    return Object.prototype.hasOwnProperty.call(LEGACY_DAY_TYPE_MAP, key)
+      ? LEGACY_DAY_TYPE_MAP[key]
+      : DAY_TYPE_OPTIONS.some(option => option.value === value)
+        ? value
+        : "";
+  }
+
+  function normalizeStoredDayTypes(gap) {
+    if (!gap || typeof gap !== "object") return;
+    Object.keys(gap.dayTypes || {}).forEach(key => {
+      const next = normalizeDayType(gap.dayTypes[key]);
+      if (next) gap.dayTypes[key] = next;
+      else delete gap.dayTypes[key];
+    });
+    Object.values(gap.archive || {}).forEach(entry => {
+      if (!entry || typeof entry !== "object") return;
+      entry.dayType = normalizeDayType(entry.dayType);
+      entry.dayTypeLabel = entry.dayType ? DAY_TYPE_LABELS[entry.dayType] || entry.dayType : "Not set";
+    });
+    (gap.logs || []).forEach(log => {
+      if (!log || typeof log !== "object") return;
+      log.dayType = normalizeDayType(log.dayType);
+    });
+  }
+
   function betaState() {
     const gap = fuelGapState();
     if (!gap.dayTypes || Array.isArray(gap.dayTypes)) gap.dayTypes = {};
@@ -62,6 +114,7 @@
     gap.thresholds.redMinutes = Number(gap.thresholds.redMinutes || DEFAULT_THRESHOLDS.redMinutes);
     if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 60;
     if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "combined";
+    normalizeStoredDayTypes(gap);
     return gap;
   }
 
@@ -170,7 +223,7 @@
 
   function dayTypeForKey(key) {
     const gap = betaState();
-    return gap.dayTypes[key] || gap.archive[key]?.dayType || "";
+    return normalizeDayType(gap.dayTypes[key] || gap.archive[key]?.dayType || "");
   }
 
   function trainingSessionForKey(key) {
@@ -183,17 +236,18 @@
   }
 
   function isTrainingDayValue(dayType, session = "") {
-    return isTrainingSession(session) || ["training", "training-work", "race", "double-training", "standalone-training"].includes(String(dayType || ""));
+    return isTrainingSession(session);
   }
 
   function setDayType(key, value) {
     const gap = betaState();
-    if (value) gap.dayTypes[key] = value;
+    const nextValue = normalizeDayType(value);
+    if (nextValue) gap.dayTypes[key] = nextValue;
     else delete gap.dayTypes[key];
 
     gap.logs.forEach(log => {
       const date = logDate(log);
-      if (date && dateKey(date) === key) log.dayType = value || "";
+      if (date && dateKey(date) === key) log.dayType = nextValue || "";
     });
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
@@ -360,6 +414,7 @@
         trainingSession: log.trainingSession || analysis.trainingSession,
         note: log.note || ""
       })),
+      gapMinutes: analysis.gaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
       longestGapMinutes: analysis.longestGapMinutes,
       averageGapMinutes: analysis.averageGapMinutes,
       longGapCount: analysis.longGapCount,
@@ -584,7 +639,7 @@
     target.innerHTML = `
       <div class="fuel-gap-insight"><span>Time since last fuel</span><strong>${safeText(snapshot.timeSinceFuel)}</strong><small>Core beta signal.</small></div>
       <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.status.toUpperCase())}</strong><small>Green under ${thresholds().greenMinutes}m. Red at ${thresholds().redMinutes}m.</small></div>
-      <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap I fuelled to start."}</small></div>
+      <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap Log Fuel to start."}</small></div>
       <div class="fuel-gap-insight"><span>High Risk gaps today</span><strong>${analysis.highRiskGapCount}</strong><small>Gaps at or over red threshold.</small></div>
       <div class="fuel-gap-insight"><span>Fuel logs today</span><strong>${analysis.fuelLogCount}</strong><small>Real logged fuel points.</small></div>
       <div class="fuel-gap-insight"><span>Hydration logs today</span><strong>${analysis.hydrationLogCount}</strong><small>Real logged hydration points.</small></div>
@@ -681,7 +736,7 @@
     const isTraining = isTrainingDayValue(entry.dayType, entry.trainingSession);
     if (filter === "training-days") return isTraining;
     if (filter === "non-training-days") return !isTraining;
-    if (filter === "rest") return entry.trainingSession === "rest" || entry.dayType === "rest";
+    if (filter === "rest") return entry.trainingSession === "rest";
     return entry.trainingSession === filter;
   }
 
@@ -710,8 +765,190 @@
     return trainingSessionLabel(filter);
   }
 
+  function compactDuration(minutes) {
+    if (!Number.isFinite(minutes)) return "Not enough data";
+    const rounded = Math.max(0, Math.round(Math.abs(minutes)));
+    if (rounded < 60) return `${rounded}m`;
+    const hours = Math.floor(rounded / 60);
+    const remainder = rounded % 60;
+    return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+  }
+
+  function allGapMinutes(entries) {
+    return entries
+      .flatMap(entry => Array.isArray(entry.gapMinutes) ? entry.gapMinutes : [])
+      .map(Number)
+      .filter(value => Number.isFinite(value) && value >= 0);
+  }
+
+  function gapBucket(minutes) {
+    if (!Number.isFinite(minutes)) return null;
+    if (minutes < 60) return { label: "0-1 hours", order: 0 };
+    if (minutes < 120) return { label: "1-2 hours", order: 1 };
+    if (minutes < 180) return { label: "2-3 hours", order: 2 };
+    if (minutes < 240) return { label: "3-4 hours", order: 3 };
+    return { label: "4+ hours", order: 4 };
+  }
+
+  function mostCommonFuelGap(entries) {
+    const counts = {};
+    const orders = {};
+    allGapMinutes(entries).forEach(minutes => {
+      const bucket = gapBucket(minutes);
+      if (!bucket) return;
+      counts[bucket.label] = (counts[bucket.label] || 0) + 1;
+      orders[bucket.label] = bucket.order;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1] || orders[a[0]] - orders[b[0]])[0];
+    return top ? { label: top[0], count: top[1] } : { label: "Not enough data", count: 0 };
+  }
+
+  function averageBetweenFuelLogs(entries) {
+    return averageValue(allGapMinutes(entries));
+  }
+
+  function standardDeviation(values) {
+    const finite = values.filter(value => Number.isFinite(value));
+    if (finite.length < 2) return null;
+    const average = averageValue(finite);
+    const variance = finite.reduce((sum, value) => sum + Math.pow(value - average, 2), 0) / finite.length;
+    return Math.sqrt(variance);
+  }
+
+  function comparisonWindows(entries) {
+    const sorted = [...entries].sort((a, b) => dateFromKey(a.date) - dateFromKey(b.date));
+    return {
+      recent: sorted.slice(-7),
+      previous: sorted.slice(Math.max(0, sorted.length - 14), Math.max(0, sorted.length - 7))
+    };
+  }
+
   function renderAverageMetric(label, value, note) {
     return `<div class="fuel-gap-insight"><span>${safeText(label)}</span><strong>${safeText(value)}</strong><small>${safeText(note)}</small></div>`;
+  }
+
+  function renderTrendMetric(label, value, note, tone = "neutral") {
+    return `<div class="fuel-gap-insight beta-trend-card ${tone}"><span>${safeText(label)}</span><strong>${safeText(value)}</strong><small>${safeText(note)}</small></div>`;
+  }
+
+  function timeTrend(recentValue, previousValue, earlierCopy, laterCopy, steadyCopy) {
+    if (!Number.isFinite(recentValue)) return { value: "Not enough data", note: "Log more fuel times to compare." };
+    if (!Number.isFinite(previousValue)) return { value: steadyCopy, note: "Needs previous logged days for comparison." };
+    const diff = recentValue - previousValue;
+    if (Math.abs(diff) < 15) return { value: steadyCopy, note: "Within 15m of the previous period." };
+    return diff < 0
+      ? { value: earlierCopy, note: `${compactDuration(diff)} earlier than previous 7 logged days.` }
+      : { value: laterCopy, note: `${compactDuration(diff)} later than previous 7 logged days.` };
+  }
+
+  function numberTrend(recentValue, previousValue, lowerCopy, higherCopy, steadyCopy, { threshold = 0.15, lowerIsBetter = true, suffix = "" } = {}) {
+    if (!Number.isFinite(recentValue)) return { value: "Not enough data", note: "Log more days to compare." };
+    if (!Number.isFinite(previousValue)) return { value: steadyCopy, note: "Needs previous logged days for comparison." };
+    const diff = recentValue - previousValue;
+    if (Math.abs(diff) < threshold) return { value: steadyCopy, note: "Close to the previous period." };
+    const change = `${Math.abs(diff).toFixed(Math.abs(diff) < 1 ? 1 : 0)}${suffix}`;
+    const improving = lowerIsBetter ? diff < 0 : diff > 0;
+    return diff < 0
+      ? { value: lowerCopy, note: `${change} lower than previous 7 logged days.`, tone: improving ? "good" : "watch" }
+      : { value: higherCopy, note: `${change} higher than previous 7 logged days.`, tone: improving ? "good" : "watch" };
+  }
+
+  function renderHabitChangeSection(entries) {
+    const { recent, previous } = comparisonWindows(entries);
+    const recentCommon = mostCommonFuelGap(recent);
+    const previousCommon = mostCommonFuelGap(previous);
+    const recentGapMinutes = allGapMinutes(recent);
+    const previousGapMinutes = allGapMinutes(previous);
+
+    if (recent.length < 2) {
+      return `
+        <section class="beta-habit-trends">
+          <div class="beta-habit-heading"><h3>Habit change</h3><span>Recent days versus earlier logged days</span></div>
+          <p class="muted beta-history-empty">Log at least two days to start seeing habit changes.</p>
+        </section>
+      `;
+    }
+
+    const firstFuel = timeTrend(
+      averageValue(recent.map(entry => entry.firstFuelMinute)),
+      averageValue(previous.map(entry => entry.firstFuelMinute)),
+      "First fuel is getting earlier",
+      "First fuel is getting later",
+      "First fuel is staying similar"
+    );
+    const lastFuel = timeTrend(
+      averageValue(recent.map(entry => entry.lastFuelMinute)),
+      averageValue(previous.map(entry => entry.lastFuelMinute)),
+      "Last fuel is getting earlier",
+      "Last fuel is getting later",
+      "Last fuel is staying similar"
+    );
+    const fuelLogs = numberTrend(
+      averageValue(recent.map(entry => Number(entry.fuelLogCount || 0))),
+      averageValue(previous.map(entry => Number(entry.fuelLogCount || 0))),
+      "Fuel logs per day are decreasing",
+      "Fuel logs per day are increasing",
+      "Fuel logs per day are steady",
+      { lowerIsBetter: false, suffix: "/day" }
+    );
+    const longestGaps = numberTrend(
+      averageValue(recent.map(entry => Number(entry.longestGapMinutes || 0))),
+      averageValue(previous.map(entry => Number(entry.longestGapMinutes || 0))),
+      "Longest gaps are reducing",
+      "Longest gaps are increasing",
+      "Longest gaps are steady",
+      { threshold: 15, suffix: "m" }
+    );
+    const highRiskGaps = numberTrend(
+      averageValue(recent.map(entry => Number(entry.highRiskGapCount || 0))),
+      averageValue(previous.map(entry => Number(entry.highRiskGapCount || 0))),
+      "High Risk gaps are reducing",
+      "High Risk gaps are increasing",
+      "High Risk gaps are steady",
+      { threshold: 0.25, suffix: "/day" }
+    );
+    const averageGap = numberTrend(
+      averageBetweenFuelLogs(recent),
+      averageBetweenFuelLogs(previous),
+      "Average time between fuel logs is reducing",
+      "Average time between fuel logs is increasing",
+      "Average time between fuel logs is steady",
+      { threshold: 15, suffix: "m" }
+    );
+    const recentConsistency = standardDeviation(recentGapMinutes);
+    const previousConsistency = standardDeviation(previousGapMinutes);
+    const consistency = numberTrend(
+      recentConsistency,
+      previousConsistency,
+      "Fuel rhythm is becoming more consistent",
+      "Fuel rhythm is becoming less consistent",
+      "Fuel rhythm is staying consistent",
+      { threshold: 15, suffix: "m" }
+    );
+    const commonCopy = previousCommon.count
+      ? recentCommon.label === previousCommon.label
+        ? "Most common fuel gap is steady"
+        : "Most common fuel gap has shifted"
+      : "Most common fuel gap is building";
+    const commonNote = previousCommon.count
+      ? `Recent: ${recentCommon.label}; previous: ${previousCommon.label}.`
+      : `Recent ${recent.length} logged day${recent.length === 1 ? "" : "s"} only.`;
+
+    return `
+      <section class="beta-habit-trends">
+        <div class="beta-habit-heading"><h3>Habit change</h3><span>Recent ${recent.length} logged day${recent.length === 1 ? "" : "s"} versus previous ${previous.length || 0}</span></div>
+        <div class="fuel-gap-insights beta-habit-grid">
+          ${renderTrendMetric("First fuel time", firstFuel.value, firstFuel.note)}
+          ${renderTrendMetric("Last fuel time", lastFuel.value, lastFuel.note)}
+          ${renderTrendMetric("Fuel logs per day", fuelLogs.value, fuelLogs.note, fuelLogs.tone)}
+          ${renderTrendMetric("Longest fuel gap", longestGaps.value, longestGaps.note, longestGaps.tone)}
+          ${renderTrendMetric("High Risk gaps", highRiskGaps.value, highRiskGaps.note, highRiskGaps.tone)}
+          ${renderTrendMetric("Average time between fuel logs", averageGap.value, averageGap.note, averageGap.tone)}
+          ${renderTrendMetric("Most common fuel gap", commonCopy, commonNote)}
+          ${renderTrendMetric("Rhythm consistency", consistency.value, consistency.note, consistency.tone)}
+        </div>
+      </section>
+    `;
   }
 
   function renderPatternGraph(title, entries, valueForEntry, metaForEntry, { max = null, tone = "green" } = {}) {
@@ -734,6 +971,7 @@
 
   function renderHistoryAverages() {
     const summaryTarget = document.getElementById("fuelAveragesSummary");
+    const habitTarget = document.getElementById("fuelHabitChangeSummary");
     const graphTarget = document.getElementById("fuelAveragePatternGraphs");
     if (!summaryTarget || !graphTarget) return;
 
@@ -741,22 +979,27 @@
     const filteredEntries = allEntries.filter(entry => entryMatchesTrainingFilter(entry, selectedTrainingFilter));
     if (!allEntries.length) {
       summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days yet. Log fuel for a few days and averages will appear here.</p>`;
+      if (habitTarget) habitTarget.innerHTML = "";
       graphTarget.innerHTML = "";
       return;
     }
     if (!filteredEntries.length) {
       summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match ${safeText(trainingFilterLabel(selectedTrainingFilter))} yet.</p>`;
+      if (habitTarget) habitTarget.innerHTML = "";
       graphTarget.innerHTML = "";
       return;
     }
 
-    summaryTarget.innerHTML = [
+    const commonGap = mostCommonFuelGap(filteredEntries);
+    summaryTarget.innerHTML = `<div class="fuel-gap-insights beta-average-grid">${[
       renderAverageMetric("Average daily first fuel time", averageClock(filteredEntries.map(entry => entry.firstFuelMinute)), `${filteredEntries.length} logged day${filteredEntries.length === 1 ? "" : "s"}`),
       renderAverageMetric("Average daily last fuel time", averageClock(filteredEntries.map(entry => entry.lastFuelMinute)), trainingFilterLabel(selectedTrainingFilter)),
       renderAverageMetric("Average number of fuel logs per day", averageNumber(filteredEntries.map(entry => Number(entry.fuelLogCount || 0))), "Real logged fuel points"),
       renderAverageMetric("Average number of High Risk gaps per day", averageNumber(filteredEntries.map(entry => Number(entry.highRiskGapCount || 0))), "Based on current red threshold"),
-      renderAverageMetric("Average longest fuel gap per day", durationText(averageValue(filteredEntries.map(entry => Number(entry.longestGapMinutes || 0))) || 0), "Average of each day's longest gap")
-    ].join("");
+      renderAverageMetric("Average longest fuel gap per day", durationText(averageValue(filteredEntries.map(entry => Number(entry.longestGapMinutes || 0))) || 0), "Average of each day's longest gap"),
+      renderAverageMetric("Most common fuel gap", commonGap.label, commonGap.count ? `${commonGap.count} logged gap${commonGap.count === 1 ? "" : "s"} in this bucket` : "Needs more fuel gaps")
+    ].join("")}</div>`;
+    if (habitTarget) habitTarget.innerHTML = renderHabitChangeSection(filteredEntries);
 
     const maxGap = Math.max(...filteredEntries.map(entry => Number(entry.longestGapMinutes || 0)), 1);
     const maxRisk = Math.max(...filteredEntries.map(entry => Number(entry.highRiskGapCount || 0)), 1);
@@ -814,7 +1057,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const padding = { left: 34, right: 18, top: 18, bottom: 31 };
+    const padding = { left: 40, right: 22, top: 36, bottom: 38 };
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
@@ -836,30 +1079,54 @@
     ctx.strokeStyle = "rgba(255,255,255,.08)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(padding.left, padding.top);
-    ctx.lineTo(padding.left, bottom);
+    [0, 360, 720, 1080, 1440].forEach(minute => {
+      const x = xForMinute(minute);
+      ctx.moveTo(x, padding.top);
+      ctx.lineTo(x, bottom);
+    });
     ctx.moveTo(padding.left, bottom);
     ctx.lineTo(cssWidth - padding.right, bottom);
     ctx.stroke();
 
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.fillStyle = "rgba(245,255,248,.55)";
-    [360, 720, 1080].forEach((minute, index) => {
-      ctx.fillText(["6am", "12pm", "6pm"][index], xForMinute(minute) - 12, cssHeight - 11);
+    ctx.textAlign = "center";
+    [
+      [0, "00:00"],
+      [360, "06:00"],
+      [720, "12:00"],
+      [1080, "18:00"],
+      [1440, "24:00"]
+    ].forEach(([minute, label]) => {
+      ctx.fillText(label, xForMinute(minute), cssHeight - 12);
     });
+    ctx.textAlign = "left";
     ctx.fillText("logs", 6, padding.top + 4);
     ctx.fillText(String(maxCount), 11, yForCount(maxCount) + 4);
     ctx.fillText("0", 18, bottom + 4);
+
+    const labelY = 20;
+    const labelGap = Math.min(142, Math.max(96, plotWidth * 0.24));
+    series.forEach((item, index) => {
+      const labelX = series.length === 1
+        ? cssWidth / 2
+        : cssWidth / 2 + (index - (series.length - 1) / 2) * labelGap;
+      ctx.fillStyle = item.color;
+      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(item.label, labelX, labelY);
+    });
 
     const plotted = series.some(item => item.logs.length);
     if (!plotted) {
       ctx.fillStyle = "rgba(245,255,248,.62)";
       ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
       const empty = selectedMode === "hydration" ? "No hydration logs yet." : selectedMode === "fuel" ? "No fuel logs yet." : "No fuel or hydration logs yet.";
-      ctx.fillText(empty, padding.left + 12, padding.top + plotHeight / 2);
+      ctx.textAlign = "center";
+      ctx.fillText(empty, padding.left + plotWidth / 2, padding.top + plotHeight / 2);
     }
 
-    series.forEach((item, seriesIndex) => {
+    series.forEach(item => {
       const coordinates = item.logs.map((log, index) => ({
         log,
         x: xForMinute(minutesIntoDay(log.date)),
@@ -886,9 +1153,6 @@
         ctx.fill();
         ctx.stroke();
       });
-      ctx.fillStyle = item.color;
-      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillText(item.label, padding.left + seriesIndex * 82, padding.top + 12);
     });
 
     const currentX = xForMinute(minutesIntoDay(now));
@@ -898,12 +1162,18 @@
     ctx.lineTo(currentX, bottom);
     ctx.stroke();
     ctx.fillStyle = "rgba(245,255,248,.62)";
-    ctx.fillText("Now", Math.min(currentX + 5, cssWidth - 42), padding.top + 27);
+    ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), labelY);
+    ctx.textAlign = "left";
   }
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const summary = fuelDaySummary();
     const cooldown = cooldownRemainingSeconds();
+    const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
+    const historyActive = document.getElementById("logs")?.classList.contains("active");
+    const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
     const badge = document.getElementById("fuelGraphLastAte");
     if (badge) badge.textContent = snapshot.lastFuelled === "No fuel logged" ? "Last fuel: not logged yet" : `Last fuel: ${snapshot.timeSinceFuel} ago`;
@@ -921,7 +1191,7 @@
 
     const button = document.getElementById("graphLogFoodButton");
     if (button) {
-      button.textContent = "Log food";
+      button.textContent = "Log Fuel";
       button.disabled = summary.dayEnded || cooldown > 0;
     }
 
@@ -943,13 +1213,15 @@
     if (daySummary) daySummary.innerHTML = `<p class="label">Today</p><p>${safeText(summary.message)}</p>`;
 
     renderGraphModeControls();
-    renderGapInsights(snapshot);
-    renderDayTypeControls();
-    renderSettings();
-    renderDayAnalysis();
-    renderDailyLog();
-    renderHistory();
-    drawBetaGraph();
+    if (dashboardActive) {
+      renderGapInsights(snapshot);
+      renderDayTypeControls();
+      renderDayAnalysis();
+      renderDailyLog();
+      drawBetaGraph();
+    }
+    if (settingsActive) renderSettings();
+    if (historyActive) renderHistory();
   };
 
   const baseSwitchScreen = switchScreen;
@@ -971,6 +1243,9 @@
     const subtitle = document.getElementById("pageSubtitle");
     if (title) title.textContent = titles[target][0];
     if (subtitle) subtitle.textContent = titles[target][1];
+    if (target === "logs") renderHistory();
+    if (target === "checklist") renderSettings();
+    if (target === "dashboard") requestAnimationFrame(() => drawBetaGraph());
   };
 
   function saveThresholdSettings() {
@@ -1050,9 +1325,24 @@
     renderSettings();
   });
 
-  window.addEventListener("resize", () => drawBetaGraph());
+  let graphResizeQueued = false;
+  window.addEventListener("resize", () => {
+    if (graphResizeQueued) return;
+    graphResizeQueued = true;
+    requestAnimationFrame(() => {
+      graphResizeQueued = false;
+      if (document.getElementById("dashboard")?.classList.contains("active")) drawBetaGraph();
+    });
+  });
+
+  function scheduleFuelGuardTick() {
+    const delay = cooldownRemainingSeconds() > 0 ? 1000 : 30000;
+    window.setTimeout(() => {
+      renderFuelGap();
+      scheduleFuelGuardTick();
+    }, delay);
+  }
 
   renderAll();
-  renderFuelGap();
-  setInterval(renderFuelGap, 1000);
+  scheduleFuelGuardTick();
 })();
