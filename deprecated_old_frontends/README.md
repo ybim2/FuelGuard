@@ -11,6 +11,4 @@ The canonical app is the root-level mobile-first PWA rendered by `index.html` wi
 - History
 - Settings
 
-Archived files:
-
-- `app.js`: old dynamic script loader. The current app imports its scripts directly from `index.html`.
+Archived files should stay out of the active app shell and service worker cache.

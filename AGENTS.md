@@ -16,6 +16,17 @@ All UI work must be applied to the canonical 3-tab mobile PWA. Account/login set
 
 Before making UI changes, confirm the canonical entry point and active components. Keep the current mobile-first design style.
 
+Removed legacy features
+-----------------------
+
+These old parked features have been removed from the active app and must not be reintroduced unless the user explicitly asks for them:
+
+- Fuel Confirmation
+- Adherence Log
+- Body & Mind
+- Nutrition Diary
+- Future Ideas Parked
+
 Canonical files
 ---------------
 

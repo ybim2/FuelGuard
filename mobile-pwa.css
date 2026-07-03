@@ -79,30 +79,19 @@ h3 {
   overflow-wrap: anywhere;
 }
 
-.forecast-field,
-.confirmation-row > div,
-.meal-prep-check-row > div,
-.meal-prep-risk-row > div {
-  min-width: 0;
-}
-
-.fuel-confirmation-scroll,
 .horizontal-timeline {
   scrollbar-color: rgba(45,255,136,.55) rgba(255,255,255,.08);
 }
 
-.fuel-confirmation-scroll::-webkit-scrollbar,
 .horizontal-timeline::-webkit-scrollbar {
   height: 8px;
 }
 
-.fuel-confirmation-scroll::-webkit-scrollbar-track,
 .horizontal-timeline::-webkit-scrollbar-track {
   background: rgba(255,255,255,.08);
   border-radius: 999px;
 }
 
-.fuel-confirmation-scroll::-webkit-scrollbar-thumb,
 .horizontal-timeline::-webkit-scrollbar-thumb {
   background: rgba(45,255,136,.55);
   border-radius: 999px;
@@ -254,10 +243,7 @@ h3 {
 
   .button-row button.primary,
   .button-row button.secondary,
-  .fuel-day-actions button,
-  .pantry-import-row button,
-  .meal-prep-check-actions button,
-  .confirmation-submit-row button {
+  .fuel-day-actions button {
     flex: 1 1 100%;
     width: 100%;
   }
@@ -272,15 +258,6 @@ h3 {
 
   .section-heading-row {
     align-items: flex-start;
-  }
-
-  .pantry-import-panel {
-    padding: 14px;
-    margin: 18px 0;
-  }
-
-  .import-help p {
-    margin-bottom: 8px;
   }
 
   .form-grid,
@@ -303,69 +280,6 @@ h3 {
   .row > button,
   .row > .status-pill {
     justify-self: start;
-  }
-
-  .forecast-confirmation summary {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    padding: 12px;
-  }
-
-  .forecast-confirmation-body {
-    padding: 0 12px 12px;
-  }
-
-  .fuel-confirmation-review {
-    padding: 6px;
-  }
-
-  .fuel-confirmation-review summary {
-    padding: 12px;
-  }
-
-  .fuel-confirmation-table {
-    min-width: 880px;
-    gap: 8px;
-  }
-
-  .confirmation-row {
-    gap: 10px;
-    padding: 10px;
-  }
-
-  .forecast-section-actions {
-    align-items: stretch;
-  }
-
-  .category-fuel-status {
-    display: inline-flex;
-    width: 100%;
-    justify-content: center;
-    margin-left: 0;
-    white-space: normal;
-    text-align: center;
-  }
-
-  .meal-prep-warning {
-    padding: 14px;
-  }
-
-  .meal-prep-check-row,
-  .meal-prep-risk-row {
-    gap: 10px;
-    padding: 12px;
-  }
-
-  .meal-prep-status-stack,
-  .meal-prep-check-row .status-pill,
-  .meal-prep-risk-row .status-pill {
-    justify-items: start;
-    justify-self: start;
-  }
-
-  .fuel-momentum-header,
-  .fuel-momentum-item {
-    grid-template-columns: 1fr;
   }
 
   .insight.dismissible {

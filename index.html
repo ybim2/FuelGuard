@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v1" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v1" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v1" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v2-cleanup" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v2-cleanup" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v2-cleanup" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -162,11 +162,6 @@
           <div id="fuelHistoryArchiveDetail" class="fuel-archive-detail"></div>
         </article>
 
-        <div class="beta-hidden-feature" aria-hidden="true">
-          <div id="fuelHistorySummary" class="fuel-gap-insights beta-history-summary"></div>
-          <div id="weeklyLogSummary" class="grid three"></div>
-          <div id="activityLog" class="list"></div>
-        </div>
       </section>
 
       <section id="checklist" class="screen">
@@ -175,7 +170,7 @@
           <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
           <div class="beta-version-marker" aria-label="Canonical app version">
             <strong>Fuel Guard Mobile PWA</strong>
-            <span>Canonical app version: mobile-pwa-v1</span>
+            <span>Canonical app version: mobile-pwa-v2-cleanup</span>
           </div>
           <div class="form-grid beta-settings-grid">
             <label>Green under (minutes)<input id="greenThresholdMinutes" type="number" min="60" max="360" step="15"></label>
@@ -186,7 +181,6 @@
             <button id="clearFuelBetaData" class="secondary danger-secondary" type="button">Clear fuel beta data</button>
           </div>
           <p id="fuelSettingsStatus" class="row-note"></p>
-          <section class="fast-flow beta-hidden-feature" id="fastFlow" aria-hidden="true"></section>
         </article>
 
         <article class="card beta-account-card">
@@ -202,65 +196,6 @@
         </article>
       </section>
 
-      <section id="fuelConfirmation" class="screen beta-hidden-feature" aria-hidden="true">
-        <article class="card">
-          <h2>Fuel Confirmation</h2>
-          <p class="muted">Confirm stock by category, review run-out risk in the table, then check whether tomorrow is protected.</p>
-          <div class="pantry-import-panel">
-            <div class="button-row pantry-import-row"><button id="exportPantryTemplate" class="secondary" type="button">Download Pantry Upload Template</button><button id="importPantryTemplate" class="secondary" type="button">Upload Pantry Items</button><button id="clearWholePantry" class="secondary danger-secondary" type="button">Clear Whole Pantry</button><input id="pantryTemplateInput" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden><span id="pantryImportStatus" class="row-note"></span></div>
-            <div class="import-help">
-              <p><strong>Download pantry template</strong> - use this template to fill in the items you have.</p>
-              <p><strong>Upload pantry items</strong> - populate the table with your items.</p>
-              <p><strong>Clear whole pantry</strong> - remove all items from the table.</p>
-            </div>
-          </div>
-          <div id="forecastConfirmationFlow" class="forecast-flow"></div>
-          <div class="fuel-availability-slot" data-meal-prep-warning-slot></div>
-        </article>
-      </section>
-
-      <section id="adherence" class="screen beta-hidden-feature" aria-hidden="true">
-        <article class="card"><h2>Adherence Log</h2><p class="muted">Updates automatically when you confirm each stage. You can also adjust it manually.</p><div id="adherenceActions" class="check-grid"></div><button id="saveManualAdherence" class="primary">Save Manual Adherence</button></article>
-      </section>
-
-      <section id="bodyMind" class="screen beta-hidden-feature" aria-hidden="true">
-        <article class="card"><h2>Body &amp; Mind</h2><label>Energy today<select id="energyToday"><option>Low</option><option selected>Stable</option><option>High</option></select></label><label>Mood today<select id="moodToday"><option>Flat</option><option selected>Calm</option><option>Motivated</option></select></label><label>Hunger/crash risk<select id="hungerToday"><option selected>Managed</option><option>Distracting</option><option>Crashed</option></select></label><label>Recovery note<textarea id="recoveryNote" rows="4" placeholder="How did your fuel system feel today?"></textarea></label><button id="logBodyMind" class="primary">Log Body + Mind</button></article>
-      </section>
-
-      <section id="nutritionBarriers" class="screen beta-hidden-feature" aria-hidden="true">
-        <article class="card diary-quick-context">
-          <div>
-            <h2>Nutrition Diary</h2>
-            <p class="muted">Reflect on what's influencing your fuelling.</p>
-          </div>
-          <div id="diaryLastFoodLogged" class="diary-last-food"></div>
-        </article>
-
-        <article class="card">
-          <h2>Log what influenced your day</h2>
-          <div class="form-grid">
-            <label>Today's experiences<select id="barrierCategory"></select></label>
-            <label>Note<textarea id="barrierNote" rows="3" placeholder="Optional note"></textarea></label>
-          </div>
-          <div class="button-row"><button id="saveBarrierLog" class="primary" type="button">Save Diary Log</button></div>
-        </article>
-
-        <article class="card">
-          <div class="button-row nutrition-patterns-header">
-            <h2>Nutrition Patterns</h2>
-          </div>
-          <div id="barrierInsights" class="list"></div>
-        </article>
-
-        <article class="card">
-          <h2>Recent Logs</h2>
-          <div id="barrierRecentLogs" class="list"></div>
-        </article>
-      </section>
-
-      <section id="future" class="screen beta-hidden-feature" aria-hidden="true">
-        <article class="card"><h2>Future Ideas Parked</h2><p class="muted">Social posting, PT mode, WhatsApp sharing and recovery logistics are intentionally parked. The MVP needs to work for you first.</p></article>
-      </section>
     </main>
   </div>
 
@@ -279,17 +214,14 @@
     </button>
   </nav>
 
-  <script src="app-state.js?v=mobile-pwa-v1"></script>
-  <script src="app-dashboard.js?v=mobile-pwa-v1"></script>
-  <script src="app-forecast.js?v=mobile-pwa-v1"></script>
-  <script src="app-barriers.js?v=mobile-pwa-v1"></script>
-  <script src="app-ui.js?v=mobile-pwa-v1"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v1"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v1"></script>
-  <script src="fuel-risk-visuals.js?v=mobile-pwa-v1"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v1"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v1"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v1"></script>
-  <script src="fg-button-ble.js?v=mobile-pwa-v1"></script>
+  <script src="app-state.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="app-ui.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="fuel-risk-visuals.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v2-cleanup"></script>
+  <script src="fg-button-ble.js?v=mobile-pwa-v2-cleanup"></script>
 </body>
 </html>

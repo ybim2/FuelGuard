@@ -1,14 +1,6 @@
-// Fuel Guard beta MVP layer.
-// Keeps the old feature code available, but focuses the visible app on fuel logging and gap analysis.
+// Fuel Guard canonical mobile PWA layer.
+// Focuses the app on real fuel and hydration logging, history, and settings.
 (() => {
-  const FLAGS = {
-    ENABLE_NUTRITION_DIARY: false,
-    ENABLE_FUEL_CONFIRMATION: false,
-    ENABLE_PANTRY: false,
-    ENABLE_SHOPPING_FORECAST: false
-  };
-  window.FUEL_GUARD_BETA_FLAGS = FLAGS;
-
   const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
   const FOOD_LOG_COOLDOWN_MS = 60000;
   const DAY_TYPE_OPTIONS = [

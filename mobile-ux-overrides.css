@@ -91,35 +91,6 @@
   color: var(--text);
 }
 
-.diary-quick-context {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
-  gap: 16px;
-  align-items: center;
-}
-
-.diary-last-food {
-  min-width: 190px;
-  padding: 12px 14px;
-  border: 1px solid rgba(45,255,136,.24);
-  border-radius: 16px;
-  background: rgba(45,255,136,.065);
-  text-align: right;
-}
-
-.diary-last-food strong,
-.diary-last-food small {
-  display: block;
-}
-
-.diary-last-food strong {
-  font-size: 1.25rem;
-}
-
-.diary-last-food small {
-  color: var(--muted);
-}
-
 .food-log-type {
   display: grid;
   gap: 6px;
@@ -429,10 +400,7 @@
 
   .button-row button.primary,
   .button-row button.secondary,
-  .fuel-day-actions button,
-  .pantry-import-row button,
-  .meal-prep-check-actions button,
-  .confirmation-submit-row button {
+  .fuel-day-actions button {
     flex: 1 1 100%;
     width: 100%;
   }
@@ -451,24 +419,6 @@
     grid-template-columns: 1fr;
     gap: 8px;
     align-items: start;
-  }
-
-  .diary-quick-context {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .diary-quick-context p {
-    margin-bottom: 0;
-  }
-
-  .diary-last-food {
-    min-width: 0;
-    text-align: left;
-  }
-
-  .fuel-confirmation-table {
-    min-width: 880px;
   }
 
   .mobile-bottom-nav {
