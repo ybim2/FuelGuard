@@ -441,7 +441,7 @@
     });
     if (error) throw error;
     session = data.session;
-    status(data.session ? `Account created for ${email}.` : `Account created. Check ${email} to confirm sign-up.`);
+    status(data.session ? `Account created for ${email}.` : "Confirmation email sent. Check your inbox.");
     if (data.session) await syncNow();
     return data;
   }
@@ -452,7 +452,7 @@
       redirectTo: recoveryRedirectUrl()
     });
     if (error) throw error;
-    status(`Password reset email sent to ${email}.`);
+    status("Reset email sent. You can request another later.");
     return data;
   }
 

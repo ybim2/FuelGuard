@@ -28,7 +28,9 @@ const DEFAULT_STATE = {
   },
   account: {
     email: "",
-    status: ""
+    status: "",
+    signupCooldownUntil: 0,
+    resetCooldownUntil: 0
   },
   fuelMomentum: {
     lastMessage: "",

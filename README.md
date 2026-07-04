@@ -22,3 +22,5 @@ For Vercel, set only public client values:
 The runtime config endpoint also accepts the older `FUEL_GUARD_SUPABASE_*`, `SUPABASE_*`, and `NEXT_PUBLIC_SUPABASE_*` names for deployment compatibility.
 
 Do not set or expose a service role key in the PWA.
+
+Supabase's built-in email sender has very low testing limits and is not intended for beta or production auth email volume. Before wider testing, configure a custom SMTP provider in Supabase Auth settings so sign-up confirmation and password reset emails are not constrained by the default sender's tight limits.

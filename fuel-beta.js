@@ -3,6 +3,10 @@
 (() => {
   const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
   const FOOD_LOG_COOLDOWN_MS = 60000;
+  const AUTH_EMAIL_COOLDOWN_MS = 60 * 60 * 1000;
+  const AUTH_EMAIL_SENT_MESSAGE = "Email sent. Check your inbox before requesting another one.";
+  const AUTH_RATE_LIMIT_MESSAGE = "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
+  const AUTH_EXISTING_ACCOUNT_MESSAGE = "This account may already exist. Try logging in, or wait before requesting another confirmation email.";
   const DAY_TYPE_OPTIONS = [
     { value: "competition", label: "Competition Day" },
     { value: "travel", label: "Travelling Day" },
@@ -76,6 +80,85 @@
       '"': "&quot;",
       "'": "&#39;"
     }[char]));
+  }
+
+  function accountState() {
+    state.account = {
+      email: "",
+      status: "",
+      signupCooldownUntil: 0,
+      resetCooldownUntil: 0,
+      ...(state.account || {})
+    };
+    return state.account;
+  }
+
+  function authCooldownRemainingMs(kind) {
+    const key = kind === "signup" ? "signupCooldownUntil" : "resetCooldownUntil";
+    const until = Number(accountState()[key] || 0);
+    return Math.max(0, until - Date.now());
+  }
+
+  function formatAuthCooldown(ms) {
+    const minutes = Math.max(1, Math.ceil(ms / 60000));
+    if (minutes >= 60) return "about an hour";
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  function authCooldownStatus() {
+    const signupMs = authCooldownRemainingMs("signup");
+    const resetMs = authCooldownRemainingMs("reset");
+    if (signupMs > 0 && resetMs > 0) {
+      return `${AUTH_EMAIL_SENT_MESSAGE} You can request another account or reset email in ${formatAuthCooldown(Math.max(signupMs, resetMs))}.`;
+    }
+    if (signupMs > 0) {
+      return `Confirmation email sent. Check your inbox. You can request another confirmation email in ${formatAuthCooldown(signupMs)}.`;
+    }
+    if (resetMs > 0) {
+      return `Reset email sent. You can request another later. You can request another reset email in ${formatAuthCooldown(resetMs)}.`;
+    }
+    return "";
+  }
+
+  function startAuthEmailCooldown(kind) {
+    const account = accountState();
+    const key = kind === "signup" ? "signupCooldownUntil" : "resetCooldownUntil";
+    account[key] = Date.now() + AUTH_EMAIL_COOLDOWN_MS;
+    account.status = "";
+    save();
+  }
+
+  function normalizedAuthErrorText(error) {
+    if (typeof error === "string") return error.toLowerCase();
+    return [
+      error?.code,
+      error?.error_code,
+      error?.name,
+      error?.message,
+      error?.error_description
+    ].filter(Boolean).join(" ").toLowerCase();
+  }
+
+  function isAuthRateLimitError(error) {
+    const text = normalizedAuthErrorText(error);
+    return Number(error?.status) === 429
+      || text.includes("over_email_send_rate_limit")
+      || text.includes("over_request_rate_limit")
+      || text.includes("rate limit exceeded")
+      || text.includes("email rate limit exceeded")
+      || text.includes("account creation limit exceeded")
+      || text.includes("password reset email exceeded")
+      || text.includes("too many");
+  }
+
+  function isExistingAccountError(error) {
+    const text = normalizedAuthErrorText(error);
+    return text.includes("email_exists")
+      || text.includes("user_already_exists")
+      || text.includes("identity_already_exists")
+      || text.includes("already exists")
+      || text.includes("already registered")
+      || (text.includes("confirmation") && text.includes("already"));
   }
 
   function clamp(value, min, max) {
@@ -704,7 +787,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v7-password-reset"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v8-auth-rate-limit"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -712,9 +795,11 @@
     if (updateStatus && !updateStatus.dataset.userMessage) {
       updateStatus.textContent = "Update status: ready. User logs are stored separately and will not be cleared.";
     }
-    state.account = { email: "", status: "", ...(state.account || {}) };
+    const account = accountState();
     const cloud = window.fuelGuardCloud?.accountView?.() || null;
     const recovering = Boolean(cloud?.recovering);
+    const signupCooldown = authCooldownRemainingMs("signup") > 0;
+    const resetCooldown = authCooldownRemainingMs("reset") > 0;
     const loggedOut = document.getElementById("accountLoggedOut");
     const recoveryPanel = document.getElementById("accountRecoveryPanel");
     const loggedIn = document.getElementById("accountLoggedIn");
@@ -735,7 +820,7 @@
     if (loggedOut) loggedOut.hidden = recovering || Boolean(cloud?.signedIn);
     if (recoveryPanel) recoveryPanel.hidden = !recovering;
     if (loggedIn) loggedIn.hidden = recovering || !cloud?.signedIn;
-    if (email && document.activeElement !== email) email.value = cloud?.email || state.account.email || "";
+    if (email && document.activeElement !== email) email.value = cloud?.email || account.email || "";
     if (password && (cloud?.signedIn || recovering) && document.activeElement !== password) password.value = "";
     if (newPassword && !recovering && document.activeElement !== newPassword) newPassword.value = "";
     if (confirmPassword && !recovering && document.activeElement !== confirmPassword) confirmPassword.value = "";
@@ -745,8 +830,8 @@
       cloudStatus.textContent = accountBusy ? "Working..." : pending;
     }
     if (signIn) signIn.disabled = accountBusy || recovering || !cloud?.configured || cloud?.signedIn;
-    if (signUp) signUp.disabled = accountBusy || recovering || !cloud?.configured || cloud?.signedIn;
-    if (forgot) forgot.disabled = accountBusy || recovering || !cloud?.configured || cloud?.signedIn;
+    if (signUp) signUp.disabled = accountBusy || signupCooldown || recovering || !cloud?.configured || cloud?.signedIn;
+    if (forgot) forgot.disabled = accountBusy || resetCooldown || recovering || !cloud?.configured || cloud?.signedIn;
     if (signOut) signOut.disabled = accountBusy || recovering || !cloud?.signedIn;
     if (sync) sync.disabled = accountBusy || recovering || !cloud?.signedIn;
     if (updatePassword) updatePassword.disabled = accountBusy || !recovering || !cloud?.configured;
@@ -754,9 +839,12 @@
     if (status) {
       const pending = cloud?.pending ? ` ${cloud.pending} pending local change${cloud.pending === 1 ? "" : "s"}.` : "";
       status.setAttribute("aria-busy", accountBusy ? "true" : "false");
-      status.textContent = state.account.status
-        ? state.account.status
-        : cloud?.status
+      const cooldownStatus = authCooldownStatus();
+      status.textContent = account.status
+        ? account.status
+        : cooldownStatus
+          ? cooldownStatus
+          : cloud?.status
           ? `${cloud.status}${pending}`
         : "Cloud sync needs Supabase public URL/key configuration.";
     }
@@ -1435,16 +1523,17 @@
     if (status) status.textContent = "Update status: update checker is not ready in this browser.";
   });
   function accountCredentials() {
-    state.account = { email: "", status: "", ...(state.account || {}) };
+    const account = accountState();
     const email = document.getElementById("accountEmail")?.value.trim() || "";
     const password = document.getElementById("accountPassword")?.value || "";
-    state.account.email = email;
+    account.email = email;
     save();
     return { email, password };
   }
 
   function setAccountStatus(message) {
-    state.account = { email: "", status: "", ...(state.account || {}), status: message };
+    const account = accountState();
+    account.status = message;
     const status = document.getElementById("accountSetupStatus");
     if (status) status.textContent = message;
     save();
@@ -1452,7 +1541,7 @@
   }
 
   function clearAccountStatus() {
-    state.account = { email: "", status: "", ...(state.account || {}), status: "" };
+    accountState().status = "";
     save();
   }
 
@@ -1464,6 +1553,7 @@
   }
 
   document.getElementById("accountSignInButton")?.addEventListener("click", async () => {
+    if (accountBusy) return;
     const { email, password } = accountCredentials();
     if (!email || !password) {
       setAccountStatus("Enter email and password to sign in.");
@@ -1482,6 +1572,12 @@
     }
   });
   document.getElementById("accountSignUpButton")?.addEventListener("click", async () => {
+    if (accountBusy) return;
+    if (authCooldownRemainingMs("signup") > 0) {
+      clearAccountStatus();
+      renderSettings();
+      return;
+    }
     const { email, password } = accountCredentials();
     if (!email || !password) {
       setAccountStatus("Enter email and password to create an account.");
@@ -1491,15 +1587,30 @@
       accountBusy = true;
       setAccountStatus("Creating account...");
       await window.fuelGuardCloud?.signUp(email, password);
+      startAuthEmailCooldown("signup");
       clearAccountStatus();
     } catch (error) {
-      setAccountStatus(`Account creation failed: ${error?.message || "unknown error"}`);
+      if (isAuthRateLimitError(error)) {
+        startAuthEmailCooldown("signup");
+        setAccountStatus(AUTH_RATE_LIMIT_MESSAGE);
+      } else if (isExistingAccountError(error)) {
+        startAuthEmailCooldown("signup");
+        setAccountStatus(AUTH_EXISTING_ACCOUNT_MESSAGE);
+      } else {
+        setAccountStatus(`Account creation failed: ${error?.message || "unknown error"}`);
+      }
     } finally {
       accountBusy = false;
       renderSettings();
     }
   });
   document.getElementById("accountForgotPasswordButton")?.addEventListener("click", async () => {
+    if (accountBusy) return;
+    if (authCooldownRemainingMs("reset") > 0) {
+      clearAccountStatus();
+      renderSettings();
+      return;
+    }
     const { email } = accountCredentials();
     if (!email) {
       setAccountStatus("Enter your email address to reset your password.");
@@ -1509,15 +1620,22 @@
       accountBusy = true;
       setAccountStatus("Sending password reset email...");
       await window.fuelGuardCloud?.sendPasswordReset(email);
+      startAuthEmailCooldown("reset");
       clearAccountStatus();
     } catch (error) {
-      setAccountStatus(`Password reset failed: ${error?.message || "unknown error"}`);
+      if (isAuthRateLimitError(error)) {
+        startAuthEmailCooldown("reset");
+        setAccountStatus(AUTH_RATE_LIMIT_MESSAGE);
+      } else {
+        setAccountStatus(`Password reset failed: ${error?.message || "unknown error"}`);
+      }
     } finally {
       accountBusy = false;
       renderSettings();
     }
   });
   document.getElementById("accountSignOutButton")?.addEventListener("click", async () => {
+    if (accountBusy) return;
     try {
       accountBusy = true;
       setAccountStatus("Signing out...");
@@ -1531,6 +1649,7 @@
     }
   });
   document.getElementById("accountUpdatePasswordButton")?.addEventListener("click", async () => {
+    if (accountBusy) return;
     const { password, confirmation } = recoveryPasswords();
     if (!password || !confirmation) {
       setAccountStatus("Enter and confirm your new password.");
@@ -1570,6 +1689,7 @@
     renderSettings();
   });
   document.getElementById("accountSyncButton")?.addEventListener("click", async () => {
+    if (accountBusy) return;
     try {
       accountBusy = true;
       setAccountStatus("Syncing...");
