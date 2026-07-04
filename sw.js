@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v8-auth-rate-limit";
-const BUILD_VERSION = "2026-07-04T10:28:00Z";
+const APP_VERSION = "mobile-pwa-v9-cloud-log-normalize";
+const BUILD_VERSION = "2026-07-04T11:25:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v8-auth-rate-limit-20260704T102800Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v9-cloud-log-normalize-20260704T112500Z";
 const APP_SHELL = [
   "./",
   "./index.html",

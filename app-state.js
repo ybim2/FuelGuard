@@ -151,22 +151,74 @@ function todayKey(date = new Date()) {
 }
 
 function fuelGapState() {
-  state.fuelGap = {
-    ...DEFAULT_STATE.fuelGap,
-    ...(state.fuelGap || {})
-  };
+  if (!isPlainObject(state.fuelGap)) state.fuelGap = {};
+  Object.keys(DEFAULT_STATE.fuelGap).forEach(key => {
+    if (state.fuelGap[key] === undefined) {
+      state.fuelGap[key] = JSON.parse(JSON.stringify(DEFAULT_STATE.fuelGap[key]));
+    }
+  });
 
   if (!Array.isArray(state.fuelGap.logs)) state.fuelGap.logs = [];
   if (!isPlainObject(state.fuelGap.archive)) state.fuelGap.archive = {};
   if (!isPlainObject(state.fuelGap.dayTypes)) state.fuelGap.dayTypes = {};
   if (!isPlainObject(state.fuelGap.trainingSessions)) state.fuelGap.trainingSessions = {};
   if (!isPlainObject(state.fuelGap.thresholds)) state.fuelGap.thresholds = { ...DEFAULT_STATE.fuelGap.thresholds };
+  state.fuelGap.thresholds = {
+    ...DEFAULT_STATE.fuelGap.thresholds,
+    ...state.fuelGap.thresholds
+  };
+  if (!isPlainObject(state.fuelGap.cloud)) state.fuelGap.cloud = { ...DEFAULT_STATE.fuelGap.cloud };
+  state.fuelGap.cloud = {
+    ...DEFAULT_STATE.fuelGap.cloud,
+    ...state.fuelGap.cloud,
+    pendingDeleteIds: Array.isArray(state.fuelGap.cloud.pendingDeleteIds)
+      ? state.fuelGap.cloud.pendingDeleteIds
+      : []
+  };
   return state.fuelGap;
 }
 
+function parseFuelLogDateValue(value) {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const normalized = text
+    .replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/, "$1T$2")
+    .replace(/(\.\d{3})\d+/, "$1")
+    .replace(/([+-]\d{2})(\d{2})$/, "$1:$2")
+    .replace(/([+-]\d{2})$/, "$1:00");
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function fuelLogDate(log) {
-  const date = new Date(log?.timestamp || log?.date || log);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (log && typeof log === "object" && !(log instanceof Date)) {
+    const candidates = [
+      log.timestamp,
+      log.date,
+      log.logged_at,
+      log.loggedAt,
+      log.time,
+      log.created_at,
+      log.createdAt
+    ];
+    for (const value of candidates) {
+      const date = parseFuelLogDateValue(value);
+      if (date) return date;
+    }
+    return null;
+  }
+
+  return parseFuelLogDateValue(log);
 }
 
 function formatClock(date) {

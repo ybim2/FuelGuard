@@ -98,6 +98,48 @@
     return date && !Number.isNaN(date.getTime()) ? date : null;
   }
 
+  function timestampForRow(row) {
+    const date = dateFromLog({
+      timestamp: row?.logged_at,
+      logged_at: row?.logged_at,
+      created_at: row?.created_at
+    });
+    return date ? date.toISOString() : "";
+  }
+
+  function rowFingerprint(row) {
+    const timestamp = timestampForRow(row);
+    if (!timestamp) return "";
+    return [
+      timestamp,
+      normalizeType(row?.type),
+      normalizeSource(row?.source),
+      row?.day_type || "",
+      row?.training_session || "",
+      row?.notes || ""
+    ].join("|");
+  }
+
+  function logFingerprint(log) {
+    const date = dateFromLog(log);
+    if (!date) return "";
+    return [
+      date.toISOString(),
+      normalizeType(log?.type),
+      normalizeSource(log?.source),
+      log?.dayType || "",
+      log?.trainingSession || "",
+      log?.note || log?.notes || ""
+    ].join("|");
+  }
+
+  function sameInstant(log, row) {
+    const localDate = dateFromLog(log);
+    const rowTimestamp = timestampForRow(row);
+    if (!localDate || !rowTimestamp) return false;
+    return localDate.toISOString() === rowTimestamp;
+  }
+
   function labelForType(type) {
     if (type === "hydration") return "Hydration logged";
     if (type === "fuel_hydration") return "Fuel + hydration logged";
@@ -105,10 +147,12 @@
   }
 
   function rowToLog(row) {
+    const timestamp = timestampForRow(row);
+    if (!timestamp) return null;
     return {
       id: row.id,
       cloudId: row.id,
-      timestamp: row.logged_at,
+      timestamp,
       label: labelForType(row.type),
       type: normalizeType(row.type),
       source: normalizeSource(row.source),
@@ -153,12 +197,23 @@
   function mergeSyncedRows(rows) {
     const gap = gapState();
     if (!gap) return;
-    const cloudLogs = rows.map(rowToLog);
-    const cloudIds = new Set(cloudLogs.map(log => log.id));
-    const pendingLocal = allLogs().filter(log => {
+    const existingLogs = Array.isArray(gap.logs) ? gap.logs : [];
+    const seenCloudKeys = new Set();
+    const cloudLogs = [];
+    rows.map(rowToLog).filter(Boolean).forEach(log => {
+      const cloudKey = isUuid(log.cloudId || log.id) ? `cloud:${log.cloudId || log.id}` : "";
+      const fallbackKey = logFingerprint(log);
+      if ((cloudKey && seenCloudKeys.has(cloudKey)) || (fallbackKey && seenCloudKeys.has(fallbackKey))) return;
+      if (cloudKey) seenCloudKeys.add(cloudKey);
+      if (fallbackKey) seenCloudKeys.add(fallbackKey);
+      cloudLogs.push(log);
+    });
+    const pendingLocal = existingLogs.filter(log => {
       if (![PENDING, ERROR].includes(log.syncStatus)) return false;
       const id = log.cloudId || log.id;
-      return !id || !cloudIds.has(id);
+      const cloudKey = isUuid(id) ? `cloud:${id}` : "";
+      const fallbackKey = logFingerprint(log);
+      return !(cloudKey && seenCloudKeys.has(cloudKey)) && !(fallbackKey && seenCloudKeys.has(fallbackKey));
     });
 
     gap.logs = [...cloudLogs, ...pendingLocal].sort((a, b) => {
@@ -186,14 +241,18 @@
     if (!localLog || !row) return;
     localLog.id = row.id;
     localLog.cloudId = row.id;
+    localLog.timestamp = timestampForRow(row) || localLog.timestamp;
+    localLog.type = normalizeType(row.type);
     localLog.syncStatus = SYNCED;
     localLog.source = normalizeSource(row.source);
+    localLog.dayType = row.day_type || localLog.dayType || "";
+    localLog.trainingSession = row.training_session || localLog.trainingSession || "";
+    localLog.note = row.notes || localLog.note || "";
   }
 
   function logMatchesRow(log, row) {
-    const localDate = dateFromLog(log);
-    if (!localDate || !row?.logged_at) return false;
-    return localDate.toISOString() === row.logged_at
+    if (!sameInstant(log, row)) return false;
+    return logFingerprint(log) === rowFingerprint(row)
       && normalizeType(log.type) === normalizeType(row.type)
       && normalizeSource(log.source) === normalizeSource(row.source)
       && (log.dayType || "") === (row.day_type || "")
@@ -221,10 +280,7 @@
     const localId = fallbackLog?.id || fallbackLog?.cloudId;
     return logs.find(log => log.id === id || log.cloudId === id || log.id === localId || log.cloudId === localId)
       || logs.find(log => {
-        const localDate = dateFromLog(log);
-        return localDate
-          && localDate.toISOString() === row.logged_at
-          && normalizeType(log.type) === normalizeType(row.type);
+        return sameInstant(log, row) && normalizeType(log.type) === normalizeType(row.type);
       });
   }
 
