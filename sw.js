@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v5-supabase-sync";
-const BUILD_VERSION = "2026-07-03T23:47:52Z";
+const APP_VERSION = "mobile-pwa-v6-supabase-auth";
+const BUILD_VERSION = "2026-07-04T08:24:56Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v5-supabase-sync-20260703T234752Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v6-supabase-auth-20260704T082456Z";
 const APP_SHELL = [
   "./",
   "./index.html",

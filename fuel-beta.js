@@ -60,6 +60,7 @@
 
   let selectedHistoryKey = "";
   let selectedTrainingFilter = "all";
+  let accountBusy = false;
 
   function safeText(value) {
     if (typeof escapeHtml === "function") return escapeHtml(value || "");
@@ -698,7 +699,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v5-supabase-sync"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v6-supabase-auth"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -708,21 +709,33 @@
     }
     state.account = { email: "", status: "", ...(state.account || {}) };
     const cloud = window.fuelGuardCloud?.accountView?.() || null;
+    const loggedOut = document.getElementById("accountLoggedOut");
+    const loggedIn = document.getElementById("accountLoggedIn");
     const email = document.getElementById("accountEmail");
     const password = document.getElementById("accountPassword");
     const status = document.getElementById("accountSetupStatus");
+    const userEmail = document.getElementById("accountUserEmail");
+    const cloudStatus = document.getElementById("accountCloudStatus");
     const signIn = document.getElementById("accountSignInButton");
     const signUp = document.getElementById("accountSignUpButton");
     const signOut = document.getElementById("accountSignOutButton");
     const sync = document.getElementById("accountSyncButton");
+    if (loggedOut) loggedOut.hidden = Boolean(cloud?.signedIn);
+    if (loggedIn) loggedIn.hidden = !cloud?.signedIn;
     if (email && document.activeElement !== email) email.value = cloud?.email || state.account.email || "";
     if (password && cloud?.signedIn && document.activeElement !== password) password.value = "";
-    if (signIn) signIn.disabled = !cloud?.configured || cloud?.signedIn;
-    if (signUp) signUp.disabled = !cloud?.configured || cloud?.signedIn;
-    if (signOut) signOut.disabled = !cloud?.signedIn;
-    if (sync) sync.disabled = !cloud?.signedIn;
+    if (userEmail) userEmail.textContent = cloud?.email || "Signed in";
+    if (cloudStatus) {
+      const pending = cloud?.pending ? `${cloud.pending} pending local change${cloud.pending === 1 ? "" : "s"}` : "All available logs synced";
+      cloudStatus.textContent = accountBusy ? "Working..." : pending;
+    }
+    if (signIn) signIn.disabled = accountBusy || !cloud?.configured || cloud?.signedIn;
+    if (signUp) signUp.disabled = accountBusy || !cloud?.configured || cloud?.signedIn;
+    if (signOut) signOut.disabled = accountBusy || !cloud?.signedIn;
+    if (sync) sync.disabled = accountBusy || !cloud?.signedIn;
     if (status) {
       const pending = cloud?.pending ? ` ${cloud.pending} pending local change${cloud.pending === 1 ? "" : "s"}.` : "";
+      status.setAttribute("aria-busy", accountBusy ? "true" : "false");
       status.textContent = state.account.status
         ? state.account.status
         : cloud?.status
@@ -1432,12 +1445,15 @@
       return;
     }
     try {
+      accountBusy = true;
       setAccountStatus("Signing in...");
       await window.fuelGuardCloud?.signIn(email, password);
       clearAccountStatus();
-      renderSettings();
     } catch (error) {
       setAccountStatus(`Sign in failed: ${error?.message || "unknown error"}`);
+    } finally {
+      accountBusy = false;
+      renderSettings();
     }
   });
   document.getElementById("accountSignUpButton")?.addEventListener("click", async () => {
@@ -1447,32 +1463,41 @@
       return;
     }
     try {
+      accountBusy = true;
       setAccountStatus("Creating account...");
       await window.fuelGuardCloud?.signUp(email, password);
       clearAccountStatus();
-      renderSettings();
     } catch (error) {
       setAccountStatus(`Account creation failed: ${error?.message || "unknown error"}`);
+    } finally {
+      accountBusy = false;
+      renderSettings();
     }
   });
   document.getElementById("accountSignOutButton")?.addEventListener("click", async () => {
     try {
+      accountBusy = true;
       setAccountStatus("Signing out...");
       await window.fuelGuardCloud?.signOut();
       clearAccountStatus();
-      renderSettings();
     } catch (error) {
       setAccountStatus(`Sign out failed: ${error?.message || "unknown error"}`);
+    } finally {
+      accountBusy = false;
+      renderSettings();
     }
   });
   document.getElementById("accountSyncButton")?.addEventListener("click", async () => {
     try {
+      accountBusy = true;
       setAccountStatus("Syncing...");
       await window.fuelGuardCloud?.syncNow();
       clearAccountStatus();
-      renderSettings();
     } catch (error) {
       setAccountStatus(`Sync failed: ${error?.message || "unknown error"}`);
+    } finally {
+      accountBusy = false;
+      renderSettings();
     }
   });
 

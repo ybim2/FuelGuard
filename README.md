@@ -16,7 +16,9 @@ Run `supabase/fuel_logs.sql` in the Supabase project to create the cloud log tab
 
 For Vercel, set only public client values:
 
-- `FUEL_GUARD_SUPABASE_URL`
-- `FUEL_GUARD_SUPABASE_ANON_KEY` or `FUEL_GUARD_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+The runtime config endpoint also accepts the older `FUEL_GUARD_SUPABASE_*`, `SUPABASE_*`, and `NEXT_PUBLIC_SUPABASE_*` names for deployment compatibility.
 
 Do not set or expose a service role key in the PWA.

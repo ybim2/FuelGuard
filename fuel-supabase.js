@@ -167,6 +167,31 @@
     localLog.source = normalizeSource(row.source);
   }
 
+  function logMatchesRow(log, row) {
+    const localDate = dateFromLog(log);
+    if (!localDate || !row?.logged_at) return false;
+    return localDate.toISOString() === row.logged_at
+      && normalizeType(log.type) === normalizeType(row.type)
+      && normalizeSource(log.source) === normalizeSource(row.source)
+      && (log.dayType || "") === (row.day_type || "")
+      && (log.trainingSession || "") === (row.training_session || "")
+      && (log.note || log.notes || "") === (row.notes || "");
+  }
+
+  function matchPendingLogsToCloudRows(logs, rows) {
+    logs.forEach(log => {
+      if (!log || log.syncStatus === SYNCED) return;
+      const localId = log.cloudId || log.id;
+      const match = rows.find(row => {
+        if (isUuid(localId) && row.id === localId && logMatchesRow(log, row)) return true;
+        return !isUuid(localId) && logMatchesRow(log, row);
+      });
+      if (!match) return;
+      updateLocalLogFromRow(log, match);
+    });
+    return logs.filter(log => log.syncStatus !== SYNCED);
+  }
+
   function findMatchingLocalLog(row, fallbackLog) {
     const logs = allLogs();
     const id = row.id;
@@ -270,8 +295,9 @@
     status("Syncing Fuel Guard logs...");
     try {
       await flushDeletes();
+      const existingRows = await fetchRows();
       const pending = allLogs().filter(log => log.syncStatus !== SYNCED);
-      await uploadLogs(pending);
+      await uploadLogs(matchPendingLogsToCloudRows(pending, existingRows));
       const rows = await fetchRows();
       mergeSyncedRows(rows);
       if (gap) {

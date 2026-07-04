@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v5-supabase-sync" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v5-supabase-sync" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v5-supabase-sync" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v6-supabase-auth" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v6-supabase-auth" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v6-supabase-auth" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -168,7 +168,7 @@
           <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
           <div class="beta-version-marker" aria-label="Canonical app version">
             <strong>Fuel Guard Mobile PWA</strong>
-            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v5-supabase-sync</span>
+            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v6-supabase-auth</span>
             <span id="buildVersionMarker">Build version: loading...</span>
           </div>
           <div class="form-grid beta-settings-grid">
@@ -207,17 +207,31 @@
         <article class="card beta-account-card">
           <h2>Account &amp; Sync</h2>
           <p class="muted">Log in to sync Fuel Guard logs across devices.</p>
-          <div class="form-grid">
-            <label>Email<input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
-            <label>Password<input id="accountPassword" type="password" autocomplete="current-password" placeholder="Password"></label>
+          <div id="accountLoggedOut" class="beta-account-state">
+            <div class="form-grid">
+              <label>Email<input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+              <label>Password<input id="accountPassword" type="password" autocomplete="current-password" placeholder="Password"></label>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="accountSignUpButton" class="secondary" type="button">Create account</button>
+              <button id="accountSignInButton" class="secondary" type="button">Log in</button>
+            </div>
           </div>
-          <div class="button-row beta-settings-actions">
-            <button id="accountSignInButton" class="secondary" type="button">Sign in</button>
-            <button id="accountSignUpButton" class="secondary" type="button">Create account</button>
-            <button id="accountSignOutButton" class="secondary" type="button">Sign out</button>
-            <button id="accountSyncButton" class="secondary" type="button">Sync now</button>
+          <div id="accountLoggedIn" class="beta-account-state" hidden>
+            <div class="beta-account-user">
+              <span>Signed in</span>
+              <strong id="accountUserEmail">loading...</strong>
+            </div>
+            <div class="beta-account-sync">
+              <span>Cloud save</span>
+              <strong id="accountCloudStatus">Checking...</strong>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="accountSyncButton" class="secondary" type="button">Sync now</button>
+              <button id="accountSignOutButton" class="secondary" type="button">Log out</button>
+            </div>
           </div>
-          <p id="accountSetupStatus" class="row-note"></p>
+          <p id="accountSetupStatus" class="row-note" aria-live="polite"></p>
         </article>
       </section>
 
@@ -239,17 +253,17 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v5-supabase-sync"></script>
+  <script src="build-info.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v6-supabase-auth"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="app-ui.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v5-supabase-sync"></script>
-  <script src="fg-button-ble.js?v=mobile-pwa-v5-supabase-sync"></script>
+  <script src="app-state.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="app-ui.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="fg-button-ble.js?v=mobile-pwa-v6-supabase-auth"></script>
 </body>
 </html>

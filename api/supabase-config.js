@@ -10,8 +10,14 @@
 
   function publicConfigFromEnv(env) {
     return {
-      url: env.FUEL_GUARD_SUPABASE_URL || env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_PROJECT_URL,
+      url:
+        env.VITE_SUPABASE_URL ||
+        env.FUEL_GUARD_SUPABASE_URL ||
+        env.SUPABASE_URL ||
+        env.NEXT_PUBLIC_SUPABASE_URL ||
+        DEFAULT_PROJECT_URL,
       anonKey:
+        env.VITE_SUPABASE_ANON_KEY ||
         env.FUEL_GUARD_SUPABASE_ANON_KEY ||
         env.FUEL_GUARD_SUPABASE_PUBLISHABLE_KEY ||
         env.SUPABASE_ANON_KEY ||
