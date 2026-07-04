@@ -408,7 +408,14 @@
 
   async function signUp(email, password) {
     if (!client) throw new Error("Supabase is not configured.");
-    const { data, error } = await client.auth.signUp({ email, password });
+    const redirectUrl = window.location.origin;
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
+    });
     if (error) throw error;
     session = data.session;
     status(data.session ? `Account created for ${email}.` : `Account created. Check ${email} to confirm sign-up.`);
