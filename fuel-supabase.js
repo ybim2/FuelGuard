@@ -13,6 +13,7 @@
   let session = null;
   let initialized = false;
   let syncInProgress = false;
+  let recoveryMode = false;
   let lastStatus = "Cloud sync is not configured yet.";
 
   function config() {
@@ -31,6 +32,28 @@
   function status(message) {
     lastStatus = message;
     window.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail: { message } }));
+  }
+
+  function recoveryRedirectUrl() {
+    return `${window.location.origin}/?auth=recovery`;
+  }
+
+  function urlRequestsRecovery() {
+    const queryRequestsRecovery = new URLSearchParams(window.location.search).get("auth") === "recovery";
+    const hashRequestsRecovery = /(?:^|[&#?])(?:type|auth)=recovery(?:$|[&#=])/.test(window.location.hash || "");
+    return queryRequestsRecovery || hashRequestsRecovery;
+  }
+
+  function cleanRecoveryUrl() {
+    if (!window.history?.replaceState) return;
+    window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname || "/"}`);
+  }
+
+  function setRecoveryMode(active, message) {
+    recoveryMode = Boolean(active);
+    if (message) status(message);
+    window.dispatchEvent(new CustomEvent("fuelguard:password-recovery", { detail: { active: recoveryMode } }));
+    if (typeof renderAll === "function") renderAll();
   }
 
   function gapState() {
@@ -423,6 +446,30 @@
     return data;
   }
 
+  async function sendPasswordReset(email) {
+    if (!client) throw new Error("Supabase is not configured.");
+    const { data, error } = await client.auth.resetPasswordForEmail(email, {
+      redirectTo: recoveryRedirectUrl()
+    });
+    if (error) throw error;
+    status(`Password reset email sent to ${email}.`);
+    return data;
+  }
+
+  async function updatePassword(newPassword) {
+    if (!client) throw new Error("Supabase is not configured.");
+    const { data, error } = await client.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    setRecoveryMode(false, "Password updated successfully.");
+    cleanRecoveryUrl();
+    return data;
+  }
+
+  function cancelPasswordRecovery() {
+    setRecoveryMode(false, "Password reset cancelled.");
+    cleanRecoveryUrl();
+  }
+
   async function signOut() {
     if (!client) return;
     const { error } = await client.auth.signOut();
@@ -438,6 +485,7 @@
     return {
       configured: configured(),
       signedIn: Boolean(user()),
+      recovering: recoveryMode || urlRequestsRecovery(),
       email: user()?.email || "",
       pending,
       lastSyncedAt: gap?.cloud.lastSyncedAt || "",
@@ -453,6 +501,7 @@
       return;
     }
 
+    recoveryMode = urlRequestsRecovery();
     const nextConfig = config();
     client = window.supabase.createClient(nextConfig.url, nextConfig.anonKey, {
       auth: {
@@ -465,16 +514,25 @@
     const { data, error } = await client.auth.getSession();
     if (error) status(`Auth session check failed: ${error.message}`);
     session = data?.session || null;
-    status(session?.user ? `Signed in as ${session.user.email}.` : "Not signed in. Logs are cached on this device.");
+    status(recoveryMode
+      ? "You're resetting your password. Enter a new password below."
+      : session?.user
+        ? `Signed in as ${session.user.email}.`
+        : "Not signed in. Logs are cached on this device.");
 
-    client.auth.onAuthStateChange((_event, nextSession) => {
+    client.auth.onAuthStateChange((event, nextSession) => {
       session = nextSession;
-      if (session?.user) syncNow();
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true, "You're resetting your password. Enter a new password below.");
+      } else if (recoveryMode) {
+        status("You're resetting your password. Enter a new password below.");
+      } else if (session?.user && !recoveryMode) syncNow();
       else status("Signed out. Logs are cached on this device.");
       if (typeof renderAll === "function") renderAll();
     });
 
-    if (session?.user) await syncNow();
+    if (recoveryMode) setRecoveryMode(true);
+    else if (session?.user) await syncNow();
   }
 
   window.addEventListener("online", () => syncNow());
@@ -490,6 +548,9 @@
     clearCloudLogs,
     signIn,
     signUp,
+    sendPasswordReset,
+    updatePassword,
+    cancelPasswordRecovery,
     signOut,
     accountView,
     get client() {

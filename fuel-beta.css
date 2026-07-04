@@ -263,7 +263,8 @@
 }
 
 .beta-account-user,
-.beta-account-sync {
+.beta-account-sync,
+.beta-account-recovery-copy {
   display: grid;
   gap: 4px;
   padding: 10px 12px;
@@ -273,15 +274,21 @@
 }
 
 .beta-account-user span,
-.beta-account-sync span {
+.beta-account-sync span,
+.beta-account-recovery-copy span {
   color: var(--muted);
   font-size: .76rem;
   font-weight: 850;
+}
+
+.beta-account-user span,
+.beta-account-sync span {
   text-transform: uppercase;
 }
 
 .beta-account-user strong,
-.beta-account-sync strong {
+.beta-account-sync strong,
+.beta-account-recovery-copy strong {
   color: var(--text);
   overflow-wrap: anywhere;
 }

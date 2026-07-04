@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v6-supabase-auth" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v6-supabase-auth" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v6-supabase-auth" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v7-password-reset" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v7-password-reset" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v7-password-reset" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -168,7 +168,7 @@
           <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
           <div class="beta-version-marker" aria-label="Canonical app version">
             <strong>Fuel Guard Mobile PWA</strong>
-            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v6-supabase-auth</span>
+            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v7-password-reset</span>
             <span id="buildVersionMarker">Build version: loading...</span>
           </div>
           <div class="form-grid beta-settings-grid">
@@ -215,6 +215,21 @@
             <div class="button-row beta-settings-actions">
               <button id="accountSignUpButton" class="secondary" type="button">Create account</button>
               <button id="accountSignInButton" class="secondary" type="button">Log in</button>
+              <button id="accountForgotPasswordButton" class="secondary" type="button">Forgot password?</button>
+            </div>
+          </div>
+          <div id="accountRecoveryPanel" class="beta-account-state" hidden>
+            <div class="beta-account-recovery-copy">
+              <strong>Password reset</strong>
+              <span>You're resetting your password. Enter a new password below.</span>
+            </div>
+            <div class="form-grid">
+              <label>New password<input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="New password"></label>
+              <label>Confirm new password<input id="accountConfirmPassword" type="password" autocomplete="new-password" placeholder="Confirm password"></label>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="accountUpdatePasswordButton" class="secondary" type="button">Update password</button>
+              <button id="accountCancelRecoveryButton" class="secondary" type="button">Back to login</button>
             </div>
           </div>
           <div id="accountLoggedIn" class="beta-account-state" hidden>
@@ -253,17 +268,17 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="build-info.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v7-password-reset"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="app-ui.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v6-supabase-auth"></script>
-  <script src="fg-button-ble.js?v=mobile-pwa-v6-supabase-auth"></script>
+  <script src="app-state.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="app-ui.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v7-password-reset"></script>
+  <script src="fg-button-ble.js?v=mobile-pwa-v7-password-reset"></script>
 </body>
 </html>

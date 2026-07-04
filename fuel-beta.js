@@ -62,6 +62,11 @@
   let selectedTrainingFilter = "all";
   let accountBusy = false;
 
+  function urlRequestsPasswordRecovery() {
+    return new URLSearchParams(window.location.search).get("auth") === "recovery"
+      || /(?:^|[&#?])(?:type|auth)=recovery(?:$|[&#=])/.test(window.location.hash || "");
+  }
+
   function safeText(value) {
     if (typeof escapeHtml === "function") return escapeHtml(value || "");
     return String(value || "").replace(/[&<>"']/g, char => ({
@@ -699,7 +704,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v6-supabase-auth"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v7-password-reset"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -709,30 +714,43 @@
     }
     state.account = { email: "", status: "", ...(state.account || {}) };
     const cloud = window.fuelGuardCloud?.accountView?.() || null;
+    const recovering = Boolean(cloud?.recovering);
     const loggedOut = document.getElementById("accountLoggedOut");
+    const recoveryPanel = document.getElementById("accountRecoveryPanel");
     const loggedIn = document.getElementById("accountLoggedIn");
     const email = document.getElementById("accountEmail");
     const password = document.getElementById("accountPassword");
+    const newPassword = document.getElementById("accountNewPassword");
+    const confirmPassword = document.getElementById("accountConfirmPassword");
     const status = document.getElementById("accountSetupStatus");
     const userEmail = document.getElementById("accountUserEmail");
     const cloudStatus = document.getElementById("accountCloudStatus");
     const signIn = document.getElementById("accountSignInButton");
     const signUp = document.getElementById("accountSignUpButton");
+    const forgot = document.getElementById("accountForgotPasswordButton");
     const signOut = document.getElementById("accountSignOutButton");
     const sync = document.getElementById("accountSyncButton");
-    if (loggedOut) loggedOut.hidden = Boolean(cloud?.signedIn);
-    if (loggedIn) loggedIn.hidden = !cloud?.signedIn;
+    const updatePassword = document.getElementById("accountUpdatePasswordButton");
+    const cancelRecovery = document.getElementById("accountCancelRecoveryButton");
+    if (loggedOut) loggedOut.hidden = recovering || Boolean(cloud?.signedIn);
+    if (recoveryPanel) recoveryPanel.hidden = !recovering;
+    if (loggedIn) loggedIn.hidden = recovering || !cloud?.signedIn;
     if (email && document.activeElement !== email) email.value = cloud?.email || state.account.email || "";
-    if (password && cloud?.signedIn && document.activeElement !== password) password.value = "";
+    if (password && (cloud?.signedIn || recovering) && document.activeElement !== password) password.value = "";
+    if (newPassword && !recovering && document.activeElement !== newPassword) newPassword.value = "";
+    if (confirmPassword && !recovering && document.activeElement !== confirmPassword) confirmPassword.value = "";
     if (userEmail) userEmail.textContent = cloud?.email || "Signed in";
     if (cloudStatus) {
       const pending = cloud?.pending ? `${cloud.pending} pending local change${cloud.pending === 1 ? "" : "s"}` : "All available logs synced";
       cloudStatus.textContent = accountBusy ? "Working..." : pending;
     }
-    if (signIn) signIn.disabled = accountBusy || !cloud?.configured || cloud?.signedIn;
-    if (signUp) signUp.disabled = accountBusy || !cloud?.configured || cloud?.signedIn;
-    if (signOut) signOut.disabled = accountBusy || !cloud?.signedIn;
-    if (sync) sync.disabled = accountBusy || !cloud?.signedIn;
+    if (signIn) signIn.disabled = accountBusy || recovering || !cloud?.configured || cloud?.signedIn;
+    if (signUp) signUp.disabled = accountBusy || recovering || !cloud?.configured || cloud?.signedIn;
+    if (forgot) forgot.disabled = accountBusy || recovering || !cloud?.configured || cloud?.signedIn;
+    if (signOut) signOut.disabled = accountBusy || recovering || !cloud?.signedIn;
+    if (sync) sync.disabled = accountBusy || recovering || !cloud?.signedIn;
+    if (updatePassword) updatePassword.disabled = accountBusy || !recovering || !cloud?.configured;
+    if (cancelRecovery) cancelRecovery.disabled = accountBusy || !recovering;
     if (status) {
       const pending = cloud?.pending ? ` ${cloud.pending} pending local change${cloud.pending === 1 ? "" : "s"}.` : "";
       status.setAttribute("aria-busy", accountBusy ? "true" : "false");
@@ -1438,6 +1456,13 @@
     save();
   }
 
+  function recoveryPasswords() {
+    return {
+      password: document.getElementById("accountNewPassword")?.value || "",
+      confirmation: document.getElementById("accountConfirmPassword")?.value || ""
+    };
+  }
+
   document.getElementById("accountSignInButton")?.addEventListener("click", async () => {
     const { email, password } = accountCredentials();
     if (!email || !password) {
@@ -1474,6 +1499,24 @@
       renderSettings();
     }
   });
+  document.getElementById("accountForgotPasswordButton")?.addEventListener("click", async () => {
+    const { email } = accountCredentials();
+    if (!email) {
+      setAccountStatus("Enter your email address to reset your password.");
+      return;
+    }
+    try {
+      accountBusy = true;
+      setAccountStatus("Sending password reset email...");
+      await window.fuelGuardCloud?.sendPasswordReset(email);
+      clearAccountStatus();
+    } catch (error) {
+      setAccountStatus(`Password reset failed: ${error?.message || "unknown error"}`);
+    } finally {
+      accountBusy = false;
+      renderSettings();
+    }
+  });
   document.getElementById("accountSignOutButton")?.addEventListener("click", async () => {
     try {
       accountBusy = true;
@@ -1486,6 +1529,45 @@
       accountBusy = false;
       renderSettings();
     }
+  });
+  document.getElementById("accountUpdatePasswordButton")?.addEventListener("click", async () => {
+    const { password, confirmation } = recoveryPasswords();
+    if (!password || !confirmation) {
+      setAccountStatus("Enter and confirm your new password.");
+      return;
+    }
+    if (password !== confirmation) {
+      setAccountStatus("New passwords do not match.");
+      return;
+    }
+    if (password.length < 6) {
+      setAccountStatus("Password must be at least 6 characters.");
+      return;
+    }
+    try {
+      accountBusy = true;
+      setAccountStatus("Updating password...");
+      await window.fuelGuardCloud?.updatePassword(password);
+      const newPassword = document.getElementById("accountNewPassword");
+      const confirmPassword = document.getElementById("accountConfirmPassword");
+      if (newPassword) newPassword.value = "";
+      if (confirmPassword) confirmPassword.value = "";
+      clearAccountStatus();
+    } catch (error) {
+      setAccountStatus(`Password update failed: ${error?.message || "unknown error"}`);
+    } finally {
+      accountBusy = false;
+      renderSettings();
+    }
+  });
+  document.getElementById("accountCancelRecoveryButton")?.addEventListener("click", () => {
+    window.fuelGuardCloud?.cancelPasswordRecovery();
+    const newPassword = document.getElementById("accountNewPassword");
+    const confirmPassword = document.getElementById("accountConfirmPassword");
+    if (newPassword) newPassword.value = "";
+    if (confirmPassword) confirmPassword.value = "";
+    clearAccountStatus();
+    renderSettings();
   });
   document.getElementById("accountSyncButton")?.addEventListener("click", async () => {
     try {
@@ -1500,6 +1582,14 @@
       renderSettings();
     }
   });
+  window.addEventListener("fuelguard:password-recovery", event => {
+    if (event.detail?.active) switchScreen("checklist");
+    else if (document.getElementById("checklist")?.classList.contains("active")) renderSettings();
+  });
+
+  if (urlRequestsPasswordRecovery()) {
+    requestAnimationFrame(() => switchScreen("checklist"));
+  }
 
   let graphResizeQueued = false;
   window.addEventListener("resize", () => {
