@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v4-cache-fix";
-const BUILD_VERSION = "2026-07-03T23:27:25Z";
+const APP_VERSION = "mobile-pwa-v5-supabase-sync";
+const BUILD_VERSION = "2026-07-03T23:47:52Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v4-cache-fix-20260703T232725Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v5-supabase-sync-20260703T234752Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const APP_SHELL = [
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
   "./app-state.js",
+  "./fuel-supabase.js",
   "./app-ui.js",
   "./app-pwa.js",
   "./fuel-history-render-guard.js",
@@ -67,6 +68,7 @@ self.addEventListener("fetch", event => {
   const requestUrl = new URL(request.url);
   if (requestUrl.origin !== self.location.origin) return;
   if (requestUrl.pathname.endsWith("/sw.js")) return;
+  if (requestUrl.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
     event.respondWith(

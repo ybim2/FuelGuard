@@ -11,7 +11,7 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v4-cache-fix
+Canonical app: mobile-pwa-v5-supabase-sync
 Build version: shown from `build-info.js`
 
 ## Removed legacy features
@@ -32,6 +32,8 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `build-info.js`: visible build metadata used by Settings and PWA update checks
 - `styles.css`, `mobile-pwa.css`, `mobile-ux-overrides.css`, `fuel-beta.css`: active styles
 - `app-state.js`: local app state and persistence helpers
+- `fuel-supabase.js`: Supabase Auth and cloud log sync layer
+- `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
 - `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Rhythm, History, and Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
@@ -97,7 +99,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v4-cache-fix`.
+The current canonical version is `mobile-pwa-v5-supabase-sync`.
 
 ## Future frontend changes
 

@@ -50,7 +50,7 @@
       return;
     }
 
-    recordFuelled();
+    recordFuelled({ source: "bluetooth" });
     const after = fuelLogCount();
     if (after > before) {
       setBleStatus("connected", `Fuel logged at ${new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}.`);

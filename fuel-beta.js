@@ -174,11 +174,26 @@
 
   function logType(log) {
     const type = String(log?.type || "fuel").toLowerCase();
-    return type === "hydration" ? "hydration" : "fuel";
+    if (type === "hydration") return "hydration";
+    if (type === "fuel_hydration") return "fuel_hydration";
+    return "fuel";
   }
 
   function isFuelLog(log) {
-    return logType(log) === "fuel";
+    const type = logType(log);
+    return type === "fuel" || type === "fuel_hydration";
+  }
+
+  function isHydrationLog(log) {
+    const type = logType(log);
+    return type === "hydration" || type === "fuel_hydration";
+  }
+
+  function logTypeLabel(log) {
+    const type = logType(log);
+    if (type === "hydration") return "Hydration";
+    if (type === "fuel_hydration") return "Fuel + Hydration";
+    return "Fuel";
   }
 
   function logsWithDates() {
@@ -313,7 +328,7 @@
   function analyseDay(key, { now = new Date(), endedAt = "" } = {}) {
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
-    const hydrationLogs = logs.filter(log => !isFuelLog(log));
+    const hydrationLogs = logs.filter(isHydrationLog);
     const endedDate = endedAt ? logDate(endedAt) : null;
     const isToday = key === dateKey(now);
     const reference = endedDate || (isToday ? now : fuelLogs[fuelLogs.length - 1]?.date || logs[logs.length - 1]?.date || dateFromKey(key));
@@ -409,7 +424,7 @@
         id: log.id || uid(),
         timestamp: log.date.toISOString(),
         type: logType(log),
-        typeLabel: logType(log) === "hydration" ? "Hydration" : "Fuel",
+        typeLabel: logTypeLabel(log),
         dayType: log.dayType || analysis.dayType,
         trainingSession: log.trainingSession || analysis.trainingSession,
         note: log.note || ""
@@ -533,46 +548,56 @@
     };
   };
 
-  function recordRhythmLog(type = "fuel") {
+  function recordRhythmLog(type = "fuel", options = {}) {
     if (fuelDayEndSnapshot().dayEnded) return;
-    const isHydration = type === "hydration";
-    if (!isHydration && cooldownRemainingSeconds() > 0) {
+    const normalizedType = ["fuel", "hydration", "fuel_hydration"].includes(type) ? type : "fuel";
+    const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
+    const label = normalizedType === "hydration"
+      ? "Hydration logged"
+      : normalizedType === "fuel_hydration"
+        ? "Fuel + hydration logged"
+        : "Fuelled";
+    if (includesFuel && cooldownRemainingSeconds() > 0) {
       renderFuelGap();
       return;
     }
 
     const key = dateKey();
-    betaState().logs.push({
+    const log = {
       id: uid(),
       timestamp: new Date().toISOString(),
-      label: isHydration ? "Hydration logged" : "Fuelled",
-      type: isHydration ? "hydration" : "fuel",
+      label,
+      type: normalizedType,
+      source: options.source || "manual",
       dayType: dayTypeForKey(key),
-      trainingSession: trainingSessionForKey(key)
-    });
-    if (!isHydration) setCooldown();
+      trainingSession: trainingSessionForKey(key),
+      syncStatus: "pending"
+    };
+    betaState().logs.push(log);
+    if (includesFuel) setCooldown();
     storeArchive(key);
     state.completed.liveFuelStatus = true;
     if (typeof recordFuelMomentum === "function") {
       recordFuelMomentum(
-        isHydration ? "hydrationLogged" : "fuelLogged",
-        isHydration ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.",
-        isHydration ? "Hydration logged. Fuel rhythm comparison updated. +1 Fuel Momentum" : "Fuel logged. Your fuel rhythm is up to date. +1 Fuel Momentum",
+        normalizedType === "hydration" ? "hydrationLogged" : "fuelLogged",
+        normalizedType === "hydration" ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.",
+        normalizedType === "hydration" ? "Hydration logged. Fuel rhythm comparison updated. +1 Fuel Momentum" : "Fuel logged. Your fuel rhythm is up to date. +1 Fuel Momentum",
         { dedupeDaily: false }
       );
     } else if (typeof addActivityEntry === "function") {
-      addActivityEntry(isHydration ? "hydrationLogged" : "fuelLogged", isHydration ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
+      addActivityEntry(normalizedType === "hydration" ? "hydrationLogged" : "fuelLogged", normalizedType === "hydration" ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
     }
     save();
     renderAll();
+    window.fuelGuardCloud?.saveLog(log);
   }
 
-  recordFuelled = function recordFuelledBeta() {
-    recordRhythmLog("fuel");
+  recordFuelled = function recordFuelledBeta(options = {}) {
+    recordRhythmLog("fuel", options);
   };
 
   function recordHydration() {
-    recordRhythmLog("hydration");
+    recordRhythmLog("hydration", { source: "manual" });
   }
 
   function undoLatestRhythmLog() {
@@ -590,12 +615,13 @@
       }
     });
     if (latestIndex < 0) return;
-    betaState().logs.splice(latestIndex, 1);
-    if (latestType === "fuel") clearCooldown();
+    const removed = betaState().logs.splice(latestIndex, 1)[0];
+    if (latestType === "fuel" || latestType === "fuel_hydration") clearCooldown();
     storeArchive(key);
     addActivityEntry("fuelLogUndo", "Latest rhythm log undone.", { dedupeDaily: false });
     save();
     renderAll();
+    window.fuelGuardCloud?.deleteLog(removed);
   }
 
   endFuelDayAndStartFasting = function endFuelDayAndStartFastingBeta() {
@@ -672,7 +698,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v4-cache-fix"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v5-supabase-sync"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -681,10 +707,28 @@
       updateStatus.textContent = "Update status: ready. User logs are stored separately and will not be cleared.";
     }
     state.account = { email: "", status: "", ...(state.account || {}) };
+    const cloud = window.fuelGuardCloud?.accountView?.() || null;
     const email = document.getElementById("accountEmail");
+    const password = document.getElementById("accountPassword");
     const status = document.getElementById("accountSetupStatus");
-    if (email && document.activeElement !== email) email.value = state.account.email || "";
-    if (status) status.textContent = state.account.status || "Not logged in yet. Cloud sync backend is planned.";
+    const signIn = document.getElementById("accountSignInButton");
+    const signUp = document.getElementById("accountSignUpButton");
+    const signOut = document.getElementById("accountSignOutButton");
+    const sync = document.getElementById("accountSyncButton");
+    if (email && document.activeElement !== email) email.value = cloud?.email || state.account.email || "";
+    if (password && cloud?.signedIn && document.activeElement !== password) password.value = "";
+    if (signIn) signIn.disabled = !cloud?.configured || cloud?.signedIn;
+    if (signUp) signUp.disabled = !cloud?.configured || cloud?.signedIn;
+    if (signOut) signOut.disabled = !cloud?.signedIn;
+    if (sync) sync.disabled = !cloud?.signedIn;
+    if (status) {
+      const pending = cloud?.pending ? ` ${cloud.pending} pending local change${cloud.pending === 1 ? "" : "s"}.` : "";
+      status.textContent = state.account.status
+        ? state.account.status
+        : cloud?.status
+          ? `${cloud.status}${pending}`
+        : "Cloud sync needs Supabase public URL/key configuration.";
+    }
   }
 
   function renderAnalysisList(items) {
@@ -709,7 +753,7 @@
     if (!target) return;
     const logs = todayLogs();
     target.innerHTML = logs.length
-      ? logs.map(log => `<div class="row"><div><div class="item-name">${formatClock(log.date)} - ${logType(log) === "hydration" ? "Hydration" : "Fuel"} logged</div></div></div>`).join("")
+      ? logs.map(log => `<div class="row"><div><div class="item-name">${formatClock(log.date)} - ${logTypeLabel(log)} logged</div></div></div>`).join("")
       : `<p class="muted fuel-daily-empty">No fuel or hydration logged today.</p>`;
   }
 
@@ -1078,7 +1122,7 @@
     const selectedMode = graphMode();
     const logs = todayLogs(now).filter(log => log.date <= now);
     const fuelLogs = logs.filter(isFuelLog);
-    const hydrationLogs = logs.filter(log => !isFuelLog(log));
+    const hydrationLogs = logs.filter(isHydrationLog);
     const series = [];
     if (selectedMode === "fuel" || selectedMode === "combined") {
       series.push({ label: "Fuel", color: "#2dff88", logs: fuelLogs });
@@ -1273,8 +1317,15 @@
     renderAll();
   }
 
-  function clearBetaData() {
+  async function clearBetaData() {
     if (!window.confirm("Clear fuel beta logs, summaries, day types and thresholds?")) return;
+    const settingsStatus = document.getElementById("fuelSettingsStatus");
+    let clearStatus = "Fuel beta data cleared.";
+    try {
+      await window.fuelGuardCloud?.clearCloudLogs();
+    } catch (error) {
+      clearStatus = `Local data cleared. Cloud clear will retry: ${error?.message || "unknown error"}`;
+    }
     const gap = betaState();
     gap.logs = [];
     gap.archive = {};
@@ -1286,7 +1337,7 @@
     gap.dayEndedAt = "";
     gap.fastingStartedAt = "";
     gap.cooldownUntil = 0;
-    document.getElementById("fuelSettingsStatus").textContent = "Fuel beta data cleared.";
+    if (settingsStatus) settingsStatus.textContent = clearStatus;
     save();
     renderAll();
   }
@@ -1301,14 +1352,18 @@
   document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestRhythmLog);
   document.getElementById("graphLogHydrationButton")?.addEventListener("click", recordHydration);
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
-    setDayType(dateKey(), event.target.value);
+    const key = dateKey();
+    setDayType(key, event.target.value);
     save();
     renderAll();
+    window.fuelGuardCloud?.syncLogsForDay(key);
   });
   document.getElementById("fuelTrainingSession")?.addEventListener("change", event => {
-    setTrainingSession(dateKey(), event.target.value);
+    const key = dateKey();
+    setTrainingSession(key, event.target.value);
     save();
     renderAll();
+    window.fuelGuardCloud?.syncLogsForDay(key);
   });
   document.getElementById("fuelGraphModeControls")?.addEventListener("click", event => {
     const button = event.target.closest("[data-graph-mode]");
@@ -1333,6 +1388,9 @@
     status.dataset.userMessage = "true";
     status.textContent = event.detail?.message || "Update status changed.";
   });
+  window.addEventListener("fuelguard:cloud-status", () => {
+    if (document.getElementById("checklist")?.classList.contains("active")) renderSettings();
+  });
   document.getElementById("checkAppUpdateButton")?.addEventListener("click", async () => {
     const status = document.getElementById("appUpdateStatus");
     if (status) {
@@ -1345,15 +1403,77 @@
     }
     if (status) status.textContent = "Update status: update checker is not ready in this browser.";
   });
-  document.getElementById("accountSetupButton")?.addEventListener("click", () => {
+  function accountCredentials() {
     state.account = { email: "", status: "", ...(state.account || {}) };
     const email = document.getElementById("accountEmail")?.value.trim() || "";
+    const password = document.getElementById("accountPassword")?.value || "";
     state.account.email = email;
-    state.account.status = email
-      ? `Account setup ready for ${email}. Cloud sync backend not connected yet.`
-      : "Enter an email to set up or log in when cloud sync is connected.";
+    save();
+    return { email, password };
+  }
+
+  function setAccountStatus(message) {
+    state.account = { email: "", status: "", ...(state.account || {}), status: message };
+    const status = document.getElementById("accountSetupStatus");
+    if (status) status.textContent = message;
     save();
     renderSettings();
+  }
+
+  function clearAccountStatus() {
+    state.account = { email: "", status: "", ...(state.account || {}), status: "" };
+    save();
+  }
+
+  document.getElementById("accountSignInButton")?.addEventListener("click", async () => {
+    const { email, password } = accountCredentials();
+    if (!email || !password) {
+      setAccountStatus("Enter email and password to sign in.");
+      return;
+    }
+    try {
+      setAccountStatus("Signing in...");
+      await window.fuelGuardCloud?.signIn(email, password);
+      clearAccountStatus();
+      renderSettings();
+    } catch (error) {
+      setAccountStatus(`Sign in failed: ${error?.message || "unknown error"}`);
+    }
+  });
+  document.getElementById("accountSignUpButton")?.addEventListener("click", async () => {
+    const { email, password } = accountCredentials();
+    if (!email || !password) {
+      setAccountStatus("Enter email and password to create an account.");
+      return;
+    }
+    try {
+      setAccountStatus("Creating account...");
+      await window.fuelGuardCloud?.signUp(email, password);
+      clearAccountStatus();
+      renderSettings();
+    } catch (error) {
+      setAccountStatus(`Account creation failed: ${error?.message || "unknown error"}`);
+    }
+  });
+  document.getElementById("accountSignOutButton")?.addEventListener("click", async () => {
+    try {
+      setAccountStatus("Signing out...");
+      await window.fuelGuardCloud?.signOut();
+      clearAccountStatus();
+      renderSettings();
+    } catch (error) {
+      setAccountStatus(`Sign out failed: ${error?.message || "unknown error"}`);
+    }
+  });
+  document.getElementById("accountSyncButton")?.addEventListener("click", async () => {
+    try {
+      setAccountStatus("Syncing...");
+      await window.fuelGuardCloud?.syncNow();
+      clearAccountStatus();
+      renderSettings();
+    } catch (error) {
+      setAccountStatus(`Sync failed: ${error?.message || "unknown error"}`);
+    }
   });
 
   let graphResizeQueued = false;

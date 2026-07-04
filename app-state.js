@@ -19,7 +19,12 @@ const DEFAULT_STATE = {
     dayEndedDate: "",
     dayEndedAt: "",
     fastingStartedAt: "",
-    cooldownUntil: 0
+    cooldownUntil: 0,
+    cloud: {
+      pendingDeleteIds: [],
+      lastSyncedAt: "",
+      lastError: ""
+    }
   },
   account: {
     email: "",
@@ -65,6 +70,13 @@ function load() {
         thresholds: {
           ...defaults.fuelGap.thresholds,
           ...(isPlainObject(parsedFuelGap.thresholds) ? parsedFuelGap.thresholds : {})
+        },
+        cloud: {
+          ...defaults.fuelGap.cloud,
+          ...(isPlainObject(parsedFuelGap.cloud) ? parsedFuelGap.cloud : {}),
+          pendingDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingDeleteIds)
+            ? parsedFuelGap.cloud.pendingDeleteIds
+            : []
         }
       },
       account: {
@@ -92,7 +104,16 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-const uid = () => Math.random().toString(36).slice(2, 9);
+const uid = () => {
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.randomUUID) return browserCrypto.randomUUID();
+  if (browserCrypto?.getRandomValues) {
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, char =>
+      (Number(char) ^ browserCrypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(char) / 4).toString(16)
+    );
+  }
+  return Math.random().toString(36).slice(2, 9);
+};
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
