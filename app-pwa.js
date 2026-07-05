@@ -1,6 +1,6 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v9-cloud-log-normalize";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v10-esp32-csv-import";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;

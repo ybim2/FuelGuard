@@ -7,6 +7,8 @@
   const AUTH_EMAIL_SENT_MESSAGE = "Email sent. Check your inbox before requesting another one.";
   const AUTH_RATE_LIMIT_MESSAGE = "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
   const AUTH_EXISTING_ACCOUNT_MESSAGE = "This account may already exist. Try logging in, or wait before requesting another confirmation email.";
+  const FUEL_CSV_REQUIRED_HEADERS = ["schema_version", "event_id", "event_type", "logged_at_iso", "logged_at_ms", "source", "device_id"];
+  const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
     { value: "competition", label: "Competition Day" },
     { value: "travel", label: "Travelling Day" },
@@ -65,6 +67,9 @@
   let selectedHistoryKey = "";
   let selectedTrainingFilter = "all";
   let accountBusy = false;
+  let csvImportBusy = false;
+  let csvImportPreview = null;
+  let csvImportStatus = "";
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -160,6 +165,184 @@
       || text.includes("already registered")
       || (text.includes("confirmation") && text.includes("already"));
   }
+
+  function parseCsvLine(line) {
+    const cells = [];
+    let value = "";
+    let quoted = false;
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+      const next = line[index + 1];
+      if (char === '"' && quoted && next === '"') {
+        value += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = !quoted;
+      } else if (char === "," && !quoted) {
+        cells.push(value);
+        value = "";
+      } else {
+        value += char;
+      }
+    }
+    cells.push(value);
+    return cells.map(cell => cell.trim());
+  }
+
+  function parseFuelCsvText(text) {
+    const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r\n|\n|\r/);
+    const headerIndex = lines.findIndex(line => line.trim());
+    if (headerIndex < 0) return { recognized: false, rows: [] };
+    const headers = parseCsvLine(lines[headerIndex]).map(header => header.trim());
+    const missing = FUEL_CSV_REQUIRED_HEADERS.filter(header => !headers.includes(header));
+    if (missing.length) return { recognized: false, rows: [] };
+
+    const rows = [];
+    for (let index = headerIndex + 1; index < lines.length; index += 1) {
+      if (!lines[index].trim()) continue;
+      const cells = parseCsvLine(lines[index]);
+      const row = { __line: index + 1 };
+      headers.forEach((header, cellIndex) => {
+        row[header] = cells[cellIndex] || "";
+      });
+      rows.push(row);
+    }
+    return { recognized: true, rows };
+  }
+
+  function timestampFromFuelCsvRow(row, now = new Date()) {
+    const isoText = String(row.logged_at_iso || "").trim();
+    let date = null;
+    if (isoText) {
+      date = logDate(isoText);
+      if (!date) return null;
+    } else {
+      const ms = Number(String(row.logged_at_ms || "").trim());
+      date = Number.isFinite(ms) && ms > 0 ? new Date(ms) : null;
+    }
+    if (!date || Number.isNaN(date.getTime())) return null;
+    if (date.getTime() - now.getTime() > FUEL_CSV_FUTURE_LIMIT_MS) return null;
+    return date.toISOString();
+  }
+
+  function importHashParts(input) {
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    let h3 = 0xc0decafe;
+    let h4 = 0xfeedface;
+    for (let index = 0; index < input.length; index += 1) {
+      const code = input.charCodeAt(index);
+      h1 = Math.imul(h1 ^ code, 2654435761);
+      h2 = Math.imul(h2 ^ code, 1597334677);
+      h3 = Math.imul(h3 ^ code, 2246822507);
+      h4 = Math.imul(h4 ^ code, 3266489909);
+    }
+    h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507) ^ Math.imul(h2 ^ h2 >>> 13, 3266489909);
+    h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507) ^ Math.imul(h3 ^ h3 >>> 13, 3266489909);
+    h3 = Math.imul(h3 ^ h3 >>> 16, 2246822507) ^ Math.imul(h4 ^ h4 >>> 13, 3266489909);
+    h4 = Math.imul(h4 ^ h4 >>> 16, 2246822507) ^ Math.imul(h1 ^ h1 >>> 13, 3266489909);
+    return [h1 >>> 0, h2 >>> 0, h3 >>> 0, h4 >>> 0];
+  }
+
+  function deterministicImportUuid(key) {
+    const bytes = [];
+    importHashParts(key).forEach(part => {
+      bytes.push(part >>> 24 & 255, part >>> 16 & 255, part >>> 8 & 255, part & 255);
+    });
+    bytes[6] = bytes[6] & 15 | 80;
+    bytes[8] = bytes[8] & 63 | 128;
+    const hex = bytes.map(byte => byte.toString(16).padStart(2, "0"));
+    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+  }
+
+  function importKeyForCsvRow(row, timestamp) {
+    const eventId = String(row.event_id || "").trim();
+    if (eventId) return `event:${eventId}`;
+    const source = String(row.source || "").trim();
+    const deviceId = String(row.device_id || "").trim();
+    return `fallback:${timestamp}|${source}|${deviceId}`;
+  }
+
+  function existingFuelImportKeys() {
+    const keys = new Set();
+    betaState().logs.forEach(log => {
+      const id = log.cloudId || log.id;
+      if (id) keys.add(`id:${id}`);
+      if (log.importEventId) keys.add(`event:${log.importEventId}`);
+      const date = logDate(log);
+      if (date && (log.importSource || log.importDeviceId)) {
+        keys.add(`fallback:${date.toISOString()}|${log.importSource || ""}|${log.importDeviceId || ""}`);
+      }
+    });
+    return keys;
+  }
+
+  function buildFuelCsvImportPreview(csvText, options = {}) {
+    const parsed = parseFuelCsvText(csvText);
+    if (!parsed.recognized) return { recognized: false, logs: [], duplicateCount: 0, invalidCount: 0 };
+
+    const now = options.now || new Date();
+    const seen = existingFuelImportKeys();
+    const logs = [];
+    let duplicateCount = 0;
+    let invalidCount = 0;
+
+    parsed.rows.forEach(row => {
+      if (row.event_type !== "FUEL_LOG") {
+        invalidCount += 1;
+        return;
+      }
+      const timestamp = timestampFromFuelCsvRow(row, now);
+      if (!timestamp) {
+        invalidCount += 1;
+        return;
+      }
+      const importKey = importKeyForCsvRow(row, timestamp);
+      const id = deterministicImportUuid(importKey);
+      const idKey = `id:${id}`;
+      if (seen.has(importKey) || seen.has(idKey)) {
+        duplicateCount += 1;
+        return;
+      }
+      seen.add(importKey);
+      seen.add(idKey);
+      const key = dateKey(logDate(timestamp));
+      logs.push({
+        id,
+        timestamp,
+        label: "Fuelled",
+        type: "fuel",
+        source: "csv_import",
+        dayType: dayTypeForKey(key),
+        trainingSession: trainingSessionForKey(key),
+        importEventId: String(row.event_id || "").trim(),
+        importSource: String(row.source || "").trim(),
+        importDeviceId: String(row.device_id || "").trim(),
+        syncStatus: "pending"
+      });
+    });
+
+    const dates = logs.map(log => logDate(log)).filter(Boolean).sort((a, b) => a - b);
+    return {
+      recognized: true,
+      logs,
+      validCount: logs.length,
+      duplicateCount,
+      invalidCount,
+      earliest: dates[0] || null,
+      latest: dates[dates.length - 1] || null
+    };
+  }
+
+  async function importFuelLogsFromCsv(file) {
+    const text = await file.text();
+    return buildFuelCsvImportPreview(text);
+  }
+
+  window.fuelGuardCsvImport = {
+    importFuelLogsFromCsv,
+    buildFuelCsvImportPreview
+  };
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -777,6 +960,45 @@
     }
   }
 
+  function setCsvImportStatus(message) {
+    csvImportStatus = message || "";
+    const status = document.getElementById("fuelCsvImportStatus");
+    if (status) status.textContent = csvImportStatus;
+  }
+
+  function formatImportTimestamp(date) {
+    return date
+      ? date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+      : "--";
+  }
+
+  function renderCsvImportPanel() {
+    const preview = document.getElementById("fuelCsvImportPreview");
+    const importButton = document.getElementById("fuelCsvImportButton");
+    const confirmButton = document.getElementById("fuelCsvImportConfirmButton");
+    const valid = document.getElementById("fuelCsvImportValidCount");
+    const duplicates = document.getElementById("fuelCsvImportDuplicateCount");
+    const invalid = document.getElementById("fuelCsvImportInvalidCount");
+    const earliest = document.getElementById("fuelCsvImportEarliest");
+    const latest = document.getElementById("fuelCsvImportLatest");
+    const hasPreview = Boolean(csvImportPreview);
+
+    if (importButton) importButton.disabled = csvImportBusy;
+    if (preview) preview.hidden = !hasPreview;
+    if (confirmButton) confirmButton.disabled = csvImportBusy || !csvImportPreview?.logs?.length;
+    if (valid) valid.textContent = String(csvImportPreview?.validCount || 0);
+    if (duplicates) duplicates.textContent = String(csvImportPreview?.duplicateCount || 0);
+    if (invalid) invalid.textContent = String(csvImportPreview?.invalidCount || 0);
+    if (earliest) earliest.textContent = formatImportTimestamp(csvImportPreview?.earliest);
+    if (latest) latest.textContent = formatImportTimestamp(csvImportPreview?.latest);
+
+    const status = document.getElementById("fuelCsvImportStatus");
+    if (status) {
+      status.setAttribute("aria-busy", csvImportBusy ? "true" : "false");
+      status.textContent = csvImportStatus;
+    }
+  }
+
   function renderSettings() {
     const green = document.getElementById("greenThresholdMinutes");
     const red = document.getElementById("redThresholdMinutes");
@@ -787,7 +1009,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v8-auth-rate-limit"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v10-esp32-csv-import"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -848,6 +1070,7 @@
           ? `${cloud.status}${pending}`
         : "Cloud sync needs Supabase public URL/key configuration.";
     }
+    renderCsvImportPanel();
   }
 
   function renderAnalysisList(items) {
@@ -1461,6 +1684,45 @@
     renderAll();
   }
 
+  async function commitFuelCsvImport() {
+    if (!csvImportPreview?.logs?.length) {
+      setCsvImportStatus("No valid fuel logs found.");
+      renderSettings();
+      return;
+    }
+
+    csvImportBusy = true;
+    setCsvImportStatus("Importing fuel logs...");
+    try {
+      const gap = betaState();
+      csvImportPreview.logs.forEach(log => {
+        gap.logs.push(log);
+        const date = logDate(log);
+        if (date) storeArchive(dateKey(date));
+      });
+      state.completed.liveFuelStatus = true;
+      save();
+      renderAll();
+      const cloud = window.fuelGuardCloud?.accountView?.() || {};
+      const canSyncNow = Boolean(cloud.configured && cloud.signedIn && navigator.onLine !== false);
+      await window.fuelGuardCloud?.syncNow?.();
+      const skipped = csvImportPreview.invalidCount > 0;
+      csvImportStatus = skipped
+        ? "Fuel logs imported. Some invalid rows were skipped."
+        : canSyncNow
+          ? "Fuel logs imported and synced."
+          : "Fuel logs imported. Sign in to sync.";
+      csvImportPreview = null;
+      const fileInput = document.getElementById("fuelCsvImportFileInput");
+      if (fileInput) fileInput.value = "";
+    } catch (error) {
+      csvImportStatus = `Import failed: ${error?.message || "unknown error"}`;
+    } finally {
+      csvImportBusy = false;
+      renderAll();
+    }
+  }
+
   document.querySelectorAll(".mobile-nav-item").forEach(button => {
     button.onclick = () => {
       switchScreen(button.dataset.mobileScreen);
@@ -1501,6 +1763,36 @@
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
+  document.getElementById("fuelCsvImportButton")?.addEventListener("click", () => {
+    const input = document.getElementById("fuelCsvImportFileInput");
+    if (!input || csvImportBusy) return;
+    input.value = "";
+    input.click();
+  });
+  document.getElementById("fuelCsvImportFileInput")?.addEventListener("change", async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    csvImportBusy = true;
+    csvImportPreview = null;
+    setCsvImportStatus("Reading CSV...");
+    try {
+      const preview = await importFuelLogsFromCsv(file);
+      if (!preview.recognized) {
+        csvImportStatus = "CSV format not recognised. Please export logs from your FG button and try again.";
+        return;
+      }
+      csvImportPreview = preview;
+      csvImportStatus = preview.logs.length
+        ? "Review the fuel logs before importing."
+        : "No valid fuel logs found.";
+    } catch (error) {
+      csvImportStatus = `Import failed: ${error?.message || "unknown error"}`;
+    } finally {
+      csvImportBusy = false;
+      renderSettings();
+    }
+  });
+  document.getElementById("fuelCsvImportConfirmButton")?.addEventListener("click", commitFuelCsvImport);
   window.addEventListener("fuelguard:pwa-update-status", event => {
     const status = document.getElementById("appUpdateStatus");
     if (!status) return;

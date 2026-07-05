@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v9-cloud-log-normalize" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v9-cloud-log-normalize" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v9-cloud-log-normalize" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v10-esp32-csv-import" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v10-esp32-csv-import" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v10-esp32-csv-import" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -168,7 +168,7 @@
           <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
           <div class="beta-version-marker" aria-label="Canonical app version">
             <strong>Fuel Guard Mobile PWA</strong>
-            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v9-cloud-log-normalize</span>
+            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v10-esp32-csv-import</span>
             <span id="buildVersionMarker">Build version: loading...</span>
           </div>
           <div class="form-grid beta-settings-grid">
@@ -202,6 +202,29 @@
             <button id="connectFgButton" class="secondary" type="button">Connect FG Button</button>
             <span id="fgButtonStatus" class="row-note" aria-live="polite">FG Button: disconnected.</span>
           </div>
+        </article>
+
+        <article class="card beta-import-card">
+          <h2>Import Fuel Guard logs</h2>
+          <p class="muted">Upload a CSV from your FG button to add fuel logs from your hardware device.</p>
+          <input id="fuelCsvImportFileInput" type="file" accept=".csv,text/csv" hidden>
+          <div class="button-row beta-settings-actions">
+            <button id="fuelCsvImportButton" class="secondary" type="button">Import CSV</button>
+          </div>
+          <div id="fuelCsvImportPreview" class="beta-import-preview" hidden>
+            <strong>Ready to import</strong>
+            <div class="beta-import-stats">
+              <div><span>Valid fuel logs</span><strong id="fuelCsvImportValidCount">0</strong></div>
+              <div><span>Duplicates ignored</span><strong id="fuelCsvImportDuplicateCount">0</strong></div>
+              <div><span>Invalid rows skipped</span><strong id="fuelCsvImportInvalidCount">0</strong></div>
+              <div><span>Earliest log</span><strong id="fuelCsvImportEarliest">--</strong></div>
+              <div><span>Latest log</span><strong id="fuelCsvImportLatest">--</strong></div>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="fuelCsvImportConfirmButton" class="primary" type="button">Import logs</button>
+            </div>
+          </div>
+          <p id="fuelCsvImportStatus" class="row-note" aria-live="polite"></p>
         </article>
 
         <article class="card beta-account-card">
@@ -268,17 +291,17 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
+  <script src="build-info.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v10-esp32-csv-import"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="app-ui.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
-  <script src="fg-button-ble.js?v=mobile-pwa-v9-cloud-log-normalize"></script>
+  <script src="app-state.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="app-ui.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="fg-button-ble.js?v=mobile-pwa-v10-esp32-csv-import"></script>
 </body>
 </html>

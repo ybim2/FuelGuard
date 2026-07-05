@@ -249,6 +249,7 @@
 
 .beta-account-card,
 .beta-device-card,
+.beta-import-card,
 .beta-update-card {
   margin-top: 0;
 }
@@ -312,6 +313,49 @@
 
 .beta-update-build strong {
   color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.beta-import-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.beta-import-preview[hidden] {
+  display: none;
+}
+
+.beta-import-preview > strong {
+  color: var(--text);
+  font-size: .95rem;
+}
+
+.beta-import-stats {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+.beta-import-stats div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-import-stats span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.beta-import-stats strong {
+  color: var(--text);
+  font-size: .88rem;
   overflow-wrap: anywhere;
 }
 
