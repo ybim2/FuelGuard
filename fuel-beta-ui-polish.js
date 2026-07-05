@@ -5,14 +5,14 @@
     green: "Low risk",
     amber: "Medium risk",
     red: "High risk",
-    crash: "Under-fuelled / crash risk"
+    crash: "Fuel crash zone / under-fuelled zone"
   };
 
   const RISK_ACTIONS = {
-    green: "timing looks okay",
-    amber: "plan food soon",
-    red: "get fuel available now",
-    crash: "fuel and recovery may be needed now"
+    green: "rhythm looks okay",
+    amber: "maybe have a snack now",
+    red: "you are likely very hungry; get fuel now",
+    crash: "you may have gone too long; refuel and recover now"
   };
 
   let applying = false;
@@ -41,9 +41,11 @@
   function limits() {
     const gap = gapState();
     if (!gap.thresholds || typeof gap.thresholds !== "object") gap.thresholds = {};
-    gap.thresholds.greenMinutes = Number(gap.thresholds.greenMinutes || 180);
-    gap.thresholds.redMinutes = Number(gap.thresholds.redMinutes || 300);
-    if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 60;
+    gap.thresholds.greenMinutes = Number(gap.thresholds.greenMinutes || 150);
+    gap.thresholds.redMinutes = Number(gap.thresholds.redMinutes || 180);
+    if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 30;
+    gap.thresholds.crashMinutes = Number(gap.thresholds.crashMinutes || 220);
+    if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
     return gap.thresholds;
   }
 
@@ -75,19 +77,22 @@
     const logActions = document.querySelector(".beta-log-actions");
     const cooldown = document.getElementById("foodLogCooldownMessage");
     const risk = document.getElementById("fuelGapNextAction");
+    const statusStack = document.querySelector(".beta-rhythm-status-stack");
     const status = document.getElementById("fuelStatusContext");
     const graph = document.querySelector(".beta-graph-wrap");
     const undo = document.getElementById("undoLatestFoodLog");
     const insights = document.getElementById("fuelGapInsights");
     const todayLog = document.querySelector(".beta-today-log");
     const dayControls = document.querySelector(".beta-day-controls");
-    moveElementBefore(dayType, header);
-    moveElementAfter(logActions, header || dayType);
+    moveElementBefore(header, dayType);
+    moveElementAfter(dayType, header);
+    moveElementAfter(logActions, dayType || header);
     moveElementAfter(cooldown, logActions);
     moveElementAfter(graph, cooldown || logActions);
-    moveElementAfter(undo, graph);
-    moveElementAfter(status, risk);
-    moveElementAfter(insights, undo || graph);
+    moveElementAfter(statusStack, graph);
+    moveElementAfter(undo, statusStack || graph);
+    moveElementAfter(status, undo || statusStack);
+    moveElementAfter(insights, undo || statusStack || graph);
     moveElementBefore(todayLog, dayControls);
   }
 
@@ -126,7 +131,7 @@
         const greenHours = trimHour(limits().greenMinutes / 60);
         const redHours = trimHour(limits().redMinutes / 60);
         const crashHours = trimHour(Number(limits().crashMinutes || limits().redMinutes + 60) / 60);
-        const copy = `Low risk under ${greenHours}h. Medium risk from ${greenHours}-${redHours}h. High risk from ${redHours}-${crashHours}h. Crash zone after ${crashHours}h.`;
+        const copy = `Low risk under ${greenHours}h. Medium risk from ${greenHours}-${redHours}h is an early nudge. High risk from ${redHours}-${crashHours}h is a serious warning. Crash zone after ${crashHours}h.`;
         if (small.textContent !== copy) small.textContent = copy;
       }
     });

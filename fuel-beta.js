@@ -711,14 +711,14 @@
     if (status === "green") return "Low Risk";
     if (status === "amber") return "Medium Risk";
     if (status === "red") return "High Risk";
-    return "Under-fuelled / Crash Risk";
+    return "Fuel Crash Zone / Under-fuelled Zone";
   }
 
   function riskZone(score) {
     if (score <= 30) return { label: "Low risk", tone: "green" };
     if (score <= 60) return { label: "Medium risk", tone: "amber" };
     if (score <= 80) return { label: "High risk", tone: "red" };
-    return { label: "Under-fuelled / crash risk", tone: "crash" };
+    return { label: "Fuel / hydration crash zone", tone: "crash" };
   }
 
   function scoreFromGap(minutes, greenMinutes, redMinutes, crashMinutes) {
@@ -1015,12 +1015,12 @@
     const minutes = minutesSinceLastFuel(now);
     const status = fuelGapStatus(minutes);
     const statusText = status === "green"
-      ? "Fuel gap is currently under control."
+      ? "Fuel rhythm is currently under control."
       : status === "amber"
-        ? "Fuel gap is building. Plan fuel soon."
+        ? "Medium Risk: maybe have a snack now."
         : status === "red"
-          ? "High Risk fuel gap. Get fuel available now."
-          : "Under-fuelled / crash-risk zone. Fuel and recovery may be needed now.";
+          ? "High Risk: you are likely very hungry and the fuel gap is risky."
+          : "Fuel Crash Zone / Under-fuelled Zone: you may have gone too long. Refuel and recover now.";
 
     return {
       lastFuelled: last ? formatClock(last.date) : "No fuel logged",
@@ -1192,7 +1192,7 @@
     const analysis = analyseDay(dateKey());
     target.innerHTML = `
       <div class="fuel-gap-insight"><span>Time since last fuel</span><strong>${safeText(snapshot.timeSinceFuel)}</strong><small>Core beta signal.</small></div>
-      <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</strong><small>Estimated behavioural fuelling risk, not a medical diagnosis. The crash marker records what you actually felt.</small></div>
+      <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</strong><small>Estimated fuelling/hydration rhythm risk, not a medical diagnosis. The crash marker records what you actually felt.</small></div>
       <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap Log Fuel to start."}</small></div>
       <div class="fuel-gap-insight"><span>High Risk gaps today</span><strong>${analysis.highRiskGapCount}</strong><small>Gaps at or over red threshold.</small></div>
       <div class="fuel-gap-insight"><span>Fuel logs today</span><strong>${analysis.fuelLogCount}</strong><small>Real logged fuel points.</small></div>
@@ -1273,7 +1273,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v14-risk-thresholds"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v15-rhythm-graph-labels"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1999,7 +1999,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const padding = { left: 40, right: 22, top: 36, bottom: 38 };
+    const padding = { left: 54, right: 24, top: 54, bottom: 42 };
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
@@ -2044,14 +2044,15 @@
       [1080, "18:00"],
       [1440, "24:00"]
     ].forEach(([minute, label]) => {
-      ctx.fillText(label, xForMinute(minute), cssHeight - 12);
+      ctx.fillText(label, clamp(xForMinute(minute), padding.left + 10, cssWidth - padding.right - 10), cssHeight - 12);
     });
     ctx.textAlign = "left";
-    ctx.fillText("logs", 6, padding.top + 4);
-    ctx.fillText(String(maxCount), 11, yForCount(maxCount) + 4);
-    ctx.fillText("0", 18, bottom + 4);
+    ctx.fillText("Logs", 8, 18);
+    ctx.textAlign = "right";
+    ctx.fillText(String(maxCount), padding.left - 8, yForCount(maxCount) + 4);
+    ctx.fillText("0", padding.left - 8, bottom + 4);
 
-    const labelY = 20;
+    const labelY = padding.top - 16;
     const labelGap = Math.min(142, Math.max(96, plotWidth * 0.24));
     series.forEach((item, index) => {
       const labelX = series.length === 1
@@ -2110,7 +2111,7 @@
     ctx.fillStyle = "rgba(245,255,248,.62)";
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), labelY);
+    ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), padding.top + 14);
     ctx.textAlign = "left";
   }
 
@@ -2131,10 +2132,10 @@
   }
 
   function drawRiskGraphCanvas(canvas, key, { now = new Date(), endedAt = "", compact = false } = {}) {
-    const prepared = prepareCanvas(canvas, 320, compact ? 150 : 190);
+    const prepared = prepareCanvas(canvas, 320, compact ? 160 : 210);
     if (!prepared) return 0;
     const { ctx, cssWidth, cssHeight } = prepared;
-    const padding = { left: compact ? 34 : 42, right: 20, top: 18, bottom: 30 };
+    const padding = { left: compact ? 44 : 58, right: compact ? 16 : 24, top: compact ? 34 : 44, bottom: compact ? 32 : 40 };
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
@@ -2216,11 +2217,14 @@
       [720, "12pm"],
       [1080, "6pm"],
       [1440, "12am"]
-    ].forEach(([minute, label]) => ctx.fillText(label, xForMinute(minute), cssHeight - 10));
+    ].forEach(([minute, label]) => {
+      ctx.fillText(label, clamp(xForMinute(minute), padding.left + 10, cssWidth - padding.right - 10), cssHeight - 10);
+    });
     ctx.textAlign = "left";
-    ctx.fillText("Risk", 6, padding.top + 4);
-    ctx.fillText("100", 8, yForScore(100) + 4);
-    ctx.fillText("0", 18, bottom + 4);
+    ctx.fillText(compact ? "Risk" : "Risk score", 8, compact ? 16 : 18);
+    ctx.textAlign = "right";
+    ctx.fillText("100", padding.left - 8, yForScore(100) + 4);
+    ctx.fillText("0", padding.left - 8, bottom + 4);
     return samples.length ? samples[samples.length - 1].score : 0;
   }
 

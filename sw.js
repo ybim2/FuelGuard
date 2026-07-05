@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v14-risk-thresholds";
-const BUILD_VERSION = "2026-07-05T11:57:00Z";
+const APP_VERSION = "mobile-pwa-v15-rhythm-graph-labels";
+const BUILD_VERSION = "2026-07-05T12:25:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v14-risk-thresholds-20260705T115700Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v15-rhythm-graph-labels-20260705T122500Z";
 const APP_SHELL = [
   "./",
   "./index.html",

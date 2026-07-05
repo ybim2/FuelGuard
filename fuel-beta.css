@@ -30,23 +30,35 @@
 }
 
 .beta-rhythm-header {
-  order: 2;
-  margin-bottom: 12px;
+  order: 1;
+  display: block;
+  margin-bottom: 4px;
 }
 
 .beta-day-type-row {
-  order: 1;
+  order: 2;
 }
 
 .beta-rhythm-status-stack {
+  order: 6;
   display: grid;
   gap: 8px;
-  justify-items: end;
-  min-width: min(100%, 230px);
+  justify-items: start;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+  margin-top: 2px;
+  text-align: left;
 }
 
 .beta-rhythm-status-stack #fuelGapNextAction {
   max-width: 100%;
+}
+
+.beta-rhythm-status-stack .fuel-last-ate-badge {
+  justify-self: start;
+  max-width: 100%;
+  text-align: left;
 }
 
 .beta-log-actions {
@@ -62,7 +74,7 @@
 }
 
 .beta-mvp #fuelStatusContext {
-  order: 8;
+  order: 9;
 }
 
 .beta-graph-wrap {
@@ -70,14 +82,14 @@
 }
 
 .beta-undo-log-button {
-  order: 6;
+  order: 7;
   width: 100%;
   min-height: 44px;
   margin: 0;
 }
 
 .beta-gap-insights {
-  order: 7;
+  order: 8;
 }
 
 .beta-rhythm-status-row {
@@ -92,7 +104,8 @@
   min-width: min(100%, 280px);
 }
 
-.beta-rhythm-header h2 {
+.beta-panel-title {
+  margin: 0;
   font-size: clamp(1.7rem, 3vw, 2.45rem);
   line-height: 1.05;
 }
@@ -151,7 +164,7 @@
   display: grid;
   grid-template-rows: auto minmax(200px, 1fr);
   gap: 14px;
-  min-height: 282px;
+  min-height: 302px;
   aspect-ratio: auto;
   margin-top: 12px;
   padding: 12px;
@@ -159,7 +172,7 @@
 }
 
 .beta-graph-wrap #fuelRhythmGraph {
-  height: 222px;
+  height: 242px;
   min-height: 200px;
 }
 

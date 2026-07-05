@@ -280,12 +280,12 @@ function fuelGapSnapshot(now = new Date()) {
   const elapsedMinutes = minutesSinceLastFuel(now);
   const status = fuelGapStatus(elapsedMinutes);
   const statusText = status === "green"
-    ? "Fuel gap is currently under control."
+    ? "Fuel rhythm is currently under control."
     : status === "amber"
-      ? "Fuel gap is building. Plan fuel soon."
+      ? "Medium Risk: maybe have a snack now."
       : status === "red"
-        ? "High Risk fuel gap. Get fuel available now."
-        : "Under-fuelled / crash-risk zone. Fuel and recovery may be needed now.";
+        ? "High Risk: you are likely very hungry and the fuel gap is risky."
+        : "Fuel Crash Zone / Under-fuelled Zone: you may have gone too long. Refuel and recover now.";
 
   return {
     lastFuelled: last ? formatClock(last.date) : "No fuel logged",
