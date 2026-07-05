@@ -81,6 +81,54 @@
   line-height: 1.4;
 }
 
+.beta-crash-cost-insight {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.fuel-debt-status.beta-crash-cost-insight {
+  padding: 12px;
+}
+
+.beta-crash-cost-insight.mild {
+  border-color: rgba(255,176,32,.24);
+  background: rgba(255,176,32,.07);
+}
+
+.beta-crash-cost-insight.medium {
+  border-color: rgba(255,176,32,.36);
+  background: rgba(255,176,32,.1);
+}
+
+.beta-crash-cost-insight.high {
+  border-color: rgba(255,77,109,.42);
+  background: rgba(255,77,109,.1);
+}
+
+.beta-crash-cost-insight h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: .95rem;
+}
+
+.beta-crash-cost-insight ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beta-crash-cost-insight li {
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.42;
+}
+
 .beta-log-actions {
   order: 4;
   display: grid;
