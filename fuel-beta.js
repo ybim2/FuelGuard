@@ -1,7 +1,14 @@
 // Fuel Guard canonical mobile PWA layer.
 // Focuses the app on real fuel and hydration logging, history, and settings.
 (() => {
-  const DEFAULT_THRESHOLDS = { greenMinutes: 180, redMinutes: 300 };
+  const DEFAULT_THRESHOLDS = {
+    greenMinutes: 150,
+    redMinutes: 180,
+    crashMinutes: 220,
+    hydrationGreenMinutes: 90,
+    hydrationRedMinutes: 120,
+    hydrationCrashMinutes: 180
+  };
   const FOOD_LOG_COOLDOWN_MS = 60000;
   const AUTH_EMAIL_COOLDOWN_MS = 60 * 60 * 1000;
   const AUTH_EMAIL_SENT_MESSAGE = "Email sent. Check your inbox before requesting another one.";
@@ -421,9 +428,20 @@
     if (!gap.trainingSessions || Array.isArray(gap.trainingSessions)) gap.trainingSessions = {};
     if (!gap.archive || Array.isArray(gap.archive)) gap.archive = {};
     if (!gap.thresholds || typeof gap.thresholds !== "object") gap.thresholds = { ...DEFAULT_THRESHOLDS };
+    const hasCrashThreshold = Number.isFinite(Number(gap.thresholds.crashMinutes));
+    if (!hasCrashThreshold && Number(gap.thresholds.greenMinutes) === 180 && Number(gap.thresholds.redMinutes) === 300) {
+      gap.thresholds = { ...gap.thresholds, ...DEFAULT_THRESHOLDS };
+    }
     gap.thresholds.greenMinutes = Number(gap.thresholds.greenMinutes || DEFAULT_THRESHOLDS.greenMinutes);
     gap.thresholds.redMinutes = Number(gap.thresholds.redMinutes || DEFAULT_THRESHOLDS.redMinutes);
-    if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 60;
+    gap.thresholds.crashMinutes = Number(gap.thresholds.crashMinutes || DEFAULT_THRESHOLDS.crashMinutes);
+    gap.thresholds.hydrationGreenMinutes = Number(gap.thresholds.hydrationGreenMinutes || DEFAULT_THRESHOLDS.hydrationGreenMinutes);
+    gap.thresholds.hydrationRedMinutes = Number(gap.thresholds.hydrationRedMinutes || DEFAULT_THRESHOLDS.hydrationRedMinutes);
+    gap.thresholds.hydrationCrashMinutes = Number(gap.thresholds.hydrationCrashMinutes || DEFAULT_THRESHOLDS.hydrationCrashMinutes);
+    if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 30;
+    if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
+    if (gap.thresholds.hydrationRedMinutes <= gap.thresholds.hydrationGreenMinutes) gap.thresholds.hydrationRedMinutes = gap.thresholds.hydrationGreenMinutes + 15;
+    if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
     if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "fuel";
     normalizeStoredDayTypes(gap);
     return gap;
@@ -435,10 +453,11 @@
 
   fuelGapStatus = function fuelGapStatusBeta(minutes) {
     const limits = thresholds();
-    if (!Number.isFinite(minutes)) return "red";
+    if (!Number.isFinite(minutes)) return "crash";
     if (minutes < limits.greenMinutes) return "green";
     if (minutes < limits.redMinutes) return "amber";
-    return "red";
+    if (minutes < limits.crashMinutes) return "red";
+    return "crash";
   };
 
   function dateKey(date = new Date()) {
@@ -473,6 +492,17 @@
     const date = startOfDay();
     date.setMinutes(Math.round(minutes));
     return formatClock(date);
+  }
+
+  function hoursValue(minutes) {
+    const value = Number(minutes || 0) / 60;
+    return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+  }
+
+  function minutesFromHoursField(id, fallbackMinutes, { min = 15, max = 720 } = {}) {
+    const raw = Number(document.getElementById(id)?.value);
+    const minutes = Number.isFinite(raw) ? Math.round(raw * 60) : fallbackMinutes;
+    return clamp(minutes, min, max);
   }
 
   function addMinutes(date, minutes) {
@@ -661,29 +691,51 @@
     return thresholds().redMinutes;
   }
 
+  function crashRiskLimit() {
+    return thresholds().crashMinutes;
+  }
+
+  function hydrationGreenLimit() {
+    return thresholds().hydrationGreenMinutes;
+  }
+
   function hydrationRiskLimit() {
-    return Math.max(90, Math.round(thresholds().redMinutes * 0.7));
+    return thresholds().hydrationRedMinutes;
+  }
+
+  function hydrationCrashRiskLimit() {
+    return thresholds().hydrationCrashMinutes;
+  }
+
+  function riskStatusLabel(status) {
+    if (status === "green") return "Low Risk";
+    if (status === "amber") return "Medium Risk";
+    if (status === "red") return "High Risk";
+    return "Under-fuelled / Crash Risk";
   }
 
   function riskZone(score) {
     if (score <= 30) return { label: "Low risk", tone: "green" };
     if (score <= 60) return { label: "Medium risk", tone: "amber" };
     if (score <= 80) return { label: "High risk", tone: "red" };
-    return { label: "Crash risk", tone: "red" };
+    return { label: "Under-fuelled / crash risk", tone: "crash" };
   }
 
-  function scoreFromGap(minutes, greenMinutes, redMinutes) {
+  function scoreFromGap(minutes, greenMinutes, redMinutes, crashMinutes) {
     if (!Number.isFinite(minutes) || minutes < 0) return 0;
     if (minutes <= greenMinutes) return clamp((minutes / Math.max(1, greenMinutes)) * 30, 0, 30);
     if (minutes <= redMinutes) {
-      return 30 + ((minutes - greenMinutes) / Math.max(1, redMinutes - greenMinutes)) * 50;
+      return 30 + ((minutes - greenMinutes) / Math.max(1, redMinutes - greenMinutes)) * 30;
     }
-    return clamp(80 + ((minutes - redMinutes) / Math.max(1, redMinutes * 0.4)) * 20, 80, 100);
+    if (minutes <= crashMinutes) {
+      return 60 + ((minutes - redMinutes) / Math.max(1, crashMinutes - redMinutes)) * 20;
+    }
+    return clamp(80 + ((minutes - crashMinutes) / Math.max(1, crashMinutes * 0.35)) * 20, 80, 100);
   }
 
   function riskScoreForGaps(fuelMinutes, hydrationMinutes) {
-    const fuelScore = scoreFromGap(fuelMinutes, thresholds().greenMinutes, thresholds().redMinutes);
-    const hydrationScore = scoreFromGap(hydrationMinutes, Math.round(thresholds().greenMinutes * 0.7), hydrationRiskLimit());
+    const fuelScore = scoreFromGap(fuelMinutes, thresholds().greenMinutes, riskLimit(), crashRiskLimit());
+    const hydrationScore = scoreFromGap(hydrationMinutes, hydrationGreenLimit(), hydrationRiskLimit(), hydrationCrashRiskLimit());
     return Math.round(clamp(Math.max(fuelScore, hydrationScore * 0.88), 0, 100));
   }
 
@@ -966,13 +1018,16 @@
       ? "Fuel gap is currently under control."
       : status === "amber"
         ? "Fuel gap is building. Plan fuel soon."
-        : "High Risk fuel gap. Get fuel available now.";
+        : status === "red"
+          ? "High Risk fuel gap. Get fuel available now."
+          : "Under-fuelled / crash-risk zone. Fuel and recovery may be needed now.";
 
     return {
       lastFuelled: last ? formatClock(last.date) : "No fuel logged",
       timeSinceFuel: Number.isFinite(minutes) ? duration(minutes) : "No fuel logged",
       minutesSinceFuel: minutes,
       status,
+      statusLabel: riskStatusLabel(status),
       nextAction: statusText,
       statusContext: statusText
     };
@@ -1137,7 +1192,7 @@
     const analysis = analyseDay(dateKey());
     target.innerHTML = `
       <div class="fuel-gap-insight"><span>Time since last fuel</span><strong>${safeText(snapshot.timeSinceFuel)}</strong><small>Core beta signal.</small></div>
-      <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.status.toUpperCase())}</strong><small>Green under ${thresholds().greenMinutes}m. Red at ${thresholds().redMinutes}m.</small></div>
+      <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</strong><small>Estimated behavioural fuelling risk, not a medical diagnosis. The crash marker records what you actually felt.</small></div>
       <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap Log Fuel to start."}</small></div>
       <div class="fuel-gap-insight"><span>High Risk gaps today</span><strong>${analysis.highRiskGapCount}</strong><small>Gaps at or over red threshold.</small></div>
       <div class="fuel-gap-insight"><span>Fuel logs today</span><strong>${analysis.fuelLogCount}</strong><small>Real logged fuel points.</small></div>
@@ -1201,16 +1256,24 @@
   }
 
   function renderSettings() {
-    const green = document.getElementById("greenThresholdMinutes");
-    const red = document.getElementById("redThresholdMinutes");
-    if (green) green.value = thresholds().greenMinutes;
-    if (red) red.value = thresholds().redMinutes;
+    const active = document.activeElement;
+    [
+      ["fuelGreenHours", thresholds().greenMinutes],
+      ["fuelRedHours", thresholds().redMinutes],
+      ["fuelCrashHours", thresholds().crashMinutes],
+      ["hydrationGreenHours", thresholds().hydrationGreenMinutes],
+      ["hydrationRedHours", thresholds().hydrationRedMinutes],
+      ["hydrationCrashHours", thresholds().hydrationCrashMinutes]
+    ].forEach(([id, minutes]) => {
+      const input = document.getElementById(id);
+      if (input && active !== input) input.value = hoursValue(minutes);
+    });
     const buildInfo = window.FUEL_GUARD_BUILD || {};
     const canonical = document.getElementById("canonicalAppVersion");
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v13-focused-trends"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v14-risk-thresholds"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1826,11 +1889,11 @@
   function drawTrendsGraph() {
     const canvas = document.getElementById("fuelTrendsGraph");
     if (!canvas) return;
-    const prepared = prepareCanvas(canvas, 320, 210);
+    const prepared = prepareCanvas(canvas, 320, 240);
     if (!prepared) return;
     const { ctx, cssWidth, cssHeight } = prepared;
     const data = latestTrendGraphData;
-    const padding = { left: 48, right: 22, top: 28, bottom: 46 };
+    const padding = { left: 76, right: 76, top: 34, bottom: 64 };
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
@@ -2188,7 +2251,7 @@
 
     const context = document.getElementById("fuelStatusContext");
     if (context) {
-      context.innerHTML = `<strong>Current gap:</strong><span class="status-pill ${snapshot.status}">${snapshot.status.toUpperCase()}</span><span>${safeText(snapshot.statusContext)}</span>`;
+      context.innerHTML = `<strong>Current gap:</strong><span class="status-pill ${snapshot.status}">${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</span><span>${safeText(snapshot.statusContext)}</span>`;
     }
 
     const button = document.getElementById("graphLogFoodButton");
@@ -2253,12 +2316,20 @@
   };
 
   function saveThresholdSettings() {
-    const green = Number(document.getElementById("greenThresholdMinutes")?.value || DEFAULT_THRESHOLDS.greenMinutes);
-    const red = Number(document.getElementById("redThresholdMinutes")?.value || DEFAULT_THRESHOLDS.redMinutes);
     const gap = betaState();
-    gap.thresholds.greenMinutes = clamp(green, 60, 360);
-    gap.thresholds.redMinutes = clamp(Math.max(red, gap.thresholds.greenMinutes + 30), 120, 720);
-    document.getElementById("fuelSettingsStatus").textContent = "Thresholds saved.";
+    const fuelGreen = minutesFromHoursField("fuelGreenHours", gap.thresholds.greenMinutes, { min: 30, max: 480 });
+    const fuelRed = minutesFromHoursField("fuelRedHours", gap.thresholds.redMinutes, { min: 60, max: 600 });
+    const fuelCrash = minutesFromHoursField("fuelCrashHours", gap.thresholds.crashMinutes, { min: 75, max: 720 });
+    const hydrationGreen = minutesFromHoursField("hydrationGreenHours", gap.thresholds.hydrationGreenMinutes, { min: 15, max: 360 });
+    const hydrationRed = minutesFromHoursField("hydrationRedHours", gap.thresholds.hydrationRedMinutes, { min: 30, max: 480 });
+    const hydrationCrash = minutesFromHoursField("hydrationCrashHours", gap.thresholds.hydrationCrashMinutes, { min: 45, max: 600 });
+    gap.thresholds.greenMinutes = fuelGreen;
+    gap.thresholds.redMinutes = Math.max(fuelRed, fuelGreen + 15);
+    gap.thresholds.crashMinutes = Math.max(fuelCrash, gap.thresholds.redMinutes + 15);
+    gap.thresholds.hydrationGreenMinutes = hydrationGreen;
+    gap.thresholds.hydrationRedMinutes = Math.max(hydrationRed, hydrationGreen + 15);
+    gap.thresholds.hydrationCrashMinutes = Math.max(hydrationCrash, gap.thresholds.hydrationRedMinutes + 15);
+    document.getElementById("fuelSettingsStatus").textContent = "Risk thresholds saved. Low, medium, high, and crash-zone estimates updated.";
     storeArchive(dateKey());
     save();
     renderAll();

@@ -1,7 +1,7 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v13-focused-trends",
-  buildVersion: "2026-07-05T10:45:00Z",
-  sourceCheckpoint: "2734637",
-  serviceWorkerUrl: "./sw.js?v=mobile-pwa-v13-focused-trends",
-  cacheName: "fuel-guard-mobile-pwa-v13-focused-trends-20260705T104500Z"
+  canonicalApp: "mobile-pwa-v14-risk-thresholds",
+  buildVersion: "2026-07-05T11:57:00Z",
+  sourceCheckpoint: "5c61c89",
+  serviceWorkerUrl: "./sw.js?v=mobile-pwa-v14-risk-thresholds",
+  cacheName: "fuel-guard-mobile-pwa-v14-risk-thresholds-20260705T115700Z"
 });

@@ -30,20 +30,27 @@
 }
 
 .beta-rhythm-header {
-  order: 1;
+  order: 2;
   margin-bottom: 12px;
 }
 
 .beta-day-type-row {
-  order: 9;
+  order: 1;
 }
 
-.beta-mvp #fuelGapNextAction {
-  order: 6;
+.beta-rhythm-status-stack {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  min-width: min(100%, 230px);
+}
+
+.beta-rhythm-status-stack #fuelGapNextAction {
+  max-width: 100%;
 }
 
 .beta-log-actions {
-  order: 4;
+  order: 3;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
@@ -51,26 +58,26 @@
 }
 
 .beta-mvp .fuel-cooldown-message {
-  order: 5;
+  order: 4;
 }
 
 .beta-mvp #fuelStatusContext {
-  order: 7;
+  order: 8;
 }
 
 .beta-graph-wrap {
-  order: 2;
+  order: 5;
 }
 
 .beta-undo-log-button {
-  order: 3;
+  order: 6;
   width: 100%;
   min-height: 44px;
   margin: 0;
 }
 
 .beta-gap-insights {
-  order: 8;
+  order: 7;
 }
 
 .beta-rhythm-status-row {
@@ -502,6 +509,14 @@
   color: #ffdbe2;
 }
 
+.beta-risk-pill.crash,
+.fuel-next-action.crash,
+.status-pill.crash {
+  border: 1px solid rgba(255,77,109,.66);
+  background: rgba(255,77,109,.2);
+  color: #fff1f4;
+}
+
 .beta-history-visuals {
   display: grid;
   gap: 10px;
@@ -665,7 +680,7 @@
 
 .beta-trend-line-card canvas {
   width: 100%;
-  height: 240px;
+  height: 270px;
 }
 
 .beta-trend-bullets li {

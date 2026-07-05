@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v13-focused-trends" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v13-focused-trends" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v13-focused-trends" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v14-risk-thresholds" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v14-risk-thresholds" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v14-risk-thresholds" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -44,7 +44,10 @@
                 <p class="label">Live Fuel Rhythm</p>
                 <p class="muted beta-panel-copy">Fuelling gap tracker. Log when you fuel, avoid crashing.</p>
               </div>
-              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
+              <div class="beta-rhythm-status-stack">
+                <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
+                <div id="fuelGapNextAction" class="fuel-next-action"></div>
+              </div>
             </div>
 
             <div class="fuel-day-type-row beta-day-type-row">
@@ -73,6 +76,13 @@
               <span id="fuelDayTypeSaved" class="row-note"></span>
             </div>
 
+            <div class="beta-log-actions" aria-label="Log fuel or hydration">
+              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
+              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
+              <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
+            </div>
+            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
+
             <div class="fuel-graph-wrap beta-graph-wrap">
               <div class="beta-graph-mode" id="fuelGraphModeControls" role="group" aria-label="Rhythm graph view">
                 <button class="active" type="button" data-graph-mode="fuel">Fuel</button>
@@ -84,14 +94,6 @@
 
             <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
 
-            <div class="beta-log-actions" aria-label="Log fuel or hydration">
-              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
-              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
-              <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
-            </div>
-            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
-
-            <div id="fuelGapNextAction" class="fuel-next-action"></div>
             <div id="fuelStatusContext" class="fuel-status-context"></div>
 
             <div id="fuelGapInsights" class="fuel-gap-insights beta-gap-insights"></div>
@@ -186,10 +188,14 @@
       <section id="checklist" class="screen">
         <article class="card">
           <h2>Settings</h2>
-          <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
+          <p class="muted">Adjust the estimated behavioural risk thresholds for fuel and hydration gaps.</p>
           <div class="form-grid beta-settings-grid">
-            <label>Green under (minutes)<input id="greenThresholdMinutes" type="number" min="60" max="360" step="15"></label>
-            <label>Red at (minutes)<input id="redThresholdMinutes" type="number" min="120" max="720" step="15"></label>
+            <label>Fuel low risk under (hours)<input id="fuelGreenHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
+            <label>Fuel high risk starts (hours)<input id="fuelRedHours" type="number" min="1" max="10" step="0.25" inputmode="decimal"></label>
+            <label>Fuel crash zone starts (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
+            <label>Hydration low risk under (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
+            <label>Hydration high risk starts (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
+            <label>Hydration crash zone starts (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
           </div>
           <div class="button-row beta-settings-actions">
             <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
@@ -281,7 +287,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v13-focused-trends</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v14-risk-thresholds</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -308,16 +314,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v13-focused-trends"></script>
+  <script src="build-info.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v14-risk-thresholds"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="app-ui.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v13-focused-trends"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v13-focused-trends"></script>
+  <script src="app-state.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="app-ui.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v14-risk-thresholds"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v14-risk-thresholds"></script>
 </body>
 </html>

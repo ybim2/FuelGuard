@@ -1,6 +1,10 @@
 const STORAGE_KEY = "fuelGuardStateV20";
-const FUEL_GREEN_LIMIT_MINUTES = 180;
-const FUEL_RED_LIMIT_MINUTES = 300;
+const FUEL_GREEN_LIMIT_MINUTES = 150;
+const FUEL_RED_LIMIT_MINUTES = 180;
+const FUEL_CRASH_LIMIT_MINUTES = 220;
+const HYDRATION_GREEN_LIMIT_MINUTES = 90;
+const HYDRATION_RED_LIMIT_MINUTES = 120;
+const HYDRATION_CRASH_LIMIT_MINUTES = 180;
 
 const DEFAULT_STATE = {
   completed: {
@@ -14,7 +18,11 @@ const DEFAULT_STATE = {
     graphMode: "fuel",
     thresholds: {
       greenMinutes: FUEL_GREEN_LIMIT_MINUTES,
-      redMinutes: FUEL_RED_LIMIT_MINUTES
+      redMinutes: FUEL_RED_LIMIT_MINUTES,
+      crashMinutes: FUEL_CRASH_LIMIT_MINUTES,
+      hydrationGreenMinutes: HYDRATION_GREEN_LIMIT_MINUTES,
+      hydrationRedMinutes: HYDRATION_RED_LIMIT_MINUTES,
+      hydrationCrashMinutes: HYDRATION_CRASH_LIMIT_MINUTES
     },
     dayEndedDate: "",
     dayEndedAt: "",
@@ -259,10 +267,12 @@ function fuelGapStatus(minutes) {
   const thresholds = fuelGapState().thresholds || DEFAULT_STATE.fuelGap.thresholds;
   const greenMinutes = Number(thresholds.greenMinutes || FUEL_GREEN_LIMIT_MINUTES);
   const redMinutes = Math.max(Number(thresholds.redMinutes || FUEL_RED_LIMIT_MINUTES), greenMinutes + 30);
+  const crashMinutes = Math.max(Number(thresholds.crashMinutes || FUEL_CRASH_LIMIT_MINUTES), redMinutes + 15);
   if (!Number.isFinite(minutes)) return "red";
   if (minutes < greenMinutes) return "green";
   if (minutes < redMinutes) return "amber";
-  return "red";
+  if (minutes < crashMinutes) return "red";
+  return "crash";
 }
 
 function fuelGapSnapshot(now = new Date()) {
@@ -273,7 +283,9 @@ function fuelGapSnapshot(now = new Date()) {
     ? "Fuel gap is currently under control."
     : status === "amber"
       ? "Fuel gap is building. Plan fuel soon."
-      : "High Risk fuel gap. Get fuel available now.";
+      : status === "red"
+        ? "High Risk fuel gap. Get fuel available now."
+        : "Under-fuelled / crash-risk zone. Fuel and recovery may be needed now.";
 
   return {
     lastFuelled: last ? formatClock(last.date) : "No fuel logged",

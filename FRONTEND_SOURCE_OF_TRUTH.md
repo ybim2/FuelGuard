@@ -12,7 +12,7 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v13-focused-trends
+Canonical app: mobile-pwa-v14-risk-thresholds
 Build version: shown from `build-info.js`
 
 ## Removed legacy features
@@ -100,7 +100,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v13-focused-trends`.
+The current canonical version is `mobile-pwa-v14-risk-thresholds`.
 
 ## Future frontend changes
 
