@@ -68,24 +68,29 @@
   }
 
   function orderLiveRhythm() {
+    const header = document.querySelector(".beta-rhythm-header");
     const dayType = document.querySelector(".beta-day-type-row");
     const logActions = document.querySelector(".beta-log-actions");
     const cooldown = document.getElementById("foodLogCooldownMessage");
     const risk = document.getElementById("fuelGapNextAction");
+    const status = document.getElementById("fuelStatusContext");
     const graph = document.querySelector(".beta-graph-wrap");
+    const undo = document.getElementById("undoLatestFoodLog");
+    const insights = document.getElementById("fuelGapInsights");
     const todayLog = document.querySelector(".beta-today-log");
     const dayControls = document.querySelector(".beta-day-controls");
-    moveElementBefore(dayType, logActions);
+    moveElementAfter(graph, header);
+    moveElementAfter(undo, graph);
+    moveElementAfter(logActions, undo || graph);
+    moveElementAfter(cooldown, logActions);
     moveElementAfter(risk, cooldown || logActions);
-    moveElementBefore(risk, graph);
+    moveElementAfter(status, risk);
+    moveElementAfter(insights, status || risk);
+    moveElementAfter(dayType, insights || status || risk);
     moveElementBefore(todayLog, dayControls);
   }
 
   function updateDayControlsCopy() {
-    const continueButton = document.getElementById("continueFuelDayButton");
-    if (continueButton && continueButton.textContent !== "Continue tracking") {
-      continueButton.textContent = "Continue tracking";
-    }
   }
 
   function updateRiskCopy() {

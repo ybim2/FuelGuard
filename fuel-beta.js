@@ -28,7 +28,41 @@
     labels[option.value] = option.label;
     return labels;
   }, {});
-  const GRAPH_MODES = new Set(["fuel", "hydration"]);
+  const GRAPH_MODES = new Set(["fuel", "hydration", "risk"]);
+  const TREND_VIEWS = {
+    fuel: {
+      label: "Fuel",
+      metric: "averageFuelGap",
+      title: "Average fuel gap",
+      unit: "minutes",
+      threshold: 15,
+      color: "#2dff88"
+    },
+    hydration: {
+      label: "Hydration",
+      metric: "averageHydrationGap",
+      title: "Average hydration gap",
+      unit: "minutes",
+      threshold: 15,
+      color: "#9fb7ff"
+    },
+    risk: {
+      label: "High-risk periods",
+      metric: "highRiskGaps",
+      title: "High-risk periods",
+      unit: "count",
+      threshold: 0,
+      color: "#ffb020"
+    },
+    crash: {
+      label: "Crash events",
+      metric: "crashEvents",
+      title: "Crash events",
+      unit: "count",
+      threshold: 0,
+      color: "#ff4d6d"
+    }
+  };
   const CRASH_NOTE = "fuel_guard_event:crash";
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
@@ -67,6 +101,9 @@
 
   let selectedHistoryKey = "";
   let selectedTrainingFilter = "all";
+  let selectedTrendDayType = "all";
+  let selectedTrendTrainingSession = "all";
+  let selectedTrendView = "fuel";
   let accountBusy = false;
   let csvImportBusy = false;
   let csvImportPreview = null;
@@ -955,12 +992,11 @@
       dayEnded: end.dayEnded,
       endTime: end.endTime,
       dayType,
-      message: `${fuelLogs.length} fuel log${fuelLogs.length === 1 ? "" : "s"}. Last fuel: ${last ? formatClock(last.date) : "No fuel logged"}. Day type: ${dayTypeLabel(dayType)}. ${end.dayEnded ? `Day ended at ${end.endTime}.` : "Tracking is open."}`
+      message: `${fuelLogs.length} fuel log${fuelLogs.length === 1 ? "" : "s"}. Last fuel: ${last ? formatClock(last.date) : "No fuel logged"}. Day type: ${dayTypeLabel(dayType)}. Tracking is open.`
     };
   };
 
   function recordRhythmLog(type = "fuel", options = {}) {
-    if (fuelDayEndSnapshot().dayEnded) return;
     const normalizedType = ["fuel", "hydration", "fuel_hydration"].includes(type) ? type : "fuel";
     const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
     const label = normalizedType === "hydration"
@@ -1012,7 +1048,6 @@
   }
 
   function recordCrashEvent() {
-    if (fuelDayEndSnapshot().dayEnded) return;
     const key = dateKey();
     const log = {
       id: uid(),
@@ -1175,7 +1210,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v12-daily-trends-risk"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v13-focused-trends"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1311,7 +1346,7 @@
       const note = log.note && !String(log.note).includes(CRASH_NOTE) ? `<div class="row-note">${safeText(log.note)}</div>` : "";
       return `<div class="row fuel-archive-log-row"><div><div class="item-name">${date ? formatClock(date) : "--"} - ${safeText(log.typeLabel || "Fuel")}</div>${note}</div></div>`;
     }).join("");
-    return `<details class="beta-raw-log-details"><summary>View raw logs</summary><div class="list">${logsHtml}</div></details>`;
+    return `<section class="beta-raw-log-details"><h4>Raw logs</h4><div class="list">${logsHtml}</div></section>`;
   }
 
   function renderArchiveDetail(entry) {
@@ -1320,7 +1355,6 @@
       .filter(Boolean)
       .join(" - ");
     const highRiskTotal = Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0);
-    const risk = riskZone(Number(entry.maxRiskScore || 0));
 
     return `
       <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${highRiskTotal || entry.crashLogCount ? "amber" : "green"}">${highRiskTotal || entry.crashLogCount ? "RISK SIGNALS" : "STABLE"}</span></div>
@@ -1328,9 +1362,7 @@
       ${renderDailyBullets(entry)}
       <div class="beta-daily-visuals">
         <section class="beta-daily-visual"><h4>Daily timeline</h4>${renderDailyTimeline(entry)}</section>
-        <section class="beta-daily-visual"><h4>Gap Risk</h4><p class="muted">Estimated behavioural risk score, not a medical prediction.</p><canvas id="dailyRiskGraph" width="760" height="190" aria-label="Estimated daily gap risk"></canvas><p class="row-note">Peak: ${safeText(String(entry.maxRiskScore || 0))}/100 ${safeText(risk.label)}</p></section>
       </div>
-      <div class="fuel-archive-section"><h4>Behaviour notes</h4>${renderAnalysisList((entry.analysis || []).slice(1))}</div>
       ${renderRawLogs(entry)}
     `;
   }
@@ -1368,6 +1400,81 @@
   function trainingFilterLabel(filter) {
     if (filter === "all") return "All stored days";
     return trainingSessionLabel(filter);
+  }
+
+  function trendDayTypeFilterLabel(filter) {
+    if (filter === "all") return "all days";
+    return dayTypeLabel(filter).toLowerCase();
+  }
+
+  function trendTrainingFilterLabel(filter) {
+    if (filter === "all") return "all training sessions";
+    if (filter === "rest") return "no training";
+    return trainingSessionLabel(filter).toLowerCase();
+  }
+
+  function activeTrendConfig() {
+    return TREND_VIEWS[selectedTrendView] || TREND_VIEWS.fuel;
+  }
+
+  function trendMetricValue(metrics, metric) {
+    const value = metrics?.[metric];
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function trendValueText(value, config) {
+    if (!Number.isFinite(value)) return "Not enough data";
+    if (config.unit === "minutes") return compactDuration(value);
+    return String(Math.round(value));
+  }
+
+  function trendFilterCopy() {
+    return `Filtered to ${trendDayTypeFilterLabel(selectedTrendDayType)} and ${trendTrainingFilterLabel(selectedTrendTrainingSession)}.`;
+  }
+
+  function entryMatchesTrendFilters(entry) {
+    const dayMatches = selectedTrendDayType === "all" || entry.dayType === selectedTrendDayType;
+    const session = entry.trainingSession || "";
+    const trainingMatches = selectedTrendTrainingSession === "all"
+      || (selectedTrendTrainingSession === "rest" ? !session || session === "rest" : session === selectedTrendTrainingSession);
+    return dayMatches && trainingMatches;
+  }
+
+  function renderTrendViewControls() {
+    document.querySelectorAll("[data-trend-view]").forEach(button => {
+      button.classList.toggle("active", button.dataset.trendView === selectedTrendView);
+    });
+  }
+
+  function trendInsightCopy(config, trend, currentValue, previousValue) {
+    if (!Number.isFinite(currentValue)) {
+      return `${config.title} needs more matching logs before it can compare weeks.`;
+    }
+    if (!Number.isFinite(previousValue)) {
+      return `${config.title} has this-week data; last week needs more matching logs.`;
+    }
+    if (trend.direction === "steady") {
+      const verb = config.metric === "highRiskGaps" || config.metric === "crashEvents" ? "were" : "was";
+      return `${config.title} ${verb} about the same as last week.`;
+    }
+    if (config.metric === "averageFuelGap") {
+      return trend.improved
+        ? `Your average fuel gap improved by ${compactDuration(trend.delta)} this week.`
+        : `Your average fuel gap increased by ${compactDuration(trend.delta)} this week.`;
+    }
+    if (config.metric === "averageHydrationGap") {
+      return trend.improved
+        ? `Your average hydration gap improved by ${compactDuration(trend.delta)} this week.`
+        : `Your average hydration gap increased by ${compactDuration(trend.delta)} this week.`;
+    }
+    if (config.metric === "highRiskGaps") {
+      return trend.improved
+        ? "High-risk periods were lower than last week."
+        : "High-risk periods were higher than last week.";
+    }
+    return trend.improved
+      ? "Crash events were lower than last week."
+      : "Crash events were higher than last week.";
   }
 
   function weeklyTrendWindows(entries) {
@@ -1671,11 +1778,13 @@
     const summaryTarget = document.getElementById("fuelAveragesSummary");
     const insightsTarget = document.getElementById("fuelTrendInsights");
     const allEntries = loggedHistoryEntries();
-    const filteredEntries = allEntries.filter(entry => entryMatchesTrainingFilter(entry, selectedTrainingFilter));
+    const filteredEntries = allEntries.filter(entryMatchesTrendFilters);
+    const config = activeTrendConfig();
+    renderTrendViewControls();
     if (!summaryTarget || !insightsTarget) return;
     if (!filteredEntries.length) {
       latestTrendGraphData = null;
-      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match ${safeText(trainingFilterLabel(selectedTrainingFilter))} yet.</p>`;
+      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match these filters yet.</p>`;
       insightsTarget.innerHTML = "";
       requestAnimationFrame(drawTrendsGraph);
       return;
@@ -1684,64 +1793,32 @@
     const { current, previous } = weeklyTrendWindows(filteredEntries);
     const currentMetrics = trendMetrics(current);
     const previousMetrics = trendMetrics(previous);
-    const fuelTrend = metricTrend(currentMetrics.averageFuelGap, previousMetrics.averageFuelGap, { unit: "minutes", threshold: 15 });
-    const hydrationTrend = metricTrend(currentMetrics.averageHydrationGap, previousMetrics.averageHydrationGap, { unit: "minutes", threshold: 15 });
-    const riskTrend = metricTrend(currentMetrics.highRiskGaps, previousMetrics.highRiskGaps, { unit: "", threshold: 0 });
-    const crashTrend = metricTrend(currentMetrics.crashEvents, previousMetrics.crashEvents, { unit: "", threshold: 0 });
+    const currentValue = trendMetricValue(currentMetrics, config.metric);
+    const previousValue = trendMetricValue(previousMetrics, config.metric);
+    const trend = metricTrend(currentValue, previousValue, {
+      unit: config.unit === "minutes" ? "minutes" : "",
+      threshold: config.threshold,
+      lowerIsBetter: true
+    });
     latestTrendGraphData = {
-      labels: ["Fuel gap", "Hydration gap", "High-risk", "Crashes"],
-      current: [
-        currentMetrics.averageFuelGap || 0,
-        currentMetrics.averageHydrationGap || 0,
-        currentMetrics.highRiskGaps || 0,
-        currentMetrics.crashEvents || 0
-      ],
-      previous: [
-        previousMetrics.averageFuelGap || 0,
-        previousMetrics.averageHydrationGap || 0,
-        previousMetrics.highRiskGaps || 0,
-        previousMetrics.crashEvents || 0
-      ]
+      title: config.title,
+      unit: config.unit,
+      color: config.color,
+      current: currentValue,
+      previous: previousValue
     };
-    summaryTarget.innerHTML = `<div class="fuel-gap-insights beta-average-grid">${[
-      renderTrendStatus("Average fuel gap", fuelTrend),
-      renderTrendStatus("Average hydration gap", hydrationTrend),
-      renderTrendStatus("High-risk gaps", riskTrend),
-      renderTrendStatus("Crash events", crashTrend)
-    ].join("")}</div>`;
+    summaryTarget.innerHTML = `<div class="fuel-gap-insights beta-average-grid">${renderTrendMetric(
+      config.title,
+      trendValueText(currentValue, config),
+      `This week. Last week: ${trendValueText(previousValue, config)}.`,
+      trend.direction === "steady" ? "neutral" : trend.improved ? "good" : "watch"
+    )}</div>`;
 
-    const insights = [];
-    if (fuelTrend.direction !== "none") {
-      insights.push(fuelTrend.improved
-        ? `Your average fuel gap improved by ${compactDuration(fuelTrend.delta)} this week.`
-        : fuelTrend.direction === "steady"
-          ? "Your average fuel gap was about the same as last week."
-          : `Your average fuel gap increased by ${compactDuration(fuelTrend.delta)} this week.`);
-    }
-    if (riskTrend.direction !== "none") {
-      insights.push(riskTrend.improved
-        ? "High-risk gaps were lower than last week."
-        : riskTrend.direction === "steady"
-          ? "High-risk gaps were similar to last week."
-          : "High-risk gaps were higher than last week.");
-    }
-    if (hydrationTrend.direction !== "none") {
-      insights.push(hydrationTrend.improved
-        ? "Hydration gaps improved compared with last week."
-        : hydrationTrend.direction === "steady"
-          ? "Hydration gaps stayed broadly steady."
-          : "Hydration gaps increased compared with last week.");
-    }
-    if (currentMetrics.crashEvents || previousMetrics.crashEvents) {
-      insights.push(crashTrend.improved
-        ? "Fewer bonking/crash events were marked this week."
-        : currentMetrics.crashEvents > previousMetrics.crashEvents
-          ? "More bonking/crash events were marked this week."
-          : "Bonking/crash events were not higher than last week.");
-    } else {
-      insights.push("No bonking/crash events have been marked in either week.");
-    }
-    if (!previous.length) insights.push("Last-week comparison will get stronger after another week of logs.");
+    const insights = [
+      trendInsightCopy(config, trend, currentValue, previousValue),
+      trendFilterCopy()
+    ];
+    if (!previous.length) insights.push("Last-week comparison will get stronger after another week of matching logs.");
     insightsTarget.innerHTML = `<ul class="beta-trend-bullets">${insights.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
     requestAnimationFrame(drawTrendsGraph);
   }
@@ -1753,64 +1830,65 @@
     if (!prepared) return;
     const { ctx, cssWidth, cssHeight } = prepared;
     const data = latestTrendGraphData;
-    const padding = { left: 42, right: 18, top: 24, bottom: 48 };
+    const padding = { left: 48, right: 22, top: 28, bottom: 46 };
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
     ctx.strokeStyle = "rgba(255,255,255,.1)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    [0, 25, 50, 75, 100].forEach(value => {
-      const y = bottom - (value / 100) * plotHeight;
+    [0, 0.25, 0.5, 0.75, 1].forEach(ratio => {
+      const y = bottom - ratio * plotHeight;
       ctx.moveTo(padding.left, y);
       ctx.lineTo(cssWidth - padding.right, y);
     });
     ctx.stroke();
-    if (!data) {
+    if (!data || (!Number.isFinite(data.current) && !Number.isFinite(data.previous))) {
       ctx.fillStyle = "rgba(245,255,248,.62)";
       ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Log more days to compare this week with last week.", cssWidth / 2, cssHeight / 2);
+      ctx.fillText("Log more matching days to compare this week with last week.", cssWidth / 2, cssHeight / 2);
       return;
     }
-    const maxByMetric = data.labels.map((_, index) => Math.max(data.current[index], data.previous[index], 1));
-    const pointFor = (values, index) => {
-      const x = padding.left + (index / Math.max(1, data.labels.length - 1)) * plotWidth;
-      const normalized = (values[index] / maxByMetric[index]) * 100;
-      return { x, y: bottom - normalized / 100 * plotHeight };
+    const values = [data.previous, data.current].filter(Number.isFinite);
+    const maxValue = Math.max(...values, data.unit === "minutes" ? 60 : 1);
+    const pointFor = (value, index) => {
+      const x = padding.left + (index / 1) * plotWidth;
+      const normalized = clamp(value / maxValue, 0, 1);
+      return { x, y: bottom - normalized * plotHeight };
     };
-    function drawLine(values, color, label) {
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = 3;
+    const previousPoint = Number.isFinite(data.previous) ? pointFor(data.previous, 0) : null;
+    const currentPoint = Number.isFinite(data.current) ? pointFor(data.current, 1) : null;
+    if (previousPoint && currentPoint) {
+      ctx.strokeStyle = data.color;
+      ctx.lineWidth = 4;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
-      values.forEach((_, index) => {
-        const point = pointFor(values, index);
-        if (index === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      });
+      ctx.moveTo(previousPoint.x, previousPoint.y);
+      ctx.lineTo(currentPoint.x, currentPoint.y);
       ctx.stroke();
-      values.forEach((_, index) => {
-        const point = pointFor(values, index);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(label, padding.left + (label === "This week" ? 0 : 86), 15);
     }
-    drawLine(data.previous, "#9fb7ff", "Last week");
-    drawLine(data.current, "#2dff88", "This week");
+    [
+      { point: previousPoint, value: data.previous, label: "Last week", color: "#9fb7ff" },
+      { point: currentPoint, value: data.current, label: "This week", color: data.color }
+    ].forEach(item => {
+      if (!item.point) return;
+      ctx.fillStyle = item.color;
+      ctx.beginPath();
+      ctx.arc(item.point.x, item.point.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(245,255,248,.82)";
+      ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(data.unit === "minutes" ? compactDuration(item.value) : String(Math.round(item.value)), item.point.x, Math.max(16, item.point.y - 12));
+      ctx.fillText(item.label, item.point.x, cssHeight - 16);
+    });
     ctx.fillStyle = "rgba(245,255,248,.7)";
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "center";
-    data.labels.forEach((label, index) => {
-      const point = pointFor(data.current, index);
-      ctx.fillText(label, point.x, cssHeight - 16);
-    });
+    ctx.textAlign = "left";
+    ctx.fillText(data.title, padding.left, 16);
+    ctx.fillText(data.unit === "minutes" ? "gap" : "count", 7, padding.top + 3);
   }
 
   function renderHistory() {
@@ -1868,6 +1946,10 @@
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
     const series = [];
+    if (selectedMode === "risk") {
+      drawRiskGraphCanvas(canvas, dateKey(now), { now });
+      return;
+    }
     if (selectedMode === "fuel") {
       series.push({ label: "Fuel", color: "#2dff88", logs: fuelLogs });
     }
@@ -2079,18 +2161,6 @@
     return samples.length ? samples[samples.length - 1].score : 0;
   }
 
-  function drawFuelRiskGraph(now = new Date()) {
-    const canvas = document.getElementById("fuelRiskGraph");
-    if (!canvas) return;
-    const score = drawRiskGraphCanvas(canvas, dateKey(now), { now });
-    const badge = document.getElementById("fuelRiskScoreBadge");
-    if (badge) {
-      const zone = riskZone(score);
-      badge.className = `status-pill ${zone.tone}`;
-      badge.textContent = `${score}/100`;
-    }
-  }
-
   function drawDailyRiskGraph(key = selectedHistoryKey || dateKey()) {
     const canvas = document.getElementById("dailyRiskGraph");
     if (!canvas) return;
@@ -2124,24 +2194,19 @@
     const button = document.getElementById("graphLogFoodButton");
     if (button) {
       button.textContent = "Log Fuel";
-      button.disabled = summary.dayEnded || cooldown > 0;
+      button.disabled = cooldown > 0;
     }
 
     const hydrationButton = document.getElementById("graphLogHydrationButton");
-    if (hydrationButton) hydrationButton.disabled = summary.dayEnded;
+    if (hydrationButton) hydrationButton.disabled = false;
     const crashButton = document.getElementById("graphLogCrashButton");
-    if (crashButton) crashButton.disabled = summary.dayEnded;
+    if (crashButton) crashButton.disabled = false;
 
     const undo = document.getElementById("undoLatestFoodLog");
     if (undo) undo.disabled = !todayLogs().length;
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
-
-    const endButton = document.getElementById("endFuelDayButton");
-    if (endButton) endButton.disabled = summary.dayEnded;
-    const continueButton = document.getElementById("continueFuelDayButton");
-    if (continueButton) continueButton.disabled = !summary.dayEnded;
 
     const daySummary = document.getElementById("fuelDaySummary");
     if (daySummary) daySummary.innerHTML = `<p class="label">Today</p><p>${safeText(summary.message)}</p>`;
@@ -2153,7 +2218,6 @@
       renderDayAnalysis();
       renderDailyLog();
       drawBetaGraph();
-      drawFuelRiskGraph();
     }
     if (settingsActive) renderSettings();
     if (historyActive) renderHistory();
@@ -2185,7 +2249,6 @@
     if (target === "checklist") renderSettings();
     if (target === "dashboard") requestAnimationFrame(() => {
       drawBetaGraph();
-      drawFuelRiskGraph();
     });
   };
 
@@ -2299,8 +2362,18 @@
     selectedHistoryKey = event.target.value;
     renderHistory();
   });
-  document.getElementById("trainingInsightFilter")?.addEventListener("change", event => {
-    selectedTrainingFilter = event.target.value || "all";
+  document.getElementById("trendDayTypeFilter")?.addEventListener("change", event => {
+    selectedTrendDayType = event.target.value || "all";
+    renderTrends();
+  });
+  document.getElementById("trendTrainingFilter")?.addEventListener("change", event => {
+    selectedTrendTrainingSession = event.target.value || "all";
+    renderTrends();
+  });
+  document.getElementById("fuelTrendViewControls")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-trend-view]");
+    if (!button) return;
+    selectedTrendView = TREND_VIEWS[button.dataset.trendView] ? button.dataset.trendView : "fuel";
     renderTrends();
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
@@ -2553,7 +2626,6 @@
       graphResizeQueued = false;
       if (document.getElementById("dashboard")?.classList.contains("active")) {
         drawBetaGraph();
-        drawFuelRiskGraph();
       }
       if (document.getElementById("logs")?.classList.contains("active")) drawDailyRiskGraph(selectedHistoryKey);
       if (document.getElementById("trends")?.classList.contains("active")) drawTrendsGraph();
