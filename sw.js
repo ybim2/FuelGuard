@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v17-daily-rhythm-cleanup";
-const BUILD_VERSION = "2026-07-05T22:12:00Z";
+const APP_VERSION = "mobile-pwa-v18-fuel-debt";
+const BUILD_VERSION = "2026-07-05T22:34:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v17-daily-rhythm-cleanup-20260705T221200Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v18-fuel-debt-20260705T223400Z";
 const APP_SHELL = [
   "./",
   "./index.html",

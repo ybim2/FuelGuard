@@ -71,6 +71,14 @@
     }
   };
   const CRASH_NOTE = "fuel_guard_event:crash";
+  const LONG_GAP_REASON_NOTE_PREFIX = "fuel_guard_long_gap_reason:";
+  const LONG_GAP_REASON_OPTIONS = [
+    { value: "focus_block", label: "Focus block" },
+    { value: "busy_shift", label: "Busy shift" },
+    { value: "forgot", label: "Forgot" },
+    { value: "no_food_available", label: "No food available" },
+    { value: "other", label: "Other" }
+  ];
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "race": "competition",
@@ -116,6 +124,7 @@
   let csvImportPreview = null;
   let csvImportStatus = "";
   let latestTrendGraphData = null;
+  let pendingLongGapReasonPrompt = null;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -687,6 +696,92 @@
     return Number.isFinite(minutes) && minutes > 0 ? duration(minutes) : "Not enough data";
   }
 
+  function fuelDebtDurationText(minutes) {
+    const safeMinutes = Math.max(0, Math.round(Number(minutes || 0)));
+    if (safeMinutes < 60) return `${safeMinutes}m`;
+    return `${Math.floor(safeMinutes / 60)}h ${String(safeMinutes % 60).padStart(2, "0")}m`;
+  }
+
+  function fuelDebtFromGaps(gaps) {
+    const preferredWindow = mediumRiskLimit();
+    return (Array.isArray(gaps) ? gaps : []).reduce((total, gap) => {
+      const minutes = Number(gap?.minutes || 0);
+      return total + Math.max(0, minutes - preferredWindow);
+    }, 0);
+  }
+
+  function fuelDebtSentence(minutes) {
+    const debtMinutes = Math.max(0, Math.round(Number(minutes || 0)));
+    return debtMinutes > 0
+      ? `You spent ${fuelDebtDurationText(debtMinutes)} beyond your preferred fuelling window.`
+      : "You stayed inside your preferred fuelling window.";
+  }
+
+  function likelyCostWindow({ fuelDebtMinutes = 0, dayType = "", hasHighRisk = false, isToday = false, now = new Date() } = {}) {
+    if (Math.round(Number(fuelDebtMinutes || 0)) <= 0) return "stable for now";
+    const windows = [];
+    if (hasHighRisk) windows.push("later today");
+    const minute = minutesIntoDay(now);
+    const nearShift = isToday && minute >= 7 * 60 && minute <= 20 * 60;
+    if (dayType === "work" || nearShift) windows.push("post-shift");
+    return windows.length ? [...new Set(windows)].join(" / ") : "later today";
+  }
+
+  function longGapReasonOption(value) {
+    return LONG_GAP_REASON_OPTIONS.find(option => option.value === value) || null;
+  }
+
+  function longGapReasonValueFromLog(log) {
+    const explicit = String(log?.longGapReason || "").trim();
+    if (longGapReasonOption(explicit)) return explicit;
+    const note = String(log?.note || log?.notes || "");
+    if (!note.includes(LONG_GAP_REASON_NOTE_PREFIX)) return "";
+    const value = note.split(LONG_GAP_REASON_NOTE_PREFIX)[1]?.split(/[;\n]/)[0]?.trim() || "";
+    return longGapReasonOption(value) ? value : "";
+  }
+
+  function longGapReasonLabelFromLog(log) {
+    const option = longGapReasonOption(longGapReasonValueFromLog(log));
+    return option?.label || "";
+  }
+
+  function longGapReasonNote(value) {
+    return `${LONG_GAP_REASON_NOTE_PREFIX}${value}`;
+  }
+
+  function displayNoteForLog(log) {
+    const reasonLabel = longGapReasonLabelFromLog(log);
+    if (reasonLabel) return `Long gap reason: ${reasonLabel}`;
+    const note = String(log?.note || log?.notes || "");
+    if (!note || note.includes(CRASH_NOTE)) return "";
+    return note.includes(LONG_GAP_REASON_NOTE_PREFIX) ? "" : note;
+  }
+
+  function longGapReasonPatternText(reasonValue) {
+    if (reasonValue === "focus_block") return "Most long gaps were intentional focus blocks.";
+    if (reasonValue === "busy_shift") return "Most long gaps were caused by busy shifts.";
+    if (reasonValue === "forgot") return "Most long gaps were caused by forgetting.";
+    if (reasonValue === "no_food_available") return "Most long gaps happened when no food was available.";
+    if (reasonValue === "other") return "Most long gaps were marked as other.";
+    return "";
+  }
+
+  function topLongGapReason(logs) {
+    const counts = {};
+    (Array.isArray(logs) ? logs : []).forEach(log => {
+      const value = longGapReasonValueFromLog(log);
+      if (!value) return;
+      counts[value] = (counts[value] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || null;
+    return {
+      counts,
+      value: top?.[0] || "",
+      label: top ? longGapReasonOption(top[0])?.label || top[0] : "",
+      count: top?.[1] || 0
+    };
+  }
+
   function riskLimit() {
     return thresholds().redMinutes;
   }
@@ -820,6 +915,16 @@
     const lastFuel = fuelLogs[fuelLogs.length - 1] || null;
     const dayType = dayTypeForKey(key);
     const trainingSession = trainingSessionForKey(key);
+    const fuelDebtMinutes = Math.round(fuelDebtFromGaps(gaps));
+    const fuelDebtCopy = fuelDebtSentence(fuelDebtMinutes);
+    const costWindow = likelyCostWindow({
+      fuelDebtMinutes,
+      dayType,
+      hasHighRisk: highRiskGaps.length > 0 || crashZoneGaps.length > 0,
+      isToday,
+      now
+    });
+    const reasonPattern = topLongGapReason(fuelLogs);
     const strongestGap = [...gaps, ...hydrationGaps].sort((a, b) => b.minutes - a.minutes)[0] || null;
     const vulnerableWindow = strongestGap ? timeWindowBucket(minutesIntoDay(strongestGap.start) + strongestGap.minutes / 2) : "Needs more data";
     const maxRiskScore = maxRiskScoreForDay(key, { now, endedAt });
@@ -834,13 +939,15 @@
     const crashSentence = crashLogs.length
       ? `${crashLogs.length} low-energy event${crashLogs.length === 1 ? " was" : "s were"} marked.`
       : "No bonking or crash event was marked.";
-    const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
+    const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${fuelDebtCopy} Likely cost window: ${costWindow}. ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
     summary.push(plainSummary);
     if (mediumRiskGaps.length || mediumRiskHydrationGaps.length) summary.push("Medium Risk nudges appeared before the serious warning zone.");
     if (highRiskGaps.length) summary.push("High-risk fuel gaps were present, so the day had avoidable risk windows.");
     if (highRiskHydrationGaps.length) summary.push("Hydration gaps also became stretched, which may have amplified the day’s risk.");
     if (crashZoneGaps.length) summary.push("Fuel reached the Crash Zone / Under-fuelled Zone after High Risk.");
     if (hydrationCrashZoneGaps.length) summary.push("Hydration reached the Crash Zone / Under-hydrated Zone after High Risk.");
+    const reasonSummary = longGapReasonPatternText(reasonPattern.value);
+    if (reasonSummary) summary.push(reasonSummary);
     if (reactive) summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
     if (isTrainingDayValue(dayType, trainingSession) && (highRiskGaps.length || crashLogs.length)) {
       summary.push(`${trainingSessionLabel(trainingSession)} days need earlier fuel access before gaps turn into real-world crashes.`);
@@ -849,6 +956,8 @@
 
     const bullets = [
       { label: "Longest fuel gap", value: durationText(longest) },
+      { label: "Fuel Debt", value: fuelDebtDurationText(fuelDebtMinutes) },
+      { label: "Likely cost window", value: costWindow },
       { label: "Longest hydration gap", value: durationText(longestHydration) },
       { label: "Medium Risk nudges", value: String(mediumRiskGaps.length + mediumRiskHydrationGaps.length) },
       { label: "High-risk gaps", value: String(highRiskGaps.length + highRiskHydrationGaps.length) },
@@ -880,6 +989,13 @@
       hydrationGaps,
       longestGapMinutes: longest,
       averageGapMinutes: average,
+      fuelDebtMinutes,
+      fuelDebtText: fuelDebtDurationText(fuelDebtMinutes),
+      fuelDebtCopy,
+      likelyCostWindow: costWindow,
+      longGapReasonCounts: reasonPattern.counts,
+      topLongGapReason: reasonPattern.value,
+      topLongGapReasonLabel: reasonPattern.label,
       longestHydrationGapMinutes: longestHydration,
       averageHydrationGapMinutes: averageHydration,
       mediumRiskGapCount: mediumRiskGaps.length,
@@ -933,12 +1049,22 @@
         typeLabel: logTypeLabel(log),
         dayType: log.dayType || analysis.dayType,
         trainingSession: log.trainingSession || analysis.trainingSession,
+        longGapReason: longGapReasonValueFromLog(log),
+        longGapReasonLabel: longGapReasonLabelFromLog(log),
+        longGapMinutes: Number(log.longGapMinutes || 0),
         note: String(log.note || "").includes(CRASH_NOTE) ? "" : log.note || ""
       })),
       gapMinutes: analysis.gaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
       hydrationGapMinutes: analysis.hydrationGaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
       longestGapMinutes: analysis.longestGapMinutes,
       averageGapMinutes: analysis.averageGapMinutes,
+      fuelDebtMinutes: analysis.fuelDebtMinutes,
+      fuelDebtText: analysis.fuelDebtText,
+      fuelDebtCopy: analysis.fuelDebtCopy,
+      likelyCostWindow: analysis.likelyCostWindow,
+      longGapReasonCounts: analysis.longGapReasonCounts,
+      topLongGapReason: analysis.topLongGapReason,
+      topLongGapReasonLabel: analysis.topLongGapReasonLabel,
       longestHydrationGapMinutes: analysis.longestHydrationGapMinutes,
       averageHydrationGapMinutes: analysis.averageHydrationGapMinutes,
       mediumRiskGapCount: analysis.mediumRiskGapCount,
@@ -1072,6 +1198,53 @@
     };
   };
 
+  function renderLongGapReasonPrompt() {
+    const prompt = document.getElementById("longGapReasonPrompt");
+    if (!prompt) return;
+    prompt.hidden = !pendingLongGapReasonPrompt;
+  }
+
+  function showLongGapReasonPrompt(log, gapMinutes) {
+    if (!log?.id) return;
+    pendingLongGapReasonPrompt = {
+      logId: log.id,
+      cloudId: log.cloudId || "",
+      gapMinutes: Math.max(0, Math.round(gapMinutes || 0))
+    };
+    renderLongGapReasonPrompt();
+  }
+
+  function clearLongGapReasonPrompt() {
+    pendingLongGapReasonPrompt = null;
+    renderLongGapReasonPrompt();
+  }
+
+  function pendingLongGapLog() {
+    if (!pendingLongGapReasonPrompt) return null;
+    const { logId, cloudId } = pendingLongGapReasonPrompt;
+    return betaState().logs.find(log => log.id === logId || log.localId === logId || log.cloudId === logId || log.id === cloudId || log.cloudId === cloudId) || null;
+  }
+
+  function applyLongGapReason(value) {
+    const option = longGapReasonOption(value);
+    const log = option ? pendingLongGapLog() : null;
+    if (!log) {
+      clearLongGapReasonPrompt();
+      return;
+    }
+    log.longGapReason = option.value;
+    log.longGapReasonLabel = option.label;
+    log.longGapMinutes = pendingLongGapReasonPrompt?.gapMinutes || log.longGapMinutes || 0;
+    log.note = longGapReasonNote(option.value);
+    log.syncStatus = "pending";
+    const date = logDate(log);
+    if (date) storeArchive(dateKey(date));
+    clearLongGapReasonPrompt();
+    save();
+    renderAll();
+    window.fuelGuardCloud?.saveLog(log);
+  }
+
   function recordRhythmLog(type = "fuel", options = {}) {
     const normalizedType = ["fuel", "hydration", "fuel_hydration"].includes(type) ? type : "fuel";
     const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
@@ -1085,10 +1258,16 @@
       return;
     }
 
-    const key = dateKey();
+    const loggedAt = new Date();
+    const previousFuel = includesFuel ? lastFuelLog() : null;
+    const previousGapMinutes = previousFuel ? Math.max(0, (loggedAt - previousFuel.date) / 60000) : 0;
+    const shouldPromptForReason = includesFuel && previousFuel && previousGapMinutes > mediumRiskLimit();
+    const key = dateKey(loggedAt);
+    const localId = uid();
     const log = {
-      id: uid(),
-      timestamp: new Date().toISOString(),
+      id: localId,
+      localId,
+      timestamp: loggedAt.toISOString(),
       label,
       type: normalizedType,
       source: options.source || "manual",
@@ -1112,6 +1291,8 @@
     }
     save();
     renderAll();
+    if (shouldPromptForReason) showLongGapReasonPrompt(log, previousGapMinutes);
+    else clearLongGapReasonPrompt();
     window.fuelGuardCloud?.saveLog(log);
   }
 
@@ -1207,10 +1388,9 @@
     });
   }
 
-  function renderGapInsights(snapshot) {
+  function renderGapInsights(snapshot, analysis = analyseDay(dateKey())) {
     const target = document.getElementById("fuelGapInsights");
     if (!target) return;
-    const analysis = analyseDay(dateKey());
     target.innerHTML = `
       <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap Log Fuel to start."}</small></div>
       <div class="fuel-gap-insight"><span>Medium Risk nudges today</span><strong>${analysis.mediumRiskGapCount + analysis.mediumRiskHydrationGapCount}</strong><small>Early snack/sip nudges before High Risk.</small></div>
@@ -1388,6 +1568,8 @@
       ? entry.bullets
       : [
         { label: "Longest fuel gap", value: entry.longestGap || "Not enough data" },
+        { label: "Fuel Debt", value: entry.fuelDebtText || fuelDebtDurationText(entry.fuelDebtMinutes || 0) },
+        { label: "Likely cost window", value: entry.likelyCostWindow || "stable for now" },
         { label: "Longest hydration gap", value: entry.longestHydrationGap || "Not enough data" },
         { label: "Medium Risk nudges", value: String((entry.mediumRiskGapCount || 0) + (entry.mediumRiskHydrationGapCount || 0)) },
         { label: "High-risk gaps", value: String((entry.highRiskGapCount || 0) + (entry.highRiskHydrationGapCount || 0)) },
@@ -1427,7 +1609,8 @@
     if (!entry.logs.length) return `<p class="muted">No raw logs stored for this day.</p>`;
     const logsHtml = entry.logs.map(log => {
       const date = logDate(log.timestamp);
-      const note = log.note && !String(log.note).includes(CRASH_NOTE) ? `<div class="row-note">${safeText(log.note)}</div>` : "";
+      const displayNote = displayNoteForLog(log);
+      const note = displayNote ? `<div class="row-note">${safeText(displayNote)}</div>` : "";
       return `<div class="row fuel-archive-log-row"><div><div class="item-name">${date ? formatClock(date) : "--"} - ${safeText(log.typeLabel || "Fuel")}</div>${note}</div></div>`;
     }).join("");
     return `<section class="beta-raw-log-details"><h4>Raw logs</h4><div class="list">${logsHtml}</div></section>`;
@@ -2266,6 +2449,7 @@
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const summary = fuelDaySummary();
+    const analysis = analyseDay(dateKey());
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const historyActive = document.getElementById("logs")?.classList.contains("active");
@@ -2279,6 +2463,15 @@
     if (next) {
       next.textContent = snapshot.nextAction || `Current Fuel Zone: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
       next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
+    }
+
+    const debt = document.getElementById("fuelDebtStatus");
+    if (debt) {
+      debt.innerHTML = `
+        <strong>Fuel Debt today: ${safeText(analysis.fuelDebtText || fuelDebtDurationText(analysis.fuelDebtMinutes || 0))}</strong>
+        <span>${safeText(analysis.fuelDebtCopy || fuelDebtSentence(analysis.fuelDebtMinutes || 0))}</span>
+        <span>Likely cost window: ${safeText(analysis.likelyCostWindow || "stable for now")}</span>
+      `;
     }
 
     const context = document.getElementById("fuelStatusContext");
@@ -2302,13 +2495,14 @@
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
+    renderLongGapReasonPrompt();
 
     const daySummary = document.getElementById("fuelDaySummary");
     if (daySummary) daySummary.innerHTML = `<p class="label">Today</p><p>${safeText(summary.message)}</p>`;
 
     renderGraphModeControls();
     if (dashboardActive) {
-      renderGapInsights(snapshot);
+      renderGapInsights(snapshot, analysis);
       renderDayTypeControls();
       renderDayAnalysis();
       renderDailyLog();
@@ -2460,6 +2654,14 @@
     betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "fuel";
     save();
     renderFuelGap();
+  });
+  document.getElementById("longGapReasonPrompt")?.addEventListener("click", event => {
+    const reasonButton = event.target.closest("[data-long-gap-reason]");
+    if (reasonButton) {
+      applyLongGapReason(reasonButton.dataset.longGapReason);
+      return;
+    }
+    if (event.target.closest("[data-long-gap-skip]")) clearLongGapReasonPrompt();
   });
   document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", event => {
     selectedHistoryKey = event.target.value;

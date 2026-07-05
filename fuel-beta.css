@@ -61,6 +61,26 @@
   text-align: left;
 }
 
+.fuel-debt-status {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.fuel-debt-status strong {
+  color: var(--text);
+}
+
+.fuel-debt-status span {
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.4;
+}
+
 .beta-log-actions {
   order: 4;
   display: grid;
@@ -70,6 +90,10 @@
 }
 
 .beta-mvp .fuel-cooldown-message {
+  order: 5;
+}
+
+.beta-long-gap-prompt {
   order: 5;
 }
 
@@ -158,6 +182,40 @@
 .beta-mvp .fuel-cooldown-message {
   min-height: 0;
   margin: 0 0 3px;
+}
+
+.beta-long-gap-prompt {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255,176,32,.28);
+  border-radius: 14px;
+  background: rgba(255,176,32,.08);
+}
+
+.beta-long-gap-prompt[hidden] {
+  display: none;
+}
+
+.beta-long-gap-prompt p {
+  margin: 0;
+  color: var(--text);
+  font-weight: 850;
+}
+
+.beta-long-gap-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.beta-long-gap-options button {
+  min-height: 42px;
+  margin: 0;
+  padding: 9px 8px;
+  font-size: .84rem;
+  line-height: 1.15;
+  white-space: normal;
 }
 
 .beta-graph-wrap {
