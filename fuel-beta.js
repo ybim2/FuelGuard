@@ -691,6 +691,10 @@
     return thresholds().redMinutes;
   }
 
+  function mediumRiskLimit() {
+    return thresholds().greenMinutes;
+  }
+
   function crashRiskLimit() {
     return thresholds().crashMinutes;
   }
@@ -718,7 +722,7 @@
     if (score <= 30) return { label: "Low risk", tone: "green" };
     if (score <= 60) return { label: "Medium risk", tone: "amber" };
     if (score <= 80) return { label: "High risk", tone: "red" };
-    return { label: "Fuel / hydration crash zone", tone: "crash" };
+    return { label: "Fuel / Hydration Crash Zone", tone: "crash" };
   }
 
   function scoreFromGap(minutes, greenMinutes, redMinutes, crashMinutes) {
@@ -798,8 +802,12 @@
     const gaps = gapsFromFuelLogs(fuelLogs, reference, Boolean(endedDate) || isToday, !endedDate && isToday);
     const hydrationGaps = gapsFromHydrationLogs(hydrationLogs, reference, Boolean(endedDate) || isToday, !endedDate && isToday);
     const completedGaps = gaps.filter(gap => !gap.ongoing);
+    const mediumRiskGaps = gaps.filter(gap => gap.minutes >= mediumRiskLimit());
+    const mediumRiskHydrationGaps = hydrationGaps.filter(gap => gap.minutes >= hydrationGreenLimit());
     const highRiskGaps = gaps.filter(gap => gap.minutes >= riskLimit());
     const highRiskHydrationGaps = hydrationGaps.filter(gap => gap.minutes >= hydrationRiskLimit());
+    const crashZoneGaps = gaps.filter(gap => gap.minutes >= crashRiskLimit());
+    const hydrationCrashZoneGaps = hydrationGaps.filter(gap => gap.minutes >= hydrationCrashRiskLimit());
     const completedHighRiskGaps = completedGaps.filter(gap => gap.minutes >= riskLimit());
     const longest = gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : 0;
     const average = gaps.length ? gaps.reduce((sum, gap) => sum + gap.minutes, 0) / gaps.length : 0;
@@ -818,18 +826,21 @@
     const risk = riskZone(maxRiskScore);
     const summary = [];
     const fuelGapSentence = longest
-      ? `Your longest fuel gap was ${duration(longest)}${highRiskGaps.length ? ", which entered the high-risk zone" : ""}.`
+      ? `Your longest fuel gap was ${duration(longest)}${crashZoneGaps.length ? ", which reached the Fuel Crash Zone" : highRiskGaps.length ? ", which entered High Risk" : mediumRiskGaps.length ? ", which reached Medium Risk" : ""}.`
       : fuelLogs.length ? "More fuel logs are needed before Fuel Guard can calculate fuel gaps." : "No fuel logs were recorded.";
     const hydrationSentence = longestHydration
-      ? `Your longest hydration gap was ${duration(longestHydration)}${highRiskHydrationGaps.length ? ", which pushed hydration risk higher" : ""}.`
+      ? `Your longest hydration gap was ${duration(longestHydration)}${hydrationCrashZoneGaps.length ? ", which reached the Hydration Crash Zone / Under-hydrated Zone" : highRiskHydrationGaps.length ? ", which entered High Risk" : mediumRiskHydrationGaps.length ? ", which reached Medium Risk" : ""}.`
       : hydrationLogs.length ? "More hydration logs are needed before Fuel Guard can calculate hydration gaps." : "No hydration logs were recorded.";
     const crashSentence = crashLogs.length
       ? `${crashLogs.length} low-energy event${crashLogs.length === 1 ? " was" : "s were"} marked.`
       : "No bonking or crash event was marked.";
     const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
     summary.push(plainSummary);
+    if (mediumRiskGaps.length || mediumRiskHydrationGaps.length) summary.push("Medium Risk nudges appeared before the serious warning zone.");
     if (highRiskGaps.length) summary.push("High-risk fuel gaps were present, so the day had avoidable risk windows.");
     if (highRiskHydrationGaps.length) summary.push("Hydration gaps also became stretched, which may have amplified the day’s risk.");
+    if (crashZoneGaps.length) summary.push("Fuel reached the Crash Zone / Under-fuelled Zone after High Risk.");
+    if (hydrationCrashZoneGaps.length) summary.push("Hydration reached the Crash Zone / Under-hydrated Zone after High Risk.");
     if (reactive) summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
     if (isTrainingDayValue(dayType, trainingSession) && (highRiskGaps.length || crashLogs.length)) {
       summary.push(`${trainingSessionLabel(trainingSession)} days need earlier fuel access before gaps turn into real-world crashes.`);
@@ -839,7 +850,9 @@
     const bullets = [
       { label: "Longest fuel gap", value: durationText(longest) },
       { label: "Longest hydration gap", value: durationText(longestHydration) },
+      { label: "Medium Risk nudges", value: String(mediumRiskGaps.length + mediumRiskHydrationGaps.length) },
       { label: "High-risk gaps", value: String(highRiskGaps.length + highRiskHydrationGaps.length) },
+      { label: "Crash-zone gaps", value: String(crashZoneGaps.length + hydrationCrashZoneGaps.length) },
       { label: "Most vulnerable window", value: vulnerableWindow },
       { label: "Bonking/crash reported", value: crashLogs.length ? "Yes" : "No" },
       { label: "Estimated peak risk", value: `${maxRiskScore}/100 ${risk.label}` }
@@ -869,9 +882,13 @@
       averageGapMinutes: average,
       longestHydrationGapMinutes: longestHydration,
       averageHydrationGapMinutes: averageHydration,
+      mediumRiskGapCount: mediumRiskGaps.length,
+      mediumRiskHydrationGapCount: mediumRiskHydrationGaps.length,
       longGapCount: highRiskGaps.length,
       highRiskGapCount: highRiskGaps.length,
       highRiskHydrationGapCount: highRiskHydrationGaps.length,
+      crashZoneGapCount: crashZoneGaps.length,
+      hydrationCrashZoneGapCount: hydrationCrashZoneGaps.length,
       highRiskStartMinute: highRiskStart ? minutesIntoDay(highRiskStart) : null,
       highRiskEndMinute: firstHighRiskGap ? minutesIntoDay(firstHighRiskGap.end) : null,
       highRiskWindow: firstHighRiskGap && highRiskStart ? `${formatClock(highRiskStart)}-${formatClock(firstHighRiskGap.end)}` : "Not detected",
@@ -924,9 +941,13 @@
       averageGapMinutes: analysis.averageGapMinutes,
       longestHydrationGapMinutes: analysis.longestHydrationGapMinutes,
       averageHydrationGapMinutes: analysis.averageHydrationGapMinutes,
+      mediumRiskGapCount: analysis.mediumRiskGapCount,
+      mediumRiskHydrationGapCount: analysis.mediumRiskHydrationGapCount,
       longGapCount: analysis.longGapCount,
       highRiskGapCount: analysis.highRiskGapCount,
       highRiskHydrationGapCount: analysis.highRiskHydrationGapCount,
+      crashZoneGapCount: analysis.crashZoneGapCount,
+      hydrationCrashZoneGapCount: analysis.hydrationCrashZoneGapCount,
       longestGap: durationText(analysis.longestGapMinutes),
       averageGap: durationText(analysis.averageGapMinutes),
       longestHydrationGap: durationText(analysis.longestHydrationGapMinutes),
@@ -1028,7 +1049,7 @@
       minutesSinceFuel: minutes,
       status,
       statusLabel: riskStatusLabel(status),
-      nextAction: statusText,
+      nextAction: `Current Fuel Zone: ${riskStatusLabel(status)} - ${statusText}`,
       statusContext: statusText
     };
   };
@@ -1194,6 +1215,7 @@
       <div class="fuel-gap-insight"><span>Time since last fuel</span><strong>${safeText(snapshot.timeSinceFuel)}</strong><small>Core beta signal.</small></div>
       <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</strong><small>Estimated fuelling/hydration rhythm risk, not a medical diagnosis. The crash marker records what you actually felt.</small></div>
       <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap Log Fuel to start."}</small></div>
+      <div class="fuel-gap-insight"><span>Medium Risk nudges today</span><strong>${analysis.mediumRiskGapCount + analysis.mediumRiskHydrationGapCount}</strong><small>Early snack/sip nudges before High Risk.</small></div>
       <div class="fuel-gap-insight"><span>High Risk gaps today</span><strong>${analysis.highRiskGapCount}</strong><small>Gaps at or over red threshold.</small></div>
       <div class="fuel-gap-insight"><span>Fuel logs today</span><strong>${analysis.fuelLogCount}</strong><small>Real logged fuel points.</small></div>
       <div class="fuel-gap-insight"><span>Hydration logs today</span><strong>${analysis.hydrationLogCount}</strong><small>Real logged hydration points.</small></div>
@@ -1273,7 +1295,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v15-rhythm-graph-labels"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v16-medium-risk-fix"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1370,7 +1392,9 @@
       : [
         { label: "Longest fuel gap", value: entry.longestGap || "Not enough data" },
         { label: "Longest hydration gap", value: entry.longestHydrationGap || "Not enough data" },
+        { label: "Medium Risk nudges", value: String((entry.mediumRiskGapCount || 0) + (entry.mediumRiskHydrationGapCount || 0)) },
         { label: "High-risk gaps", value: String((entry.highRiskGapCount || 0) + (entry.highRiskHydrationGapCount || 0)) },
+        { label: "Crash-zone gaps", value: String((entry.crashZoneGapCount || 0) + (entry.hydrationCrashZoneGapCount || 0)) },
         { label: "Most vulnerable window", value: entry.vulnerableWindow || "Needs more data" },
         { label: "Bonking/crash reported", value: entry.crashLogCount ? "Yes" : "No" }
       ];
@@ -1417,10 +1441,13 @@
     const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
       .filter(Boolean)
       .join(" - ");
+    const mediumRiskTotal = Number(entry.mediumRiskGapCount || 0) + Number(entry.mediumRiskHydrationGapCount || 0);
     const highRiskTotal = Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0);
+    const crashZoneTotal = Number(entry.crashZoneGapCount || 0) + Number(entry.hydrationCrashZoneGapCount || 0);
+    const riskSignalTotal = mediumRiskTotal + highRiskTotal + crashZoneTotal + Number(entry.crashLogCount || 0);
 
     return `
-      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${highRiskTotal || entry.crashLogCount ? "amber" : "green"}">${highRiskTotal || entry.crashLogCount ? "RISK SIGNALS" : "STABLE"}</span></div>
+      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${riskSignalTotal ? "amber" : "green"}">${riskSignalTotal ? "RISK SIGNALS" : "STABLE"}</span></div>
       <p class="beta-daily-summary-copy">${safeText(entry.plainSummary || entry.analysis?.[0] || "No summary available yet.")}</p>
       ${renderDailyBullets(entry)}
       <div class="beta-daily-visuals">
@@ -1564,7 +1591,9 @@
     return {
       averageFuelGap: averageValue(entries.map(entry => Number(entry.averageGapMinutes || 0)).filter(Boolean)),
       averageHydrationGap: averageValue(entries.map(entry => Number(entry.averageHydrationGapMinutes || 0)).filter(Boolean)),
+      mediumRiskGaps: entries.reduce((sum, entry) => sum + Number(entry.mediumRiskGapCount || 0) + Number(entry.mediumRiskHydrationGapCount || 0), 0),
       highRiskGaps: entries.reduce((sum, entry) => sum + Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0), 0),
+      crashZoneGaps: entries.reduce((sum, entry) => sum + Number(entry.crashZoneGapCount || 0) + Number(entry.hydrationCrashZoneGapCount || 0), 0),
       crashEvents: entries.reduce((sum, entry) => sum + Number(entry.crashLogCount || 0), 0),
       days: entries.length
     };
@@ -1881,6 +1910,8 @@
       trendInsightCopy(config, trend, currentValue, previousValue),
       trendFilterCopy()
     ];
+    insights.push(`Medium Risk nudges this week: ${currentMetrics.mediumRiskGaps}.`);
+    if (currentMetrics.crashZoneGaps) insights.push(`Crash-zone gaps this week: ${currentMetrics.crashZoneGaps}.`);
     if (!previous.length) insights.push("Last-week comparison will get stronger after another week of matching logs.");
     insightsTarget.innerHTML = `<ul class="beta-trend-bullets">${insights.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
     requestAnimationFrame(drawTrendsGraph);
@@ -2249,13 +2280,13 @@
 
     const next = document.getElementById("fuelGapNextAction");
     if (next) {
-      next.textContent = snapshot.nextAction;
-      next.className = `fuel-next-action ${snapshot.status}`;
+      next.textContent = snapshot.nextAction || `Current Fuel Zone: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
+      next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
     }
 
     const context = document.getElementById("fuelStatusContext");
     if (context) {
-      context.innerHTML = `<strong>Current gap:</strong><span class="status-pill ${snapshot.status}">${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</span><span>${safeText(snapshot.statusContext)}</span>`;
+      context.innerHTML = `<strong>Current Fuel Zone:</strong><span class="status-pill ${snapshot.status}">${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</span><span>${safeText(snapshot.statusContext)}</span>`;
     }
 
     const button = document.getElementById("graphLogFoodButton");
@@ -2333,7 +2364,7 @@
     gap.thresholds.hydrationGreenMinutes = hydrationGreen;
     gap.thresholds.hydrationRedMinutes = Math.max(hydrationRed, hydrationGreen + 15);
     gap.thresholds.hydrationCrashMinutes = Math.max(hydrationCrash, gap.thresholds.hydrationRedMinutes + 15);
-    document.getElementById("fuelSettingsStatus").textContent = "Risk thresholds saved. Low, medium, high, and crash-zone estimates updated.";
+    document.getElementById("fuelSettingsStatus").textContent = "Risk thresholds saved. Medium Risk, High Risk, and Crash Zone starts updated for fuel and hydration.";
     storeArchive(dateKey());
     save();
     renderAll();

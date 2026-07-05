@@ -2,10 +2,10 @@
 // Event-driven UI adjustments only: no extra one-second render loop.
 (() => {
   const RISK_LABELS = {
-    green: "Low risk",
-    amber: "Medium risk",
-    red: "High risk",
-    crash: "Fuel crash zone / under-fuelled zone"
+    green: "Low Risk",
+    amber: "Medium Risk",
+    red: "High Risk",
+    crash: "Fuel Crash Zone / Under-fuelled Zone"
   };
 
   const RISK_ACTIONS = {
@@ -86,13 +86,13 @@
     const dayControls = document.querySelector(".beta-day-controls");
     moveElementBefore(header, dayType);
     moveElementAfter(dayType, header);
-    moveElementAfter(logActions, dayType || header);
+    moveElementAfter(statusStack, dayType || header);
+    moveElementAfter(logActions, statusStack || dayType || header);
     moveElementAfter(cooldown, logActions);
     moveElementAfter(graph, cooldown || logActions);
-    moveElementAfter(statusStack, graph);
-    moveElementAfter(undo, statusStack || graph);
+    moveElementAfter(undo, graph);
     moveElementAfter(status, undo || statusStack);
-    moveElementAfter(insights, undo || statusStack || graph);
+    moveElementAfter(insights, undo || graph);
     moveElementBefore(todayLog, dayControls);
   }
 
@@ -110,7 +110,7 @@
 
     const status = snapshot.status || "red";
     const hasLog = snapshot.lastFuelled && !/no fuel logged/i.test(snapshot.lastFuelled);
-    const nextText = `${riskLabel(status)}: ${riskAction(status, hasLog)}`;
+    const nextText = `Current Fuel Zone: ${riskLabel(status)} - ${riskAction(status, hasLog)}`;
     const nextClass = `fuel-next-action beta-risk-pill ${status}`;
     if (risk) {
       if (risk.className !== nextClass) risk.className = nextClass;
@@ -131,7 +131,7 @@
         const greenHours = trimHour(limits().greenMinutes / 60);
         const redHours = trimHour(limits().redMinutes / 60);
         const crashHours = trimHour(Number(limits().crashMinutes || limits().redMinutes + 60) / 60);
-        const copy = `Low risk under ${greenHours}h. Medium risk from ${greenHours}-${redHours}h is an early nudge. High risk from ${redHours}-${crashHours}h is a serious warning. Crash zone after ${crashHours}h.`;
+        const copy = `Low Risk before ${greenHours}h. Medium Risk from ${greenHours}-${redHours}h is an early nudge. High Risk from ${redHours}-${crashHours}h is a serious warning. Fuel Crash Zone starts after ${crashHours}h.`;
         if (small.textContent !== copy) small.textContent = copy;
       }
     });

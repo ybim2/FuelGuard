@@ -40,7 +40,7 @@
 }
 
 .beta-rhythm-status-stack {
-  order: 6;
+  order: 3;
   display: grid;
   gap: 8px;
   justify-items: start;
@@ -62,7 +62,7 @@
 }
 
 .beta-log-actions {
-  order: 3;
+  order: 4;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
@@ -70,7 +70,7 @@
 }
 
 .beta-mvp .fuel-cooldown-message {
-  order: 4;
+  order: 5;
 }
 
 .beta-mvp #fuelStatusContext {
@@ -78,7 +78,7 @@
 }
 
 .beta-graph-wrap {
-  order: 5;
+  order: 6;
 }
 
 .beta-undo-log-button {

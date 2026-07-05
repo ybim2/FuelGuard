@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v15-rhythm-graph-labels" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v15-rhythm-graph-labels" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v15-rhythm-graph-labels" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v16-medium-risk-fix" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v16-medium-risk-fix" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v16-medium-risk-fix" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -72,6 +72,11 @@
               <span id="fuelDayTypeSaved" class="row-note"></span>
             </div>
 
+            <div class="beta-rhythm-status-stack">
+              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
+              <div id="fuelGapNextAction" class="fuel-next-action"></div>
+            </div>
+
             <div class="beta-log-actions" aria-label="Log fuel or hydration">
               <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
               <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
@@ -86,11 +91,6 @@
                 <button type="button" data-graph-mode="risk">Gap Risk</button>
               </div>
               <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Live Fuel Rhythm curve across today"></canvas>
-            </div>
-
-            <div class="beta-rhythm-status-stack">
-              <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
-              <div id="fuelGapNextAction" class="fuel-next-action"></div>
             </div>
 
             <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
@@ -189,14 +189,14 @@
       <section id="checklist" class="screen">
         <article class="card">
           <h2>Settings</h2>
-          <p class="muted">Adjust the estimated behavioural risk thresholds for fuel and hydration gaps.</p>
+          <p class="muted">Adjust when Low, Medium, High, and Crash Zone estimates begin for fuel and hydration rhythm.</p>
           <div class="form-grid beta-settings-grid">
-            <label>Fuel low risk under (hours)<input id="fuelGreenHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
-            <label>Fuel high risk starts (hours)<input id="fuelRedHours" type="number" min="1" max="10" step="0.25" inputmode="decimal"></label>
-            <label>Fuel crash zone starts (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
-            <label>Hydration low risk under (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
-            <label>Hydration high risk starts (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
-            <label>Hydration crash zone starts (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
+            <label>Fuel Medium Risk starts at (hours)<input id="fuelGreenHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
+            <label>Fuel High Risk starts at (hours)<input id="fuelRedHours" type="number" min="1" max="10" step="0.25" inputmode="decimal"></label>
+            <label>Fuel Crash Zone / Under-fuelled Zone starts at (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
+            <label>Hydration Medium Risk starts at (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
+            <label>Hydration High Risk starts at (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
+            <label>Hydration Crash Zone / Under-hydrated Zone starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
           </div>
           <div class="button-row beta-settings-actions">
             <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
@@ -288,7 +288,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v15-rhythm-graph-labels</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v16-medium-risk-fix</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -315,16 +315,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
+  <script src="build-info.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v16-medium-risk-fix"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="app-ui.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v15-rhythm-graph-labels"></script>
+  <script src="app-state.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="app-ui.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v16-medium-risk-fix"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v16-medium-risk-fix"></script>
 </body>
 </html>
