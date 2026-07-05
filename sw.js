@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v10-esp32-csv-import";
-const BUILD_VERSION = "2026-07-05T08:30:00Z";
+const APP_VERSION = "mobile-pwa-v11-csv-only-settings";
+const BUILD_VERSION = "2026-07-05T09:55:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v10-esp32-csv-import-20260705T083000Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v11-csv-only-settings-20260705T095500Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -18,7 +18,6 @@ const APP_SHELL = [
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
-  "./fg-button-ble.js",
   "./manifest.webmanifest",
   "./icons/icon.svg"
 ];

@@ -248,7 +248,6 @@
 }
 
 .beta-account-card,
-.beta-device-card,
 .beta-import-card,
 .beta-update-card {
   margin-top: 0;
@@ -377,6 +376,10 @@
 .beta-version-marker span {
   color: var(--muted);
   font-size: .78rem;
+}
+
+.beta-settings-footer {
+  margin: 18px 0 6px;
 }
 
 .beta-settings-grid {

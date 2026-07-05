@@ -11,7 +11,7 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v10-esp32-csv-import
+Canonical app: mobile-pwa-v11-csv-only-settings
 Build version: shown from `build-info.js`
 
 ## Removed legacy features
@@ -23,6 +23,7 @@ These old parked features have been removed from the active app, service worker 
 - Body & Mind
 - Nutrition Diary
 - Future Ideas Parked
+- Settings Bluetooth / live FG Button connection workflow
 
 Do not reintroduce them unless the user explicitly asks for them.
 
@@ -39,7 +40,6 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `fuel-history-render-guard.js`: History rendering guard
 - `day-type-overrides.js`: day type and training session support
-- `fg-button-ble.js`: Fuel Guard BLE button support
 - `manifest.webmanifest`: PWA manifest
 - `sw.js`: service worker and app shell cache
 - `app-pwa.js`: service worker registration/update handling
@@ -99,7 +99,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v10-esp32-csv-import`.
+The current canonical version is `mobile-pwa-v11-csv-only-settings`.
 
 ## Future frontend changes
 

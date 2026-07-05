@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v10-esp32-csv-import" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v10-esp32-csv-import" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v10-esp32-csv-import" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v11-csv-only-settings" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v11-csv-only-settings" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v11-csv-only-settings" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -166,11 +166,6 @@
         <article class="card">
           <h2>Settings</h2>
           <p class="muted">Adjust the beta gap thresholds. These control green, amber, and red gap risk.</p>
-          <div class="beta-version-marker" aria-label="Canonical app version">
-            <strong>Fuel Guard Mobile PWA</strong>
-            <span id="canonicalAppVersion">Canonical app: mobile-pwa-v10-esp32-csv-import</span>
-            <span id="buildVersionMarker">Build version: loading...</span>
-          </div>
           <div class="form-grid beta-settings-grid">
             <label>Green under (minutes)<input id="greenThresholdMinutes" type="number" min="60" max="360" step="15"></label>
             <label>Red at (minutes)<input id="redThresholdMinutes" type="number" min="120" max="720" step="15"></label>
@@ -193,15 +188,6 @@
             <button id="checkAppUpdateButton" class="secondary" type="button">Check for update / Refresh app</button>
           </div>
           <p id="appUpdateStatus" class="row-note" aria-live="polite">Update status: ready.</p>
-        </article>
-
-        <article class="card beta-device-card">
-          <h2>FG Button</h2>
-          <p class="muted">Connect the optional hardware button for quick fuel logging.</p>
-          <div class="button-row beta-settings-actions fg-button-row">
-            <button id="connectFgButton" class="secondary" type="button">Connect FG Button</button>
-            <span id="fgButtonStatus" class="row-note" aria-live="polite">FG Button: disconnected.</span>
-          </div>
         </article>
 
         <article class="card beta-import-card">
@@ -271,6 +257,12 @@
           </div>
           <p id="accountSetupStatus" class="row-note" aria-live="polite"></p>
         </article>
+
+        <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
+          <strong>Fuel Guard Mobile PWA</strong>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v11-csv-only-settings</span>
+          <span id="buildVersionMarker">Build version: loading...</span>
+        </div>
       </section>
 
     </main>
@@ -291,17 +283,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="build-info.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v11-csv-only-settings"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="app-ui.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v10-esp32-csv-import"></script>
-  <script src="fg-button-ble.js?v=mobile-pwa-v10-esp32-csv-import"></script>
+  <script src="app-state.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="app-ui.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v11-csv-only-settings"></script>
 </body>
 </html>
