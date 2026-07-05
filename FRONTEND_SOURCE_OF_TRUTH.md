@@ -2,16 +2,17 @@
 
 ## Canonical app
 
-The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the three main tabs:
+The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the four main tabs:
 
 - Rhythm
-- History
+- Daily
+- Trends
 - Settings
 
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v11-csv-only-settings
+Canonical app: mobile-pwa-v12-daily-trends-risk
 Build version: shown from `build-info.js`
 
 ## Removed legacy features
@@ -36,7 +37,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-supabase.js`: Supabase Auth and cloud log sync layer
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
-- `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Rhythm, History, and Settings
+- `fuel-beta.js`: canonical 4-tab mobile PWA behavior for Rhythm, Daily, Trends, and Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `fuel-history-render-guard.js`: History rendering guard
 - `day-type-overrides.js`: day type and training session support
@@ -78,7 +79,7 @@ No `package.json`, Vite, Next, Netlify, or Firebase config is present in this re
 
 ## Mobile PWA update rules
 
-1. The canonical app is the 3-tab mobile PWA with Rhythm, History, and Settings.
+1. The canonical app is the 4-tab mobile PWA with Rhythm, Daily, Trends, and Settings.
 2. The deployed Vercel URL is the source for the installed mobile PWA.
 3. Settings must show the canonical marker and build version from `build-info.js`.
 4. Service worker caches must be versioned for each app-shell deployment.
@@ -99,8 +100,8 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v11-csv-only-settings`.
+The current canonical version is `mobile-pwa-v12-daily-trends-risk`.
 
 ## Future frontend changes
 
-Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main tabs Rhythm, History, and Settings.
+Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main tabs Rhythm, Daily, Trends, and Settings.

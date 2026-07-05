@@ -1,5 +1,5 @@
 function switchScreen(screen) {
-  const target = ["dashboard", "logs", "checklist"].includes(screen) ? screen : "dashboard";
+  const target = ["dashboard", "logs", "trends", "checklist"].includes(screen) ? screen : "dashboard";
   const targetElement = document.getElementById(target);
   if (!targetElement) return;
 
@@ -30,6 +30,7 @@ document.addEventListener("click", event => {
 
   const fuelActions = {
     "log-fuel": recordFuelled,
+    "log-crash": typeof window.recordCrashEvent === "function" ? window.recordCrashEvent : undefined,
     "end-day": endFuelDayAndStartFasting,
     "continue-tracking": continueFuelDayTracking
   };

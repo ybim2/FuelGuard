@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v11-csv-only-settings";
-const BUILD_VERSION = "2026-07-05T09:55:00Z";
+const APP_VERSION = "mobile-pwa-v12-daily-trends-risk";
+const BUILD_VERSION = "2026-07-05T11:15:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v11-csv-only-settings-20260705T095500Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v12-daily-trends-risk-20260705T111500Z";
 const APP_SHELL = [
   "./",
   "./index.html",

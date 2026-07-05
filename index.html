@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v11-csv-only-settings" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v11-csv-only-settings" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v11-csv-only-settings" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v12-daily-trends-risk" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v12-daily-trends-risk" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v12-daily-trends-risk" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -23,7 +23,8 @@
       <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Spot fuelling gaps before you crash</span></div></div>
       <nav class="side-nav beta-nav">
         <button class="nav-item active" data-screen="dashboard">Live Fuel Rhythm</button>
-        <button class="nav-item" data-screen="logs">Insights / History</button>
+        <button class="nav-item" data-screen="logs">Daily</button>
+        <button class="nav-item" data-screen="trends">Trends</button>
         <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
       <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Live Fuel Rhythm</strong><p>Log when you fuel, then use the gaps to find High Risk patterns.</p></div>
@@ -49,6 +50,7 @@
             <div class="beta-log-actions" aria-label="Log fuel or hydration">
               <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
               <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
+              <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
             </div>
             <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
 
@@ -75,7 +77,7 @@
                   <option value="swim">Swim</option>
                   <option value="strength">Strength</option>
                   <option value="brick">Brick</option>
-                  <option value="rest">Rest day / no training</option>
+                  <option value="rest">No training</option>
                 </select>
               </label>
               <span id="fuelDayTypeSaved" class="row-note"></span>
@@ -85,9 +87,19 @@
               <div class="beta-graph-mode" id="fuelGraphModeControls" role="group" aria-label="Rhythm graph view">
                 <button class="active" type="button" data-graph-mode="fuel">Fuel</button>
                 <button type="button" data-graph-mode="hydration">Hydration</button>
-                <button type="button" data-graph-mode="combined">Fuel + Hydration</button>
               </div>
               <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Live Fuel Rhythm curve across today"></canvas>
+            </div>
+
+            <div class="fuel-graph-wrap beta-risk-graph-wrap">
+              <div class="section-heading-row beta-risk-heading">
+                <div>
+                  <h3>Gap Risk</h3>
+                  <p class="muted">Estimated behavioural risk score, not a medical prediction.</p>
+                </div>
+                <span id="fuelRiskScoreBadge" class="status-pill green">0/100</span>
+              </div>
+              <canvas id="fuelRiskGraph" width="760" height="220" aria-label="Estimated gap risk across today"></canvas>
             </div>
 
             <div id="fuelGapInsights" class="fuel-gap-insights beta-gap-insights"></div>
@@ -106,7 +118,7 @@
           <div class="fuel-gap-lower beta-today-log">
             <div>
               <div class="section-heading-row">
-                <h3>Today's fuel log</h3>
+                <h3>Today's rhythm log</h3>
                 <span id="fuelDailyLogDate" class="row-note"></span>
               </div>
               <div id="fuelDailyLog" class="list"></div>
@@ -122,35 +134,12 @@
       </section>
 
       <section id="logs" class="screen">
-        <article class="card beta-averages-card">
-          <div class="section-heading-row beta-insight-heading">
-            <div>
-              <h2>Averages</h2>
-              <p class="muted">Stored logged days, grouped by training pattern.</p>
-            </div>
-            <label class="day-type-field beta-training-filter">
-              <span>Filter</span>
-              <select id="trainingInsightFilter">
-                <option value="all">All stored days</option>
-                <option value="training-days">Training days</option>
-                <option value="non-training-days">Non-training days</option>
-                <option value="run">Run</option>
-                <option value="bike">Bike</option>
-                <option value="swim">Swim</option>
-                <option value="strength">Strength</option>
-                <option value="brick">Brick</option>
-                <option value="rest">Rest day / no training</option>
-              </select>
-            </label>
-          </div>
-          <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
-          <div id="fuelHabitChangeSummary" class="beta-habit-summary"></div>
-          <div id="fuelAveragePatternGraphs" class="beta-pattern-graphs"></div>
-        </article>
-
         <article class="card">
           <div class="section-heading-row">
-            <h2>Daily Summaries</h2>
+            <div>
+              <h2>Daily</h2>
+              <p class="muted">Plain-English daily summaries with key gaps, crash markers, and a compact timeline.</p>
+            </div>
             <span id="fuelHistoryCount" class="row-note"></span>
           </div>
           <label class="day-type-field beta-history-date">
@@ -160,6 +149,34 @@
           <div id="fuelHistoryArchiveDetail" class="fuel-archive-detail"></div>
         </article>
 
+      </section>
+
+      <section id="trends" class="screen">
+        <article class="card beta-trends-card">
+          <div class="section-heading-row beta-insight-heading">
+            <div>
+              <h2>Trends</h2>
+              <p class="muted">Behaviour change over time: this week compared with last week.</p>
+            </div>
+            <label class="day-type-field beta-training-filter">
+              <span>Filter</span>
+              <select id="trainingInsightFilter">
+                <option value="all">All stored days</option>
+                <option value="run">Run</option>
+                <option value="bike">Bike</option>
+                <option value="swim">Swim</option>
+                <option value="strength">Strength</option>
+                <option value="brick">Brick</option>
+                <option value="rest">No training</option>
+              </select>
+            </label>
+          </div>
+          <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
+          <div class="beta-trend-line-card">
+            <canvas id="fuelTrendsGraph" width="760" height="260" aria-label="This week versus last week trend comparison"></canvas>
+          </div>
+          <div id="fuelTrendInsights" class="beta-trend-insights"></div>
+        </article>
       </section>
 
       <section id="checklist" class="screen">
@@ -260,7 +277,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v11-csv-only-settings</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v12-daily-trends-risk</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -273,9 +290,13 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 3-4 3 3 5-7 1 2"/></svg>
       <span>Rhythm</span>
     </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="logs" data-mobile-tab="history">
+    <button class="mobile-nav-item" type="button" data-mobile-screen="logs" data-mobile-tab="daily">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/><path d="M8 5v14"/></svg>
-      <span>History</span>
+      <span>Daily</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="trends" data-mobile-tab="trends">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 4-5 3 3 5-7"/></svg>
+      <span>Trends</span>
     </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="checklist" data-mobile-tab="settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9.1 1.7 1.7 0 0 0-.9 1.6v.2h-4v-.2a1.7 1.7 0 0 0-.9-1.6 1.7 1.7 0 0 0-1.9-.1l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 6.2 15a1.7 1.7 0 0 0-1.4-1H4.6v-4h.2a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9-.1 1.7 1.7 0 0 0 .9-1.6V1.8h4V2a1.7 1.7 0 0 0 .9 1.6 1.7 1.7 0 0 0 1.9.1l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
@@ -283,16 +304,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="build-info.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v12-daily-trends-risk"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="app-ui.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v11-csv-only-settings"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v11-csv-only-settings"></script>
+  <script src="app-state.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="app-ui.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v12-daily-trends-risk"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v12-daily-trends-risk"></script>
 </body>
 </html>

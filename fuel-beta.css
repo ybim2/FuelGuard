@@ -45,7 +45,7 @@
 .beta-log-actions {
   order: 4;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
 }
@@ -120,6 +120,14 @@
   border-radius: 16px;
 }
 
+.beta-crash-button {
+  width: 100%;
+  min-height: 60px;
+  margin: 0;
+  border-color: rgba(255,77,109,.44) !important;
+  color: #ffdbe2 !important;
+}
+
 .beta-mvp .fuel-cooldown-message {
   min-height: 0;
   margin: 0 0 3px;
@@ -139,6 +147,26 @@
 .beta-graph-wrap #fuelRhythmGraph {
   height: 222px;
   min-height: 200px;
+}
+
+.beta-risk-graph-wrap {
+  grid-template-rows: auto minmax(170px, 1fr);
+  min-height: 244px;
+}
+
+.beta-risk-graph-wrap #fuelRiskGraph {
+  height: 190px;
+  min-height: 170px;
+}
+
+.beta-risk-heading {
+  gap: 10px;
+  align-items: start;
+}
+
+.beta-risk-heading h3,
+.beta-risk-heading p {
+  margin-bottom: 0;
 }
 
 .beta-day-controls,
@@ -177,7 +205,7 @@
 
 .beta-graph-mode {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 0;
 }
@@ -451,7 +479,7 @@
 }
 
 .beta-mvp .mobile-bottom-nav {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .beta-hidden-duplicate-risk {
@@ -491,6 +519,173 @@
   display: grid;
   gap: 10px;
   margin-top: 12px;
+}
+
+.beta-daily-summary-copy {
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.55;
+  margin: 8px 0 12px;
+}
+
+.beta-daily-bullets,
+.beta-trend-bullets {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beta-daily-bullets li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-daily-bullets span {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.beta-daily-bullets strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.beta-daily-visuals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.beta-daily-visual {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-daily-visual h4 {
+  margin: 0 0 8px;
+}
+
+.beta-daily-visual canvas {
+  width: 100%;
+  height: 170px;
+}
+
+.beta-daily-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.beta-timeline-track {
+  position: relative;
+  height: 54px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(45,255,136,.08), rgba(32,214,255,.06), rgba(255,176,32,.08));
+}
+
+.beta-timeline-point {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 2px solid rgba(3,10,8,.9);
+  border-radius: 999px;
+  color: #06100b;
+  font-size: .62rem;
+  font-weight: 1000;
+  transform: translate(-50%, -50%);
+}
+
+.beta-timeline-point.fuel,
+.beta-timeline-legend .fuel::before {
+  background: #2dff88;
+}
+
+.beta-timeline-point.hydration,
+.beta-timeline-legend .hydration::before {
+  background: #9fb7ff;
+}
+
+.beta-timeline-point.combined {
+  background: linear-gradient(135deg, #2dff88, #9fb7ff);
+}
+
+.beta-timeline-point.crash,
+.beta-timeline-legend .crash::before {
+  background: #ff4d6d;
+  color: #fff;
+}
+
+.beta-timeline-axis,
+.beta-timeline-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.beta-timeline-legend {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.beta-timeline-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.beta-timeline-legend span::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.beta-raw-log-details {
+  margin-top: 12px;
+}
+
+.beta-raw-log-details summary {
+  background: rgba(255,255,255,.045);
+}
+
+.beta-trend-line-card {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-trend-line-card canvas {
+  width: 100%;
+  height: 240px;
+}
+
+.beta-trend-bullets li {
+  padding: 10px 12px;
+  border: 1px solid rgba(45,255,136,.14);
+  border-radius: 12px;
+  background: rgba(45,255,136,.045);
+  color: var(--text);
 }
 
 .beta-history-chart {
@@ -700,8 +895,12 @@
   }
 
   .beta-mvp .mobile-bottom-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     box-shadow: none;
+  }
+
+  .beta-daily-visuals {
+    grid-template-columns: 1fr;
   }
 
   .beta-mvp .mobile-nav-item {

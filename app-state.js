@@ -11,7 +11,7 @@ const DEFAULT_STATE = {
     archive: {},
     dayTypes: {},
     trainingSessions: {},
-    graphMode: "combined",
+    graphMode: "fuel",
     thresholds: {
       greenMinutes: FUEL_GREEN_LIMIT_MINUTES,
       redMinutes: FUEL_RED_LIMIT_MINUTES

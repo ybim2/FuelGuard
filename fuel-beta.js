@@ -22,13 +22,14 @@
     { value: "swim", label: "Swim" },
     { value: "strength", label: "Strength" },
     { value: "brick", label: "Brick" },
-    { value: "rest", label: "Rest day / no training" }
+    { value: "rest", label: "No training" }
   ];
   const TRAINING_SESSION_LABELS = TRAINING_SESSION_OPTIONS.reduce((labels, option) => {
     labels[option.value] = option.label;
     return labels;
   }, {});
-  const GRAPH_MODES = new Set(["fuel", "hydration", "combined"]);
+  const GRAPH_MODES = new Set(["fuel", "hydration"]);
+  const CRASH_NOTE = "fuel_guard_event:crash";
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "race": "competition",
@@ -70,6 +71,7 @@
   let csvImportBusy = false;
   let csvImportPreview = null;
   let csvImportStatus = "";
+  let latestTrendGraphData = null;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -385,7 +387,7 @@
     gap.thresholds.greenMinutes = Number(gap.thresholds.greenMinutes || DEFAULT_THRESHOLDS.greenMinutes);
     gap.thresholds.redMinutes = Number(gap.thresholds.redMinutes || DEFAULT_THRESHOLDS.redMinutes);
     if (gap.thresholds.redMinutes <= gap.thresholds.greenMinutes) gap.thresholds.redMinutes = gap.thresholds.greenMinutes + 60;
-    if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "combined";
+    if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "fuel";
     normalizeStoredDayTypes(gap);
     return gap;
   }
@@ -448,6 +450,7 @@
     const type = String(log?.type || "fuel").toLowerCase();
     if (type === "hydration") return "hydration";
     if (type === "fuel_hydration") return "fuel_hydration";
+    if (type === "crash" || String(log?.note || log?.notes || "").includes(CRASH_NOTE)) return "crash";
     return "fuel";
   }
 
@@ -461,10 +464,15 @@
     return type === "hydration" || type === "fuel_hydration";
   }
 
+  function isCrashLog(log) {
+    return logType(log) === "crash";
+  }
+
   function logTypeLabel(log) {
     const type = logType(log);
     if (type === "hydration") return "Hydration";
     if (type === "fuel_hydration") return "Fuel + Hydration";
+    if (type === "crash") return "Low energy event";
     return "Fuel";
   }
 
@@ -554,7 +562,7 @@
   }
 
   function graphMode() {
-    return GRAPH_MODES.has(betaState().graphMode) ? betaState().graphMode : "combined";
+    return GRAPH_MODES.has(betaState().graphMode) ? betaState().graphMode : "fuel";
   }
 
   function cooldownRemainingSeconds(now = Date.now()) {
@@ -589,6 +597,25 @@
     return gaps;
   }
 
+  function gapsFromHydrationLogs(logs, referenceTime = new Date(), includeTrailing = false, trailingIsOngoing = false) {
+    const sorted = [...logs].filter(isHydrationLog).sort((a, b) => a.date - b.date);
+    const gaps = [];
+    for (let index = 1; index < sorted.length; index += 1) {
+      const minutes = (sorted[index].date - sorted[index - 1].date) / 60000;
+      if (Number.isFinite(minutes) && minutes >= 0) {
+        gaps.push({ minutes, start: sorted[index - 1].date, end: sorted[index].date, ongoing: false });
+      }
+    }
+    if (includeTrailing && sorted.length) {
+      const last = sorted[sorted.length - 1];
+      const minutes = (referenceTime - last.date) / 60000;
+      if (Number.isFinite(minutes) && minutes >= 0) {
+        gaps.push({ minutes, start: last.date, end: referenceTime, ongoing: trailingIsOngoing });
+      }
+    }
+    return gaps;
+  }
+
   function durationText(minutes) {
     return Number.isFinite(minutes) && minutes > 0 ? duration(minutes) : "Not enough data";
   }
@@ -597,19 +624,98 @@
     return thresholds().redMinutes;
   }
 
+  function hydrationRiskLimit() {
+    return Math.max(90, Math.round(thresholds().redMinutes * 0.7));
+  }
+
+  function riskZone(score) {
+    if (score <= 30) return { label: "Low risk", tone: "green" };
+    if (score <= 60) return { label: "Medium risk", tone: "amber" };
+    if (score <= 80) return { label: "High risk", tone: "red" };
+    return { label: "Crash risk", tone: "red" };
+  }
+
+  function scoreFromGap(minutes, greenMinutes, redMinutes) {
+    if (!Number.isFinite(minutes) || minutes < 0) return 0;
+    if (minutes <= greenMinutes) return clamp((minutes / Math.max(1, greenMinutes)) * 30, 0, 30);
+    if (minutes <= redMinutes) {
+      return 30 + ((minutes - greenMinutes) / Math.max(1, redMinutes - greenMinutes)) * 50;
+    }
+    return clamp(80 + ((minutes - redMinutes) / Math.max(1, redMinutes * 0.4)) * 20, 80, 100);
+  }
+
+  function riskScoreForGaps(fuelMinutes, hydrationMinutes) {
+    const fuelScore = scoreFromGap(fuelMinutes, thresholds().greenMinutes, thresholds().redMinutes);
+    const hydrationScore = scoreFromGap(hydrationMinutes, Math.round(thresholds().greenMinutes * 0.7), hydrationRiskLimit());
+    return Math.round(clamp(Math.max(fuelScore, hydrationScore * 0.88), 0, 100));
+  }
+
+  function riskSamplesForDay(key, { now = new Date(), endedAt = "" } = {}) {
+    const logs = logsForDay(key).filter(log => log.date);
+    const fuelLogs = logs.filter(isFuelLog).sort((a, b) => a.date - b.date);
+    const hydrationLogs = logs.filter(isHydrationLog).sort((a, b) => a.date - b.date);
+    const crashLogs = logs.filter(isCrashLog).sort((a, b) => a.date - b.date);
+    const endedDate = endedAt ? logDate(endedAt) : null;
+    const isToday = key === dateKey(now);
+    const endDate = endedDate || (isToday ? now : logs[logs.length - 1]?.date || dateFromKey(key));
+    const endMinute = clamp(minutesIntoDay(endDate), 0, 1440);
+    const samples = [];
+    let fuelIndex = 0;
+    let hydrationIndex = 0;
+    let crashIndex = 0;
+    let lastFuel = null;
+    let lastHydration = null;
+
+    for (let minute = 0; minute <= Math.max(0, endMinute); minute += 30) {
+      const pointDate = addMinutes(startOfDay(dateFromKey(key)), minute);
+      while (fuelIndex < fuelLogs.length && minutesIntoDay(fuelLogs[fuelIndex].date) <= minute) lastFuel = fuelLogs[fuelIndex++].date;
+      while (hydrationIndex < hydrationLogs.length && minutesIntoDay(hydrationLogs[hydrationIndex].date) <= minute) lastHydration = hydrationLogs[hydrationIndex++].date;
+      while (crashIndex < crashLogs.length && minutesIntoDay(crashLogs[crashIndex].date) <= minute) crashIndex += 1;
+      const fuelGap = lastFuel ? (pointDate - lastFuel) / 60000 : Infinity;
+      const hydrationGap = lastHydration ? (pointDate - lastHydration) / 60000 : Infinity;
+      const base = riskScoreForGaps(fuelGap, hydrationGap);
+      const nearbyCrash = crashLogs.some(log => Math.abs(minutesIntoDay(log.date) - minute) <= 15);
+      samples.push({ minute, score: nearbyCrash ? 100 : base });
+    }
+    return samples;
+  }
+
+  function maxRiskScoreForDay(key, options = {}) {
+    const samples = riskSamplesForDay(key, options);
+    return samples.length ? Math.max(...samples.map(sample => sample.score)) : 0;
+  }
+
+  function dayNameForKey(key) {
+    return dateFromKey(key).toLocaleDateString(undefined, { weekday: "long" });
+  }
+
+  function consistencyCopy(fuelLongest, hydrationLongest) {
+    if (!Number.isFinite(fuelLongest) && !Number.isFinite(hydrationLongest)) return "Fuel and hydration both need more logs before consistency is clear.";
+    if (!Number.isFinite(hydrationLongest) || hydrationLongest <= 0) return "Fuel timing is clearer than hydration because hydration has fewer logs.";
+    if (!Number.isFinite(fuelLongest) || fuelLongest <= 0) return "Hydration timing is clearer than fuel because fuel has fewer logs.";
+    if (hydrationLongest + 30 < fuelLongest) return "Hydration was more consistent than fuel.";
+    if (fuelLongest + 30 < hydrationLongest) return "Fuel was more consistent than hydration.";
+    return "Fuel and hydration consistency looked similar.";
+  }
+
   function analyseDay(key, { now = new Date(), endedAt = "" } = {}) {
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
+    const crashLogs = logs.filter(isCrashLog);
     const endedDate = endedAt ? logDate(endedAt) : null;
     const isToday = key === dateKey(now);
-    const reference = endedDate || (isToday ? now : fuelLogs[fuelLogs.length - 1]?.date || logs[logs.length - 1]?.date || dateFromKey(key));
+    const reference = endedDate || (isToday ? now : logs[logs.length - 1]?.date || dateFromKey(key));
     const gaps = gapsFromFuelLogs(fuelLogs, reference, Boolean(endedDate) || isToday, !endedDate && isToday);
+    const hydrationGaps = gapsFromHydrationLogs(hydrationLogs, reference, Boolean(endedDate) || isToday, !endedDate && isToday);
     const completedGaps = gaps.filter(gap => !gap.ongoing);
     const highRiskGaps = gaps.filter(gap => gap.minutes >= riskLimit());
+    const highRiskHydrationGaps = hydrationGaps.filter(gap => gap.minutes >= hydrationRiskLimit());
     const completedHighRiskGaps = completedGaps.filter(gap => gap.minutes >= riskLimit());
     const longest = gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : 0;
     const average = gaps.length ? gaps.reduce((sum, gap) => sum + gap.minutes, 0) / gaps.length : 0;
+    const longestHydration = hydrationGaps.length ? Math.max(...hydrationGaps.map(gap => gap.minutes)) : 0;
+    const averageHydration = hydrationGaps.length ? hydrationGaps.reduce((sum, gap) => sum + gap.minutes, 0) / hydrationGaps.length : 0;
     const firstHighRiskGap = highRiskGaps[0] || null;
     const highRiskStart = firstHighRiskGap ? addMinutes(firstHighRiskGap.start, riskLimit()) : null;
     const reactive = completedHighRiskGaps.length > 0 && completedHighRiskGaps.length >= Math.ceil(Math.max(1, completedGaps.length) / 2);
@@ -617,28 +723,38 @@
     const lastFuel = fuelLogs[fuelLogs.length - 1] || null;
     const dayType = dayTypeForKey(key);
     const trainingSession = trainingSessionForKey(key);
+    const strongestGap = [...gaps, ...hydrationGaps].sort((a, b) => b.minutes - a.minutes)[0] || null;
+    const vulnerableWindow = strongestGap ? timeWindowBucket(minutesIntoDay(strongestGap.start) + strongestGap.minutes / 2) : "Needs more data";
+    const maxRiskScore = maxRiskScoreForDay(key, { now, endedAt });
+    const risk = riskZone(maxRiskScore);
     const summary = [];
-
-    if (!fuelLogs.length) {
-      summary.push("No fuel logs recorded for this day.");
-      summary.push("Log a few more days to see your High Risk gap pattern.");
-    } else if (!gaps.length) {
-      summary.push("Only one fuel log is available for this day.");
-      summary.push("More fuel logs are needed before Fuel Guard can calculate gaps.");
-    } else {
-      summary.push(`Your longest fuel gap was ${duration(longest)}.`);
-      if (firstHighRiskGap && highRiskStart) {
-        summary.push(`Your first High Risk gap began around ${formatClock(highRiskStart)}.`);
-        summary.push(`That logged gap ended at ${formatClock(firstHighRiskGap.end)}.`);
-      } else {
-        summary.push("No High Risk fuel gap was logged from the available fuel logs.");
-      }
-      if (reactive) summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
-      if (isTrainingDayValue(dayType, trainingSession) && highRiskGaps.length) {
-        summary.push(`${trainingSessionLabel(trainingSession)} context: high-output days need reliable fuel access before gaps turn High Risk.`);
-      }
-      if (fuelLogs.length < 3 || !firstHighRiskGap) summary.push("More weekly data will make this pattern clearer.");
+    const fuelGapSentence = longest
+      ? `Your longest fuel gap was ${duration(longest)}${highRiskGaps.length ? ", which entered the high-risk zone" : ""}.`
+      : fuelLogs.length ? "More fuel logs are needed before Fuel Guard can calculate fuel gaps." : "No fuel logs were recorded.";
+    const hydrationSentence = longestHydration
+      ? `Your longest hydration gap was ${duration(longestHydration)}${highRiskHydrationGaps.length ? ", which pushed hydration risk higher" : ""}.`
+      : hydrationLogs.length ? "More hydration logs are needed before Fuel Guard can calculate hydration gaps." : "No hydration logs were recorded.";
+    const crashSentence = crashLogs.length
+      ? `${crashLogs.length} low-energy event${crashLogs.length === 1 ? " was" : "s were"} marked.`
+      : "No bonking or crash event was marked.";
+    const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
+    summary.push(plainSummary);
+    if (highRiskGaps.length) summary.push("High-risk fuel gaps were present, so the day had avoidable risk windows.");
+    if (highRiskHydrationGaps.length) summary.push("Hydration gaps also became stretched, which may have amplified the day’s risk.");
+    if (reactive) summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
+    if (isTrainingDayValue(dayType, trainingSession) && (highRiskGaps.length || crashLogs.length)) {
+      summary.push(`${trainingSessionLabel(trainingSession)} days need earlier fuel access before gaps turn into real-world crashes.`);
     }
+    if (fuelLogs.length < 3 && hydrationLogs.length < 3) summary.push("More logs will make this day easier to explain.");
+
+    const bullets = [
+      { label: "Longest fuel gap", value: durationText(longest) },
+      { label: "Longest hydration gap", value: durationText(longestHydration) },
+      { label: "High-risk gaps", value: String(highRiskGaps.length + highRiskHydrationGaps.length) },
+      { label: "Most vulnerable window", value: vulnerableWindow },
+      { label: "Bonking/crash reported", value: crashLogs.length ? "Yes" : "No" },
+      { label: "Estimated peak risk", value: `${maxRiskScore}/100 ${risk.label}` }
+    ];
 
     return {
       date: key,
@@ -650,22 +766,33 @@
       logs,
       fuelLogs,
       hydrationLogs,
+      crashLogs,
       firstFuelTime: firstFuel ? formatClock(firstFuel.date) : "Not logged",
       lastFuelTime: lastFuel ? formatClock(lastFuel.date) : "Not logged",
       firstFuelMinute: firstFuel ? minutesIntoDay(firstFuel.date) : null,
       lastFuelMinute: lastFuel ? minutesIntoDay(lastFuel.date) : null,
       fuelLogCount: fuelLogs.length,
       hydrationLogCount: hydrationLogs.length,
+      crashLogCount: crashLogs.length,
       gaps,
+      hydrationGaps,
       longestGapMinutes: longest,
       averageGapMinutes: average,
+      longestHydrationGapMinutes: longestHydration,
+      averageHydrationGapMinutes: averageHydration,
       longGapCount: highRiskGaps.length,
       highRiskGapCount: highRiskGaps.length,
+      highRiskHydrationGapCount: highRiskHydrationGaps.length,
       highRiskStartMinute: highRiskStart ? minutesIntoDay(highRiskStart) : null,
       highRiskEndMinute: firstHighRiskGap ? minutesIntoDay(firstHighRiskGap.end) : null,
       highRiskWindow: firstHighRiskGap && highRiskStart ? `${formatClock(highRiskStart)}-${formatClock(firstHighRiskGap.end)}` : "Not detected",
+      vulnerableWindow,
+      maxRiskScore,
+      riskLabel: risk.label,
       reactive,
       endedAt: endedDate ? endedDate.toISOString() : "",
+      plainSummary,
+      bullets,
       summary
     };
   }
@@ -692,6 +819,7 @@
       lastFuelTime: analysis.lastFuelTime,
       fuelLogCount: analysis.fuelLogCount,
       hydrationLogCount: analysis.hydrationLogCount,
+      crashLogCount: analysis.crashLogCount,
       logs: analysis.logs.map(log => ({
         id: log.id || uid(),
         timestamp: log.date.toISOString(),
@@ -699,19 +827,30 @@
         typeLabel: logTypeLabel(log),
         dayType: log.dayType || analysis.dayType,
         trainingSession: log.trainingSession || analysis.trainingSession,
-        note: log.note || ""
+        note: String(log.note || "").includes(CRASH_NOTE) ? "" : log.note || ""
       })),
       gapMinutes: analysis.gaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
+      hydrationGapMinutes: analysis.hydrationGaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
       longestGapMinutes: analysis.longestGapMinutes,
       averageGapMinutes: analysis.averageGapMinutes,
+      longestHydrationGapMinutes: analysis.longestHydrationGapMinutes,
+      averageHydrationGapMinutes: analysis.averageHydrationGapMinutes,
       longGapCount: analysis.longGapCount,
       highRiskGapCount: analysis.highRiskGapCount,
+      highRiskHydrationGapCount: analysis.highRiskHydrationGapCount,
       longestGap: durationText(analysis.longestGapMinutes),
       averageGap: durationText(analysis.averageGapMinutes),
+      longestHydrationGap: durationText(analysis.longestHydrationGapMinutes),
+      averageHydrationGap: durationText(analysis.averageHydrationGapMinutes),
       highRiskStartMinute: analysis.highRiskStartMinute,
       highRiskEndMinute: analysis.highRiskEndMinute,
       highRiskWindow: analysis.highRiskWindow,
+      vulnerableWindow: analysis.vulnerableWindow,
+      maxRiskScore: analysis.maxRiskScore,
+      riskLabel: analysis.riskLabel,
       reactive: analysis.reactive,
+      plainSummary: analysis.plainSummary,
+      bullets: analysis.bullets,
       analysis: analysis.summary
     };
   }
@@ -872,6 +1011,33 @@
     recordRhythmLog("hydration", { source: "manual" });
   }
 
+  function recordCrashEvent() {
+    if (fuelDayEndSnapshot().dayEnded) return;
+    const key = dateKey();
+    const log = {
+      id: uid(),
+      timestamp: new Date().toISOString(),
+      label: "Low energy event",
+      type: "crash",
+      source: "manual",
+      dayType: dayTypeForKey(key),
+      trainingSession: trainingSessionForKey(key),
+      note: CRASH_NOTE,
+      syncStatus: "pending"
+    };
+    betaState().logs.push(log);
+    storeArchive(key);
+    state.completed.liveFuelStatus = true;
+    if (typeof addActivityEntry === "function") {
+      addActivityEntry("crashEvent", "Low energy event marked.", { dedupeDaily: false });
+    }
+    save();
+    renderAll();
+    window.fuelGuardCloud?.saveLog(log);
+  }
+
+  window.recordCrashEvent = recordCrashEvent;
+
   function undoLatestRhythmLog() {
     const key = dateKey();
     let latestIndex = -1;
@@ -1009,7 +1175,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v11-csv-only-settings"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v12-daily-trends-risk"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1074,6 +1240,7 @@
   }
 
   function renderAnalysisList(items) {
+    if (!Array.isArray(items) || !items.length) return `<p class="muted">No extra behaviour notes for this day yet.</p>`;
     return `<ul class="fuel-analysis-list">${items.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
   }
 
@@ -1099,28 +1266,72 @@
       : `<p class="muted fuel-daily-empty">No fuel or hydration logged today.</p>`;
   }
 
+  function renderDailyBullets(entry) {
+    const bullets = Array.isArray(entry.bullets) && entry.bullets.length
+      ? entry.bullets
+      : [
+        { label: "Longest fuel gap", value: entry.longestGap || "Not enough data" },
+        { label: "Longest hydration gap", value: entry.longestHydrationGap || "Not enough data" },
+        { label: "High-risk gaps", value: String((entry.highRiskGapCount || 0) + (entry.highRiskHydrationGapCount || 0)) },
+        { label: "Most vulnerable window", value: entry.vulnerableWindow || "Needs more data" },
+        { label: "Bonking/crash reported", value: entry.crashLogCount ? "Yes" : "No" }
+      ];
+    return `<ul class="beta-daily-bullets">${bullets.map(item => `<li><span>${safeText(item.label)}</span><strong>${safeText(item.value)}</strong></li>`).join("")}</ul>`;
+  }
+
+  function pointStyleForLog(log) {
+    const type = logType(log);
+    if (type === "hydration") return { className: "hydration", label: "H" };
+    if (type === "crash") return { className: "crash", label: "!" };
+    if (type === "fuel_hydration") return { className: "combined", label: "F+H" };
+    return { className: "fuel", label: "F" };
+  }
+
+  function renderDailyTimeline(entry) {
+    const logs = (entry.logs || []).map(log => ({ ...log, date: logDate(log.timestamp || log) })).filter(log => log.date);
+    if (!logs.length) return `<p class="muted beta-history-empty">No timeline points for this day yet.</p>`;
+    const points = logs.map(log => {
+      const style = pointStyleForLog(log);
+      const left = clamp((minutesIntoDay(log.date) / 1440) * 100, 0, 100);
+      return `<span class="beta-timeline-point ${style.className}" style="left:${left}%" title="${safeText(formatClock(log.date))} ${safeText(logTypeLabel(log))}">${safeText(style.label)}</span>`;
+    }).join("");
+    return `
+      <div class="beta-daily-timeline" aria-label="Fuel, hydration and crash markers across the day">
+        <div class="beta-timeline-track">${points}</div>
+        <div class="beta-timeline-axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
+        <div class="beta-timeline-legend"><span class="fuel">Fuel</span><span class="hydration">Hydration</span><span class="crash">Crash marker</span></div>
+      </div>
+    `;
+  }
+
+  function renderRawLogs(entry) {
+    if (!entry.logs.length) return `<p class="muted">No raw logs stored for this day.</p>`;
+    const logsHtml = entry.logs.map(log => {
+      const date = logDate(log.timestamp);
+      const note = log.note && !String(log.note).includes(CRASH_NOTE) ? `<div class="row-note">${safeText(log.note)}</div>` : "";
+      return `<div class="row fuel-archive-log-row"><div><div class="item-name">${date ? formatClock(date) : "--"} - ${safeText(log.typeLabel || "Fuel")}</div>${note}</div></div>`;
+    }).join("");
+    return `<details class="beta-raw-log-details"><summary>View raw logs</summary><div class="list">${logsHtml}</div></details>`;
+  }
+
   function renderArchiveDetail(entry) {
     if (!entry) return `<p class="muted">No daily summaries yet.</p>`;
-    const logsHtml = entry.logs.length
-      ? entry.logs.map(log => `<div class="row fuel-archive-log-row"><div><div class="item-name">${formatClock(logDate(log.timestamp))} - ${safeText(log.typeLabel || "Fuel")}</div>${log.note ? `<div class="row-note">${safeText(log.note)}</div>` : ""}</div></div>`).join("")
-      : `<p class="muted">No logs stored for this day.</p>`;
     const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
       .filter(Boolean)
       .join(" - ");
+    const highRiskTotal = Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0);
+    const risk = riskZone(Number(entry.maxRiskScore || 0));
 
     return `
-      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day type not set")}</h3></div><span class="status-pill ${entry.highRiskGapCount ? "amber" : "green"}">${entry.highRiskGapCount ? "HIGH RISK GAPS" : "STABLE"}</span></div>
-      <div class="fuel-archive-stats">
-        <div><span>First fuel</span><strong>${safeText(entry.firstFuelTime)}</strong></div>
-        <div><span>Last fuel</span><strong>${safeText(entry.lastFuelTime)}</strong></div>
-        <div><span>Fuel logs</span><strong>${entry.fuelLogCount}</strong></div>
-        <div><span>Hydration logs</span><strong>${entry.hydrationLogCount || 0}</strong></div>
-        <div><span>Longest gap</span><strong>${safeText(entry.longestGap)}</strong></div>
-        <div><span>Average gap</span><strong>${safeText(entry.averageGap)}</strong></div>
-        <div><span>High Risk gaps</span><strong>${entry.highRiskGapCount || 0}</strong></div>
+      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${highRiskTotal || entry.crashLogCount ? "amber" : "green"}">${highRiskTotal || entry.crashLogCount ? "RISK SIGNALS" : "STABLE"}</span></div>
+      <p class="beta-daily-summary-copy">${safeText(entry.plainSummary || entry.analysis?.[0] || "No summary available yet.")}</p>
+      ${renderDailyBullets(entry)}
+      <div class="beta-daily-visuals">
+        <section class="beta-daily-visual"><h4>Daily timeline</h4>${renderDailyTimeline(entry)}</section>
+        <section class="beta-daily-visual"><h4>Gap Risk</h4><p class="muted">Estimated behavioural risk score, not a medical prediction.</p><canvas id="dailyRiskGraph" width="760" height="190" aria-label="Estimated daily gap risk"></canvas><p class="row-note">Peak: ${safeText(String(entry.maxRiskScore || 0))}/100 ${safeText(risk.label)}</p></section>
       </div>
-      <div class="fuel-archive-section"><h4>Fuel log times</h4><div class="list">${logsHtml}</div></div>
-      <div class="fuel-archive-section"><h4>Logged behaviour notes</h4>${renderAnalysisList(entry.analysis)}</div>
+      <div class="fuel-archive-section"><h4>Behaviour notes</h4>${renderAnalysisList((entry.analysis || []).slice(1))}</div>
+      ${renderRawLogs(entry)}
     `;
   }
 
@@ -1132,9 +1343,6 @@
 
   function entryMatchesTrainingFilter(entry, filter) {
     if (filter === "all") return true;
-    const isTraining = isTrainingDayValue(entry.dayType, entry.trainingSession);
-    if (filter === "training-days") return isTraining;
-    if (filter === "non-training-days") return !isTraining;
     if (filter === "rest") return entry.trainingSession === "rest";
     return entry.trainingSession === filter;
   }
@@ -1159,9 +1367,58 @@
 
   function trainingFilterLabel(filter) {
     if (filter === "all") return "All stored days";
-    if (filter === "training-days") return "Training days";
-    if (filter === "non-training-days") return "Non-training days";
     return trainingSessionLabel(filter);
+  }
+
+  function weeklyTrendWindows(entries) {
+    const todayStart = startOfDay();
+    const thisStart = new Date(todayStart);
+    thisStart.setDate(todayStart.getDate() - 6);
+    const lastStart = new Date(todayStart);
+    lastStart.setDate(todayStart.getDate() - 13);
+    const lastEnd = new Date(todayStart);
+    lastEnd.setDate(todayStart.getDate() - 7);
+    return {
+      current: entries.filter(entry => {
+        const date = dateFromKey(entry.date);
+        return date >= thisStart && date <= todayStart;
+      }),
+      previous: entries.filter(entry => {
+        const date = dateFromKey(entry.date);
+        return date >= lastStart && date <= lastEnd;
+      })
+    };
+  }
+
+  function trendMetrics(entries) {
+    return {
+      averageFuelGap: averageValue(entries.map(entry => Number(entry.averageGapMinutes || 0)).filter(Boolean)),
+      averageHydrationGap: averageValue(entries.map(entry => Number(entry.averageHydrationGapMinutes || 0)).filter(Boolean)),
+      highRiskGaps: entries.reduce((sum, entry) => sum + Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0), 0),
+      crashEvents: entries.reduce((sum, entry) => sum + Number(entry.crashLogCount || 0), 0),
+      days: entries.length
+    };
+  }
+
+  function metricTrend(current, previous, { lowerIsBetter = true, unit = "", threshold = 0 } = {}) {
+    if (!Number.isFinite(current)) return { direction: "none", copy: "Needs more data", delta: 0, improved: false };
+    if (!Number.isFinite(previous)) return { direction: "none", copy: "Needs last week for comparison", delta: 0, improved: false };
+    const delta = current - previous;
+    if (Math.abs(delta) <= threshold) return { direction: "steady", copy: "About the same as last week", delta, improved: false };
+    const improved = lowerIsBetter ? delta < 0 : delta > 0;
+    const amount = unit === "minutes" ? compactDuration(delta) : `${Math.abs(delta).toFixed(Math.abs(delta) < 1 ? 1 : 0)}${unit}`;
+    return {
+      direction: delta < 0 ? "down" : "up",
+      copy: `${amount} ${delta < 0 ? "lower" : "higher"} than last week`,
+      delta,
+      improved
+    };
+  }
+
+  function renderTrendStatus(label, trend) {
+    const tone = trend.direction === "steady" ? "neutral" : trend.improved ? "good" : "watch";
+    const value = trend.direction === "none" ? "Building" : trend.improved ? "Improving" : trend.direction === "steady" ? "Steady" : "Needs attention";
+    return renderTrendMetric(label, value, trend.copy, tone);
   }
 
   function compactDuration(minutes) {
@@ -1262,7 +1519,7 @@
     if (recent.length < 2) {
       return `
         <section class="beta-habit-trends">
-          <div class="beta-habit-heading"><h3>Habit change</h3><span>Recent days versus earlier logged days</span></div>
+          <div class="beta-habit-heading"><h3>Trends</h3><span>Recent days versus earlier logged days</span></div>
           <p class="muted beta-history-empty">Log at least two days to start seeing habit changes.</p>
         </section>
       `;
@@ -1335,7 +1592,7 @@
 
     return `
       <section class="beta-habit-trends">
-        <div class="beta-habit-heading"><h3>Habit change</h3><span>Recent ${recent.length} logged day${recent.length === 1 ? "" : "s"} versus previous ${previous.length || 0}</span></div>
+        <div class="beta-habit-heading"><h3>Trends</h3><span>Recent ${recent.length} logged day${recent.length === 1 ? "" : "s"} versus previous ${previous.length || 0}</span></div>
         <div class="fuel-gap-insights beta-habit-grid">
           ${renderTrendMetric("First fuel time", firstFuel.value, firstFuel.note)}
           ${renderTrendMetric("Last fuel time", lastFuel.value, lastFuel.note)}
@@ -1410,6 +1667,152 @@
     ].join("");
   }
 
+  function renderTrends() {
+    const summaryTarget = document.getElementById("fuelAveragesSummary");
+    const insightsTarget = document.getElementById("fuelTrendInsights");
+    const allEntries = loggedHistoryEntries();
+    const filteredEntries = allEntries.filter(entry => entryMatchesTrainingFilter(entry, selectedTrainingFilter));
+    if (!summaryTarget || !insightsTarget) return;
+    if (!filteredEntries.length) {
+      latestTrendGraphData = null;
+      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match ${safeText(trainingFilterLabel(selectedTrainingFilter))} yet.</p>`;
+      insightsTarget.innerHTML = "";
+      requestAnimationFrame(drawTrendsGraph);
+      return;
+    }
+
+    const { current, previous } = weeklyTrendWindows(filteredEntries);
+    const currentMetrics = trendMetrics(current);
+    const previousMetrics = trendMetrics(previous);
+    const fuelTrend = metricTrend(currentMetrics.averageFuelGap, previousMetrics.averageFuelGap, { unit: "minutes", threshold: 15 });
+    const hydrationTrend = metricTrend(currentMetrics.averageHydrationGap, previousMetrics.averageHydrationGap, { unit: "minutes", threshold: 15 });
+    const riskTrend = metricTrend(currentMetrics.highRiskGaps, previousMetrics.highRiskGaps, { unit: "", threshold: 0 });
+    const crashTrend = metricTrend(currentMetrics.crashEvents, previousMetrics.crashEvents, { unit: "", threshold: 0 });
+    latestTrendGraphData = {
+      labels: ["Fuel gap", "Hydration gap", "High-risk", "Crashes"],
+      current: [
+        currentMetrics.averageFuelGap || 0,
+        currentMetrics.averageHydrationGap || 0,
+        currentMetrics.highRiskGaps || 0,
+        currentMetrics.crashEvents || 0
+      ],
+      previous: [
+        previousMetrics.averageFuelGap || 0,
+        previousMetrics.averageHydrationGap || 0,
+        previousMetrics.highRiskGaps || 0,
+        previousMetrics.crashEvents || 0
+      ]
+    };
+    summaryTarget.innerHTML = `<div class="fuel-gap-insights beta-average-grid">${[
+      renderTrendStatus("Average fuel gap", fuelTrend),
+      renderTrendStatus("Average hydration gap", hydrationTrend),
+      renderTrendStatus("High-risk gaps", riskTrend),
+      renderTrendStatus("Crash events", crashTrend)
+    ].join("")}</div>`;
+
+    const insights = [];
+    if (fuelTrend.direction !== "none") {
+      insights.push(fuelTrend.improved
+        ? `Your average fuel gap improved by ${compactDuration(fuelTrend.delta)} this week.`
+        : fuelTrend.direction === "steady"
+          ? "Your average fuel gap was about the same as last week."
+          : `Your average fuel gap increased by ${compactDuration(fuelTrend.delta)} this week.`);
+    }
+    if (riskTrend.direction !== "none") {
+      insights.push(riskTrend.improved
+        ? "High-risk gaps were lower than last week."
+        : riskTrend.direction === "steady"
+          ? "High-risk gaps were similar to last week."
+          : "High-risk gaps were higher than last week.");
+    }
+    if (hydrationTrend.direction !== "none") {
+      insights.push(hydrationTrend.improved
+        ? "Hydration gaps improved compared with last week."
+        : hydrationTrend.direction === "steady"
+          ? "Hydration gaps stayed broadly steady."
+          : "Hydration gaps increased compared with last week.");
+    }
+    if (currentMetrics.crashEvents || previousMetrics.crashEvents) {
+      insights.push(crashTrend.improved
+        ? "Fewer bonking/crash events were marked this week."
+        : currentMetrics.crashEvents > previousMetrics.crashEvents
+          ? "More bonking/crash events were marked this week."
+          : "Bonking/crash events were not higher than last week.");
+    } else {
+      insights.push("No bonking/crash events have been marked in either week.");
+    }
+    if (!previous.length) insights.push("Last-week comparison will get stronger after another week of logs.");
+    insightsTarget.innerHTML = `<ul class="beta-trend-bullets">${insights.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
+    requestAnimationFrame(drawTrendsGraph);
+  }
+
+  function drawTrendsGraph() {
+    const canvas = document.getElementById("fuelTrendsGraph");
+    if (!canvas) return;
+    const prepared = prepareCanvas(canvas, 320, 210);
+    if (!prepared) return;
+    const { ctx, cssWidth, cssHeight } = prepared;
+    const data = latestTrendGraphData;
+    const padding = { left: 42, right: 18, top: 24, bottom: 48 };
+    const plotWidth = cssWidth - padding.left - padding.right;
+    const plotHeight = cssHeight - padding.top - padding.bottom;
+    const bottom = padding.top + plotHeight;
+    ctx.strokeStyle = "rgba(255,255,255,.1)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    [0, 25, 50, 75, 100].forEach(value => {
+      const y = bottom - (value / 100) * plotHeight;
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(cssWidth - padding.right, y);
+    });
+    ctx.stroke();
+    if (!data) {
+      ctx.fillStyle = "rgba(245,255,248,.62)";
+      ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Log more days to compare this week with last week.", cssWidth / 2, cssHeight / 2);
+      return;
+    }
+    const maxByMetric = data.labels.map((_, index) => Math.max(data.current[index], data.previous[index], 1));
+    const pointFor = (values, index) => {
+      const x = padding.left + (index / Math.max(1, data.labels.length - 1)) * plotWidth;
+      const normalized = (values[index] / maxByMetric[index]) * 100;
+      return { x, y: bottom - normalized / 100 * plotHeight };
+    };
+    function drawLine(values, color, label) {
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      values.forEach((_, index) => {
+        const point = pointFor(values, index);
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.stroke();
+      values.forEach((_, index) => {
+        const point = pointFor(values, index);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(label, padding.left + (label === "This week" ? 0 : 86), 15);
+    }
+    drawLine(data.previous, "#9fb7ff", "Last week");
+    drawLine(data.current, "#2dff88", "This week");
+    ctx.fillStyle = "rgba(245,255,248,.7)";
+    ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    data.labels.forEach((label, index) => {
+      const point = pointFor(data.current, index);
+      ctx.fillText(label, point.x, cssHeight - 16);
+    });
+  }
+
   function renderHistory() {
     const summary = document.getElementById("fuelHistorySummary");
     const weekly = weeklySummary();
@@ -1423,8 +1826,6 @@
         <div class="fuel-gap-insight"><span>Average gap pattern</span><strong>${safeText(weekly.averageType ? weekly.averageType.label : "Building")}</strong><small>${safeText(weekly.averageType ? "Highest average gaps so far." : "Needs more history.")}</small></div>
       `;
     }
-    renderHistoryAverages();
-
     const entries = archiveEntries();
     const select = document.getElementById("fuelHistoryArchiveDate");
     const count = document.getElementById("fuelHistoryCount");
@@ -1438,6 +1839,7 @@
     select.value = selectedHistoryKey;
     if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
     detail.innerHTML = renderArchiveDetail(entries.find(entry => entry.date === selectedHistoryKey));
+    requestAnimationFrame(() => drawDailyRiskGraph(selectedHistoryKey));
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -1466,10 +1868,10 @@
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
     const series = [];
-    if (selectedMode === "fuel" || selectedMode === "combined") {
+    if (selectedMode === "fuel") {
       series.push({ label: "Fuel", color: "#2dff88", logs: fuelLogs });
     }
-    if (selectedMode === "hydration" || selectedMode === "combined") {
+    if (selectedMode === "hydration") {
       series.push({ label: "Hydration", color: "#9fb7ff", logs: hydrationLogs });
     }
     const maxCount = Math.max(2, ...series.map(item => item.logs.length));
@@ -1520,7 +1922,7 @@
     if (!plotted) {
       ctx.fillStyle = "rgba(245,255,248,.62)";
       ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      const empty = selectedMode === "hydration" ? "No hydration logs yet." : selectedMode === "fuel" ? "No fuel logs yet." : "No fuel or hydration logs yet.";
+      const empty = selectedMode === "hydration" ? "No hydration logs yet." : "No fuel logs yet.";
       ctx.textAlign = "center";
       ctx.fillText(empty, padding.left + plotWidth / 2, padding.top + plotHeight / 2);
     }
@@ -1566,12 +1968,143 @@
     ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), labelY);
     ctx.textAlign = "left";
   }
+
+  function prepareCanvas(canvas, minWidth = 320, minHeight = 180) {
+    const rect = canvas.getBoundingClientRect();
+    const cssWidth = Math.max(minWidth, Math.round(rect.width || canvas.width));
+    const cssHeight = Math.max(minHeight, Math.round(rect.height || canvas.height));
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(cssWidth * dpr) || canvas.height !== Math.round(cssHeight * dpr)) {
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    return { ctx, cssWidth, cssHeight };
+  }
+
+  function drawRiskGraphCanvas(canvas, key, { now = new Date(), endedAt = "", compact = false } = {}) {
+    const prepared = prepareCanvas(canvas, 320, compact ? 150 : 190);
+    if (!prepared) return 0;
+    const { ctx, cssWidth, cssHeight } = prepared;
+    const padding = { left: compact ? 34 : 42, right: 20, top: 18, bottom: 30 };
+    const plotWidth = cssWidth - padding.left - padding.right;
+    const plotHeight = cssHeight - padding.top - padding.bottom;
+    const bottom = padding.top + plotHeight;
+    const samples = riskSamplesForDay(key, { now, endedAt });
+    const xForMinute = minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth;
+    const yForScore = score => bottom - (clamp(score, 0, 100) / 100) * plotHeight;
+    const zones = [
+      { from: 0, to: 30, color: "rgba(45,255,136,.07)" },
+      { from: 31, to: 60, color: "rgba(255,176,32,.08)" },
+      { from: 61, to: 80, color: "rgba(255,77,109,.08)" },
+      { from: 81, to: 100, color: "rgba(255,77,109,.15)" }
+    ];
+    zones.forEach(zone => {
+      ctx.fillStyle = zone.color;
+      ctx.fillRect(padding.left, yForScore(zone.to), plotWidth, yForScore(zone.from) - yForScore(zone.to));
+    });
+    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    [0, 30, 60, 80, 100].forEach(score => {
+      const y = yForScore(score);
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(cssWidth - padding.right, y);
+    });
+    [0, 360, 720, 1080, 1440].forEach(minute => {
+      const x = xForMinute(minute);
+      ctx.moveTo(x, padding.top);
+      ctx.lineTo(x, bottom);
+    });
+    ctx.stroke();
+
+    if (samples.length) {
+      ctx.strokeStyle = "#ffb020";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      samples.forEach((sample, index) => {
+        const x = xForMinute(sample.minute);
+        const y = yForScore(sample.score);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    const logs = logsForDay(key);
+    logs.filter(isFuelLog).forEach(log => {
+      ctx.fillStyle = "#2dff88";
+      ctx.beginPath();
+      ctx.arc(xForMinute(minutesIntoDay(log.date)), yForScore(12), 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    logs.filter(isHydrationLog).forEach(log => {
+      ctx.fillStyle = "#9fb7ff";
+      ctx.beginPath();
+      ctx.arc(xForMinute(minutesIntoDay(log.date)), yForScore(20), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    logs.filter(isCrashLog).forEach(log => {
+      const x = xForMinute(minutesIntoDay(log.date));
+      const y = yForScore(100);
+      ctx.fillStyle = "#ff4d6d";
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 6);
+      ctx.lineTo(x - 6, y);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    ctx.fillStyle = "rgba(245,255,248,.62)";
+    ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    [
+      [0, "12am"],
+      [360, "6am"],
+      [720, "12pm"],
+      [1080, "6pm"],
+      [1440, "12am"]
+    ].forEach(([minute, label]) => ctx.fillText(label, xForMinute(minute), cssHeight - 10));
+    ctx.textAlign = "left";
+    ctx.fillText("Risk", 6, padding.top + 4);
+    ctx.fillText("100", 8, yForScore(100) + 4);
+    ctx.fillText("0", 18, bottom + 4);
+    return samples.length ? samples[samples.length - 1].score : 0;
+  }
+
+  function drawFuelRiskGraph(now = new Date()) {
+    const canvas = document.getElementById("fuelRiskGraph");
+    if (!canvas) return;
+    const score = drawRiskGraphCanvas(canvas, dateKey(now), { now });
+    const badge = document.getElementById("fuelRiskScoreBadge");
+    if (badge) {
+      const zone = riskZone(score);
+      badge.className = `status-pill ${zone.tone}`;
+      badge.textContent = `${score}/100`;
+    }
+  }
+
+  function drawDailyRiskGraph(key = selectedHistoryKey || dateKey()) {
+    const canvas = document.getElementById("dailyRiskGraph");
+    if (!canvas) return;
+    const entry = archiveEntries().find(item => item.date === key);
+    drawRiskGraphCanvas(canvas, key, { endedAt: entry?.endedAt || "", compact: true });
+  }
+
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const summary = fuelDaySummary();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const historyActive = document.getElementById("logs")?.classList.contains("active");
+    const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
     const badge = document.getElementById("fuelGraphLastAte");
@@ -1596,6 +2129,8 @@
 
     const hydrationButton = document.getElementById("graphLogHydrationButton");
     if (hydrationButton) hydrationButton.disabled = summary.dayEnded;
+    const crashButton = document.getElementById("graphLogCrashButton");
+    if (crashButton) crashButton.disabled = summary.dayEnded;
 
     const undo = document.getElementById("undoLatestFoodLog");
     if (undo) undo.disabled = !todayLogs().length;
@@ -1618,14 +2153,16 @@
       renderDayAnalysis();
       renderDailyLog();
       drawBetaGraph();
+      drawFuelRiskGraph();
     }
     if (settingsActive) renderSettings();
     if (historyActive) renderHistory();
+    if (trendsActive) renderTrends();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "logs", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "logs", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -1634,8 +2171,9 @@
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
     const titles = {
-      dashboard: ["Live Fuel Rhythm", "Track your fuel rhythm and spot fuelling gaps before you crash."],
-      logs: ["Insights / History", "Review daily summaries and High Risk gap patterns."],
+      dashboard: ["Live Fuel Rhythm", "What is happening today."],
+      logs: ["Daily", "What happened that day, explained simply."],
+      trends: ["Trends", "How habits are changing over time."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
     const title = document.getElementById("pageTitle");
@@ -1643,8 +2181,12 @@
     if (title) title.textContent = titles[target][0];
     if (subtitle) subtitle.textContent = titles[target][1];
     if (target === "logs") renderHistory();
+    if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
-    if (target === "dashboard") requestAnimationFrame(() => drawBetaGraph());
+    if (target === "dashboard") requestAnimationFrame(() => {
+      drawBetaGraph();
+      drawFuelRiskGraph();
+    });
   };
 
   function saveThresholdSettings() {
@@ -1673,7 +2215,7 @@
     gap.archive = {};
     gap.dayTypes = {};
     gap.trainingSessions = {};
-    gap.graphMode = "combined";
+    gap.graphMode = "fuel";
     gap.thresholds = { ...DEFAULT_THRESHOLDS };
     gap.dayEndedDate = "";
     gap.dayEndedAt = "";
@@ -1749,7 +2291,7 @@
   document.getElementById("fuelGraphModeControls")?.addEventListener("click", event => {
     const button = event.target.closest("[data-graph-mode]");
     if (!button) return;
-    betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "combined";
+    betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "fuel";
     save();
     renderFuelGap();
   });
@@ -1759,7 +2301,7 @@
   });
   document.getElementById("trainingInsightFilter")?.addEventListener("change", event => {
     selectedTrainingFilter = event.target.value || "all";
-    renderHistoryAverages();
+    renderTrends();
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
@@ -2009,7 +2551,12 @@
     graphResizeQueued = true;
     requestAnimationFrame(() => {
       graphResizeQueued = false;
-      if (document.getElementById("dashboard")?.classList.contains("active")) drawBetaGraph();
+      if (document.getElementById("dashboard")?.classList.contains("active")) {
+        drawBetaGraph();
+        drawFuelRiskGraph();
+      }
+      if (document.getElementById("logs")?.classList.contains("active")) drawDailyRiskGraph(selectedHistoryKey);
+      if (document.getElementById("trends")?.classList.contains("active")) drawTrendsGraph();
     });
   });
 

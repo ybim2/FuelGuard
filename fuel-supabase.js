@@ -8,6 +8,7 @@
   const ALLOWED_TYPES = new Set(["fuel", "hydration", "fuel_hydration"]);
   const ALLOWED_SOURCES = new Set(["manual", "csv_import", "hardware", "bluetooth"]);
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const CRASH_NOTE = "fuel_guard_event:crash";
 
   let client = null;
   let session = null;
@@ -88,6 +89,11 @@
     return ALLOWED_TYPES.has(next) ? next : "fuel";
   }
 
+  function isCrashLog(log) {
+    return String(log?.type || "").toLowerCase() === "crash"
+      || String(log?.note || log?.notes || "").includes(CRASH_NOTE);
+  }
+
   function normalizeSource(value) {
     const next = String(value || "manual").toLowerCase();
     return ALLOWED_SOURCES.has(next) ? next : "manual";
@@ -141,6 +147,7 @@
   }
 
   function labelForType(type) {
+    if (type === "crash") return "Low energy event";
     if (type === "hydration") return "Hydration logged";
     if (type === "fuel_hydration") return "Fuel + hydration logged";
     return "Fuelled";
@@ -149,12 +156,14 @@
   function rowToLog(row) {
     const timestamp = timestampForRow(row);
     if (!timestamp) return null;
+    const crash = String(row.notes || "").includes(CRASH_NOTE);
+    const type = crash ? "crash" : normalizeType(row.type);
     return {
       id: row.id,
       cloudId: row.id,
       timestamp,
-      label: labelForType(row.type),
-      type: normalizeType(row.type),
+      label: labelForType(type),
+      type,
       source: normalizeSource(row.source),
       dayType: row.day_type || "",
       trainingSession: row.training_session || "",
@@ -168,14 +177,15 @@
     if (!date || !currentUser?.id) return null;
 
     const id = isUuid(log.cloudId || log.id) ? String(log.cloudId || log.id) : "";
+    const crash = isCrashLog(log);
     const row = {
       user_id: currentUser.id,
       logged_at: date.toISOString(),
-      type: normalizeType(log.type),
+      type: crash ? "fuel" : normalizeType(log.type),
       source: normalizeSource(log.source),
       day_type: log.dayType || null,
       training_session: log.trainingSession || null,
-      notes: log.note || log.notes || null
+      notes: crash ? CRASH_NOTE : log.note || log.notes || null
     };
     if (id) row.id = id;
     return row;
@@ -242,7 +252,8 @@
     localLog.id = row.id;
     localLog.cloudId = row.id;
     localLog.timestamp = timestampForRow(row) || localLog.timestamp;
-    localLog.type = normalizeType(row.type);
+    localLog.type = String(row.notes || "").includes(CRASH_NOTE) ? "crash" : normalizeType(row.type);
+    localLog.label = labelForType(localLog.type);
     localLog.syncStatus = SYNCED;
     localLog.source = normalizeSource(row.source);
     localLog.dayType = row.day_type || localLog.dayType || "";
