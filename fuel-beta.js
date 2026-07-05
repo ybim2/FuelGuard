@@ -1212,12 +1212,9 @@
     if (!target) return;
     const analysis = analyseDay(dateKey());
     target.innerHTML = `
-      <div class="fuel-gap-insight"><span>Time since last fuel</span><strong>${safeText(snapshot.timeSinceFuel)}</strong><small>Core beta signal.</small></div>
-      <div class="fuel-gap-insight"><span>Current gap risk</span><strong>${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</strong><small>Estimated fuelling/hydration rhythm risk, not a medical diagnosis. The crash marker records what you actually felt.</small></div>
       <div class="fuel-gap-insight"><span>Longest gap today</span><strong>${safeText(durationText(analysis.longestGapMinutes))}</strong><small>${analysis.fuelLogCount ? "Today’s biggest fuel gap." : "Tap Log Fuel to start."}</small></div>
       <div class="fuel-gap-insight"><span>Medium Risk nudges today</span><strong>${analysis.mediumRiskGapCount + analysis.mediumRiskHydrationGapCount}</strong><small>Early snack/sip nudges before High Risk.</small></div>
       <div class="fuel-gap-insight"><span>High Risk gaps today</span><strong>${analysis.highRiskGapCount}</strong><small>Gaps at or over red threshold.</small></div>
-      <div class="fuel-gap-insight"><span>Fuel logs today</span><strong>${analysis.fuelLogCount}</strong><small>Real logged fuel points.</small></div>
       <div class="fuel-gap-insight"><span>Hydration logs today</span><strong>${analysis.hydrationLogCount}</strong><small>Real logged hydration points.</small></div>
     `;
   }
@@ -1449,10 +1446,10 @@
     return `
       <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${riskSignalTotal ? "amber" : "green"}">${riskSignalTotal ? "RISK SIGNALS" : "STABLE"}</span></div>
       <p class="beta-daily-summary-copy">${safeText(entry.plainSummary || entry.analysis?.[0] || "No summary available yet.")}</p>
-      ${renderDailyBullets(entry)}
       <div class="beta-daily-visuals">
         <section class="beta-daily-visual"><h4>Daily timeline</h4>${renderDailyTimeline(entry)}</section>
       </div>
+      ${renderDailyBullets(entry)}
       ${renderRawLogs(entry)}
     `;
   }
