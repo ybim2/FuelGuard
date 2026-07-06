@@ -1787,36 +1787,98 @@
     `;
   }
 
+  function entryLogsWithDates(entry) {
+    return (entry?.logs || [])
+      .map(log => ({ ...log, date: logDate(log.timestamp || log) }))
+      .filter(log => log.date)
+      .sort((a, b) => a.date - b.date);
+  }
+
+  function longestFuelGapForEntry(entry) {
+    const gaps = Array.isArray(entry?.gaps) && entry.gaps.length
+      ? entry.gaps
+      : gapsFromFuelLogs(entryLogsWithDates(entry).filter(isFuelLog));
+    return gaps
+      .map(gap => ({
+        ...gap,
+        start: logDate(gap.start),
+        end: logDate(gap.end),
+        minutes: Number(gap.minutes || 0)
+      }))
+      .filter(gap => gap.start && gap.end && Number.isFinite(gap.minutes))
+      .sort((a, b) => b.minutes - a.minutes)[0] || null;
+  }
+
+  function stylePercent(value) {
+    return `${clamp(Number(value) || 0, 0, 100).toFixed(2)}%`;
+  }
+
   function renderPersonalDailyInsights(entry) {
     const recoveryWindow = recoveryWindowForEntry(entry);
     const fuelDebtMinutes = Math.max(0, Math.round(Number(entry.fuelDebtMinutes || 0)));
     const fuelDebtText = entry.fuelDebtText || fuelDebtDurationText(fuelDebtMinutes);
+    const longestGap = longestFuelGapForEntry(entry);
     const longestFuelGap = entry.longestGap || durationText(entry.longestGapMinutes || 0);
+    const fuelLogs = entryLogsWithDates(entry).filter(isFuelLog);
+    const storyLevel = fuelDebtLevel(fuelDebtMinutes);
+    const preferredWindow = mediumRiskLimit();
+    const score = clamp(Number(recoveryWindow.score || 0), 0, 100);
+    const costWindow = entry.likelyCostWindow && entry.likelyCostWindow !== "stable for now"
+      ? entry.likelyCostWindow
+      : "stable for now";
+    const storyTitle = fuelDebtMinutes
+      ? `You built ${fuelDebtText} of Fuel Debt.`
+      : "Your fuelling rhythm stayed protected.";
     const recoveryCopy = recoveryWindow.riskLabel === "protected"
       ? "Your work/training recovery window looks protected today."
       : recoveryWindow.riskLabel === "elevated"
         ? "Your work/training recovery window may need extra care today."
         : "Your work/training recovery window looks under-prepared today.";
-    const fuelDebtCopy = fuelDebtMinutes
-      ? `You spent ${fuelDebtText} beyond your preferred fuelling window.`
-      : "You stayed inside your preferred fuelling window.";
+    const longestGapCopy = longestGap
+      ? `Your longest gap ran ${formatClock(longestGap.start)}-${formatClock(longestGap.end)}.`
+      : "Log at least two fuel points to reveal your longest gap.";
+    const gapStart = longestGap ? minutesIntoDay(longestGap.start) : 0;
+    const gapEnd = longestGap ? minutesIntoDay(longestGap.end) : 0;
+    const gapLeft = longestGap ? (gapStart / 1440) * 100 : 0;
+    const gapWidth = longestGap ? Math.max(2, ((gapEnd - gapStart) / 1440) * 100) : 0;
+    const debtStart = longestGap ? Math.min(gapEnd, gapStart + preferredWindow) : 0;
+    const debtLeft = longestGap ? (debtStart / 1440) * 100 : 0;
+    const debtWidth = longestGap ? Math.max(0, ((gapEnd - debtStart) / 1440) * 100) : 0;
+    const markers = fuelLogs.map(log => {
+      const left = (minutesIntoDay(log.date) / 1440) * 100;
+      return `<span class="beta-fuel-story-marker" style="left:${stylePercent(left)}" title="${safeText(formatClock(log.date))} fuel logged"></span>`;
+    }).join("");
     return `
-      <section class="beta-personal-insights" aria-label="Personal daily insights">
-        <article class="beta-personal-insight-card">
-          <span>Your fuel debt</span>
-          <strong>${safeText(fuelDebtText)}</strong>
-          <p>${safeText(fuelDebtCopy)}</p>
-        </article>
-        <article class="beta-personal-insight-card">
-          <span>Your longest fuel gap</span>
-          <strong>${safeText(longestFuelGap)}</strong>
-          <p>${safeText(gapZoneReached(entry))} was the strongest fuel signal for this day.</p>
-        </article>
-        <article class="beta-personal-insight-card">
-          <span>Your recovery window</span>
+      <section class="beta-fuel-story ${safeText(storyLevel)}" aria-label="Visual fuel story">
+        <div class="beta-fuel-story-head">
+          <div>
+            <span>Your fuel story</span>
+            <h4>${safeText(storyTitle)}</h4>
+            <p>${safeText(longestGapCopy)} ${safeText(recoveryCopy)}</p>
+          </div>
+          <div class="beta-recovery-orb" style="--score-pct:${stylePercent(score)}">
+            <strong>${Math.round(score)}</strong>
+            <span>Score</span>
+          </div>
+        </div>
+        <div class="beta-fuel-story-track" aria-hidden="true">
+          <span class="beta-fuel-story-gap" style="left:${stylePercent(gapLeft)};width:${stylePercent(gapWidth)}"></span>
+          <span class="beta-fuel-story-debt" style="left:${stylePercent(debtLeft)};width:${stylePercent(debtWidth)}"></span>
+          ${markers}
+        </div>
+        <div class="beta-fuel-story-axis" aria-hidden="true">
+          <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span>
+        </div>
+        <div class="beta-fuel-story-legend">
+          <span><i class="protected"></i>Protected rhythm</span>
+          <span><i class="gap"></i>Longest gap: ${safeText(longestFuelGap)}</span>
+          <span><i class="debt"></i>Fuel Debt: ${safeText(fuelDebtText)}</span>
+        </div>
+        <div class="beta-recovery-window-strip">
+          <span>Recovery window</span>
           <strong>${safeText(recoveryWindow.statusLabel)}</strong>
-          <p>${safeText(recoveryCopy)}</p>
-        </article>
+          <small>${safeText(costWindow === "stable for now" ? "Stable for now" : `Protect: ${costWindow}`)}</small>
+        </div>
       </section>
     `;
   }
