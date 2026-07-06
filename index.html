@@ -13,14 +13,14 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v24-impact-trends" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v24-impact-trends" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v24-impact-trends" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v25-light-history-trends" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v25-light-history-trends" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v25-light-history-trends" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
     <aside class="sidebar">
-      <div class="brand"><div class="logo">FG</div><div><strong>Fuel Guard</strong><span>Spot fuelling gaps before you crash</span></div></div>
+      <div class="brand beta-brand-marker" aria-label="Fuel Guard"><div class="logo">FG</div></div>
       <nav class="side-nav beta-nav">
         <button class="nav-item active" data-screen="dashboard">Live Fuel Rhythm</button>
         <button class="nav-item" data-screen="logs">Daily</button>
@@ -33,7 +33,7 @@
 
     <main class="app">
       <header class="topbar beta-topbar">
-        <div><p class="eyebrow">Fuel Guard Beta</p><h1 id="pageTitle">Live Fuel Rhythm</h1><p id="pageSubtitle">Quick logging and your current fuel zone.</p></div>
+        <div><h1 id="pageTitle">Live Fuel Rhythm</h1><p id="pageSubtitle">Quick logging and your current fuel zone.</p></div>
         <div class="status-card beta-hidden-feature" aria-hidden="true"><span id="topStatus" class="status-pill amber">AMBER</span><small>Next shop</small><strong id="topShoppingDay">Calculating</strong></div>
       </header>
 
@@ -84,19 +84,6 @@
               <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
             </div>
             <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
-            <div id="longGapReasonPrompt" class="beta-long-gap-prompt" hidden>
-              <p>That was a long fuel gap. What caused it?</p>
-              <div class="beta-long-gap-options" role="group" aria-label="Long fuel gap reason">
-                <button class="secondary" type="button" data-long-gap-reason="focus_block">Focus block</button>
-                <button class="secondary" type="button" data-long-gap-reason="busy_shift">Busy shift</button>
-                <button class="secondary" type="button" data-long-gap-reason="forgot">Forgot</button>
-                <button class="secondary" type="button" data-long-gap-reason="no_food_available">No food available</button>
-                <button class="secondary" type="button" data-long-gap-reason="sleeping">Sleeping</button>
-                <button class="secondary" type="button" data-long-gap-reason="other">Other</button>
-                <button class="ghost" type="button" data-long-gap-skip="true">Skip</button>
-              </div>
-            </div>
-
             <div class="fuel-graph-wrap beta-graph-wrap">
               <div class="beta-graph-mode" id="fuelGraphModeControls" role="group" aria-label="Rhythm graph view">
                 <button class="active" type="button" data-graph-mode="fuel">Fuel</button>
@@ -310,7 +297,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v24-impact-trends</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v25-light-history-trends</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -341,16 +328,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="build-info.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v25-light-history-trends"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="app-ui.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v24-impact-trends"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="app-state.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="app-ui.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v25-light-history-trends"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v25-light-history-trends"></script>
 </body>
 </html>

@@ -127,7 +127,6 @@
   let csvImportPreview = null;
   let csvImportStatus = "";
   let latestTrendGraphData = null;
-  let pendingLongGapReasonPrompt = null;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -551,13 +550,6 @@
     if (!gap?.start || !gap?.end) return Number(gap?.minutes || 0);
     const minutes = Number(gap.minutes || 0);
     return Math.max(0, minutes - sleepOverlapMinutes(gap.start, gap.end));
-  }
-
-  function shouldPromptForLongFuelGap(previousFuelDate, loggedAt, gapMinutes) {
-    if (!previousFuelDate || !loggedAt || !Number.isFinite(gapMinutes)) return false;
-    if (minutesIntoDay(loggedAt) < SLEEP_WINDOW_END_MINUTE) return false;
-    const awakeMinutes = Math.max(0, gapMinutes - sleepOverlapMinutes(previousFuelDate, loggedAt));
-    return awakeMinutes > mediumRiskLimit();
   }
 
   function logDate(log) {
@@ -1357,53 +1349,6 @@
     };
   };
 
-  function renderLongGapReasonPrompt() {
-    const prompt = document.getElementById("longGapReasonPrompt");
-    if (!prompt) return;
-    prompt.hidden = !pendingLongGapReasonPrompt;
-  }
-
-  function showLongGapReasonPrompt(log, gapMinutes) {
-    if (!log?.id) return;
-    pendingLongGapReasonPrompt = {
-      logId: log.id,
-      cloudId: log.cloudId || "",
-      gapMinutes: Math.max(0, Math.round(gapMinutes || 0))
-    };
-    renderLongGapReasonPrompt();
-  }
-
-  function clearLongGapReasonPrompt() {
-    pendingLongGapReasonPrompt = null;
-    renderLongGapReasonPrompt();
-  }
-
-  function pendingLongGapLog() {
-    if (!pendingLongGapReasonPrompt) return null;
-    const { logId, cloudId } = pendingLongGapReasonPrompt;
-    return betaState().logs.find(log => log.id === logId || log.localId === logId || log.cloudId === logId || log.id === cloudId || log.cloudId === cloudId) || null;
-  }
-
-  function applyLongGapReason(value) {
-    const option = longGapReasonOption(value);
-    const log = option ? pendingLongGapLog() : null;
-    if (!log) {
-      clearLongGapReasonPrompt();
-      return;
-    }
-    log.longGapReason = option.value;
-    log.longGapReasonLabel = option.label;
-    log.longGapMinutes = pendingLongGapReasonPrompt?.gapMinutes || log.longGapMinutes || 0;
-    log.note = longGapReasonNote(option.value);
-    log.syncStatus = "pending";
-    const date = logDate(log);
-    if (date) storeArchive(dateKey(date));
-    clearLongGapReasonPrompt();
-    save();
-    renderAll();
-    window.fuelGuardCloud?.saveLog(log);
-  }
-
   function recordRhythmLog(type = "fuel", options = {}) {
     const normalizedType = ["fuel", "hydration", "fuel_hydration"].includes(type) ? type : "fuel";
     const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
@@ -1418,9 +1363,6 @@
     }
 
     const loggedAt = new Date();
-    const previousFuel = includesFuel ? lastFuelLog() : null;
-    const previousGapMinutes = previousFuel ? Math.max(0, (loggedAt - previousFuel.date) / 60000) : 0;
-    const shouldPromptForReason = includesFuel && previousFuel && shouldPromptForLongFuelGap(previousFuel.date, loggedAt, previousGapMinutes);
     const key = dateKey(loggedAt);
     const localId = uid();
     const log = {
@@ -1450,8 +1392,6 @@
     }
     save();
     renderAll();
-    if (shouldPromptForReason) showLongGapReasonPrompt(log, previousGapMinutes);
-    else clearLongGapReasonPrompt();
     window.fuelGuardCloud?.saveLog(log);
   }
 
@@ -2083,10 +2023,21 @@
     const logsHtml = entry.logs.map(log => {
       const date = logDate(log.timestamp);
       const displayNote = displayNoteForLog(log);
-      const note = displayNote ? `<div class="row-note">${safeText(displayNote)}</div>` : "";
-      return `<div class="row fuel-archive-log-row"><div><div class="item-name">${date ? formatClock(date) : "--"} - ${safeText(log.typeLabel || "Fuel")}</div>${note}</div></div>`;
+      const type = logType(log);
+      const note = displayNote ? `<small>${safeText(displayNote)}</small>` : "";
+      const source = log.source && log.source !== "manual" ? `<small>${safeText(log.source)}</small>` : "";
+      return `
+        <article class="beta-history-log-event ${safeText(type)}">
+          <span class="beta-icon-disc ${type === "fuel" ? "" : type === "hydration" ? "shield" : "amber"}">${dailyIcon(type === "hydration" ? "hydration" : type === "crash" ? "energy" : "fuel")}</span>
+          <div>
+            <strong>${date ? formatClock(date) : "--"}</strong>
+            <span>${safeText(log.typeLabel || logTypeLabel(log))}</span>
+            ${note || source ? `<div class="beta-history-log-meta">${note}${source}</div>` : ""}
+          </div>
+        </article>
+      `;
     }).join("");
-    return `<section class="beta-raw-log-details"><h4>Raw logs</h4><div class="list">${logsHtml}</div></section>`;
+    return `<section class="beta-raw-log-details beta-history-log-view"><h4>Logged events</h4><div class="beta-history-log-list">${logsHtml}</div></section>`;
   }
 
   function renderDailySummaryNote(entry) {
@@ -2099,6 +2050,37 @@
       <p class="beta-daily-summary-note">
         You logged fuel ${fuelCount} time${fuelCount === 1 ? "" : "s"} and hydration ${hydrationCount} time${hydrationCount === 1 ? "" : "s"}. Your longest fuel gap was ${safeText(gap)}, reaching ${safeText(zone)}.${crashCount ? ` ${crashCount} low-energy event${crashCount === 1 ? " was" : "s were"} marked.` : " No low-energy events were marked."}
       </p>
+    `;
+  }
+
+  function renderHistoryDayOverview(entries) {
+    const logged = entries
+      .filter(entry => Number(entry.fuelLogCount || 0) > 0 || Number(entry.hydrationLogCount || 0) > 0 || Number(entry.crashLogCount || 0) > 0)
+      .sort((a, b) => dateFromKey(b.date) - dateFromKey(a.date))
+      .slice(0, 14);
+    if (!logged.length) return "";
+    return `
+      <section class="beta-history-day-strip" aria-label="Previous fuel rhythm days">
+        <div class="beta-history-day-strip-head">
+          <h4>Previous days</h4>
+          <span>Fuel, hydration, longest gap and zone reached</span>
+        </div>
+        <div class="beta-history-day-cards">
+          ${logged.map(entry => {
+            const zone = gapZoneReached(entry);
+            const tone = riskToneFromText(zone);
+            const selected = entry.date === selectedHistoryKey;
+            return `
+              <button class="beta-history-day-card ${safeText(tone)}${selected ? " selected" : ""}" type="button" data-history-day="${safeText(entry.date)}" aria-pressed="${selected ? "true" : "false"}">
+                <span>${safeText(entry.dateLabel)}</span>
+                <strong>${safeText(entry.longestGap || durationText(entry.longestGapMinutes || 0))}</strong>
+                <small>${safeText(zone)}</small>
+                <em>${dailyIcon("fuel")}${Number(entry.fuelLogCount || 0)} ${dailyIcon("hydration")}${Number(entry.hydrationLogCount || 0)} ${Number(entry.crashLogCount || 0) ? `${dailyIcon("energy")}${Number(entry.crashLogCount || 0)}` : ""}</em>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </section>
     `;
   }
 
@@ -2286,6 +2268,9 @@
       manualCrashEvents: entries.reduce((sum, entry) => sum + Number(entry.crashLogCount || 0), 0),
       fuelDebtMinutes: entries.reduce((sum, entry) => sum + Number(entry.fuelDebtMinutes || 0), 0),
       fuelGuardScore: averageValue(entries.map(entry => Number(entry.fuelGuardScore || 0)).filter(Boolean)),
+      fuelLogs: entries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0),
+      hydrationLogs: entries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0),
+      unwantedFastedStates: entries.reduce((sum, entry) => sum + (Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0), 0),
       days: entries.length
     };
   }
@@ -2368,6 +2353,80 @@
             <div><span>Day Type Comparison</span><strong>${safeText(dayHotspot ? dayHotspot.label : "Building")}</strong><small>${safeText(dayHotspot ? "Highest combined debt/risk pattern." : "Set day types to compare patterns.")}</small></div>
           </article>
         </div>
+      </section>
+    `;
+  }
+
+  function renderTrendInsightDashboard(currentMetrics, previousMetrics, previous, config, trend, currentValue, previousValue) {
+    const score = Number.isFinite(currentMetrics.fuelGuardScore) ? Math.round(currentMetrics.fuelGuardScore) : null;
+    const scoreTone = score === null ? "neutral" : score >= 80 ? "protected" : score >= 60 ? "elevated" : "danger";
+    const hasPreviousMatch = previous.length > 0 && Number.isFinite(previousValue);
+    const comparisonCopy = hasPreviousMatch
+      ? trendInsightCopy(config, trend, currentValue, previousValue)
+      : "Log a few more matching days to unlock stronger week-over-week trends.";
+    const laggingTotal = currentMetrics.mediumRiskGaps + currentMetrics.highRiskGaps + currentMetrics.crashZoneGaps + currentMetrics.unwantedFastedStates;
+    const recoveryTone = currentMetrics.crashZoneGaps || currentMetrics.unwantedFastedStates ? "elevated" : currentMetrics.mediumRiskGaps || currentMetrics.highRiskGaps ? "watch" : "protected";
+    const previousDebtText = previousMetrics.fuelDebtMinutes ? fuelDebtDurationText(previousMetrics.fuelDebtMinutes) : "Building";
+    return `
+      <section class="beta-trend-dashboard" aria-label="Visual weekly pattern insights">
+        <article class="beta-trend-comparison-card ${hasPreviousMatch ? "ready" : "building"}">
+          <div class="beta-metric-card-head">
+            <span class="beta-icon-disc">${dailyIcon("route")}</span>
+            <div><span>Weekly rhythm overview</span><strong>${safeText(trendValueText(currentValue, config))}</strong></div>
+          </div>
+          ${renderTrendMiniBars(currentValue, previousValue, { unit: config.unit })}
+          <div class="beta-comparison-state">
+            <b>${safeText(hasPreviousMatch ? "Week-over-week ready" : "Comparison building")}</b>
+            <p>${safeText(comparisonCopy)}</p>
+            <small>${safeText(trendFilterCopy())}</small>
+          </div>
+        </article>
+
+        <div class="beta-weekly-risk-cards">
+          <article class="beta-risk-summary-card ${safeText(scoreTone)}">
+            <span>${dailyIcon("score")}</span>
+            <div><small>Fuel Guard Score</small><strong>${safeText(score === null ? "Building" : `${score}/100`)}</strong><em>${safeText(score === null ? "Needs more logged days" : scoreStatusLabel(score))}</em></div>
+          </article>
+          <article class="beta-risk-summary-card elevated">
+            <span>${dailyIcon("warning")}</span>
+            <div><small>Medium Risk Nudges</small><strong>${currentMetrics.mediumRiskGaps}</strong><em>Early snack/sip signals this week</em></div>
+          </article>
+          <article class="beta-risk-summary-card danger">
+            <span>${dailyIcon("gap")}</span>
+            <div><small>Crash-Zone Gaps</small><strong>${currentMetrics.crashZoneGaps}</strong><em>Lagging risk signals to reduce</em></div>
+          </article>
+        </div>
+
+        <section class="beta-indicator-map">
+          <article class="beta-indicator-group leading">
+            <div class="beta-indicator-title"><span>${dailyIcon("fuel")}</span><div><strong>Control these</strong><small>Leading indicators</small></div></div>
+            <div class="beta-indicator-row"><span>Fuel logs</span><b>${currentMetrics.fuelLogs}</b></div>
+            <div class="beta-indicator-row"><span>Hydration logs</span><b>${currentMetrics.hydrationLogs}</b></div>
+            <p>Your fuel and hydration logs are the behaviours that protect the rhythm.</p>
+          </article>
+          <article class="beta-indicator-group lagging">
+            <div class="beta-indicator-title"><span>${dailyIcon("warning")}</span><div><strong>Watch these</strong><small>Lagging / risk signals</small></div></div>
+            <div class="beta-indicator-row"><span>Medium-risk gaps</span><b>${currentMetrics.mediumRiskGaps}</b></div>
+            <div class="beta-indicator-row"><span>High-risk gaps</span><b>${currentMetrics.highRiskGaps}</b></div>
+            <div class="beta-indicator-row"><span>Crash-zone gaps</span><b>${currentMetrics.crashZoneGaps}</b></div>
+            <div class="beta-indicator-row"><span>Unwanted fasted-state periods</span><b>${currentMetrics.unwantedFastedStates}</b></div>
+          </article>
+        </section>
+
+        <article class="beta-recovery-protection-card ${safeText(recoveryTone)}">
+          <div>
+            <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
+            <div>
+              <h4>Protect the Recovery Window</h4>
+              <p>Your goal is to reduce long gaps before they affect work, training, mood, or recovery later.</p>
+            </div>
+          </div>
+          <div class="beta-recovery-protection-track" aria-hidden="true">
+            <i class="protected"></i>
+            <i class="risk" style="width:${stylePercent(Math.min(100, laggingTotal * 12 + currentMetrics.fuelDebtMinutes / 6))}"></i>
+          </div>
+          <small>This week Fuel Debt: ${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}. Last week: ${safeText(previousDebtText)}.</small>
+        </article>
       </section>
     `;
   }
@@ -2673,19 +2732,7 @@
       previous: previousValue
     };
     summaryTarget.innerHTML = renderTrendVisualSummary(filteredEntries, current, previous, currentMetrics, previousMetrics, config, trend, currentValue, previousValue);
-
-    const insights = [
-      trendInsightCopy(config, trend, currentValue, previousValue),
-      trendFilterCopy()
-    ];
-    if (Number.isFinite(currentMetrics.fuelGuardScore)) insights.push(`Your Fuel Guard Score this week: ${Math.round(currentMetrics.fuelGuardScore)}/100.`);
-    insights.push(`Your Medium Risk nudges this week: ${currentMetrics.mediumRiskGaps}.`);
-    if (currentMetrics.crashZoneGaps) insights.push(`Your crash-zone gaps this week: ${currentMetrics.crashZoneGaps}.`);
-    insights.push("Your fuel and hydration logs are the leading indicators.");
-    insights.push("Medium-risk and high-risk gaps are warning signs; crash-zone and unwanted fasted-state periods are lagging risk signals.");
-    insights.push("Your goal is to protect the work/training recovery window before the cost shows up later.");
-    if (!previous.length) insights.push("Last-week comparison will get stronger after another week of matching logs.");
-    insightsTarget.innerHTML = `<ul class="beta-trend-bullets">${insights.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
+    insightsTarget.innerHTML = renderTrendInsightDashboard(currentMetrics, previousMetrics, previous, config, trend, currentValue, previousValue);
     requestAnimationFrame(drawTrendsGraph);
   }
 
@@ -2700,7 +2747,7 @@
     const plotWidth = cssWidth - padding.left - padding.right;
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
-    ctx.strokeStyle = "rgba(255,255,255,.1)";
+    ctx.strokeStyle = "rgba(24,42,32,.1)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     [0, 0.25, 0.5, 0.75, 1].forEach(ratio => {
@@ -2710,7 +2757,7 @@
     });
     ctx.stroke();
     if (!data || (!Number.isFinite(data.current) && !Number.isFinite(data.previous))) {
-      ctx.fillStyle = "rgba(245,255,248,.62)";
+      ctx.fillStyle = "rgba(23,35,29,.62)";
       ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("Log more matching days to compare this week with last week.", cssWidth / 2, cssHeight / 2);
@@ -2744,13 +2791,13 @@
       ctx.beginPath();
       ctx.arc(item.point.x, item.point.y, 6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(245,255,248,.82)";
+      ctx.fillStyle = "rgba(23,35,29,.82)";
       ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(data.unit === "minutes" ? compactDuration(item.value) : String(Math.round(item.value)), item.point.x, Math.max(16, item.point.y - 12));
       ctx.fillText(item.label, item.point.x, cssHeight - 16);
     });
-    ctx.fillStyle = "rgba(245,255,248,.7)";
+    ctx.fillStyle = "rgba(23,35,29,.7)";
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "left";
     ctx.fillText(data.title, padding.left, 16);
@@ -2782,7 +2829,7 @@
     }).join("");
     select.value = selectedHistoryKey;
     if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
-    detail.innerHTML = renderArchiveDetail(entries.find(entry => entry.date === selectedHistoryKey));
+    detail.innerHTML = `${renderHistoryDayOverview(entries)}${renderArchiveDetail(entries.find(entry => entry.date === selectedHistoryKey))}`;
     requestAnimationFrame(() => drawDailyRiskGraph(selectedHistoryKey));
   }
 
@@ -2842,7 +2889,7 @@
     const maxCount = Math.max(2, ...series.map(item => item.logs.length));
     const yForCount = count => bottom - (clamp(count, 0, maxCount) / maxCount) * plotHeight;
 
-    ctx.strokeStyle = "rgba(255,255,255,.08)";
+    ctx.strokeStyle = "rgba(24,42,32,.1)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     [0, 360, 720, 1080, 1440].forEach(minute => {
@@ -2855,7 +2902,7 @@
     ctx.stroke();
 
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillStyle = "rgba(245,255,248,.55)";
+    ctx.fillStyle = "rgba(23,35,29,.58)";
     ctx.textAlign = "center";
     [
       [0, "00:00"],
@@ -2886,7 +2933,7 @@
 
     const plotted = series.some(item => item.logs.length);
     if (!plotted) {
-      ctx.fillStyle = "rgba(245,255,248,.62)";
+      ctx.fillStyle = "rgba(23,35,29,.62)";
       ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
       const empty = selectedMode === "hydration" ? "No hydration logs yet." : "No fuel logs yet.";
       ctx.textAlign = "center";
@@ -2913,7 +2960,7 @@
       }
       coordinates.forEach(point => {
         ctx.fillStyle = item.color;
-        ctx.strokeStyle = "rgba(3,10,8,.9)";
+        ctx.strokeStyle = "rgba(255,255,255,.96)";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(point.x, point.y, item.label === "Hydration" ? 4.5 : 5.5, 0, Math.PI * 2);
@@ -2923,12 +2970,12 @@
     });
 
     const currentX = xForMinute(minutesIntoDay(now));
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.strokeStyle = "rgba(24,42,32,.13)";
     ctx.beginPath();
     ctx.moveTo(currentX, padding.top);
     ctx.lineTo(currentX, bottom);
     ctx.stroke();
-    ctx.fillStyle = "rgba(245,255,248,.62)";
+    ctx.fillStyle = "rgba(23,35,29,.62)";
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), padding.top + 14);
@@ -2972,7 +3019,7 @@
       ctx.fillStyle = zone.color;
       ctx.fillRect(padding.left, yForScore(zone.to), plotWidth, yForScore(zone.from) - yForScore(zone.to));
     });
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.strokeStyle = "rgba(24,42,32,.12)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     [0, 30, 60, 80, 100].forEach(score => {
@@ -3028,7 +3075,7 @@
       ctx.fill();
     });
 
-    ctx.fillStyle = "rgba(245,255,248,.62)";
+    ctx.fillStyle = "rgba(23,35,29,.62)";
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "center";
     [
@@ -3089,7 +3136,6 @@
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
-    renderLongGapReasonPrompt();
 
     renderGraphModeControls();
     if (dashboardActive) {
@@ -3247,16 +3293,14 @@
     save();
     renderFuelGap();
   });
-  document.getElementById("longGapReasonPrompt")?.addEventListener("click", event => {
-    const reasonButton = event.target.closest("[data-long-gap-reason]");
-    if (reasonButton) {
-      applyLongGapReason(reasonButton.dataset.longGapReason);
-      return;
-    }
-    if (event.target.closest("[data-long-gap-skip]")) clearLongGapReasonPrompt();
-  });
   document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", event => {
     selectedHistoryKey = event.target.value;
+    renderHistory();
+  });
+  document.getElementById("fuelHistoryArchiveDetail")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-history-day]");
+    if (!button) return;
+    selectedHistoryKey = button.dataset.historyDay;
     renderHistory();
   });
   document.getElementById("fuelImpactArchiveDate")?.addEventListener("change", event => {
