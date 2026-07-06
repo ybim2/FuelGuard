@@ -44,18 +44,7 @@
 .beta-logging-card {
   order: 3;
   display: grid;
-  gap: 8px;
-}
-
-.beta-current-risk-card {
-  order: 3;
-  display: grid;
-}
-
-.beta-log-button-card {
-  order: 4;
-  display: grid;
-  gap: 6px;
+  gap: 12px;
 }
 
 .beta-rhythm-status-stack {
@@ -279,7 +268,7 @@
 }
 
 .beta-log-actions {
-  order: 1;
+  order: 4;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
@@ -287,7 +276,7 @@
 }
 
 .beta-mvp .fuel-cooldown-message {
-  order: 2;
+  order: 5;
 }
 
 .beta-long-gap-prompt {
@@ -295,11 +284,11 @@
 }
 
 .beta-graph-wrap {
-  order: 5;
+  order: 6;
 }
 
 .beta-undo-log-button {
-  order: 6;
+  order: 7;
   width: 100%;
   min-height: 44px;
   margin: 0;
@@ -374,7 +363,7 @@
 
 .beta-mvp .fuel-cooldown-message {
   min-height: 0;
-  margin: 0;
+  margin: 0 0 3px;
 }
 
 .beta-long-gap-prompt {
@@ -417,7 +406,7 @@
   gap: 14px;
   min-height: 302px;
   aspect-ratio: auto;
-  margin-top: 4px;
+  margin-top: 12px;
   padding: 12px;
   overflow: hidden;
 }
@@ -1982,33 +1971,14 @@ body.beta-mvp .beta-day-type-row {
 }
 
 body.beta-mvp .beta-logging-card {
-  padding: 0;
+  padding: 13px;
   margin-top: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-body.beta-mvp .beta-current-risk-card,
-body.beta-mvp .beta-log-button-card {
-  padding: 11px;
-  border: 1px solid rgba(29,49,38,.1);
-  border-radius: 15px;
-  background: rgba(255,255,255,.76);
-  box-shadow: 0 8px 18px rgba(35,55,42,.045);
-}
-
-body.beta-mvp .beta-current-risk-card {
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
   background:
-    radial-gradient(circle at 8% 0%, rgba(22,122,69,.08), transparent 34%),
-    rgba(255,255,255,.82);
-}
-
-body.beta-mvp .beta-log-button-card {
-  background:
-    radial-gradient(circle at 12% 0%, rgba(239,173,66,.09), transparent 34%),
-    rgba(255,255,255,.82);
+    radial-gradient(circle at 10% 0%, rgba(22,122,69,.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 12px 28px rgba(35,55,42,.06);
 }
 
 body.beta-mvp .topbar p,
@@ -2766,16 +2736,10 @@ body.beta-mvp .mobile-nav-item.active {
   }
 
   body.beta-mvp .beta-day-type-row,
-  body.beta-mvp .beta-current-risk-card,
-  body.beta-mvp .beta-log-button-card,
+  body.beta-mvp .beta-logging-card,
   body.beta-mvp .beta-today-log > div {
     padding: 12px;
     border-radius: 16px;
-  }
-
-  body.beta-mvp .beta-current-risk-card,
-  body.beta-mvp .beta-log-button-card {
-    border-radius: 14px;
   }
 
   body.beta-mvp .beta-panel-title {

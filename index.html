@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v29-rhythm-action-cards" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v29-rhythm-action-cards" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v29-rhythm-action-cards" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v30-rhythm-layout-restore" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v30-rhythm-layout-restore" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v30-rhythm-layout-restore" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -74,21 +74,17 @@
             </div>
 
             <div class="beta-logging-card">
-              <div class="beta-current-risk-card">
-                <div class="beta-rhythm-status-stack">
-                  <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
-                  <div id="fuelGapNextAction" class="fuel-next-action"></div>
-                </div>
+              <div class="beta-rhythm-status-stack">
+                <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
+                <div id="fuelGapNextAction" class="fuel-next-action"></div>
               </div>
 
-              <div class="beta-log-button-card">
-                <div class="beta-log-actions" aria-label="Log fuel or hydration">
-                  <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
-                  <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
-                  <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
-                </div>
-                <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
+              <div class="beta-log-actions" aria-label="Log fuel or hydration">
+                <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
+                <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
+                <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
               </div>
+              <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
               <div class="fuel-graph-wrap beta-graph-wrap">
                 <div class="beta-graph-mode" id="fuelGraphModeControls" role="group" aria-label="Rhythm graph view">
                   <button class="active" type="button" data-graph-mode="risk">Fuel Risk</button>
@@ -303,7 +299,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v29-rhythm-action-cards</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v30-rhythm-layout-restore</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -334,16 +330,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
+  <script src="build-info.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="app-ui.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v29-rhythm-action-cards"></script>
+  <script src="app-state.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="app-ui.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v30-rhythm-layout-restore"></script>
 </body>
 </html>

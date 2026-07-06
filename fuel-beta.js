@@ -936,10 +936,6 @@
     return "Fuel Crash Zone / Under-fuelled Zone";
   }
 
-  function currentFuelRiskLabel(status) {
-    return status === "green" ? "Minimal" : riskStatusLabel(status);
-  }
-
   function riskZone(score) {
     if (score <= 30) return { label: "Low risk", tone: "green" };
     if (score <= 60) return { label: "Medium risk", tone: "amber" };
@@ -1330,7 +1326,7 @@
       minutesSinceFuel: minutes,
       status,
       statusLabel: riskStatusLabel(status),
-      nextAction: `Current Fuel Risk: ${currentFuelRiskLabel(status)} - ${statusText}`,
+      nextAction: `Current Fuel Risk: ${riskStatusLabel(status)} - ${statusText}`,
       statusContext: statusText
     };
   };
@@ -3121,7 +3117,7 @@
 
     const next = document.getElementById("fuelGapNextAction");
     if (next) {
-      next.textContent = snapshot.nextAction || `Current Fuel Risk: ${currentFuelRiskLabel(snapshot.status)}`;
+      next.textContent = snapshot.nextAction || `Current Fuel Risk: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
       next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
     }
 
