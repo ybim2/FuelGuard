@@ -67,30 +67,9 @@
     if (element && target && element.nextElementSibling !== target) target.parentNode.insertBefore(element, target);
   }
 
-  function moveElementAfter(element, target) {
-    if (element && target && element.previousElementSibling !== target) target.parentNode.insertBefore(element, target.nextSibling);
-  }
-
   function orderLiveRhythm() {
-    const header = document.querySelector(".beta-rhythm-header");
-    const dayType = document.querySelector(".beta-day-type-row");
-    const logActions = document.querySelector(".beta-log-actions");
-    const cooldown = document.getElementById("foodLogCooldownMessage");
-    const risk = document.getElementById("fuelGapNextAction");
-    const statusStack = document.querySelector(".beta-rhythm-status-stack");
-    const graph = document.querySelector(".beta-graph-wrap");
-    const undo = document.getElementById("undoLatestFoodLog");
-    const insights = document.getElementById("fuelGapInsights");
     const todayLog = document.querySelector(".beta-today-log");
     const dayControls = document.querySelector(".beta-day-controls");
-    moveElementBefore(header, dayType);
-    moveElementAfter(dayType, header);
-    moveElementAfter(statusStack, dayType || header);
-    moveElementAfter(logActions, statusStack || dayType || header);
-    moveElementAfter(cooldown, logActions);
-    moveElementAfter(graph, cooldown || logActions);
-    moveElementAfter(undo, graph);
-    moveElementAfter(insights, undo || graph);
     moveElementBefore(todayLog, dayControls);
   }
 

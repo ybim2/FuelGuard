@@ -71,17 +71,10 @@
     }
   };
   const CRASH_NOTE = "fuel_guard_event:crash";
+  const LEGACY_FOLLOWUP_NOTE_RE = /(?:^|[;\n]\s*)fuel_guard_long_gap_reason:[^;\n]*/g;
+  const LEGACY_FOLLOWUP_LINE_RE = /^(most long gaps|sleep was marked for long gaps|your .* block may have worked|.* shift gap logged|forgotten fuel gap logged|no .* available|sleep gap logged|long gap logged\. protect)/i;
   const SLEEP_WINDOW_START_MINUTE = 23 * 60;
   const SLEEP_WINDOW_END_MINUTE = 5 * 60;
-  const LONG_GAP_REASON_NOTE_PREFIX = "fuel_guard_long_gap_reason:";
-  const LONG_GAP_REASON_OPTIONS = [
-    { value: "focus_block", label: "Focus block" },
-    { value: "busy_shift", label: "Busy shift" },
-    { value: "forgot", label: "Forgot" },
-    { value: "no_food_available", label: "No food available" },
-    { value: "sleeping", label: "Sleeping" },
-    { value: "other", label: "Other" }
-  ];
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "race": "competition",
@@ -433,6 +426,42 @@
     });
   }
 
+  function scrubLegacyFollowUpNote(value) {
+    return String(value || "")
+      .replace(LEGACY_FOLLOWUP_NOTE_RE, "")
+      .replace(/^[;\s]+|[;\s]+$/g, "")
+      .trim();
+  }
+
+  function scrubLegacyFollowUpLog(log) {
+    if (!log || typeof log !== "object") return;
+    delete log.longGapReason;
+    delete log.longGapReasonLabel;
+    delete log.longGapMinutes;
+    if (Object.prototype.hasOwnProperty.call(log, "note")) log.note = scrubLegacyFollowUpNote(log.note);
+    if (Object.prototype.hasOwnProperty.call(log, "notes")) log.notes = scrubLegacyFollowUpNote(log.notes);
+  }
+
+  function isLegacyFollowUpLine(line) {
+    return LEGACY_FOLLOWUP_LINE_RE.test(String(line || "").trim());
+  }
+
+  function removeStoredFollowUpData(gap) {
+    if (!gap || typeof gap !== "object") return;
+    (gap.logs || []).forEach(scrubLegacyFollowUpLog);
+    Object.values(gap.archive || {}).forEach(entry => {
+      if (!entry || typeof entry !== "object") return;
+      delete entry.longGapReasonCounts;
+      delete entry.topLongGapReason;
+      delete entry.topLongGapReasonLabel;
+      (entry.logs || []).forEach(scrubLegacyFollowUpLog);
+      if (Array.isArray(entry.summary)) entry.summary = entry.summary.filter(line => !isLegacyFollowUpLine(line));
+      if (entry.crashCostInsight && Array.isArray(entry.crashCostInsight.lines)) {
+        entry.crashCostInsight.lines = entry.crashCostInsight.lines.filter(line => !isLegacyFollowUpLine(line));
+      }
+    });
+  }
+
   function betaState() {
     const gap = fuelGapState();
     if (!gap.dayTypes || Array.isArray(gap.dayTypes)) gap.dayTypes = {};
@@ -455,6 +484,7 @@
     if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
     if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "risk";
     normalizeStoredDayTypes(gap);
+    removeStoredFollowUpData(gap);
     return gap;
   }
 
@@ -760,70 +790,10 @@
     return windows.length ? [...new Set(windows)].join(" / ") : "later today";
   }
 
-  function longGapReasonOption(value) {
-    return LONG_GAP_REASON_OPTIONS.find(option => option.value === value) || null;
-  }
-
-  function longGapReasonValueFromLog(log) {
-    const explicit = String(log?.longGapReason || "").trim();
-    if (longGapReasonOption(explicit)) return explicit;
-    const note = String(log?.note || log?.notes || "");
-    if (!note.includes(LONG_GAP_REASON_NOTE_PREFIX)) return "";
-    const value = note.split(LONG_GAP_REASON_NOTE_PREFIX)[1]?.split(/[;\n]/)[0]?.trim() || "";
-    return longGapReasonOption(value) ? value : "";
-  }
-
-  function longGapReasonLabelFromLog(log) {
-    const option = longGapReasonOption(longGapReasonValueFromLog(log));
-    return option?.label || "";
-  }
-
-  function longGapReasonNote(value) {
-    return `${LONG_GAP_REASON_NOTE_PREFIX}${value}`;
-  }
-
   function displayNoteForLog(log) {
-    const reasonLabel = longGapReasonLabelFromLog(log);
-    if (reasonLabel) return `Long gap reason: ${reasonLabel}`;
-    const note = String(log?.note || log?.notes || "");
+    const note = scrubLegacyFollowUpNote(log?.note || log?.notes || "");
     if (!note || note.includes(CRASH_NOTE)) return "";
-    return note.includes(LONG_GAP_REASON_NOTE_PREFIX) ? "" : note;
-  }
-
-  function longGapReasonPatternText(reasonValue) {
-    if (reasonValue === "focus_block") return "Most long gaps were intentional focus blocks.";
-    if (reasonValue === "busy_shift") return "Most long gaps were caused by busy shifts.";
-    if (reasonValue === "forgot") return "Most long gaps were caused by forgetting.";
-    if (reasonValue === "no_food_available") return "Most long gaps happened when no food was available.";
-    if (reasonValue === "sleeping") return "Sleep was marked for long gaps, so Fuel Guard treated that differently from awake under-fuelling.";
-    if (reasonValue === "other") return "Most long gaps were marked as other.";
-    return "";
-  }
-
-  function longGapReasonFollowUp(reasonValue) {
-    if (reasonValue === "focus_block") return "Your focus block may have worked, but the fuel debt likely showed up later.";
-    if (reasonValue === "busy_shift") return "Busy shift gap logged. This is where post-shift crashes often start.";
-    if (reasonValue === "forgot") return "Forgotten fuel gap logged. This is the pattern Fuel Guard is designed to catch.";
-    if (reasonValue === "no_food_available") return "No food available. This is a logistics issue, not a discipline issue.";
-    if (reasonValue === "sleeping") return "Sleep gap logged. Fuel Guard will not treat sleep like an awake daytime fuel miss.";
-    if (reasonValue === "other") return "Long gap logged. Protect the recovery window after this gap.";
-    return "";
-  }
-
-  function topLongGapReason(logs) {
-    const counts = {};
-    (Array.isArray(logs) ? logs : []).forEach(log => {
-      const value = longGapReasonValueFromLog(log);
-      if (!value) return;
-      counts[value] = (counts[value] || 0) + 1;
-    });
-    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || null;
-    return {
-      counts,
-      value: top?.[0] || "",
-      label: top ? longGapReasonOption(top[0])?.label || top[0] : "",
-      count: top?.[1] || 0
-    };
+    return note;
   }
 
   function fuelDebtLevel(minutes) {
@@ -834,7 +804,7 @@
     return "high";
   }
 
-  function crashCostInsight({ fuelDebtMinutes = 0, likelyCostWindow: costWindow = "stable for now", topLongGapReason = "", hasCrash = false, recoveryWindow = null } = {}) {
+  function crashCostInsight({ fuelDebtMinutes = 0, likelyCostWindow: costWindow = "stable for now", hasCrash = false, recoveryWindow = null } = {}) {
     const debtText = fuelDebtDurationText(fuelDebtMinutes);
     const level = fuelDebtLevel(fuelDebtMinutes);
     const recovery = recoveryWindow || recoveryWindowScore({
@@ -865,8 +835,6 @@
       }
     }
 
-    const reasonFollowUp = longGapReasonFollowUp(topLongGapReason);
-    if (reasonFollowUp) lines.push(reasonFollowUp);
     if (hasCrash && level !== "stable") lines.push("A low-energy event was marked, so this pattern is worth reviewing without treating it as medical proof.");
 
     return {
@@ -1047,7 +1015,6 @@
       isToday,
       now
     });
-    const reasonPattern = topLongGapReason(fuelLogs);
     const recoveryWindow = recoveryWindowScore({
       fuelLogCount: fuelLogs.length,
       hydrationLogCount: hydrationLogs.length,
@@ -1060,7 +1027,6 @@
     const crashCost = crashCostInsight({
       fuelDebtMinutes,
       likelyCostWindow: costWindow,
-      topLongGapReason: reasonPattern.value,
       hasCrash: crashLogs.length > 0,
       recoveryWindow
     });
@@ -1085,8 +1051,6 @@
     if (highRiskHydrationGaps.length) summary.push("Hydration gaps also became stretched, which may have amplified the day’s risk.");
     if (crashZoneGaps.length) summary.push("Fuel reached the Crash Zone / Under-fuelled Zone after High Risk.");
     if (hydrationCrashZoneGaps.length) summary.push("Hydration reached the Crash Zone / Under-hydrated Zone after High Risk.");
-    const reasonSummary = longGapReasonPatternText(reasonPattern.value);
-    if (reasonSummary) summary.push(reasonSummary);
     crashCost.lines.slice(2).forEach(line => {
       if (line && !summary.includes(line)) summary.push(line);
     });
@@ -1140,9 +1104,6 @@
       fuelGuardScore: recoveryWindow.score,
       recoveryWindowStatus: recoveryWindow.statusLabel,
       recoveryWindowRisk: recoveryWindow.riskLabel,
-      longGapReasonCounts: reasonPattern.counts,
-      topLongGapReason: reasonPattern.value,
-      topLongGapReasonLabel: reasonPattern.label,
       longestHydrationGapMinutes: longestHydration,
       averageHydrationGapMinutes: averageHydration,
       mediumRiskGapCount: mediumRiskGaps.length,
@@ -1196,10 +1157,7 @@
         typeLabel: logTypeLabel(log),
         dayType: log.dayType || analysis.dayType,
         trainingSession: log.trainingSession || analysis.trainingSession,
-        longGapReason: longGapReasonValueFromLog(log),
-        longGapReasonLabel: longGapReasonLabelFromLog(log),
-        longGapMinutes: Number(log.longGapMinutes || 0),
-        note: String(log.note || "").includes(CRASH_NOTE) ? "" : log.note || ""
+        note: displayNoteForLog(log)
       })),
       gapMinutes: analysis.gaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
       hydrationGapMinutes: analysis.hydrationGaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
@@ -1213,9 +1171,6 @@
       fuelGuardScore: analysis.fuelGuardScore,
       recoveryWindowStatus: analysis.recoveryWindowStatus,
       recoveryWindowRisk: analysis.recoveryWindowRisk,
-      longGapReasonCounts: analysis.longGapReasonCounts,
-      topLongGapReason: analysis.topLongGapReason,
-      topLongGapReasonLabel: analysis.topLongGapReasonLabel,
       longestHydrationGapMinutes: analysis.longestHydrationGapMinutes,
       averageHydrationGapMinutes: analysis.averageHydrationGapMinutes,
       mediumRiskGapCount: analysis.mediumRiskGapCount,
@@ -1802,7 +1757,6 @@
     return crashCostInsight({
       fuelDebtMinutes: entry?.fuelDebtMinutes || 0,
       likelyCostWindow: entry?.likelyCostWindow || "stable for now",
-      topLongGapReason: entry?.topLongGapReason || "",
       hasCrash: Number(entry?.crashLogCount || 0) > 0,
       recoveryWindow: recoveryWindowForEntry(entry)
     });
