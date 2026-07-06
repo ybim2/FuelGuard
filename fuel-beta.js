@@ -1730,18 +1730,130 @@
     return "Protected / Low Risk";
   }
 
+  function dailyIcon(name) {
+    const icons = {
+      fuel: '<path d="M9 3h6"/><path d="M10 3v4l-2 3v9a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-9l-2-3V3"/><path d="M9 14h6"/>',
+      hydration: '<path d="M12 3s6 6.2 6 11a6 6 0 0 1-12 0c0-4.8 6-11 6-11z"/><path d="M9.5 15.5c.7 1.2 1.5 1.8 2.8 1.8"/>',
+      gap: '<path d="M4 12h5"/><path d="M15 12h5"/><path d="M9 8v8"/><path d="M15 8v8"/><path d="M7 18h10"/>',
+      warning: '<path d="m12 3 9 16H3L12 3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+      energy: '<path d="m13 2-8 12h6l-1 8 8-12h-6l1-8z"/>',
+      score: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="m12 14 4-5"/><path d="M6.5 18h11"/>',
+      shield: '<path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/>',
+      clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
+      recovery: '<path d="M4 13h4l2-5 4 9 2-4h4"/><path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
+      route: '<path d="M5 7a2 2 0 1 0 0 .01"/><path d="M19 17a2 2 0 1 0 0 .01"/><path d="M7 7h4a3 3 0 0 1 0 6h2a3 3 0 0 1 0 6h4"/>',
+      check: '<path d="m5 12 4 4L19 6"/>'
+    };
+    return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.fuel}</svg>`;
+  }
+
+  function riskToneFromText(value) {
+    const text = String(value || "").toLowerCase();
+    if (text.includes("crash") || text.includes("under")) return "danger";
+    if (text.includes("high")) return "high";
+    if (text.includes("medium") || text.includes("elevated") || text.includes("risk")) return "elevated";
+    return "protected";
+  }
+
+  function recoveryRiskLabel(risk) {
+    if (risk === "under-prepared") return "Under-prepared";
+    if (risk === "elevated") return "Elevated";
+    return "Protected";
+  }
+
+  function scoreStatusLabel(score) {
+    if (score >= 80) return "Protected";
+    if (score >= 60) return "Good";
+    return "Needs care";
+  }
+
+  function calloutIconForLine(line) {
+    const text = String(line || "").toLowerCase();
+    if (text.includes("protect") || text.includes("recovery")) return "shield";
+    if (text.includes("debt") || text.includes("window")) return "clock";
+    if (text.includes("crash") || text.includes("risk")) return "warning";
+    if (text.includes("target") || text.includes("gap")) return "route";
+    return "recovery";
+  }
+
   function renderDailySummaryBullets(entry) {
     const recoveryWindow = recoveryWindowForEntry(entry);
-    const items = [
-      { label: "Fuel logs", value: String(entry.fuelLogCount || 0) },
-      { label: "Hydration logs", value: String(entry.hydrationLogCount || 0) },
-      { label: "Longest fuel gap", value: entry.longestGap || durationText(entry.longestGapMinutes || 0) },
-      { label: "Gap zone reached", value: gapZoneReached(entry) },
-      { label: "Low-energy events marked", value: String(entry.crashLogCount || 0) },
-      { label: "Fuel Guard Score", value: `${recoveryWindow.score}/100` },
-      { label: "Recovery window risk", value: recoveryWindow.riskLabel }
-    ];
-    return `<ul class="beta-daily-summary-list">${items.map(item => `<li><span>${safeText(item.label)}</span><strong>${safeText(item.value)}</strong></li>`).join("")}</ul>`;
+    const fuelCount = Number(entry.fuelLogCount || 0);
+    const hydrationCount = Number(entry.hydrationLogCount || 0);
+    const crashCount = Number(entry.crashLogCount || 0);
+    const score = clamp(Number(recoveryWindow.score || 0), 0, 100);
+    const longestGap = longestFuelGapForEntry(entry);
+    const longestGapText = entry.longestGap || durationText(entry.longestGapMinutes || 0);
+    const gapZone = gapZoneReached(entry);
+    const gapTone = riskToneFromText(gapZone);
+    const recoveryTone = riskToneFromText(recoveryWindow.riskLabel);
+    const gapStart = longestGap ? minutesIntoDay(longestGap.start) : 0;
+    const gapEnd = longestGap ? minutesIntoDay(longestGap.end) : 0;
+    const gapLeft = longestGap ? (gapStart / 1440) * 100 : 0;
+    const gapWidth = longestGap ? Math.max(3, ((gapEnd - gapStart) / 1440) * 100) : 0;
+    const gapLabelLeft = longestGap ? gapLeft + gapWidth / 2 : 50;
+    return `
+      <section class="beta-daily-summary-visual" aria-label="Daily visual summary">
+        <div class="beta-daily-log-tiles">
+          <article class="beta-log-tile ${fuelCount ? "logged" : "empty"}">
+            <span class="beta-icon-disc">${dailyIcon("fuel")}</span>
+            <div class="beta-mini-ring" style="--ring-pct:${stylePercent(Math.min(100, (fuelCount / 3) * 100))}"><strong>${fuelCount}</strong></div>
+            <div><span>Fuel Logs</span><small>${fuelCount ? "Logged today" : "No fuel yet"}</small></div>
+            <i class="beta-check-dot">${fuelCount ? dailyIcon("check") : ""}</i>
+          </article>
+          <article class="beta-log-tile hydration ${hydrationCount ? "logged" : "empty"}">
+            <span class="beta-icon-disc">${dailyIcon("hydration")}</span>
+            <div class="beta-mini-ring" style="--ring-pct:${stylePercent(Math.min(100, (hydrationCount / 4) * 100))}"><strong>${hydrationCount}</strong></div>
+            <div><span>Hydration Logs</span><small>${hydrationCount ? "Logged today" : "No hydration yet"}</small></div>
+            <i class="beta-check-dot">${hydrationCount ? dailyIcon("check") : ""}</i>
+          </article>
+        </div>
+
+        <article class="beta-longest-gap-card ${safeText(gapTone)}">
+          <div class="beta-metric-card-head">
+            <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
+            <div><span>Longest Fuel Gap</span><strong>${safeText(longestGapText)}</strong></div>
+          </div>
+          <div class="beta-mini-dayline" aria-hidden="true">
+            ${longestGap ? `<span class="beta-gap-bubble" style="left:${stylePercent(gapLabelLeft)}">${safeText(longestGapText)}</span>` : ""}
+            ${longestGap ? `<span class="beta-mini-gap-segment" style="left:${stylePercent(gapLeft)};width:${stylePercent(gapWidth)}"></span>` : ""}
+          </div>
+          <div class="beta-mini-dayline-axis"><span>Morning</span><span>Midday</span><span>Evening</span></div>
+        </article>
+
+        <div class="beta-daily-metric-grid">
+          <article class="beta-visual-metric-card ${safeText(gapTone)}">
+            <div class="beta-metric-card-head">
+              <span class="beta-icon-disc amber">${dailyIcon("warning")}</span>
+              <div><span>Gap Zone Reached</span><strong>${safeText(gapZone)}</strong></div>
+            </div>
+            <b class="beta-status-chip">${safeText(gapZone)}</b>
+          </article>
+          <article class="beta-visual-metric-card ${crashCount ? "danger" : "quiet"}">
+            <div class="beta-metric-card-head">
+              <span class="beta-icon-disc">${dailyIcon("energy")}</span>
+              <div><span>Low-Energy Events Marked</span><strong>${crashCount}</strong></div>
+            </div>
+            <small>${crashCount ? "Marked on this day" : "None marked"}</small>
+          </article>
+          <article class="beta-visual-metric-card score-card">
+            <div class="beta-metric-card-head">
+              <span class="beta-icon-disc">${dailyIcon("score")}</span>
+              <div><span>Fuel Guard Score</span><strong>${Math.round(score)}/100</strong></div>
+            </div>
+            <div class="beta-score-arc" style="--score-pct:${stylePercent(score)}"><span>${safeText(scoreStatusLabel(score))}</span></div>
+          </article>
+          <article class="beta-visual-metric-card recovery ${safeText(recoveryTone)}">
+            <div class="beta-metric-card-head">
+              <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
+              <div><span>Recovery Window Risk</span><strong>${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</strong></div>
+            </div>
+            <b class="beta-status-chip">${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</b>
+            <small>View insight</small>
+          </article>
+        </div>
+      </section>
+    `;
   }
 
   function recoveryWindowForEntry(entry) {
@@ -1779,10 +1891,62 @@
     const insight = crashCostInsightForEntry(entry);
     const lines = Array.isArray(insight.lines) ? insight.lines : [];
     if (!lines.length) return "";
+    const recoveryWindow = recoveryWindowForEntry(entry);
+    const fuelDebtMinutes = Math.max(0, Math.round(Number(entry?.fuelDebtMinutes || 0)));
+    const fuelDebtText = entry?.fuelDebtText || insight.debtText || fuelDebtDurationText(fuelDebtMinutes);
+    const costWindow = insight.costWindow || entry?.likelyCostWindow || "stable for now";
+    const riskLabel = recoveryRiskLabel(recoveryWindow.riskLabel);
+    const tone = riskToneFromText(recoveryWindow.riskLabel || insight.level);
+    const longestGap = longestFuelGapForEntry(entry);
+    const preferredWindow = mediumRiskLimit();
+    const gapStart = longestGap ? minutesIntoDay(longestGap.start) : 0;
+    const gapEnd = longestGap ? minutesIntoDay(longestGap.end) : 0;
+    const safeEnd = longestGap ? Math.min(gapEnd, gapStart + preferredWindow) : 0;
+    const safeLeft = longestGap ? (gapStart / 1440) * 100 : 6;
+    const safeWidth = longestGap ? Math.max(4, ((safeEnd - gapStart) / 1440) * 100) : 28;
+    const debtLeft = longestGap ? (safeEnd / 1440) * 100 : 34;
+    const debtWidth = longestGap ? Math.max(0, ((gapEnd - safeEnd) / 1440) * 100) : fuelDebtMinutes ? 16 : 0;
+    const recoveryLeft = costWindow.includes("post-shift") ? 74 : costWindow.includes("later") ? 66 : 82;
+    const recoveryWidth = costWindow === "stable for now" ? 12 : 22;
+    const callouts = lines
+      .filter(line => !/^fuel debt:/i.test(line))
+      .filter(line => !/^recovery window risk:/i.test(line))
+      .filter(line => !/^recovery window to protect:/i.test(line))
+      .slice(0, 6);
     return `
-      <section class="beta-crash-cost-insight ${safeText(insight.level || "stable")}" aria-label="Crash Cost Insight">
-        <h4>${safeText(insight.title || "Crash Cost Insight")}</h4>
-        <ul>${lines.map(line => `<li>${safeText(line)}</li>`).join("")}</ul>
+      <section class="beta-crash-cost-insight ${safeText(tone)} ${safeText(insight.level || "stable")}" aria-label="Crash Cost Insight">
+        <div class="beta-crash-insight-head">
+          <span class="beta-icon-disc amber">${dailyIcon("recovery")}</span>
+          <div>
+            <h4>${safeText(insight.title || "Crash Cost Insight")}</h4>
+            <p>Fuel Debt shows where the cost may turn up later.</p>
+          </div>
+          <b class="beta-status-chip">${safeText(riskLabel)}</b>
+        </div>
+        <div class="beta-crash-summary-row">
+          <article><span>${dailyIcon("clock")}Fuel debt</span><strong>${safeText(fuelDebtText)}</strong></article>
+          <article><span>${dailyIcon("warning")}Recovery risk</span><strong>${safeText(riskLabel)}</strong></article>
+          <article><span>${dailyIcon("shield")}Window to protect</span><strong>${safeText(costWindow)}</strong></article>
+        </div>
+        <div class="beta-crash-timeline" aria-label="Crash cost timeline">
+          <span class="beta-crash-safe" style="left:${stylePercent(safeLeft)};width:${stylePercent(safeWidth)}"></span>
+          <span class="beta-crash-debt" style="left:${stylePercent(debtLeft)};width:${stylePercent(debtWidth)}"></span>
+          <span class="beta-crash-recovery" style="left:${stylePercent(recoveryLeft)};width:${stylePercent(recoveryWidth)}"></span>
+          ${longestGap ? `<i class="beta-crash-marker start" style="left:${stylePercent(safeLeft)}"></i><i class="beta-crash-marker end" style="left:${stylePercent((gapEnd / 1440) * 100)}"></i>` : ""}
+        </div>
+        <div class="beta-crash-timeline-labels">
+          <span>In your fuel window</span>
+          <span>Fuel Debt built here</span>
+          <span>${safeText(costWindow === "stable for now" ? "Recovery window stable" : "Protect your recovery window")}</span>
+        </div>
+        <div class="beta-crash-callouts">
+          ${callouts.map(line => `
+            <article>
+              <span class="beta-icon-disc">${dailyIcon(calloutIconForLine(line))}</span>
+              <p>${safeText(line)}</p>
+            </article>
+          `).join("")}
+        </div>
       </section>
     `;
   }
