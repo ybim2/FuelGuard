@@ -1981,12 +1981,10 @@ body.beta-mvp .beta-day-type-row {
 body.beta-mvp .beta-logging-card {
   padding: 13px;
   margin-top: 0;
-  border: 1px solid rgba(29,49,38,.11);
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 10% 0%, rgba(22,122,69,.08), transparent 34%),
-    #ffffff;
-  box-shadow: 0 12px 28px rgba(35,55,42,.06);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 body.beta-mvp .topbar p,

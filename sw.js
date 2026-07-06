@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v31-risk-text-flatten";
-const BUILD_VERSION = "2026-07-06T22:49:00Z";
+const APP_VERSION = "mobile-pwa-v32-risk-wrapper-flatten";
+const BUILD_VERSION = "2026-07-06T23:04:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v31-risk-text-flatten-20260706T224900Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v32-risk-wrapper-flatten-20260706T230400Z";
 const APP_SHELL = [
   "./",
   "./index.html",
