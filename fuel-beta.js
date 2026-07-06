@@ -1657,9 +1657,8 @@
     if (!target) return;
     const logs = todayLogs();
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} today` : "No logs yet";
-    const latest = logs[logs.length - 1] || null;
-    target.innerHTML = latest
-      ? `<div class="beta-history-log-list beta-latest-log-list">${renderLogEvent(latest, { note: "Full event history lives in Daily." })}</div>`
+    target.innerHTML = logs.length
+      ? `<div class="beta-history-log-list beta-latest-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>`
       : `<p class="muted fuel-daily-empty">Log fuel or hydration when it happens.</p>`;
   }
 

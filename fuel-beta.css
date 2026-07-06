@@ -39,6 +39,12 @@
   order: 2;
 }
 
+.beta-logging-card {
+  order: 3;
+  display: grid;
+  gap: 12px;
+}
+
 .beta-rhythm-status-stack {
   order: 3;
   display: grid;
@@ -1952,9 +1958,25 @@ body.beta-mvp .beta-panel-copy {
 }
 
 body.beta-mvp .beta-day-type-row {
-  padding-bottom: 13px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid rgba(29,49,38,.12);
+  padding: 13px;
+  margin: 0 0 14px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(47,142,184,.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 10px 24px rgba(35,55,42,.05);
+}
+
+body.beta-mvp .beta-logging-card {
+  padding: 13px;
+  margin-top: 2px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(22,122,69,.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 12px 28px rgba(35,55,42,.06);
 }
 
 body.beta-mvp .topbar p,
@@ -2043,7 +2065,7 @@ body.beta-mvp .beta-rhythm-panel {
 }
 
 body.beta-mvp .beta-today-log {
-  padding-top: 14px;
+  padding-top: 16px;
   border-top: 1px solid rgba(29,49,38,.12);
   background: linear-gradient(180deg, rgba(255,255,255,.8), rgba(248,251,246,.92));
 }
@@ -2679,6 +2701,13 @@ body.beta-mvp .mobile-nav-item.active {
   }
 
   body.beta-mvp .beta-rhythm-header {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  body.beta-mvp .beta-day-type-row,
+  body.beta-mvp .beta-logging-card,
+  body.beta-mvp .beta-today-log > div {
     padding: 12px;
     border-radius: 16px;
   }
