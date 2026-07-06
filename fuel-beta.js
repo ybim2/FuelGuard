@@ -453,7 +453,7 @@
     if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
     if (gap.thresholds.hydrationRedMinutes <= gap.thresholds.hydrationGreenMinutes) gap.thresholds.hydrationRedMinutes = gap.thresholds.hydrationGreenMinutes + 15;
     if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
-    if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "fuel";
+    if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "risk";
     normalizeStoredDayTypes(gap);
     return gap;
   }
@@ -672,7 +672,7 @@
   }
 
   function graphMode() {
-    return GRAPH_MODES.has(betaState().graphMode) ? betaState().graphMode : "fuel";
+    return GRAPH_MODES.has(betaState().graphMode) ? betaState().graphMode : "risk";
   }
 
   function cooldownRemainingSeconds(now = Date.now()) {
@@ -1326,7 +1326,7 @@
       minutesSinceFuel: minutes,
       status,
       statusLabel: riskStatusLabel(status),
-      nextAction: `Current Fuel Zone: ${riskStatusLabel(status)} - ${statusText}`,
+      nextAction: `Fuel zone: ${riskStatusLabel(status)} - ${statusText}`,
       statusContext: statusText
     };
   };
@@ -1659,7 +1659,7 @@
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} today` : "No logs yet";
     const latest = logs[logs.length - 1] || null;
     target.innerHTML = latest
-      ? `<div class="row beta-latest-log-row"><div><div class="item-name">${formatClock(latest.date)} - ${logTypeLabel(latest)} logged</div><div class="row-note">Full raw logs live in Daily.</div></div></div>`
+      ? `<div class="beta-history-log-list beta-latest-log-list">${renderLogEvent(latest, { note: "Full event history lives in Daily." })}</div>`
       : `<p class="muted fuel-daily-empty">Log fuel or hydration when it happens.</p>`;
   }
 
@@ -2018,25 +2018,27 @@
     `;
   }
 
+  function renderLogEvent(log, { note: noteOverride = "" } = {}) {
+    const date = logDate(log.timestamp || log);
+    const displayNote = noteOverride || displayNoteForLog(log);
+    const type = logType(log);
+    const note = displayNote ? `<small>${safeText(displayNote)}</small>` : "";
+    const source = log.source && log.source !== "manual" ? `<small>${safeText(log.source)}</small>` : "";
+    return `
+      <article class="beta-history-log-event ${safeText(type)}">
+        <span class="beta-icon-disc ${type === "fuel" ? "" : type === "hydration" ? "shield" : "amber"}">${dailyIcon(type === "hydration" ? "hydration" : type === "crash" ? "energy" : "fuel")}</span>
+        <div>
+          <strong>${date ? formatClock(date) : "--"}</strong>
+          <span>${safeText(log.typeLabel || logTypeLabel(log))}</span>
+          ${note || source ? `<div class="beta-history-log-meta">${note}${source}</div>` : ""}
+        </div>
+      </article>
+    `;
+  }
+
   function renderRawLogs(entry) {
     if (!entry.logs.length) return `<p class="muted">No raw logs stored for this day.</p>`;
-    const logsHtml = entry.logs.map(log => {
-      const date = logDate(log.timestamp);
-      const displayNote = displayNoteForLog(log);
-      const type = logType(log);
-      const note = displayNote ? `<small>${safeText(displayNote)}</small>` : "";
-      const source = log.source && log.source !== "manual" ? `<small>${safeText(log.source)}</small>` : "";
-      return `
-        <article class="beta-history-log-event ${safeText(type)}">
-          <span class="beta-icon-disc ${type === "fuel" ? "" : type === "hydration" ? "shield" : "amber"}">${dailyIcon(type === "hydration" ? "hydration" : type === "crash" ? "energy" : "fuel")}</span>
-          <div>
-            <strong>${date ? formatClock(date) : "--"}</strong>
-            <span>${safeText(log.typeLabel || logTypeLabel(log))}</span>
-            ${note || source ? `<div class="beta-history-log-meta">${note}${source}</div>` : ""}
-          </div>
-        </article>
-      `;
-    }).join("");
+    const logsHtml = entry.logs.map(log => renderLogEvent(log)).join("");
     return `<section class="beta-raw-log-details beta-history-log-view"><h4>Logged events</h4><div class="beta-history-log-list">${logsHtml}</div></section>`;
   }
 
@@ -3079,16 +3081,16 @@
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "center";
     [
-      [0, "12am"],
-      [360, "6am"],
-      [720, "12pm"],
-      [1080, "6pm"],
-      [1440, "12am"]
+      [0, "00:00"],
+      [360, "06:00"],
+      [720, "12:00"],
+      [1080, "18:00"],
+      [1440, "24:00"]
     ].forEach(([minute, label]) => {
       ctx.fillText(label, clamp(xForMinute(minute), padding.left + 10, cssWidth - padding.right - 10), cssHeight - 10);
     });
     ctx.textAlign = "left";
-    ctx.fillText(compact ? "Risk" : "Risk score", 8, compact ? 16 : 18);
+    ctx.fillText(compact ? "Risk" : "Fuel risk", 8, compact ? 16 : 18);
     ctx.textAlign = "right";
     ctx.fillText("100", padding.left - 8, yForScore(100) + 4);
     ctx.fillText("0", padding.left - 8, bottom + 4);
@@ -3116,7 +3118,7 @@
 
     const next = document.getElementById("fuelGapNextAction");
     if (next) {
-      next.textContent = snapshot.nextAction || `Current Fuel Zone: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
+      next.textContent = snapshot.nextAction || `Fuel zone: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
       next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
     }
 
@@ -3160,7 +3162,7 @@
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
     const titles = {
-      dashboard: ["Live Fuel Rhythm", "What is happening today."],
+      dashboard: ["Fuel Rhythm", "What is happening today."],
       logs: ["Daily", "What happened that day, explained simply."],
       impact: ["Impact", "Fuel Debt, crash cost, and the recovery window."],
       trends: ["Trends", "How habits are changing over time."],
@@ -3213,7 +3215,7 @@
     gap.archive = {};
     gap.dayTypes = {};
     gap.trainingSessions = {};
-    gap.graphMode = "fuel";
+    gap.graphMode = "risk";
     gap.thresholds = { ...DEFAULT_THRESHOLDS };
     gap.dayEndedDate = "";
     gap.dayEndedAt = "";
@@ -3289,7 +3291,7 @@
   document.getElementById("fuelGraphModeControls")?.addEventListener("click", event => {
     const button = event.target.closest("[data-graph-mode]");
     if (!button) return;
-    betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "fuel";
+    betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "risk";
     save();
     renderFuelGap();
   });

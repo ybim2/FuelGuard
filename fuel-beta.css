@@ -1918,7 +1918,7 @@ body.beta-mvp .topbar {
   grid-template-columns: 1fr;
   justify-items: center;
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 body.beta-mvp .topbar h1 {
@@ -1926,6 +1926,35 @@ body.beta-mvp .topbar h1 {
   color: var(--text);
   font-size: clamp(1.55rem, 2.6vw, 2.35rem);
   line-height: 1.08;
+}
+
+body.beta-mvp .app {
+  padding-top: 22px;
+}
+
+body.beta-mvp .beta-rhythm-header {
+  margin: 0 0 10px;
+  padding: 13px 14px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(22,122,69,.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 10px 24px rgba(35,55,42,.05);
+}
+
+body.beta-mvp .beta-panel-title {
+  font-size: clamp(1.38rem, 2.3vw, 1.92rem);
+}
+
+body.beta-mvp .beta-panel-copy {
+  font-size: .9rem;
+}
+
+body.beta-mvp .beta-day-type-row {
+  padding-bottom: 13px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(29,49,38,.12);
 }
 
 body.beta-mvp .topbar p,
@@ -2011,6 +2040,24 @@ body.beta-mvp .beta-rhythm-panel {
   background:
     radial-gradient(circle at 14% 0%, rgba(22,122,69,.11), transparent 34%),
     linear-gradient(180deg, #ffffff, #f8fbf6);
+}
+
+body.beta-mvp .beta-today-log {
+  padding-top: 14px;
+  border-top: 1px solid rgba(29,49,38,.12);
+  background: linear-gradient(180deg, rgba(255,255,255,.8), rgba(248,251,246,.92));
+}
+
+body.beta-mvp .beta-today-log > div {
+  padding: 13px;
+  border: 1px solid rgba(29,49,38,.12);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35,55,42,.06);
+}
+
+body.beta-mvp .beta-latest-log-list {
+  margin-top: 8px;
 }
 
 body.beta-mvp .beta-live-card {
@@ -2625,6 +2672,19 @@ body.beta-mvp .mobile-nav-item.active {
 
   body.beta-mvp .card {
     border-radius: 20px;
+  }
+
+  body.beta-mvp .app {
+    padding-top: 10px;
+  }
+
+  body.beta-mvp .beta-rhythm-header {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  body.beta-mvp .beta-panel-title {
+    font-size: 1.42rem;
   }
 
   body.beta-mvp .beta-history-day-strip-head,
