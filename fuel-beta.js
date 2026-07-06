@@ -1326,7 +1326,7 @@
       minutesSinceFuel: minutes,
       status,
       statusLabel: riskStatusLabel(status),
-      nextAction: `Fuel zone: ${riskStatusLabel(status)} - ${statusText}`,
+      nextAction: `Current Fuel Risk: ${riskStatusLabel(status)} - ${statusText}`,
       statusContext: statusText
     };
   };
@@ -3117,7 +3117,7 @@
 
     const next = document.getElementById("fuelGapNextAction");
     if (next) {
-      next.textContent = snapshot.nextAction || `Fuel zone: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
+      next.textContent = snapshot.nextAction || `Current Fuel Risk: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
       next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
     }
 

@@ -1,7 +1,7 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v27-rhythm-sections",
-  buildVersion: "2026-07-06T19:04:00Z",
-  sourceCheckpoint: "586544c",
-  serviceWorkerUrl: "./sw.js?v=mobile-pwa-v27-rhythm-sections",
-  cacheName: "fuel-guard-mobile-pwa-v27-rhythm-sections-20260706T190400Z"
+  canonicalApp: "mobile-pwa-v28-rhythm-card-stack",
+  buildVersion: "2026-07-06T22:16:00Z",
+  sourceCheckpoint: "0954c31",
+  serviceWorkerUrl: "./sw.js?v=mobile-pwa-v28-rhythm-card-stack",
+  cacheName: "fuel-guard-mobile-pwa-v28-rhythm-card-stack-20260706T221600Z"
 });

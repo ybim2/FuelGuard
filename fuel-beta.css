@@ -15,13 +15,15 @@
 
 .beta-live-card {
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .beta-rhythm-panel {
   display: flex;
   flex-direction: column;
+  gap: 12px;
   margin: 0;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background:
@@ -48,12 +50,12 @@
 .beta-rhythm-status-stack {
   order: 3;
   display: grid;
-  gap: 8px;
+  gap: 6px;
   justify-items: start;
   align-items: start;
   width: 100%;
   min-width: 0;
-  margin-top: 2px;
+  margin-top: 0;
   text-align: left;
 }
 
@@ -1935,11 +1937,11 @@ body.beta-mvp .topbar h1 {
 }
 
 body.beta-mvp .app {
-  padding-top: 22px;
+  padding-top: 14px;
 }
 
 body.beta-mvp .beta-rhythm-header {
-  margin: 0 0 10px;
+  margin: 0;
   padding: 13px 14px;
   border: 1px solid rgba(29,49,38,.11);
   border-radius: 18px;
@@ -1959,7 +1961,7 @@ body.beta-mvp .beta-panel-copy {
 
 body.beta-mvp .beta-day-type-row {
   padding: 13px;
-  margin: 0 0 14px;
+  margin: 0;
   border: 1px solid rgba(29,49,38,.11);
   border-radius: 18px;
   background:
@@ -1970,7 +1972,7 @@ body.beta-mvp .beta-day-type-row {
 
 body.beta-mvp .beta-logging-card {
   padding: 13px;
-  margin-top: 2px;
+  margin-top: 0;
   border: 1px solid rgba(29,49,38,.11);
   border-radius: 18px;
   background:
@@ -2059,15 +2061,15 @@ body.beta-mvp .beta-recovery-window-strip {
 }
 
 body.beta-mvp .beta-rhythm-panel {
-  background:
-    radial-gradient(circle at 14% 0%, rgba(22,122,69,.11), transparent 34%),
-    linear-gradient(180deg, #ffffff, #f8fbf6);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 body.beta-mvp .beta-today-log {
-  padding-top: 16px;
-  border-top: 1px solid rgba(29,49,38,.12);
-  background: linear-gradient(180deg, rgba(255,255,255,.8), rgba(248,251,246,.92));
+  padding-top: 12px;
+  border-top: 0;
+  background: transparent;
 }
 
 body.beta-mvp .beta-today-log > div {
@@ -2083,7 +2085,9 @@ body.beta-mvp .beta-latest-log-list {
 }
 
 body.beta-mvp .beta-live-card {
-  background: #ffffff;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 body.beta-mvp .beta-graph-mode button,
@@ -2124,6 +2128,32 @@ body.beta-mvp .status-pill.crash,
 body.beta-mvp .red {
   border-color: rgba(197,61,82,.28);
   background: rgba(197,61,82,.12);
+  color: #a93446;
+}
+
+body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.beta-risk-pill {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #405246;
+  font-size: .92rem;
+  line-height: 1.4;
+}
+
+body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.green {
+  color: #146c3e;
+}
+
+body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.amber {
+  color: #8d4f00;
+}
+
+body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.red,
+body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.crash {
   color: #a93446;
 }
 
@@ -2697,7 +2727,7 @@ body.beta-mvp .mobile-nav-item.active {
   }
 
   body.beta-mvp .app {
-    padding-top: 10px;
+    padding-top: 6px;
   }
 
   body.beta-mvp .beta-rhythm-header {
