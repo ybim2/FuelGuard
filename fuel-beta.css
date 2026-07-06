@@ -295,7 +295,7 @@
   order: 7;
   width: 100%;
   min-height: 44px;
-  margin: 0;
+  margin: -6px 0 0;
 }
 
 .beta-gap-insights {
@@ -381,21 +381,52 @@
 }
 
 .beta-graph-wrap #fuelRhythmGraph {
-  order: 4;
+  order: 6;
   height: 242px;
   min-height: 200px;
 }
 
-.beta-graph-wrap .beta-log-actions {
+.beta-graph-section-heading {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.beta-graph-section-heading h3 {
+  margin: 0;
+  font-size: .98rem;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.beta-graph-section-heading p {
+  margin: 0;
+  font-size: .86rem;
+  line-height: 1.38;
+}
+
+.beta-log-heading {
   order: 1;
 }
 
-.beta-graph-wrap .fuel-cooldown-message {
+.beta-graph-wrap .beta-log-actions {
   order: 2;
 }
 
-.beta-graph-wrap .beta-graph-mode {
+.beta-graph-wrap .fuel-cooldown-message {
   order: 3;
+}
+
+.beta-view-heading {
+  order: 4;
+}
+
+.beta-graph-wrap .beta-graph-mode {
+  order: 5;
+}
+
+.beta-graph-wrap #undoLatestFoodLog {
+  margin-top: -8px;
 }
 
 .beta-day-controls,
@@ -1967,6 +1998,7 @@ body.beta-mvp .beta-day-type-row {
 }
 
 body.beta-mvp .beta-day-type-row .beta-rhythm-header {
+  order: 0;
   flex-basis: 100%;
   width: 100%;
   padding: 0;
@@ -1974,6 +2006,14 @@ body.beta-mvp .beta-day-type-row .beta-rhythm-header {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+body.beta-mvp .beta-day-type-row .day-type-field {
+  order: 1;
+}
+
+body.beta-mvp .beta-day-type-row #fuelDayTypeSaved {
+  order: 2;
 }
 
 body.beta-mvp .beta-logging-card {
