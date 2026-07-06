@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v28-rhythm-card-stack";
-const BUILD_VERSION = "2026-07-06T22:16:00Z";
+const APP_VERSION = "mobile-pwa-v29-rhythm-action-cards";
+const BUILD_VERSION = "2026-07-06T22:30:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v28-rhythm-card-stack-20260706T221600Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v29-rhythm-action-cards-20260706T223000Z";
 const APP_SHELL = [
   "./",
   "./index.html",
