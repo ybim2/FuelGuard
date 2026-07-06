@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v20-recovery-window";
-const BUILD_VERSION = "2026-07-06T09:22:10Z";
+const APP_VERSION = "mobile-pwa-v21-cognitive-load";
+const BUILD_VERSION = "2026-07-06T10:39:27Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v20-recovery-window-20260706T092210Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v21-cognitive-load-20260706T103927Z";
 const APP_SHELL = [
   "./",
   "./index.html",

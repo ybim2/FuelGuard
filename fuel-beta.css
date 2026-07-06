@@ -145,10 +145,6 @@
   order: 5;
 }
 
-.beta-mvp #fuelStatusContext {
-  order: 9;
-}
-
 .beta-graph-wrap {
   order: 6;
 }
@@ -293,6 +289,11 @@
 
 .beta-today-log {
   padding-bottom: 16px;
+}
+
+.beta-latest-log-row {
+  border-color: rgba(45,255,136,.18);
+  background: rgba(45,255,136,.055);
 }
 
 .beta-history-summary {
@@ -548,10 +549,6 @@
   margin-bottom: 0;
 }
 
-.beta-mvp #fuelDaySummary {
-  display: none !important;
-}
-
 .beta-mvp .fuel-gap-insight strong {
   overflow-wrap: anywhere;
 }
@@ -678,6 +675,41 @@
 .beta-daily-summary-list strong {
   color: var(--text);
   text-align: right;
+}
+
+.beta-personal-insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.beta-personal-insight-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-personal-insight-card span {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.beta-personal-insight-card strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.beta-personal-insight-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .88rem;
+  line-height: 1.42;
 }
 
 .beta-daily-bullets,

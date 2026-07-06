@@ -40,7 +40,7 @@
     fuel: {
       label: "Fuel",
       metric: "averageFuelGap",
-      title: "Average fuel gap",
+      title: "Your average fuel gap",
       unit: "minutes",
       threshold: 15,
       color: "#2dff88"
@@ -48,7 +48,7 @@
     hydration: {
       label: "Hydration",
       metric: "averageHydrationGap",
-      title: "Average hydration gap",
+      title: "Your average hydration gap",
       unit: "minutes",
       threshold: 15,
       color: "#9fb7ff"
@@ -56,7 +56,7 @@
     risk: {
       label: "High-risk periods",
       metric: "highRiskGaps",
-      title: "High-risk periods",
+      title: "Your high-risk periods",
       unit: "count",
       threshold: 0,
       color: "#ffb020"
@@ -64,7 +64,7 @@
     crash: {
       label: "Crash-risk signals",
       metric: "crashEvents",
-      title: "Crash-risk signals",
+      title: "Your crash-risk signals",
       unit: "count",
       threshold: 0,
       color: "#ff4d6d"
@@ -1713,13 +1713,14 @@
 
   function renderDailyLog() {
     const dateEl = document.getElementById("fuelDailyLogDate");
-    if (dateEl) dateEl.textContent = typeof fuelTrackingDateLabel === "function" ? fuelTrackingDateLabel() : formatDateKey(dateKey());
     const target = document.getElementById("fuelDailyLog");
     if (!target) return;
     const logs = todayLogs();
-    target.innerHTML = logs.length
-      ? logs.map(log => `<div class="row"><div><div class="item-name">${formatClock(log.date)} - ${logTypeLabel(log)} logged</div></div></div>`).join("")
-      : `<p class="muted fuel-daily-empty">No fuel or hydration logged today.</p>`;
+    if (dateEl) dateEl.textContent = logs.length ? `${logs.length} today` : "No logs yet";
+    const latest = logs[logs.length - 1] || null;
+    target.innerHTML = latest
+      ? `<div class="row beta-latest-log-row"><div><div class="item-name">${formatClock(latest.date)} - ${logTypeLabel(latest)} logged</div><div class="row-note">Full raw logs live in Daily.</div></div></div>`
+      : `<p class="muted fuel-daily-empty">Log fuel or hydration when it happens.</p>`;
   }
 
   function gapZoneReached(entry) {
@@ -1782,6 +1783,40 @@
       <section class="beta-crash-cost-insight ${safeText(insight.level || "stable")}" aria-label="Crash Cost Insight">
         <h4>${safeText(insight.title || "Crash Cost Insight")}</h4>
         <ul>${lines.map(line => `<li>${safeText(line)}</li>`).join("")}</ul>
+      </section>
+    `;
+  }
+
+  function renderPersonalDailyInsights(entry) {
+    const recoveryWindow = recoveryWindowForEntry(entry);
+    const fuelDebtMinutes = Math.max(0, Math.round(Number(entry.fuelDebtMinutes || 0)));
+    const fuelDebtText = entry.fuelDebtText || fuelDebtDurationText(fuelDebtMinutes);
+    const longestFuelGap = entry.longestGap || durationText(entry.longestGapMinutes || 0);
+    const recoveryCopy = recoveryWindow.riskLabel === "protected"
+      ? "Your work/training recovery window looks protected today."
+      : recoveryWindow.riskLabel === "elevated"
+        ? "Your work/training recovery window may need extra care today."
+        : "Your work/training recovery window looks under-prepared today.";
+    const fuelDebtCopy = fuelDebtMinutes
+      ? `You spent ${fuelDebtText} beyond your preferred fuelling window.`
+      : "You stayed inside your preferred fuelling window.";
+    return `
+      <section class="beta-personal-insights" aria-label="Personal daily insights">
+        <article class="beta-personal-insight-card">
+          <span>Your fuel debt</span>
+          <strong>${safeText(fuelDebtText)}</strong>
+          <p>${safeText(fuelDebtCopy)}</p>
+        </article>
+        <article class="beta-personal-insight-card">
+          <span>Your longest fuel gap</span>
+          <strong>${safeText(longestFuelGap)}</strong>
+          <p>${safeText(gapZoneReached(entry))} was the strongest fuel signal for this day.</p>
+        </article>
+        <article class="beta-personal-insight-card">
+          <span>Your recovery window</span>
+          <strong>${safeText(recoveryWindow.statusLabel)}</strong>
+          <p>${safeText(recoveryCopy)}</p>
+        </article>
       </section>
     `;
   }
@@ -1862,8 +1897,8 @@
       <div class="beta-daily-visuals">
         <section class="beta-daily-visual"><h4>Daily timeline</h4>${renderDailyTimeline(entry)}</section>
       </div>
+      ${renderPersonalDailyInsights(entry)}
       ${renderCrashCostInsight(entry)}
-      ${renderDailyBullets(entry)}
       ${renderRawLogs(entry)}
     `;
   }
@@ -1949,7 +1984,7 @@
 
   function trendInsightCopy(config, trend, currentValue, previousValue) {
     if (!Number.isFinite(currentValue)) {
-      return `${config.title} needs more matching logs before it can compare weeks.`;
+      return `${config.title} needs more matching logs before Fuel Guard can compare weeks.`;
     }
     if (!Number.isFinite(previousValue)) {
       return `${config.title} has this-week data; last week needs more matching logs.`;
@@ -1970,12 +2005,12 @@
     }
     if (config.metric === "highRiskGaps") {
       return trend.improved
-        ? "High-risk periods were lower than last week."
-        : "High-risk periods were higher than last week.";
+        ? "Your high-risk periods were lower than last week."
+        : "Your high-risk periods were higher than last week.";
     }
     return trend.improved
-      ? "Crash-risk signals were lower than last week."
-      : "Crash-risk signals were higher than last week.";
+      ? "Your crash-risk signals were lower than last week."
+      : "Your crash-risk signals were higher than last week.";
   }
 
   function weeklyTrendWindows(entries) {
@@ -2330,12 +2365,12 @@
       trendInsightCopy(config, trend, currentValue, previousValue),
       trendFilterCopy()
     ];
-    if (Number.isFinite(currentMetrics.fuelGuardScore)) insights.push(`Fuel Guard Score this week: ${Math.round(currentMetrics.fuelGuardScore)}/100.`);
-    insights.push(`Medium Risk nudges this week: ${currentMetrics.mediumRiskGaps}.`);
-    if (currentMetrics.crashZoneGaps) insights.push(`Crash-zone gaps this week: ${currentMetrics.crashZoneGaps}.`);
-    insights.push("Model: fuel and hydration logs are leading indicators.");
+    if (Number.isFinite(currentMetrics.fuelGuardScore)) insights.push(`Your Fuel Guard Score this week: ${Math.round(currentMetrics.fuelGuardScore)}/100.`);
+    insights.push(`Your Medium Risk nudges this week: ${currentMetrics.mediumRiskGaps}.`);
+    if (currentMetrics.crashZoneGaps) insights.push(`Your crash-zone gaps this week: ${currentMetrics.crashZoneGaps}.`);
+    insights.push("Your fuel and hydration logs are the leading indicators.");
     insights.push("Medium-risk and high-risk gaps are warning signs; crash-zone and unwanted fasted-state periods are lagging risk signals.");
-    insights.push("Goal: protect the work/training recovery window before the cost shows up later.");
+    insights.push("Your goal is to protect the work/training recovery window before the cost shows up later.");
     if (!previous.length) insights.push("Last-week comparison will get stronger after another week of matching logs.");
     insightsTarget.innerHTML = `<ul class="beta-trend-bullets">${insights.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`;
     requestAnimationFrame(drawTrendsGraph);
@@ -2692,8 +2727,6 @@
 
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
-    const summary = fuelDaySummary();
-    const analysis = analyseDay(dateKey());
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const historyActive = document.getElementById("logs")?.classList.contains("active");
@@ -2707,21 +2740,6 @@
     if (next) {
       next.textContent = snapshot.nextAction || `Current Fuel Zone: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
       next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
-    }
-
-    const debt = document.getElementById("fuelDebtStatus");
-    if (debt) {
-      debt.className = "fuel-debt-status";
-      debt.innerHTML = `
-        <strong>Fuel Debt today: ${safeText(analysis.fuelDebtText || fuelDebtDurationText(analysis.fuelDebtMinutes || 0))}</strong>
-        <span>Recovery window: ${safeText(analysis.recoveryWindowStatus || "Recovery Window Protected")}</span>
-        <span>Protect your work/training recovery window.</span>
-      `;
-    }
-
-    const context = document.getElementById("fuelStatusContext");
-    if (context) {
-      context.innerHTML = `<strong>Current Fuel Zone:</strong><span class="status-pill ${snapshot.status}">${safeText(snapshot.statusLabel || riskStatusLabel(snapshot.status))}</span><span>${safeText(snapshot.statusContext)}</span>`;
     }
 
     const button = document.getElementById("graphLogFoodButton");
@@ -2742,14 +2760,9 @@
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
     renderLongGapReasonPrompt();
 
-    const daySummary = document.getElementById("fuelDaySummary");
-    if (daySummary) daySummary.innerHTML = `<p class="label">Today</p><p>${safeText(summary.message)}</p>`;
-
     renderGraphModeControls();
     if (dashboardActive) {
-      renderGapInsights(snapshot, analysis);
       renderDayTypeControls();
-      renderDayAnalysis();
       renderDailyLog();
       drawBetaGraph();
     }
