@@ -60,7 +60,15 @@
 }
 
 .beta-rhythm-status-stack #fuelGapNextAction {
+  display: block;
   max-width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .beta-rhythm-status-stack .fuel-last-ate-badge {

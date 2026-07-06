@@ -78,7 +78,6 @@
     const cooldown = document.getElementById("foodLogCooldownMessage");
     const risk = document.getElementById("fuelGapNextAction");
     const statusStack = document.querySelector(".beta-rhythm-status-stack");
-    const status = document.getElementById("fuelStatusContext");
     const graph = document.querySelector(".beta-graph-wrap");
     const undo = document.getElementById("undoLatestFoodLog");
     const insights = document.getElementById("fuelGapInsights");
@@ -91,7 +90,6 @@
     moveElementAfter(cooldown, logActions);
     moveElementAfter(graph, cooldown || logActions);
     moveElementAfter(undo, graph);
-    moveElementAfter(status, undo || statusStack);
     moveElementAfter(insights, undo || graph);
     moveElementBefore(todayLog, dayControls);
   }
@@ -104,13 +102,11 @@
     if (!snapshot) return;
 
     const risk = document.getElementById("fuelGapNextAction");
-    const duplicate = document.getElementById("fuelStatusContext");
     const lastBadge = document.getElementById("fuelGraphLastAte");
-    if (duplicate && !duplicate.classList.contains("beta-hidden-duplicate-risk")) duplicate.classList.add("beta-hidden-duplicate-risk");
 
     const status = snapshot.status || "red";
     const hasLog = snapshot.lastFuelled && !/no fuel logged/i.test(snapshot.lastFuelled);
-    const nextText = `Current Fuel Zone: ${riskLabel(status)} - ${riskAction(status, hasLog)}`;
+    const nextText = `Current Fuel Risk: ${riskLabel(status)} - ${riskAction(status, hasLog)}`;
     const nextClass = `fuel-next-action beta-risk-pill ${status}`;
     if (risk) {
       if (risk.className !== nextClass) risk.className = nextClass;
