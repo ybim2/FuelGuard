@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v23-designed-insights" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v23-designed-insights" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v23-designed-insights" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v24-impact-trends" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v24-impact-trends" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v24-impact-trends" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -24,10 +24,11 @@
       <nav class="side-nav beta-nav">
         <button class="nav-item active" data-screen="dashboard">Live Fuel Rhythm</button>
         <button class="nav-item" data-screen="logs">Daily</button>
+        <button class="nav-item" data-screen="impact">Impact</button>
         <button class="nav-item" data-screen="trends">Trends</button>
         <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Live Fuel Rhythm</strong><p>Log when you fuel, then use the gaps to find High Risk patterns.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Live Fuel Rhythm</strong><p>Log quickly here. Review the cost later in Impact.</p></div>
     </aside>
 
     <main class="app">
@@ -42,7 +43,7 @@
             <div class="fuel-rhythm-header beta-rhythm-header">
               <div>
                 <h2 class="beta-panel-title">Live Fuel Rhythm</h2>
-                <p class="muted beta-panel-copy">Log fuel and hydration quickly. Deeper insight lives in Daily and Trends.</p>
+                <p class="muted beta-panel-copy">Log fuel and hydration quickly. Daily, Impact, and Trends handle review.</p>
               </div>
             </div>
 
@@ -131,7 +132,7 @@
           <div class="section-heading-row">
             <div>
               <h2>Daily</h2>
-              <p class="muted">Your day explained separately from quick logging.</p>
+              <p class="muted">What happened today, kept clear and scannable.</p>
             </div>
             <span id="fuelHistoryCount" class="row-note"></span>
           </div>
@@ -142,6 +143,23 @@
           <div id="fuelHistoryArchiveDetail" class="fuel-archive-detail"></div>
         </article>
 
+      </section>
+
+      <section id="impact" class="screen">
+        <article class="card beta-impact-card">
+          <div class="section-heading-row beta-insight-heading">
+            <div>
+              <h2>Impact</h2>
+              <p class="muted">Fuel Debt, crash cost, and the recovery window to protect.</p>
+            </div>
+            <span id="fuelImpactCount" class="row-note"></span>
+          </div>
+          <label class="day-type-field beta-history-date">
+            <span>Review day</span>
+            <select id="fuelImpactArchiveDate"></select>
+          </label>
+          <div id="fuelImpactDetail" class="fuel-archive-detail beta-impact-detail"></div>
+        </article>
       </section>
 
       <section id="trends" class="screen">
@@ -292,7 +310,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v23-designed-insights</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v24-impact-trends</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -309,6 +327,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/><path d="M8 5v14"/></svg>
       <span>Daily</span>
     </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="impact" data-mobile-tab="impact">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="M8 13h2.5l1.5-4 2 7 1.5-3H18"/></svg>
+      <span>Impact</span>
+    </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="trends" data-mobile-tab="trends">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 4-5 3 3 5-7"/></svg>
       <span>Trends</span>
@@ -319,16 +341,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v23-designed-insights"></script>
+  <script src="build-info.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v24-impact-trends"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="app-ui.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v23-designed-insights"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v23-designed-insights"></script>
+  <script src="app-state.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="app-ui.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v24-impact-trends"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v24-impact-trends"></script>
 </body>
 </html>

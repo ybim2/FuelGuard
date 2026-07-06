@@ -1777,16 +1777,13 @@
   }
 
   function renderDailySummaryBullets(entry) {
-    const recoveryWindow = recoveryWindowForEntry(entry);
     const fuelCount = Number(entry.fuelLogCount || 0);
     const hydrationCount = Number(entry.hydrationLogCount || 0);
     const crashCount = Number(entry.crashLogCount || 0);
-    const score = clamp(Number(recoveryWindow.score || 0), 0, 100);
     const longestGap = longestFuelGapForEntry(entry);
     const longestGapText = entry.longestGap || durationText(entry.longestGapMinutes || 0);
     const gapZone = gapZoneReached(entry);
     const gapTone = riskToneFromText(gapZone);
-    const recoveryTone = riskToneFromText(recoveryWindow.riskLabel);
     const gapStart = longestGap ? minutesIntoDay(longestGap.start) : 0;
     const gapEnd = longestGap ? minutesIntoDay(longestGap.end) : 0;
     const gapLeft = longestGap ? (gapStart / 1440) * 100 : 0;
@@ -1835,21 +1832,6 @@
               <div><span>Low-Energy Events Marked</span><strong>${crashCount}</strong></div>
             </div>
             <small>${crashCount ? "Marked on this day" : "None marked"}</small>
-          </article>
-          <article class="beta-visual-metric-card score-card">
-            <div class="beta-metric-card-head">
-              <span class="beta-icon-disc">${dailyIcon("score")}</span>
-              <div><span>Fuel Guard Score</span><strong>${Math.round(score)}/100</strong></div>
-            </div>
-            <div class="beta-score-arc" style="--score-pct:${stylePercent(score)}"><span>${safeText(scoreStatusLabel(score))}</span></div>
-          </article>
-          <article class="beta-visual-metric-card recovery ${safeText(recoveryTone)}">
-            <div class="beta-metric-card-head">
-              <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
-              <div><span>Recovery Window Risk</span><strong>${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</strong></div>
-            </div>
-            <b class="beta-status-chip">${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</b>
-            <small>View insight</small>
           </article>
         </div>
       </section>
@@ -2107,6 +2089,19 @@
     return `<section class="beta-raw-log-details"><h4>Raw logs</h4><div class="list">${logsHtml}</div></section>`;
   }
 
+  function renderDailySummaryNote(entry) {
+    const fuelCount = Number(entry?.fuelLogCount || 0);
+    const hydrationCount = Number(entry?.hydrationLogCount || 0);
+    const gap = entry?.longestGap || durationText(entry?.longestGapMinutes || 0);
+    const zone = gapZoneReached(entry);
+    const crashCount = Number(entry?.crashLogCount || 0);
+    return `
+      <p class="beta-daily-summary-note">
+        You logged fuel ${fuelCount} time${fuelCount === 1 ? "" : "s"} and hydration ${hydrationCount} time${hydrationCount === 1 ? "" : "s"}. Your longest fuel gap was ${safeText(gap)}, reaching ${safeText(zone)}.${crashCount ? ` ${crashCount} low-energy event${crashCount === 1 ? " was" : "s were"} marked.` : " No low-energy events were marked."}
+      </p>
+    `;
+  }
+
   function renderArchiveDetail(entry) {
     if (!entry) return `<p class="muted">No daily summaries yet.</p>`;
     const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
@@ -2119,13 +2114,26 @@
 
     return `
       <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${riskSignalTotal ? "amber" : "green"}">${riskSignalTotal ? "RISK SIGNALS" : "STABLE"}</span></div>
+      ${renderDailySummaryNote(entry)}
       ${renderDailySummaryBullets(entry)}
       <div class="beta-daily-visuals">
         <section class="beta-daily-visual"><h4>Daily timeline</h4>${renderDailyTimeline(entry)}</section>
       </div>
+      ${renderRawLogs(entry)}
+    `;
+  }
+
+  function renderImpactDetail(entry) {
+    if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain the cost window.</p>`;
+    const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
+      .filter(Boolean)
+      .join(" - ");
+    const recoveryWindow = recoveryWindowForEntry(entry);
+    return `
+      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Impact story")}</h3></div><span class="status-pill ${recoveryWindow.riskLabel === "protected" ? "green" : "amber"}">${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</span></div>
+      <p class="beta-daily-summary-note">This is the consequence layer: where Fuel Debt built, what recovery window needs protecting, and why the crash cost may show up later.</p>
       ${renderPersonalDailyInsights(entry)}
       ${renderCrashCostInsight(entry)}
-      ${renderRawLogs(entry)}
     `;
   }
 
@@ -2275,9 +2283,93 @@
       highRiskGaps: entries.reduce((sum, entry) => sum + Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0), 0),
       crashZoneGaps: entries.reduce((sum, entry) => sum + Number(entry.crashZoneGapCount || 0) + Number(entry.hydrationCrashZoneGapCount || 0), 0),
       crashEvents: entries.reduce((sum, entry) => sum + crashRiskSignalsForEntry(entry), 0),
+      manualCrashEvents: entries.reduce((sum, entry) => sum + Number(entry.crashLogCount || 0), 0),
+      fuelDebtMinutes: entries.reduce((sum, entry) => sum + Number(entry.fuelDebtMinutes || 0), 0),
       fuelGuardScore: averageValue(entries.map(entry => Number(entry.fuelGuardScore || 0)).filter(Boolean)),
       days: entries.length
     };
+  }
+
+  function trendDayTypeHotspot(entries) {
+    const groups = {};
+    entries.forEach(entry => {
+      const key = entry.dayType || "unset";
+      const label = entry.dayType ? entry.dayTypeLabel || dayTypeLabel(entry.dayType) : "Day type not set";
+      if (!groups[key]) groups[key] = { label, count: 0, debt: 0, risk: 0 };
+      groups[key].count += 1;
+      groups[key].debt += Number(entry.fuelDebtMinutes || 0);
+      groups[key].risk += Number(entry.highRiskGapCount || 0) + Number(entry.crashZoneGapCount || 0);
+    });
+    return Object.values(groups).sort((a, b) => (b.debt + b.risk * 30) - (a.debt + a.risk * 30))[0] || null;
+  }
+
+  function renderTrendMiniBars(current, previous, { currentLabel = "This week", previousLabel = "Last week", unit = "" } = {}) {
+    const safeCurrent = Number.isFinite(current) ? Math.max(0, current) : 0;
+    const safePrevious = Number.isFinite(previous) ? Math.max(0, previous) : 0;
+    const max = Math.max(safeCurrent, safePrevious, 1);
+    const currentText = unit === "minutes" ? compactDuration(safeCurrent) : String(Math.round(safeCurrent));
+    const previousText = unit === "minutes" ? compactDuration(safePrevious) : Number.isFinite(previous) ? String(Math.round(safePrevious)) : "Building";
+    return `
+      <div class="beta-trend-mini-bars">
+        <span><b>${safeText(currentLabel)}</b><i style="width:${stylePercent((safeCurrent / max) * 100)}"></i><em>${safeText(currentText)}</em></span>
+        <span><b>${safeText(previousLabel)}</b><i class="previous" style="width:${stylePercent((safePrevious / max) * 100)}"></i><em>${safeText(previousText)}</em></span>
+      </div>
+    `;
+  }
+
+  function renderTrendVisualSummary(entries, current, previous, currentMetrics, previousMetrics, config, trend, currentValue, previousValue) {
+    const commonGap = mostCommonFuelGap(entries);
+    const debtTrend = metricTrend(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes, { threshold: 15, lowerIsBetter: true });
+    const score = Number.isFinite(currentMetrics.fuelGuardScore) ? Math.round(currentMetrics.fuelGuardScore) : null;
+    const riskTotal = currentMetrics.mediumRiskGaps + currentMetrics.highRiskGaps + currentMetrics.crashZoneGaps;
+    const riskMax = Math.max(riskTotal, 1);
+    const dayHotspot = trendDayTypeHotspot(entries);
+    const rhythmTone = trend.direction === "steady" ? "neutral" : trend.improved ? "protected" : "elevated";
+    const debtTone = debtTrend.direction === "steady" ? "neutral" : debtTrend.improved ? "protected" : "elevated";
+    return `
+      <section class="beta-trends-visual" aria-label="Visual trend summary">
+        <article class="beta-trend-hero-card ${safeText(rhythmTone)}">
+          <div class="beta-metric-card-head">
+            <span class="beta-icon-disc">${dailyIcon("route")}</span>
+            <div><span>Weekly Fuel Rhythm</span><strong>${safeText(trendValueText(currentValue, config))}</strong></div>
+          </div>
+          ${renderTrendMiniBars(currentValue, previousValue, { unit: config.unit })}
+          <b class="beta-status-chip">${safeText(trend.direction === "none" ? "Building" : trend.improved ? "Improving" : trend.direction === "steady" ? "Steady" : "Needs attention")}</b>
+        </article>
+
+        <div class="beta-trend-pattern-grid">
+          <article class="beta-trend-pattern-card">
+            <span class="beta-icon-disc amber">${dailyIcon("clock")}</span>
+            <div><span>Most Common Fuel Gap</span><strong>${safeText(commonGap.label)}</strong><small>${safeText(commonGap.count ? `${commonGap.count} gap${commonGap.count === 1 ? "" : "s"} in this range` : "Needs more fuel gaps")}</small></div>
+          </article>
+          <article class="beta-trend-pattern-card elevated">
+            <span class="beta-icon-disc amber">${dailyIcon("warning")}</span>
+            <div><span>Risk Zone Frequency</span><strong>${riskTotal}</strong><small>Medium, High, and Crash Zone signals this week.</small></div>
+            <div class="beta-risk-stack" aria-hidden="true">
+              <i class="medium" style="width:${stylePercent((currentMetrics.mediumRiskGaps / riskMax) * 100)}"></i>
+              <i class="high" style="width:${stylePercent((currentMetrics.highRiskGaps / riskMax) * 100)}"></i>
+              <i class="crash" style="width:${stylePercent((currentMetrics.crashZoneGaps / riskMax) * 100)}"></i>
+            </div>
+          </article>
+          <article class="beta-trend-pattern-card ${safeText(debtTone)}">
+            <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
+            <div><span>Fuel Debt Over Time</span><strong>${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}</strong><small>${safeText(debtTrend.copy)}</small></div>
+          </article>
+          <article class="beta-trend-pattern-card">
+            <span class="beta-icon-disc">${dailyIcon("score")}</span>
+            <div><span>Habit Change Tracker</span><strong>${safeText(score === null ? "Building" : `${score}/100`)}</strong><small>${safeText(score === null ? "Needs more logged days." : scoreStatusLabel(score))}</small></div>
+          </article>
+          <article class="beta-trend-pattern-card ${currentMetrics.manualCrashEvents ? "danger" : "protected"}">
+            <span class="beta-icon-disc">${dailyIcon("energy")}</span>
+            <div><span>Low-Energy Events Pattern</span><strong>${currentMetrics.manualCrashEvents}</strong><small>${safeText(currentMetrics.manualCrashEvents ? "Compare these with long gaps." : "No marked low-energy events this week.")}</small></div>
+          </article>
+          <article class="beta-trend-pattern-card">
+            <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
+            <div><span>Day Type Comparison</span><strong>${safeText(dayHotspot ? dayHotspot.label : "Building")}</strong><small>${safeText(dayHotspot ? "Highest combined debt/risk pattern." : "Set day types to compare patterns.")}</small></div>
+          </article>
+        </div>
+      </section>
+    `;
   }
 
   function metricTrend(current, previous, { lowerIsBetter = true, unit = "", threshold = 0 } = {}) {
@@ -2580,12 +2672,7 @@
       current: currentValue,
       previous: previousValue
     };
-    summaryTarget.innerHTML = `<div class="fuel-gap-insights beta-average-grid">${renderTrendMetric(
-      config.title,
-      trendValueText(currentValue, config),
-      `This week. Last week: ${trendValueText(previousValue, config)}.`,
-      trend.direction === "steady" ? "neutral" : trend.improved ? "good" : "watch"
-    )}</div>`;
+    summaryTarget.innerHTML = renderTrendVisualSummary(filteredEntries, current, previous, currentMetrics, previousMetrics, config, trend, currentValue, previousValue);
 
     const insights = [
       trendInsightCopy(config, trend, currentValue, previousValue),
@@ -2697,6 +2784,23 @@
     if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
     detail.innerHTML = renderArchiveDetail(entries.find(entry => entry.date === selectedHistoryKey));
     requestAnimationFrame(() => drawDailyRiskGraph(selectedHistoryKey));
+  }
+
+  function renderImpact() {
+    const entries = archiveEntries();
+    const select = document.getElementById("fuelImpactArchiveDate");
+    const count = document.getElementById("fuelImpactCount");
+    const detail = document.getElementById("fuelImpactDetail");
+    if (!select || !detail) return;
+    if (!selectedHistoryKey || !entries.some(entry => entry.date === selectedHistoryKey)) selectedHistoryKey = entries[0]?.date || dateKey();
+    select.innerHTML = entries.map(entry => {
+      const labels = [entry.dayType ? entry.dayTypeLabel : "", entry.trainingSession ? entry.trainingSessionLabel : ""].filter(Boolean);
+      return `<option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${labels.length ? ` - ${safeText(labels.join(" / "))}` : ""}</option>`;
+    }).join("");
+    select.value = selectedHistoryKey;
+    const impactEntries = loggedHistoryEntries().filter(entry => Number(entry.fuelDebtMinutes || 0) > 0 || Number(entry.highRiskGapCount || 0) > 0 || Number(entry.crashLogCount || 0) > 0 || Number(entry.fuelLogCount || 0) > 0);
+    if (count) count.textContent = `${impactEntries.length} impact day${impactEntries.length === 1 ? "" : "s"} tracked`;
+    detail.innerHTML = renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey));
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -2956,6 +3060,7 @@
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const historyActive = document.getElementById("logs")?.classList.contains("active");
+    const impactActive = document.getElementById("impact")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
@@ -2994,12 +3099,13 @@
     }
     if (settingsActive) renderSettings();
     if (historyActive) renderHistory();
+    if (impactActive) renderImpact();
     if (trendsActive) renderTrends();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "logs", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "logs", "impact", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -3010,6 +3116,7 @@
     const titles = {
       dashboard: ["Live Fuel Rhythm", "What is happening today."],
       logs: ["Daily", "What happened that day, explained simply."],
+      impact: ["Impact", "Fuel Debt, crash cost, and the recovery window."],
       trends: ["Trends", "How habits are changing over time."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
@@ -3018,6 +3125,7 @@
     if (title) title.textContent = titles[target][0];
     if (subtitle) subtitle.textContent = titles[target][1];
     if (target === "logs") renderHistory();
+    if (target === "impact") renderImpact();
     if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
     if (target === "dashboard") requestAnimationFrame(() => {
@@ -3151,6 +3259,10 @@
     selectedHistoryKey = event.target.value;
     renderHistory();
   });
+  document.getElementById("fuelImpactArchiveDate")?.addEventListener("change", event => {
+    selectedHistoryKey = event.target.value;
+    renderImpact();
+  });
   document.getElementById("trendDayTypeFilter")?.addEventListener("change", event => {
     selectedTrendDayType = event.target.value || "all";
     renderTrends();
@@ -3205,6 +3317,7 @@
   });
   window.addEventListener("fuelguard:cloud-status", () => {
     if (document.getElementById("checklist")?.classList.contains("active")) renderSettings();
+    if (document.getElementById("impact")?.classList.contains("active")) renderImpact();
   });
   document.getElementById("checkAppUpdateButton")?.addEventListener("click", async () => {
     const status = document.getElementById("appUpdateStatus");
