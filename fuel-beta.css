@@ -649,6 +649,37 @@
   margin: 8px 0 12px;
 }
 
+.beta-daily-summary-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.beta-daily-summary-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-daily-summary-list span {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.beta-daily-summary-list strong {
+  color: var(--text);
+  text-align: right;
+}
+
 .beta-daily-bullets,
 .beta-trend-bullets {
   display: grid;
