@@ -420,9 +420,12 @@
 .beta-log-actions {
   order: 4;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 132px));
   gap: 8px;
   align-items: stretch;
+  justify-content: center;
+  justify-items: stretch;
+  width: 100%;
 }
 
 .beta-mvp .fuel-cooldown-message {
@@ -477,21 +480,6 @@
   letter-spacing: 0;
 }
 
-.beta-mvp #graphLogFoodButton {
-  position: relative;
-  color: transparent !important;
-}
-
-.beta-mvp #graphLogFoodButton::after {
-  content: "Log Fuel";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #06130d;
-  pointer-events: none;
-}
-
 .beta-hydration-button {
   width: 100%;
   min-height: 48px;
@@ -507,6 +495,17 @@
   border-radius: 12px;
   font-size: .88rem;
   line-height: 1.12;
+  display: inline-grid;
+  place-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.beta-log-entry-card #graphLogFoodButton span,
+.beta-log-entry-card #graphLogHydrationButton span {
+  display: block;
 }
 
 .beta-mvp .fuel-cooldown-message {
@@ -2109,7 +2108,6 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 @media(max-width:380px) {
-  .beta-log-actions,
   .beta-trend-filters,
   .beta-trend-view-mode,
   .beta-log-tile,
@@ -2210,6 +2208,19 @@ body.beta-mvp .beta-panel-title {
   font-size: clamp(1.38rem, 2.3vw, 1.92rem);
 }
 
+body.beta-mvp .beta-panel-title,
+body.beta-mvp .beta-daily-timeline-section .section-heading-row h3,
+body.beta-mvp .beta-impact-card .beta-history-date > span,
+body.beta-mvp .beta-trends-filter-title {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.38rem, 2.3vw, 1.92rem);
+  font-weight: 950;
+  line-height: 1.08;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 body.beta-mvp .beta-panel-copy {
   font-size: .9rem;
 }
@@ -2246,7 +2257,7 @@ body.beta-mvp .beta-day-type-row #fuelDayTypeSaved {
 }
 
 body.beta-mvp .beta-impact-card {
-  gap: 10px;
+  gap: 12px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -2268,9 +2279,13 @@ body.beta-mvp .beta-impact-card .beta-history-date {
 
 body.beta-mvp .beta-impact-detail {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   min-width: 0;
+}
+
+body.beta-mvp .beta-impact-simple-grid {
+  gap: 12px;
 }
 
 body.beta-mvp .beta-impact-simple-grid,
@@ -2375,7 +2390,8 @@ body.beta-mvp .beta-rhythm-panel {
 }
 
 body.beta-mvp .beta-today-log {
-  padding: 12px 0 16px;
+  margin-top: 12px;
+  padding: 0;
   border-top: 0;
   background: transparent;
 }
@@ -2392,7 +2408,7 @@ body.beta-mvp .beta-impact-current-status {
   display: grid;
   gap: 7px;
   width: 100%;
-  margin: 0 0 12px;
+  margin: 0;
   padding: 13px;
   border: 1px solid rgba(29,49,38,.11);
   border-radius: 18px;
@@ -2424,6 +2440,7 @@ body.beta-mvp .beta-live-card {
 
 body.beta-mvp .beta-data-card,
 body.beta-mvp .beta-impact-card {
+  gap: 12px;
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -2494,11 +2511,6 @@ body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.amber {
 body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.red,
 body.beta-mvp .beta-rhythm-status-stack .fuel-next-action.crash {
   color: #a93446;
-}
-
-body.beta-mvp .beta-mvp #graphLogFoodButton::after,
-body.beta-mvp #graphLogFoodButton::after {
-  color: #ffffff;
 }
 
 body.beta-mvp .beta-icon-disc {
@@ -2590,7 +2602,8 @@ body.beta-mvp .beta-trends-card {
 }
 
 body.beta-mvp .beta-trends-filter-row {
-  display: block;
+  display: grid;
+  gap: 12px;
   width: 100%;
   box-sizing: border-box;
   align-items: stretch;
@@ -2614,7 +2627,7 @@ body.beta-mvp .beta-impact-trend-grid {
 body.beta-mvp .beta-impact-trend-grid {
   grid-template-columns: 1fr;
   gap: 12px;
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 body.beta-mvp .beta-impact-trend-card {
@@ -3214,7 +3227,10 @@ body.beta-mvp .mobile-nav-item.active {
     padding: 0;
   }
 
-  body.beta-mvp .beta-panel-title {
+  body.beta-mvp .beta-panel-title,
+  body.beta-mvp .beta-daily-timeline-section .section-heading-row h3,
+  body.beta-mvp .beta-impact-card .beta-history-date > span,
+  body.beta-mvp .beta-trends-filter-title {
     font-size: 1.42rem;
   }
 

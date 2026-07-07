@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v51-status-trends-cleanup" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v51-status-trends-cleanup" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v51-status-trends-cleanup" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v52-compact-card-spacing" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v52-compact-card-spacing" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v52-compact-card-spacing" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -79,8 +79,8 @@
                   <p>Tap these when you fuel or hydrate so the app reflects your day.</p>
                 </div>
                 <div class="beta-log-actions" aria-label="Log fuel or hydration">
-                  <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
-                  <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
+                  <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
+                  <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
                 </div>
                 <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
               </section>
@@ -144,6 +144,7 @@
       <section id="trends" class="screen">
         <article class="card beta-trends-card">
           <div class="section-heading-row beta-insight-heading beta-trends-filter-row">
+            <h2 class="beta-trends-filter-title">Review trends</h2>
             <div class="beta-trend-filters" aria-label="Trend filters">
               <label class="day-type-field beta-training-filter">
                 <span>Day type</span>
@@ -276,7 +277,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v51-status-trends-cleanup</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v52-compact-card-spacing</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -307,16 +308,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
+  <script src="build-info.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v52-compact-card-spacing"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="app-ui.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v51-status-trends-cleanup"></script>
+  <script src="app-state.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="app-ui.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v52-compact-card-spacing"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v52-compact-card-spacing"></script>
 </body>
 </html>

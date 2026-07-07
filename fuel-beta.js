@@ -3052,7 +3052,7 @@
 
     const button = document.getElementById("graphLogFoodButton");
     if (button) {
-      button.textContent = "Log Fuel";
+      button.innerHTML = "<span>Log</span><span>Fuel</span>";
       button.disabled = cooldown > 0;
     }
 
