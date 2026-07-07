@@ -2194,13 +2194,8 @@
 
   function renderImpactDetail(entry, entries = loggedHistoryEntries()) {
     if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain possible later energy impact.</p>`;
-    const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
-      .filter(Boolean)
-      .join(" - ");
-    const recoveryWindow = recoveryWindowForEntry(entry);
     const tone = impactToneForEntry(entry);
     return `
-      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Impact story")}</h3></div><span class="status-pill ${recoveryWindow.riskLabel === "protected" ? "green" : "amber"}">${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</span></div>
       <section class="beta-impact-simple-grid" aria-label="Impact insights">
         ${renderImpactCard({
           title: "Fuel Debt Summary",
@@ -2955,7 +2950,6 @@
   function renderImpact() {
     const entries = archiveEntries();
     const select = document.getElementById("fuelImpactArchiveDate");
-    const count = document.getElementById("fuelImpactCount");
     const detail = document.getElementById("fuelImpactDetail");
     if (!select || !detail) return;
     if (!selectedHistoryKey || !entries.some(entry => entry.date === selectedHistoryKey)) selectedHistoryKey = entries[0]?.date || dateKey();
@@ -2965,7 +2959,6 @@
     }).join("");
     select.value = selectedHistoryKey;
     const impactEntries = loggedHistoryEntries().filter(entry => Number(entry.fuelDebtMinutes || 0) > 0 || Number(entry.highRiskGapCount || 0) > 0 || Number(entry.crashLogCount || 0) > 0 || Number(entry.fuelLogCount || 0) > 0);
-    if (count) count.textContent = `${impactEntries.length} impact day${impactEntries.length === 1 ? "" : "s"} tracked`;
     detail.innerHTML = renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey), impactEntries);
   }
 
