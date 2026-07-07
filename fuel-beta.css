@@ -452,6 +452,10 @@
   margin-top: -8px;
 }
 
+.beta-today-log #undoLatestFoodLog {
+  margin: 10px 0 0;
+}
+
 .beta-day-controls,
 .beta-today-log {
   padding: 0 0 14px;

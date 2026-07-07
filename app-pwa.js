@@ -1,6 +1,6 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v36-daily-graph-impact-days";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v37-data-tab-undo-rhythm";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;

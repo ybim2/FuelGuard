@@ -3124,7 +3124,7 @@
     });
     const titles = {
       dashboard: ["Fuel Rhythm", "What is happening today."],
-      logs: ["Daily", "What happened that day, explained simply."],
+      logs: ["Data", "Fuel risk, logs, and today's timeline."],
       impact: ["Impact", "Fuel Debt, crash cost, and the recovery window."],
       trends: ["Trends", "How habits are changing over time."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]

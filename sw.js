@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v36-daily-graph-impact-days";
-const BUILD_VERSION = "2026-07-07T00:23:42Z";
+const APP_VERSION = "mobile-pwa-v37-data-tab-undo-rhythm";
+const BUILD_VERSION = "2026-07-07T00:35:26Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v36-daily-graph-impact-days-20260707T002342Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v37-data-tab-undo-rhythm-20260707T003526Z";
 const APP_SHELL = [
   "./",
   "./index.html",
