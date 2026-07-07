@@ -54,17 +54,17 @@
       color: "#9fb7ff"
     },
     risk: {
-      label: "High-risk periods",
+      label: "High-support periods",
       metric: "highRiskGaps",
-      title: "Your high-risk periods",
+      title: "Your high-support periods",
       unit: "count",
       threshold: 0,
       color: "#ffb020"
     },
     crash: {
-      label: "Crash-risk signals",
+      label: "Low-energy signals",
       metric: "crashEvents",
-      title: "Your crash-risk signals",
+      title: "Your low-energy signals",
       unit: "count",
       threshold: 0,
       color: "#ff4d6d"
@@ -776,7 +776,7 @@
   function fuelDebtSentence(minutes) {
     const debtMinutes = Math.max(0, Math.round(Number(minutes || 0)));
     return debtMinutes > 0
-      ? `You spent ${fuelDebtDurationText(debtMinutes)} beyond your preferred fuelling window.`
+      ? `You spent ${fuelDebtDurationText(debtMinutes)} beyond your preferred fuelling window. Long gaps can make your body feel harder to manage, and a small regular fuel moment may help you feel steadier.`
       : "You stayed inside your preferred fuelling window.";
   }
 
@@ -813,32 +813,32 @@
       crashZoneGapCount: level === "high" ? 1 : 0,
       crashLogCount: hasCrash ? 1 : 0
     });
-    const lines = [`Fuel debt: ${debtText}`, `Recovery window risk: ${recovery.riskLabel}`];
-    if (costWindow && costWindow !== "stable for now") lines.push(`Recovery window to protect: ${costWindow}.`);
+    const lines = [`Time beyond fuel window: ${debtText}`, `Recovery support: ${recoveryRiskLabel(recovery.riskLabel)}`];
+    if (costWindow && costWindow !== "stable for now") lines.push(`Possible impact window: ${costWindow}.`);
 
     if (level === "stable") {
-      lines.push("Recovery Window Protected.");
-      lines.push("You are not just avoiding hunger - you are preparing your recovery window.");
+      lines.push("Support window steady.");
+      lines.push("Your fuelling rhythm is giving your body steadier support.");
     } else {
       lines.push(`You spent ${debtText} beyond your preferred fuelling window.`);
-      lines.push("Protect your work/training recovery window.");
-      lines.push("Fuel debt built earlier can show up when work or training ends.");
+      lines.push("Support your work, training, and recovery window.");
+      lines.push("This long gap may affect how steady you feel later.");
       if (level === "mild") {
-        lines.push("Crash risk is starting to build.");
-        lines.push("You pushed past your target fuel window. This is where the crash risk starts to build.");
+        lines.push("Later energy impact may be starting to build.");
+        lines.push("You moved past your target fuel window, so a gentle support signal is showing up.");
       } else if (level === "medium") {
-        lines.push("Crash risk is building and may show up later today.");
-        lines.push("Today’s crash risk came from time spent beyond your fuel window, not from one bad moment.");
+        lines.push("Possible impact window: later today.");
+        lines.push("The pattern suggests today may need extra steady-fuelling support.");
       } else {
-        lines.push("Fuel debt built quietly today. The cost is usually paid later.");
-        lines.push("Today’s crash risk came from time spent beyond your fuel window, not from one bad moment.");
+        lines.push("This longer gap may affect how steady you feel later today or post-shift.");
+        lines.push("Today’s support signal came from time beyond your fuel window, not from one moment.");
       }
     }
 
-    if (hasCrash && level !== "stable") lines.push("A low-energy event was marked, so this pattern is worth reviewing without treating it as medical proof.");
+    if (hasCrash && level !== "stable") lines.push("A low-energy event was marked, so this pattern may be useful to review without treating it as medical proof.");
 
     return {
-      title: "Crash Cost Insight",
+      title: "Later Energy Impact",
       level,
       debtText,
       costWindow: costWindow || "stable for now",
@@ -865,10 +865,10 @@
     if (Number(hydrationLogCount || 0) >= 4) score += 5;
     score = clamp(Math.round(score), 0, 100);
     const statusLabel = score >= 80
-      ? "Recovery Window Protected"
+      ? "Recovery Window Supported"
       : score >= 60
-        ? "Recovery Window At Risk"
-        : "Recovery Window Under-Prepared";
+        ? "Recovery Window Needs Support"
+        : "Recovery Window Needs Extra Support";
     const riskLabel = score >= 80 ? "protected" : score >= 60 ? "elevated" : "under-prepared";
     return { score, statusLabel, riskLabel };
   }
@@ -901,14 +901,14 @@
     if (status === "green") return "Low Risk";
     if (status === "amber") return "Medium Risk";
     if (status === "red") return "High Risk";
-    return "Fuel Crash Zone / Under-fuelled Zone";
+    return "High Support Window";
   }
 
   function riskZone(score) {
     if (score <= 30) return { label: "Low risk", tone: "green" };
     if (score <= 60) return { label: "Medium risk", tone: "amber" };
     if (score <= 80) return { label: "High risk", tone: "red" };
-    return { label: "Fuel / Hydration Crash Zone", tone: "crash" };
+    return { label: "High support window", tone: "crash" };
   }
 
   function scoreFromGap(minutes, greenMinutes, redMinutes, crashMinutes) {
@@ -1036,41 +1036,41 @@
     const risk = riskZone(maxRiskScore);
     const summary = [];
     const fuelGapSentence = longest
-      ? `Your longest fuel gap was ${duration(longest)}${crashZoneGaps.length ? ", which reached the Fuel Crash Zone" : highRiskGaps.length ? ", which entered High Risk" : mediumRiskGaps.length ? ", which reached Medium Risk" : ""}.`
+      ? `Your longest fuel gap was ${duration(longest)}${crashZoneGaps.length ? ", which reached the High Support Window" : highRiskGaps.length ? ", which entered High Risk" : mediumRiskGaps.length ? ", which reached Medium Risk" : ""}.`
       : fuelLogs.length ? "More fuel logs are needed before Fuel Guard can calculate fuel gaps." : "No fuel logs were recorded.";
     const hydrationSentence = longestHydration
-      ? `Your longest hydration gap was ${duration(longestHydration)}${hydrationCrashZoneGaps.length ? ", which reached the Hydration Crash Zone / Under-hydrated Zone" : highRiskHydrationGaps.length ? ", which entered High Risk" : mediumRiskHydrationGaps.length ? ", which reached Medium Risk" : ""}.`
+      ? `Your longest hydration gap was ${duration(longestHydration)}${hydrationCrashZoneGaps.length ? ", which reached the Hydration High Support Window" : highRiskHydrationGaps.length ? ", which entered High Risk" : mediumRiskHydrationGaps.length ? ", which reached Medium Risk" : ""}.`
       : hydrationLogs.length ? "More hydration logs are needed before Fuel Guard can calculate hydration gaps." : "No hydration logs were recorded.";
     const crashSentence = crashLogs.length
       ? `${crashLogs.length} low-energy event${crashLogs.length === 1 ? " was" : "s were"} marked.`
-      : "No bonking or crash event was marked.";
-    const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${fuelDebtCopy} Recovery window risk: ${recoveryWindow.riskLabel}. ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
+      : "No low-energy event was marked.";
+    const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${fuelDebtCopy} Recovery support: ${recoveryRiskLabel(recoveryWindow.riskLabel)}. ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
     summary.push(plainSummary);
-    if (mediumRiskGaps.length || mediumRiskHydrationGaps.length) summary.push("Medium Risk nudges appeared before the serious warning zone.");
-    if (highRiskGaps.length) summary.push("High-risk fuel gaps were present, so the day had avoidable risk windows.");
-    if (highRiskHydrationGaps.length) summary.push("Hydration gaps also became stretched, which may have amplified the day’s risk.");
-    if (crashZoneGaps.length) summary.push("Fuel reached the Crash Zone / Under-fuelled Zone after High Risk.");
-    if (hydrationCrashZoneGaps.length) summary.push("Hydration reached the Crash Zone / Under-hydrated Zone after High Risk.");
+    if (mediumRiskGaps.length || mediumRiskHydrationGaps.length) summary.push("Medium Risk nudges appeared as early support signals.");
+    if (highRiskGaps.length) summary.push("Longer fuel gaps appeared, so extra support could help around those windows.");
+    if (highRiskHydrationGaps.length) summary.push("Hydration gaps also became stretched, which may affect how steady the day feels.");
+    if (crashZoneGaps.length) summary.push("Fuel reached the High Support Window after High Risk.");
+    if (hydrationCrashZoneGaps.length) summary.push("Hydration reached the High Support Window after High Risk.");
     crashCost.lines.slice(2).forEach(line => {
       if (line && !summary.includes(line)) summary.push(line);
     });
-    if (reactive) summary.push("This looks like a reactive fuelling day rather than a planned fuelling day.");
+    if (reactive) summary.push("Fuel moments may have happened after longer gaps today.");
     if (isTrainingDayValue(dayType, trainingSession) && (highRiskGaps.length || crashLogs.length)) {
-      summary.push(`${trainingSessionLabel(trainingSession)} days need earlier fuel access before gaps turn into real-world crashes.`);
+      summary.push(`${trainingSessionLabel(trainingSession)} days may benefit from easier fuel access before long gaps affect energy later.`);
     }
     if (fuelLogs.length < 3 && hydrationLogs.length < 3) summary.push("More logs will make this day easier to explain.");
 
     const bullets = [
       { label: "Longest fuel gap", value: durationText(longest) },
-      { label: "Fuel Debt", value: fuelDebtDurationText(fuelDebtMinutes) },
-      { label: "Fuel Guard Score", value: `${recoveryWindow.score}/100` },
-      { label: "Recovery window risk", value: recoveryWindow.riskLabel },
+      { label: "Time beyond fuel window", value: fuelDebtDurationText(fuelDebtMinutes) },
+      { label: "Rhythm support", value: `${recoveryWindow.score}/100` },
+      { label: "Recovery support", value: recoveryRiskLabel(recoveryWindow.riskLabel) },
       { label: "Longest hydration gap", value: durationText(longestHydration) },
       { label: "Medium Risk nudges", value: String(mediumRiskGaps.length + mediumRiskHydrationGaps.length) },
-      { label: "High-risk gaps", value: String(highRiskGaps.length + highRiskHydrationGaps.length) },
-      { label: "Crash-zone gaps", value: String(crashZoneGaps.length + hydrationCrashZoneGaps.length) },
-      { label: "Most vulnerable window", value: vulnerableWindow },
-      { label: "Bonking/crash reported", value: crashLogs.length ? "Yes" : "No" },
+      { label: "High-support gaps", value: String(highRiskGaps.length + highRiskHydrationGaps.length) },
+      { label: "High Support Window gaps", value: String(crashZoneGaps.length + hydrationCrashZoneGaps.length) },
+      { label: "Support window", value: vulnerableWindow },
+      { label: "Low-energy event marked", value: crashLogs.length ? "Yes" : "No" },
       { label: "Estimated peak risk", value: `${maxRiskScore}/100 ${risk.label}` }
     ];
 
@@ -1268,12 +1268,12 @@
     const minutes = minutesSinceLastFuel(now);
     const status = fuelGapStatus(minutes);
     const statusText = status === "green"
-      ? "Fuel rhythm is currently under control."
+      ? "Fuel rhythm looks steady right now."
       : status === "amber"
         ? "Medium Risk: maybe have a snack now."
         : status === "red"
-          ? "High Risk: you are likely very hungry and the fuel gap is risky."
-          : "Fuel Crash Zone / Under-fuelled Zone: you may have gone too long. Refuel and recover now.";
+          ? "High Risk: your fuel gap is getting long, and a fuel moment may help."
+          : "High Support Window: this long gap may affect how steady you feel. Fuel gently when you can.";
 
     return {
       lastFuelled: last ? formatClock(last.date) : "No fuel logged",
@@ -1618,10 +1618,10 @@
   }
 
   function gapZoneReached(entry) {
-    if (Number(entry?.crashZoneGapCount || 0) > 0) return "Fuel Crash Zone";
+    if (Number(entry?.crashZoneGapCount || 0) > 0) return "High Support Window";
     if (Number(entry?.highRiskGapCount || 0) > 0) return "High Risk";
     if (Number(entry?.mediumRiskGapCount || 0) > 0) return "Medium Risk";
-    return "Protected / Low Risk";
+    return "Steady / Low Risk";
   }
 
   function dailyIcon(name) {
@@ -1650,22 +1650,22 @@
   }
 
   function recoveryRiskLabel(risk) {
-    if (risk === "under-prepared") return "Under-prepared";
-    if (risk === "elevated") return "Elevated";
-    return "Protected";
+    if (risk === "under-prepared") return "Needs extra support";
+    if (risk === "elevated") return "Needs support";
+    return "Supported";
   }
 
   function scoreStatusLabel(score) {
-    if (score >= 80) return "Protected";
-    if (score >= 60) return "Good";
+    if (score >= 80) return "Steady";
+    if (score >= 60) return "Needs support";
     return "Needs care";
   }
 
   function calloutIconForLine(line) {
     const text = String(line || "").toLowerCase();
-    if (text.includes("protect") || text.includes("recovery")) return "shield";
-    if (text.includes("debt") || text.includes("window")) return "clock";
-    if (text.includes("crash") || text.includes("risk")) return "warning";
+    if (text.includes("support") || text.includes("recovery")) return "shield";
+    if (text.includes("window") || text.includes("later")) return "clock";
+    if (text.includes("low-energy") || text.includes("risk")) return "warning";
     if (text.includes("target") || text.includes("gap")) return "route";
     return "recovery";
   }
@@ -1746,7 +1746,7 @@
     if (!Number.isFinite(storedScore)) return computed;
     const score = clamp(Math.round(storedScore), 0, 100);
     const statusLabel = entry?.recoveryWindowStatus || (
-      score >= 80 ? "Recovery Window Protected" : score >= 60 ? "Recovery Window At Risk" : "Recovery Window Under-Prepared"
+      score >= 80 ? "Recovery Window Supported" : score >= 60 ? "Recovery Window Needs Support" : "Recovery Window Needs Extra Support"
     );
     const riskLabel = entry?.recoveryWindowRisk || (score >= 80 ? "protected" : score >= 60 ? "elevated" : "under-prepared");
     return { score, statusLabel, riskLabel };
@@ -1784,26 +1784,26 @@
     const recoveryLeft = costWindow.includes("post-shift") ? 74 : costWindow.includes("later") ? 66 : 82;
     const recoveryWidth = costWindow === "stable for now" ? 12 : 22;
     const callouts = lines
-      .filter(line => !/^fuel debt:/i.test(line))
-      .filter(line => !/^recovery window risk:/i.test(line))
-      .filter(line => !/^recovery window to protect:/i.test(line))
+      .filter(line => !/^time beyond fuel window:/i.test(line))
+      .filter(line => !/^recovery support:/i.test(line))
+      .filter(line => !/^possible impact window:/i.test(line))
       .slice(0, 6);
     return `
-      <section class="beta-crash-cost-insight ${safeText(tone)} ${safeText(insight.level || "stable")}" aria-label="Crash Cost Insight">
+      <section class="beta-crash-cost-insight ${safeText(tone)} ${safeText(insight.level || "stable")}" aria-label="Later energy impact">
         <div class="beta-crash-insight-head">
           <span class="beta-icon-disc amber">${dailyIcon("recovery")}</span>
           <div>
-            <h4>${safeText(insight.title || "Crash Cost Insight")}</h4>
-            <p>Fuel Debt shows where the cost may turn up later.</p>
+            <h4>${safeText(insight.title || "Later Energy Impact")}</h4>
+            <p>Time beyond your fuel window shows where later support may help.</p>
           </div>
           <b class="beta-status-chip">${safeText(riskLabel)}</b>
         </div>
         <div class="beta-crash-summary-row">
-          <article><span>${dailyIcon("clock")}Fuel debt</span><strong>${safeText(fuelDebtText)}</strong></article>
-          <article><span>${dailyIcon("warning")}Recovery risk</span><strong>${safeText(riskLabel)}</strong></article>
-          <article><span>${dailyIcon("shield")}Window to protect</span><strong>${safeText(costWindow)}</strong></article>
+          <article><span>${dailyIcon("clock")}Time beyond window</span><strong>${safeText(fuelDebtText)}</strong></article>
+          <article><span>${dailyIcon("warning")}Recovery support</span><strong>${safeText(riskLabel)}</strong></article>
+          <article><span>${dailyIcon("shield")}Support window</span><strong>${safeText(costWindow)}</strong></article>
         </div>
-        <div class="beta-crash-timeline" aria-label="Crash cost timeline">
+        <div class="beta-crash-timeline" aria-label="Later energy impact timeline">
           <span class="beta-crash-safe" style="left:${stylePercent(safeLeft)};width:${stylePercent(safeWidth)}"></span>
           <span class="beta-crash-debt" style="left:${stylePercent(debtLeft)};width:${stylePercent(debtWidth)}"></span>
           <span class="beta-crash-recovery" style="left:${stylePercent(recoveryLeft)};width:${stylePercent(recoveryWidth)}"></span>
@@ -1811,8 +1811,8 @@
         </div>
         <div class="beta-crash-timeline-labels">
           <span>In your fuel window</span>
-          <span>Fuel Debt built here</span>
-          <span>${safeText(costWindow === "stable for now" ? "Recovery window stable" : "Protect your recovery window")}</span>
+          <span>Extra support may help here</span>
+          <span>${safeText(costWindow === "stable for now" ? "Recovery window stable" : "Support your recovery window")}</span>
         </div>
         <div class="beta-crash-callouts">
           ${callouts.map(line => `
@@ -1866,13 +1866,13 @@
       ? entry.likelyCostWindow
       : "stable for now";
     const storyTitle = fuelDebtMinutes
-      ? `You built ${fuelDebtText} of Fuel Debt.`
-      : "Your fuelling rhythm stayed protected.";
+      ? `You spent ${fuelDebtText} beyond your preferred fuelling window.`
+      : "Your fuelling rhythm stayed steady.";
     const recoveryCopy = recoveryWindow.riskLabel === "protected"
-      ? "Your work/training recovery window looks protected today."
+      ? "Your work/training recovery window looks supported today."
       : recoveryWindow.riskLabel === "elevated"
         ? "Your work/training recovery window may need extra care today."
-        : "Your work/training recovery window looks under-prepared today.";
+        : "Your work/training recovery window may need extra support today.";
     const longestGapCopy = longestGap
       ? `Your longest gap ran ${formatClock(longestGap.start)}-${formatClock(longestGap.end)}.`
       : "Log at least two fuel points to reveal your longest gap.";
@@ -1891,7 +1891,7 @@
       <section class="beta-fuel-story ${safeText(storyLevel)}" aria-label="Visual fuel story">
         <div class="beta-fuel-story-head">
           <div>
-            <span>Your fuel story</span>
+          <span>Your fuel story</span>
             <h4>${safeText(storyTitle)}</h4>
             <p>${safeText(longestGapCopy)} ${safeText(recoveryCopy)}</p>
           </div>
@@ -1909,14 +1909,14 @@
           <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span>
         </div>
         <div class="beta-fuel-story-legend">
-          <span><i class="protected"></i>Protected rhythm</span>
+          <span><i class="protected"></i>Supported rhythm</span>
           <span><i class="gap"></i>Longest gap: ${safeText(longestFuelGap)}</span>
-          <span><i class="debt"></i>Fuel Debt: ${safeText(fuelDebtText)}</span>
+          <span><i class="debt"></i>Beyond fuel window: ${safeText(fuelDebtText)}</span>
         </div>
         <div class="beta-recovery-window-strip">
           <span>Recovery window</span>
           <strong>${safeText(recoveryWindow.statusLabel)}</strong>
-          <small>${safeText(costWindow === "stable for now" ? "Stable for now" : `Protect: ${costWindow}`)}</small>
+          <small>${safeText(costWindow === "stable for now" ? "Stable for now" : `Support: ${costWindow}`)}</small>
         </div>
       </section>
     `;
@@ -1928,20 +1928,20 @@
       ? entry.bullets
       : [
         { label: "Longest fuel gap", value: entry.longestGap || "Not enough data" },
-        { label: "Fuel Debt", value: entry.fuelDebtText || fuelDebtDurationText(entry.fuelDebtMinutes || 0) },
+        { label: "Time beyond fuel window", value: entry.fuelDebtText || fuelDebtDurationText(entry.fuelDebtMinutes || 0) },
         { label: "Longest hydration gap", value: entry.longestHydrationGap || "Not enough data" },
         { label: "Medium Risk nudges", value: String((entry.mediumRiskGapCount || 0) + (entry.mediumRiskHydrationGapCount || 0)) },
-        { label: "High-risk gaps", value: String((entry.highRiskGapCount || 0) + (entry.highRiskHydrationGapCount || 0)) },
-        { label: "Crash-zone gaps", value: String((entry.crashZoneGapCount || 0) + (entry.hydrationCrashZoneGapCount || 0)) },
-        { label: "Most vulnerable window", value: entry.vulnerableWindow || "Needs more data" },
-        { label: "Bonking/crash reported", value: entry.crashLogCount ? "Yes" : "No" }
+        { label: "High-support gaps", value: String((entry.highRiskGapCount || 0) + (entry.highRiskHydrationGapCount || 0)) },
+        { label: "High Support Window gaps", value: String((entry.crashZoneGapCount || 0) + (entry.hydrationCrashZoneGapCount || 0)) },
+        { label: "Support window", value: entry.vulnerableWindow || "Needs more data" },
+        { label: "Low-energy event marked", value: entry.crashLogCount ? "Yes" : "No" }
       ];
     const bullets = sourceBullets
       .filter(item => item.label !== "Likely cost window")
-      .filter(item => item.label !== "Fuel Guard Score" && item.label !== "Recovery window risk");
+      .filter(item => item.label !== "Fuel Guard Score" && item.label !== "Rhythm support" && item.label !== "Recovery window risk" && item.label !== "Recovery support");
     bullets.splice(2, 0,
-      { label: "Fuel Guard Score", value: `${recoveryWindow.score}/100` },
-      { label: "Recovery window risk", value: recoveryWindow.riskLabel }
+      { label: "Rhythm support", value: `${recoveryWindow.score}/100` },
+      { label: "Recovery support", value: recoveryRiskLabel(recoveryWindow.riskLabel) }
     );
     return `<ul class="beta-daily-bullets">${bullets.map(item => `<li><span>${safeText(item.label)}</span><strong>${safeText(item.value)}</strong></li>`).join("")}</ul>`;
   }
@@ -1963,10 +1963,10 @@
       return `<span class="beta-timeline-point ${style.className}" style="left:${left}%" title="${safeText(formatClock(log.date))} ${safeText(logTypeLabel(log))}">${safeText(style.label)}</span>`;
     }).join("");
     return `
-      <div class="beta-daily-timeline" aria-label="Fuel, hydration and crash markers across the day">
+      <div class="beta-daily-timeline" aria-label="Fuel, hydration and low-energy markers across the day">
         <div class="beta-timeline-track">${points}</div>
         <div class="beta-timeline-axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
-        <div class="beta-timeline-legend"><span class="fuel">Fuel</span><span class="hydration">Hydration</span><span class="crash">Crash marker</span></div>
+        <div class="beta-timeline-legend"><span class="fuel">Fuel</span><span class="hydration">Hydration</span><span class="crash">Low-energy marker</span></div>
       </div>
     `;
   }
@@ -2018,7 +2018,7 @@
       <section class="beta-history-day-strip" aria-label="Previous fuel rhythm days">
         <div class="beta-history-day-strip-head">
           <h4>Previous days</h4>
-          <span>Fuel, hydration, longest gap and zone reached</span>
+          <span>Fuel, hydration, longest gap and support level reached</span>
         </div>
         <div class="beta-history-day-cards">
           ${logged.map(entry => {
@@ -2050,7 +2050,7 @@
     const riskSignalTotal = mediumRiskTotal + highRiskTotal + crashZoneTotal + Number(entry.crashLogCount || 0);
 
     return `
-      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${riskSignalTotal ? "amber" : "green"}">${riskSignalTotal ? "RISK SIGNALS" : "STABLE"}</span></div>
+      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${riskSignalTotal ? "amber" : "green"}">${riskSignalTotal ? "SUPPORT SIGNALS" : "STABLE"}</span></div>
       ${renderDailySummaryNote(entry)}
       ${renderDailySummaryBullets(entry)}
       <div class="beta-daily-visuals">
@@ -2074,14 +2074,14 @@
   }
 
   function renderImpactDetail(entry) {
-    if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain the cost window.</p>`;
+    if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain possible later energy impact.</p>`;
     const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
       .filter(Boolean)
       .join(" - ");
     const recoveryWindow = recoveryWindowForEntry(entry);
     return `
       <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Impact story")}</h3></div><span class="status-pill ${recoveryWindow.riskLabel === "protected" ? "green" : "amber"}">${safeText(recoveryRiskLabel(recoveryWindow.riskLabel))}</span></div>
-      <p class="beta-daily-summary-note">This is the consequence layer: where Fuel Debt built, what recovery window needs protecting, and why the crash cost may show up later.</p>
+      <p class="beta-daily-summary-note">This is the support layer: where time beyond your fuel window appeared, what recovery window may need care, and when later energy impact may show up.</p>
       ${renderPersonalDailyInsights(entry)}
       ${renderCrashCostInsight(entry)}
     `;
@@ -2189,12 +2189,12 @@
     }
     if (config.metric === "highRiskGaps") {
       return trend.improved
-        ? "Your high-risk periods were lower than last week."
-        : "Your high-risk periods were higher than last week.";
+        ? "Your high-support periods were lower than last week."
+        : "Your high-support periods were higher than last week.";
     }
     return trend.improved
-      ? "Your crash-risk signals were lower than last week."
-      : "Your crash-risk signals were higher than last week.";
+      ? "Your low-energy signals were lower than last week."
+      : "Your low-energy signals were higher than last week.";
   }
 
   function weeklyTrendWindows(entries) {
@@ -2221,8 +2221,8 @@
     const manualCrash = Number(entry.crashLogCount || 0);
     const highRiskFuel = Number(entry.highRiskGapCount || 0);
     const crashZoneFuel = Number(entry.crashZoneGapCount || 0);
-    const unwantedFastedState = Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0;
-    return manualCrash + highRiskFuel + crashZoneFuel + unwantedFastedState;
+    const extraSupportWindow = Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0;
+    return manualCrash + highRiskFuel + crashZoneFuel + extraSupportWindow;
   }
 
   function trendMetrics(entries) {
@@ -2238,7 +2238,7 @@
       fuelGuardScore: averageValue(entries.map(entry => Number(entry.fuelGuardScore || 0)).filter(Boolean)),
       fuelLogs: entries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0),
       hydrationLogs: entries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0),
-      unwantedFastedStates: entries.reduce((sum, entry) => sum + (Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0), 0),
+      extraSupportWindows: entries.reduce((sum, entry) => sum + (Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0), 0),
       days: entries.length
     };
   }
@@ -2297,7 +2297,7 @@
           </article>
           <article class="beta-trend-pattern-card elevated">
             <span class="beta-icon-disc amber">${dailyIcon("warning")}</span>
-            <div><span>Risk Zone Frequency</span><strong>${riskTotal}</strong><small>Medium, High, and Crash Zone signals this week.</small></div>
+            <div><span>Support Signal Frequency</span><strong>${riskTotal}</strong><small>Medium, High, and High Support Window signals this week.</small></div>
             <div class="beta-risk-stack" aria-hidden="true">
               <i class="medium" style="width:${stylePercent((currentMetrics.mediumRiskGaps / riskMax) * 100)}"></i>
               <i class="high" style="width:${stylePercent((currentMetrics.highRiskGaps / riskMax) * 100)}"></i>
@@ -2306,7 +2306,7 @@
           </article>
           <article class="beta-trend-pattern-card ${safeText(debtTone)}">
             <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
-            <div><span>Fuel Debt Over Time</span><strong>${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}</strong><small>${safeText(debtTrend.copy)}</small></div>
+            <div><span>Time Beyond Fuel Window</span><strong>${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}</strong><small>${safeText(debtTrend.copy)}</small></div>
           </article>
           <article class="beta-trend-pattern-card">
             <span class="beta-icon-disc">${dailyIcon("score")}</span>
@@ -2314,11 +2314,11 @@
           </article>
           <article class="beta-trend-pattern-card ${currentMetrics.manualCrashEvents ? "danger" : "protected"}">
             <span class="beta-icon-disc">${dailyIcon("energy")}</span>
-            <div><span>Low-Energy Events Pattern</span><strong>${currentMetrics.manualCrashEvents}</strong><small>${safeText(currentMetrics.manualCrashEvents ? "Compare these with long gaps." : "No marked low-energy events this week.")}</small></div>
+            <div><span>Low-Energy Events Pattern</span><strong>${currentMetrics.manualCrashEvents}</strong><small>${safeText(currentMetrics.manualCrashEvents ? "Review these alongside long gaps." : "No marked low-energy events this week.")}</small></div>
           </article>
           <article class="beta-trend-pattern-card">
             <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
-            <div><span>Day Type Comparison</span><strong>${safeText(dayHotspot ? dayHotspot.label : "Building")}</strong><small>${safeText(dayHotspot ? "Highest combined debt/risk pattern." : "Set day types to compare patterns.")}</small></div>
+            <div><span>Day Type Comparison</span><strong>${safeText(dayHotspot ? dayHotspot.label : "Building")}</strong><small>${safeText(dayHotspot ? "Most support signals in the current pattern." : "Set day types to compare patterns.")}</small></div>
           </article>
         </div>
       </section>
@@ -2332,8 +2332,8 @@
     const comparisonCopy = hasPreviousMatch
       ? trendInsightCopy(config, trend, currentValue, previousValue)
       : "Log a few more matching days to unlock stronger week-over-week trends.";
-    const laggingTotal = currentMetrics.mediumRiskGaps + currentMetrics.highRiskGaps + currentMetrics.crashZoneGaps + currentMetrics.unwantedFastedStates;
-    const recoveryTone = currentMetrics.crashZoneGaps || currentMetrics.unwantedFastedStates ? "elevated" : currentMetrics.mediumRiskGaps || currentMetrics.highRiskGaps ? "watch" : "protected";
+    const laggingTotal = currentMetrics.mediumRiskGaps + currentMetrics.highRiskGaps + currentMetrics.crashZoneGaps + currentMetrics.extraSupportWindows;
+    const recoveryTone = currentMetrics.crashZoneGaps || currentMetrics.extraSupportWindows ? "elevated" : currentMetrics.mediumRiskGaps || currentMetrics.highRiskGaps ? "watch" : "protected";
     const previousDebtText = previousMetrics.fuelDebtMinutes ? fuelDebtDurationText(previousMetrics.fuelDebtMinutes) : "Building";
     return `
       <section class="beta-trend-dashboard" aria-label="Visual weekly pattern insights">
@@ -2353,31 +2353,31 @@
         <div class="beta-weekly-risk-cards">
           <article class="beta-risk-summary-card ${safeText(scoreTone)}">
             <span>${dailyIcon("score")}</span>
-            <div><small>Fuel Guard Score</small><strong>${safeText(score === null ? "Building" : `${score}/100`)}</strong><em>${safeText(score === null ? "Needs more logged days" : scoreStatusLabel(score))}</em></div>
+            <div><small>Rhythm support</small><strong>${safeText(score === null ? "Building" : `${score}/100`)}</strong><em>${safeText(score === null ? "Needs more logged days" : scoreStatusLabel(score))}</em></div>
           </article>
           <article class="beta-risk-summary-card elevated">
             <span>${dailyIcon("warning")}</span>
-            <div><small>Medium Risk Nudges</small><strong>${currentMetrics.mediumRiskGaps}</strong><em>Early snack/sip signals this week</em></div>
+            <div><small>Medium Risk Nudges</small><strong>${currentMetrics.mediumRiskGaps}</strong><em>Early fuel/sip support signals this week</em></div>
           </article>
           <article class="beta-risk-summary-card danger">
             <span>${dailyIcon("gap")}</span>
-            <div><small>Crash-Zone Gaps</small><strong>${currentMetrics.crashZoneGaps}</strong><em>Lagging risk signals to reduce</em></div>
+            <div><small>High Support Windows</small><strong>${currentMetrics.crashZoneGaps}</strong><em>Long-gap support signals to notice</em></div>
           </article>
         </div>
 
         <section class="beta-indicator-map">
           <article class="beta-indicator-group leading">
-            <div class="beta-indicator-title"><span>${dailyIcon("fuel")}</span><div><strong>Control these</strong><small>Leading indicators</small></div></div>
+            <div class="beta-indicator-title"><span>${dailyIcon("fuel")}</span><div><strong>Notice these</strong><small>Leading indicators</small></div></div>
             <div class="beta-indicator-row"><span>Fuel logs</span><b>${currentMetrics.fuelLogs}</b></div>
             <div class="beta-indicator-row"><span>Hydration logs</span><b>${currentMetrics.hydrationLogs}</b></div>
-            <p>Your fuel and hydration logs are the behaviours that protect the rhythm.</p>
+            <p>Your fuel and hydration logs help show the rhythm that supports your day.</p>
           </article>
           <article class="beta-indicator-group lagging">
-            <div class="beta-indicator-title"><span>${dailyIcon("warning")}</span><div><strong>Watch these</strong><small>Lagging / risk signals</small></div></div>
+            <div class="beta-indicator-title"><span>${dailyIcon("warning")}</span><div><strong>Watch these</strong><small>Later support signals</small></div></div>
             <div class="beta-indicator-row"><span>Medium-risk gaps</span><b>${currentMetrics.mediumRiskGaps}</b></div>
-            <div class="beta-indicator-row"><span>High-risk gaps</span><b>${currentMetrics.highRiskGaps}</b></div>
-            <div class="beta-indicator-row"><span>Crash-zone gaps</span><b>${currentMetrics.crashZoneGaps}</b></div>
-            <div class="beta-indicator-row"><span>Unwanted fasted-state periods</span><b>${currentMetrics.unwantedFastedStates}</b></div>
+            <div class="beta-indicator-row"><span>High-support gaps</span><b>${currentMetrics.highRiskGaps}</b></div>
+            <div class="beta-indicator-row"><span>High Support Window gaps</span><b>${currentMetrics.crashZoneGaps}</b></div>
+            <div class="beta-indicator-row"><span>Extra support windows</span><b>${currentMetrics.extraSupportWindows}</b></div>
           </article>
         </section>
 
@@ -2385,15 +2385,15 @@
           <div>
             <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
             <div>
-              <h4>Protect the Recovery Window</h4>
-              <p>Your goal is to reduce long gaps before they affect work, training, mood, or recovery later.</p>
+              <h4>Support the Recovery Window</h4>
+              <p>Your goal is to notice long gaps early so work, training, mood, and recovery feel steadier later.</p>
             </div>
           </div>
           <div class="beta-recovery-protection-track" aria-hidden="true">
             <i class="protected"></i>
             <i class="risk" style="width:${stylePercent(Math.min(100, laggingTotal * 12 + currentMetrics.fuelDebtMinutes / 6))}"></i>
           </div>
-          <small>This week Fuel Debt: ${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}. Last week: ${safeText(previousDebtText)}.</small>
+          <small>This week beyond fuel window: ${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}. Last week: ${safeText(previousDebtText)}.</small>
         </article>
       </section>
     `;
@@ -3125,7 +3125,7 @@
     const titles = {
       dashboard: ["Fuel Rhythm", "What is happening today."],
       logs: ["Data", "Fuel risk, logs, and today's timeline."],
-      impact: ["Impact", "Fuel Debt, crash cost, and the recovery window."],
+      impact: ["Impact", "Later energy impact and support windows."],
       trends: ["Trends", "How habits are changing over time."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
@@ -3153,7 +3153,7 @@
     gap.thresholds.hydrationGreenMinutes = hydrationGreen;
     gap.thresholds.hydrationRedMinutes = Math.max(hydrationRed, hydrationGreen + 15);
     gap.thresholds.hydrationCrashMinutes = Math.max(hydrationCrash, gap.thresholds.hydrationRedMinutes + 15);
-    document.getElementById("fuelSettingsStatus").textContent = "Risk thresholds saved. Medium Risk, High Risk, and Crash Zone starts updated for fuel and hydration.";
+    document.getElementById("fuelSettingsStatus").textContent = "Support thresholds saved. Medium Risk, High Risk, and High Support Window starts updated for fuel and hydration.";
     storeArchive(dateKey());
     save();
     renderAll();

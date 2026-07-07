@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v40-data-graph-card";
-const BUILD_VERSION = "2026-07-07T01:19:39Z";
+const APP_VERSION = "mobile-pwa-v41-language-audit";
+const BUILD_VERSION = "2026-07-07T08:58:59Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v40-data-graph-card-20260707T011939Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v41-language-audit-20260707T085859Z";
 const APP_SHELL = [
   "./",
   "./index.html",

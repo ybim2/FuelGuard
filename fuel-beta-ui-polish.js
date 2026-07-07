@@ -5,14 +5,14 @@
     green: "Low Risk",
     amber: "Medium Risk",
     red: "High Risk",
-    crash: "Fuel Crash Zone / Under-fuelled Zone"
+    crash: "High Support Window"
   };
 
   const RISK_ACTIONS = {
     green: "rhythm looks okay",
     amber: "maybe have a snack now",
-    red: "you are likely very hungry; get fuel now",
-    crash: "you may have gone too long; refuel and recover now"
+    red: "your fuel gap is getting long; a fuel moment may help",
+    crash: "this is a high-support window; fuel gently when you can"
   };
 
   let applying = false;
@@ -59,7 +59,7 @@
   }
 
   function riskAction(status, hasLog) {
-    if (!hasLog) return "log fuel or eat a quick available option";
+    if (!hasLog) return "log fuel when you have a fuel moment";
     return RISK_ACTIONS[status] || RISK_ACTIONS.red;
   }
 
@@ -106,7 +106,7 @@
         const greenHours = trimHour(limits().greenMinutes / 60);
         const redHours = trimHour(limits().redMinutes / 60);
         const crashHours = trimHour(Number(limits().crashMinutes || limits().redMinutes + 60) / 60);
-        const copy = `Low Risk before ${greenHours}h. Medium Risk from ${greenHours}-${redHours}h is an early nudge. High Risk from ${redHours}-${crashHours}h is a serious warning. Fuel Crash Zone starts after ${crashHours}h.`;
+        const copy = `Low Risk before ${greenHours}h. Medium Risk from ${greenHours}-${redHours}h is an early nudge. High Risk from ${redHours}-${crashHours}h means support may help soon. High Support Window starts after ${crashHours}h.`;
         if (small.textContent !== copy) small.textContent = copy;
       }
     });
@@ -141,7 +141,7 @@
 
   function renameHighRiskGapLabels() {
     document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-stats span").forEach(label => {
-      if (label.textContent.trim().toLowerCase() === "long gaps") label.textContent = "High-risk gaps";
+      if (label.textContent.trim().toLowerCase() === "long gaps") label.textContent = "High-support gaps";
     });
     document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-head .status-pill").forEach(pill => {
       if (pill.textContent.trim() === "GAPS FOUND") pill.textContent = "HIGH-RISK GAPS";
@@ -204,7 +204,7 @@
     target.innerHTML = `
       <section class="beta-history-chart"><h3>Longest fuel gap by day</h3>${gapBars}</section>
       <section class="beta-history-chart"><h3>Fuel logs per day</h3>${logBars}</section>
-      <section class="beta-history-chart"><h3>High Risk windows</h3>${windows ? `<ul class="beta-high-risk-window-list">${windows}</ul>` : `<p class="muted">No High Risk window detected yet.</p>`}</section>
+      <section class="beta-history-chart"><h3>High-support windows</h3>${windows ? `<ul class="beta-high-risk-window-list">${windows}</ul>` : `<p class="muted">No High Support Window detected yet.</p>`}</section>
     `;
   }
 
@@ -223,7 +223,7 @@
 
   function ensureHourSettingsUi() {
     const settingsCopy = document.querySelector("#checklist article.card > p.muted");
-    if (settingsCopy) settingsCopy.textContent = "Adjust the estimated behavioural risk thresholds for fuel and hydration gaps.";
+    if (settingsCopy) settingsCopy.textContent = "Adjust the estimated support thresholds for fuel and hydration gaps.";
   }
 
   function updateMediumRange() {

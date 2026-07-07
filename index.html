@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07130f" />
-  <meta name="description" content="Fuel Guard tracks fuelling gaps and High Risk gaps." />
+  <meta name="description" content="Fuel Guard helps you notice fuel and hydration rhythm." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Fuel Guard" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v40-data-graph-card" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v40-data-graph-card" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v40-data-graph-card" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v41-language-audit" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v41-language-audit" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v41-language-audit" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -28,7 +28,7 @@
         <button class="nav-item" data-screen="trends">Trends</button>
         <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel Rhythm</strong><p>Log quickly here. Review the cost later in Impact.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel Rhythm</strong><p>Log quickly here. Review later energy impact in Impact.</p></div>
     </aside>
 
     <main class="app">
@@ -76,12 +76,12 @@
               <section class="beta-rhythm-section-card beta-log-entry-card" aria-label="Log data into your rhythm">
                 <div class="beta-graph-section-heading beta-log-heading">
                   <h3>Log data into your rhythm</h3>
-                  <p>Tap these when you fuel, hydrate, or feel a crash so the graph reflects your day.</p>
+                  <p>Tap these when you fuel, hydrate, or feel low energy so the app reflects your day.</p>
                 </div>
                 <div class="beta-log-actions" aria-label="Log fuel or hydration">
                   <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel">Log Fuel</button>
                   <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button">Log Hydration</button>
-                  <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
+                  <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">Low energy</button>
                 </div>
                 <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
               </section>
@@ -137,7 +137,7 @@
           <div class="section-heading-row beta-insight-heading">
             <div>
               <h2>Impact</h2>
-              <p class="muted">Fuel Debt, crash cost, and the recovery window to protect.</p>
+              <p class="muted">Time beyond your fuel window, later energy impact, and support windows.</p>
             </div>
             <span id="fuelImpactCount" class="row-note"></span>
           </div>
@@ -184,8 +184,8 @@
           <div class="beta-trend-view-mode" id="fuelTrendViewControls" role="group" aria-label="Trend view">
             <button class="active" type="button" data-trend-view="fuel">Fuel</button>
             <button type="button" data-trend-view="hydration">Hydration</button>
-            <button type="button" data-trend-view="risk">High-risk periods</button>
-            <button type="button" data-trend-view="crash">Crash-risk signals</button>
+            <button type="button" data-trend-view="risk">High-support periods</button>
+            <button type="button" data-trend-view="crash">Low-energy signals</button>
           </div>
           <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
           <div class="beta-trend-line-card">
@@ -198,14 +198,15 @@
       <section id="checklist" class="screen">
         <article class="card">
           <h2>Settings</h2>
-          <p class="muted">Adjust when Low, Medium, High, and Crash Zone estimates begin for fuel and hydration rhythm.</p>
+          <p class="muted">Adjust when Low, Medium, High, and High Support Window estimates begin for fuel and hydration rhythm.</p>
+          <p class="muted beta-supportive-note">Fuel Guard is designed to help you notice fuelling rhythm, not judge food choices. If tracking food or fuelling timing feels distressing, use the app in the gentlest way that supports you.</p>
           <div class="form-grid beta-settings-grid">
             <label>Fuel Medium Risk starts at (hours)<input id="fuelGreenHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
             <label>Fuel High Risk starts at (hours)<input id="fuelRedHours" type="number" min="1" max="10" step="0.25" inputmode="decimal"></label>
-            <label>Fuel Crash Zone / Under-fuelled Zone starts at (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
+            <label>Fuel High Support Window starts at (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
             <label>Hydration Medium Risk starts at (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
             <label>Hydration High Risk starts at (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
-            <label>Hydration Crash Zone / Under-hydrated Zone starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
+            <label>Hydration High Support Window starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
           </div>
           <div class="button-row beta-settings-actions">
             <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
@@ -297,7 +298,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v40-data-graph-card</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v41-language-audit</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -328,16 +329,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v40-data-graph-card"></script>
+  <script src="build-info.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v41-language-audit"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="app-ui.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v40-data-graph-card"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v40-data-graph-card"></script>
+  <script src="app-state.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="app-ui.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v41-language-audit"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v41-language-audit"></script>
 </body>
 </html>
