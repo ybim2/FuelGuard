@@ -279,7 +279,7 @@
   order: 4;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   align-items: stretch;
 }
 
@@ -327,11 +327,11 @@
 
 .beta-fuelled-button {
   width: 100%;
-  min-height: 60px;
+  min-height: 48px;
   margin: 0;
-  border-radius: 16px;
-  font-size: clamp(1rem, 2.1vw, 1.22rem);
-  font-weight: 950;
+  border-radius: 13px;
+  font-size: clamp(.9rem, 1.8vw, 1rem);
+  font-weight: 900;
   letter-spacing: 0;
 }
 
@@ -352,17 +352,29 @@
 
 .beta-hydration-button {
   width: 100%;
-  min-height: 60px;
+  min-height: 48px;
   margin: 0;
-  border-radius: 16px;
+  border-radius: 13px;
 }
 
 .beta-crash-button {
   width: 100%;
-  min-height: 60px;
+  min-height: 48px;
   margin: 0;
+  border-radius: 13px;
   border-color: rgba(255,77,109,.44) !important;
   color: #ffdbe2 !important;
+}
+
+.beta-log-entry-card #graphLogFoodButton,
+.beta-log-entry-card #graphLogHydrationButton,
+.beta-log-entry-card #graphLogCrashButton {
+  min-height: 44px;
+  margin-top: 0;
+  padding: 8px 7px;
+  border-radius: 12px;
+  font-size: .88rem;
+  line-height: 1.12;
 }
 
 .beta-mvp .fuel-cooldown-message {
@@ -370,12 +382,23 @@
   margin: 0 0 3px;
 }
 
+.beta-rhythm-section-card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(3,10,8,.62), rgba(3,10,8,.25));
+  overflow: hidden;
+}
+
 .beta-graph-wrap {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   min-height: 302px;
   aspect-ratio: auto;
-  margin-top: 12px;
+  margin-top: 0;
   padding: 12px;
   overflow: hidden;
 }
@@ -409,11 +432,11 @@
   order: 1;
 }
 
-.beta-graph-wrap .beta-log-actions {
+.beta-log-entry-card .beta-log-actions {
   order: 2;
 }
 
-.beta-graph-wrap .fuel-cooldown-message {
+.beta-log-entry-card .fuel-cooldown-message {
   order: 3;
 }
 
@@ -421,7 +444,7 @@
   order: 4;
 }
 
-.beta-graph-wrap .beta-graph-mode {
+.beta-graph-view-card .beta-graph-mode {
   order: 5;
 }
 
@@ -1734,13 +1757,17 @@
   }
 
   .beta-fuelled-button {
-    min-height: 58px;
-    border-radius: 17px;
+    min-height: 50px;
+    border-radius: 14px;
     margin-bottom: 0;
   }
 
   .beta-hydration-button {
-    min-height: 58px;
+    min-height: 50px;
+  }
+
+  .beta-crash-button {
+    min-height: 50px;
   }
 
   .beta-mvp .fuel-gap-insights {
@@ -1786,7 +1813,7 @@
   }
 
   .beta-graph-wrap {
-    grid-template-rows: auto minmax(205px, 1fr);
+    grid-template-rows: none;
     gap: 12px;
     min-height: 274px;
     padding: 10px;
@@ -2085,6 +2112,7 @@ body.beta-mvp button.primary {
 }
 
 body.beta-mvp .beta-rhythm-panel,
+body.beta-mvp .beta-rhythm-section-card,
 body.beta-mvp .beta-graph-wrap,
 body.beta-mvp .fuel-debt-status,
 body.beta-mvp .beta-account-user,

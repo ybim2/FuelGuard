@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v34-rhythm-graph-guidance" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v34-rhythm-graph-guidance" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v34-rhythm-graph-guidance" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v35-rhythm-section-cards" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v35-rhythm-section-cards" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v35-rhythm-section-cards" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -73,7 +73,7 @@
             </div>
 
             <div class="beta-logging-card">
-              <div class="fuel-graph-wrap beta-graph-wrap">
+              <section class="beta-rhythm-section-card beta-log-entry-card" aria-label="Log data into your rhythm">
                 <div class="beta-graph-section-heading beta-log-heading">
                   <h3>Log data into your rhythm</h3>
                   <p>Tap these when you fuel, hydrate, or feel a crash so the graph reflects your day.</p>
@@ -84,6 +84,9 @@
                   <button id="graphLogCrashButton" class="secondary beta-crash-button" type="button" data-fuel-action="log-crash">I'm crashing</button>
                 </div>
                 <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
+              </section>
+
+              <section class="beta-rhythm-section-card beta-graph-view-card" aria-label="Choose graph view">
                 <div class="beta-graph-section-heading beta-view-heading">
                   <h3>Choose graph view</h3>
                   <p>Switch between fuel risk, fuel logs, and hydration logs.</p>
@@ -93,6 +96,9 @@
                   <button type="button" data-graph-mode="fuel">Fuel</button>
                   <button type="button" data-graph-mode="hydration">Hydration</button>
                 </div>
+              </section>
+
+              <div class="fuel-graph-wrap beta-graph-wrap" aria-label="Fuel Rhythm graph">
                 <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Fuel Rhythm curve across today"></canvas>
                 <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
               </div>
@@ -304,7 +310,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v34-rhythm-graph-guidance</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v35-rhythm-section-cards</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -335,16 +341,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
+  <script src="build-info.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="app-ui.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v34-rhythm-graph-guidance"></script>
+  <script src="app-state.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="app-ui.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
 </body>
 </html>

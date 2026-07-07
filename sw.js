@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v34-rhythm-graph-guidance";
-const BUILD_VERSION = "2026-07-06T23:44:00Z";
+const APP_VERSION = "mobile-pwa-v35-rhythm-section-cards";
+const BUILD_VERSION = "2026-07-06T23:59:22Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v34-rhythm-graph-guidance-20260706T234400Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v35-rhythm-section-cards-20260706T235922Z";
 const APP_SHELL = [
   "./",
   "./index.html",
