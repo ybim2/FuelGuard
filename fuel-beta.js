@@ -489,6 +489,19 @@
     return start;
   }
 
+  function addDays(date, days) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
+  function startOfCalendarWeek(date = new Date()) {
+    const start = startOfDay(date);
+    const daysSinceMonday = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - daysSinceMonday);
+    return start;
+  }
+
   function minutesIntoDay(date) {
     return date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
   }
@@ -2259,22 +2272,18 @@
     return dayMatches && trainingMatches;
   }
 
-  function weeklyTrendWindows(entries) {
-    const todayStart = startOfDay();
-    const thisStart = new Date(todayStart);
-    thisStart.setDate(todayStart.getDate() - 6);
-    const lastStart = new Date(todayStart);
-    lastStart.setDate(todayStart.getDate() - 13);
-    const lastEnd = new Date(todayStart);
-    lastEnd.setDate(todayStart.getDate() - 7);
+  function weeklyTrendWindows(entries, referenceDate = new Date()) {
+    const thisStart = startOfCalendarWeek(referenceDate);
+    const nextStart = addDays(thisStart, 7);
+    const lastStart = addDays(thisStart, -7);
     return {
       current: entries.filter(entry => {
         const date = dateFromKey(entry.date);
-        return date >= thisStart && date <= todayStart;
+        return date >= thisStart && date < nextStart;
       }),
       previous: entries.filter(entry => {
         const date = dateFromKey(entry.date);
-        return date >= lastStart && date <= lastEnd;
+        return date >= lastStart && date < thisStart;
       })
     };
   }
@@ -2288,19 +2297,23 @@
   }
 
   function trendMetrics(entries) {
+    const hasEntries = entries.length > 0;
+    const sumMetric = valueForEntry => hasEntries
+      ? entries.reduce((sum, entry) => sum + valueForEntry(entry), 0)
+      : null;
     return {
       averageFuelGap: averageValue(entries.map(entry => Number(entry.averageGapMinutes || 0)).filter(Boolean)),
       averageHydrationGap: averageValue(entries.map(entry => Number(entry.averageHydrationGapMinutes || 0)).filter(Boolean)),
-      mediumRiskGaps: entries.reduce((sum, entry) => sum + Number(entry.mediumRiskGapCount || 0) + Number(entry.mediumRiskHydrationGapCount || 0), 0),
-      highRiskGaps: entries.reduce((sum, entry) => sum + Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0), 0),
-      crashZoneGaps: entries.reduce((sum, entry) => sum + Number(entry.crashZoneGapCount || 0) + Number(entry.hydrationCrashZoneGapCount || 0), 0),
-      crashEvents: entries.reduce((sum, entry) => sum + crashRiskSignalsForEntry(entry), 0),
-      manualCrashEvents: entries.reduce((sum, entry) => sum + Number(entry.crashLogCount || 0), 0),
-      fuelDebtMinutes: entries.reduce((sum, entry) => sum + Number(entry.fuelDebtMinutes || 0), 0),
+      mediumRiskGaps: sumMetric(entry => Number(entry.mediumRiskGapCount || 0) + Number(entry.mediumRiskHydrationGapCount || 0)),
+      highRiskGaps: sumMetric(entry => Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0)),
+      crashZoneGaps: sumMetric(entry => Number(entry.crashZoneGapCount || 0) + Number(entry.hydrationCrashZoneGapCount || 0)),
+      crashEvents: sumMetric(entry => crashRiskSignalsForEntry(entry)),
+      manualCrashEvents: sumMetric(entry => Number(entry.crashLogCount || 0)),
+      fuelDebtMinutes: sumMetric(entry => Number(entry.fuelDebtMinutes || 0)),
       fuelGuardScore: averageValue(entries.map(entry => Number(entry.fuelGuardScore || 0)).filter(Boolean)),
-      fuelLogs: entries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0),
-      hydrationLogs: entries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0),
-      extraSupportWindows: entries.reduce((sum, entry) => sum + (Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0), 0),
+      fuelLogs: sumMetric(entry => Number(entry.fuelLogCount || 0)),
+      hydrationLogs: sumMetric(entry => Number(entry.hydrationLogCount || 0)),
+      extraSupportWindows: sumMetric(entry => Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0),
       days: entries.length
     };
   }
@@ -2322,8 +2335,12 @@
     const safeCurrent = Number.isFinite(current) ? Math.max(0, current) : 0;
     const safePrevious = Number.isFinite(previous) ? Math.max(0, previous) : 0;
     const max = Math.max(safeCurrent, safePrevious, 1);
-    const currentText = unit === "minutes" ? compactDuration(safeCurrent) : String(Math.round(safeCurrent));
-    const previousText = unit === "minutes" ? compactDuration(safePrevious) : Number.isFinite(previous) ? String(Math.round(safePrevious)) : "Building";
+    const currentText = Number.isFinite(current)
+      ? unit === "minutes" ? compactDuration(safeCurrent) : String(Math.round(safeCurrent))
+      : "Building";
+    const previousText = Number.isFinite(previous)
+      ? unit === "minutes" ? compactDuration(safePrevious) : String(Math.round(safePrevious))
+      : "Building";
     return `
       <div class="beta-trend-mini-bars">
         <span><b>${safeText(currentLabel)}</b><i style="width:${stylePercent((safeCurrent / max) * 100)}"></i><em>${safeText(currentText)}</em></span>
@@ -2395,8 +2412,8 @@
     const percent = Math.round(Math.abs(((current - previous) / previous) * 100));
     const direction = current < previous ? "down" : "up";
     const helpful = lowerIsBetter ? current < previous : current > previous;
-    const meaning = helpful ? "moving in the right direction" : "needs attention";
-    return `${metricLabel} ${verb} ${direction} ${percent}% compared with last week, so this pattern is ${meaning}.`;
+    const meaning = helpful ? "is moving in the right direction" : "needs attention";
+    return `${metricLabel} ${verb} ${direction} ${percent}% compared with last week, so this pattern ${meaning}.`;
   }
 
   function trendTone(current, previous, { lowerIsBetter = true } = {}) {
@@ -2429,10 +2446,10 @@
     const previousMetrics = trendMetrics(previous);
     const currentLongest = maxLongestFuelGap(current);
     const previousLongest = maxLongestFuelGap(previous);
-    const currentLowEnergy = lowEnergyAfterLongGapCount(current);
-    const previousLowEnergy = lowEnergyAfterLongGapCount(previous);
-    const currentProtected = protectedDayCount(current);
-    const previousProtected = protectedDayCount(previous);
+    const currentLowEnergy = current.length ? lowEnergyAfterLongGapCount(current) : null;
+    const previousLowEnergy = previous.length ? lowEnergyAfterLongGapCount(previous) : null;
+    const currentProtected = current.length ? protectedDayCount(current) : null;
+    const previousProtected = previous.length ? protectedDayCount(previous) : null;
     const currentWindow = repeatedDangerWindow(current);
     const previousWindow = repeatedDangerWindow(previous);
     const windowCopy = !currentWindow
@@ -2458,7 +2475,7 @@
         })}
         ${renderImpactTrendCard({
           title: "Fuel Debt Trend",
-          value: fuelDebtDurationText(currentMetrics.fuelDebtMinutes),
+          value: Number.isFinite(currentMetrics.fuelDebtMinutes) ? fuelDebtDurationText(currentMetrics.fuelDebtMinutes) : "Not enough data",
           copy: trendPercentCopy(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes, { metricLabel: "Your Fuel Debt" }),
           icon: "gap",
           tone: trendTone(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes),
@@ -2484,7 +2501,7 @@
         })}
         ${renderImpactTrendCard({
           title: "Protected Days",
-          value: `${currentProtected}/${current.length || 0}`,
+          value: Number.isFinite(currentProtected) ? `${currentProtected}/${current.length || 0}` : "Not enough data",
           copy: trendPercentCopy(currentProtected, previousProtected, { lowerIsBetter: false, metricLabel: "Protected days" }),
           icon: "shield",
           tone: trendTone(currentProtected, previousProtected, { lowerIsBetter: false }),
