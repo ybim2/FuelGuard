@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v39-data-starts-timeline";
-const BUILD_VERSION = "2026-07-07T01:02:41Z";
+const APP_VERSION = "mobile-pwa-v40-data-graph-card";
+const BUILD_VERSION = "2026-07-07T01:19:39Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v39-data-starts-timeline-20260707T010241Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v40-data-graph-card-20260707T011939Z";
 const APP_SHELL = [
   "./",
   "./index.html",

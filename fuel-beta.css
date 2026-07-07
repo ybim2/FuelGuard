@@ -20,7 +20,7 @@
 
 .beta-data-card {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding: 0;
   overflow: visible;
 }
@@ -472,6 +472,33 @@
 
 .beta-data-card .beta-daily-visual {
   width: 100%;
+}
+
+.beta-daily-current-status h3 {
+  margin: 0;
+  font-size: .98rem;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.beta-data-card .beta-daily-current-status {
+  margin-bottom: 0;
+}
+
+body.beta-mvp .beta-data-card .beta-daily-current-status {
+  margin-bottom: 0;
+}
+
+.beta-daily-graph-wrap .beta-view-heading {
+  order: 1;
+}
+
+.beta-daily-graph-wrap .beta-graph-mode {
+  order: 2;
+}
+
+.beta-daily-graph-wrap #fuelRhythmGraph {
+  order: 3;
 }
 
 .beta-day-controls,
