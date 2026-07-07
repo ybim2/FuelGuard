@@ -25,6 +25,13 @@
   overflow: visible;
 }
 
+.beta-impact-card {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  overflow: visible;
+}
+
 .beta-rhythm-panel {
   display: flex;
   flex-direction: column;
@@ -284,14 +291,18 @@
 
 .beta-impact-simple-grid {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
-  margin-top: 12px;
+  width: 100%;
+  margin-top: 0;
 }
 
 .beta-impact-simple-card {
   display: grid;
   gap: 10px;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 14px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 18px;
@@ -2186,6 +2197,40 @@ body.beta-mvp .beta-day-type-row #fuelDayTypeSaved {
   order: 2;
 }
 
+body.beta-mvp .beta-impact-card {
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-impact-card .beta-history-date {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(47,142,184,.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 10px 24px rgba(35,55,42,.05);
+}
+
+body.beta-mvp .beta-impact-detail {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-impact-simple-grid,
+body.beta-mvp .beta-impact-simple-card {
+  width: 100%;
+  min-width: 0;
+}
+
 body.beta-mvp .beta-logging-card {
   padding: 0;
   margin-top: 0;
@@ -2329,7 +2374,8 @@ body.beta-mvp .beta-live-card {
   box-shadow: none;
 }
 
-body.beta-mvp .beta-data-card {
+body.beta-mvp .beta-data-card,
+body.beta-mvp .beta-impact-card {
   border: 0;
   background: transparent;
   box-shadow: none;
