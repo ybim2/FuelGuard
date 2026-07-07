@@ -36,40 +36,6 @@
     return labels;
   }, {});
   const GRAPH_MODES = new Set(["fuel", "hydration", "risk"]);
-  const TREND_VIEWS = {
-    fuel: {
-      label: "Fuel",
-      metric: "averageFuelGap",
-      title: "Your average fuel gap",
-      unit: "minutes",
-      threshold: 15,
-      color: "#2dff88"
-    },
-    hydration: {
-      label: "Hydration",
-      metric: "averageHydrationGap",
-      title: "Your average hydration gap",
-      unit: "minutes",
-      threshold: 15,
-      color: "#9fb7ff"
-    },
-    risk: {
-      label: "High-support periods",
-      metric: "highRiskGaps",
-      title: "Your high-support periods",
-      unit: "count",
-      threshold: 0,
-      color: "#ffb020"
-    },
-    crash: {
-      label: "Low-energy signals",
-      metric: "crashEvents",
-      title: "Your low-energy signals",
-      unit: "count",
-      threshold: 0,
-      color: "#ff4d6d"
-    }
-  };
   const CRASH_NOTE = "fuel_guard_event:crash";
   const LEGACY_FOLLOWUP_NOTE_RE = /(?:^|[;\n]\s*)fuel_guard_long_gap_reason:[^;\n]*/g;
   const LEGACY_FOLLOWUP_LINE_RE = /^(most long gaps|sleep was marked for long gaps|your .* block may have worked|.* shift gap logged|forgotten fuel gap logged|no .* available|sleep gap logged|long gap logged\. protect)/i;
@@ -114,12 +80,10 @@
   let selectedTrainingFilter = "all";
   let selectedTrendDayType = "all";
   let selectedTrendTrainingSession = "all";
-  let selectedTrendView = "fuel";
   let accountBusy = false;
   let csvImportBusy = false;
   let csvImportPreview = null;
   let csvImportStatus = "";
-  let latestTrendGraphData = null;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -2283,21 +2247,6 @@
     return trainingSessionLabel(filter).toLowerCase();
   }
 
-  function activeTrendConfig() {
-    return TREND_VIEWS[selectedTrendView] || TREND_VIEWS.fuel;
-  }
-
-  function trendMetricValue(metrics, metric) {
-    const value = metrics?.[metric];
-    return Number.isFinite(value) ? value : null;
-  }
-
-  function trendValueText(value, config) {
-    if (!Number.isFinite(value)) return "Not enough data";
-    if (config.unit === "minutes") return compactDuration(value);
-    return String(Math.round(value));
-  }
-
   function trendFilterCopy() {
     return `Filtered to ${trendDayTypeFilterLabel(selectedTrendDayType)} and ${trendTrainingFilterLabel(selectedTrendTrainingSession)}.`;
   }
@@ -2308,43 +2257,6 @@
     const trainingMatches = selectedTrendTrainingSession === "all"
       || (selectedTrendTrainingSession === "rest" ? !session || session === "rest" : session === selectedTrendTrainingSession);
     return dayMatches && trainingMatches;
-  }
-
-  function renderTrendViewControls() {
-    document.querySelectorAll("[data-trend-view]").forEach(button => {
-      button.classList.toggle("active", button.dataset.trendView === selectedTrendView);
-    });
-  }
-
-  function trendInsightCopy(config, trend, currentValue, previousValue) {
-    if (!Number.isFinite(currentValue)) {
-      return `${config.title} needs more matching logs before Fuel Guard can compare weeks.`;
-    }
-    if (!Number.isFinite(previousValue)) {
-      return `${config.title} has this-week data; last week needs more matching logs.`;
-    }
-    if (trend.direction === "steady") {
-      const verb = config.metric === "highRiskGaps" || config.metric === "crashEvents" ? "were" : "was";
-      return `${config.title} ${verb} about the same as last week.`;
-    }
-    if (config.metric === "averageFuelGap") {
-      return trend.improved
-        ? `Your average fuel gap improved by ${compactDuration(trend.delta)} this week.`
-        : `Your average fuel gap increased by ${compactDuration(trend.delta)} this week.`;
-    }
-    if (config.metric === "averageHydrationGap") {
-      return trend.improved
-        ? `Your average hydration gap improved by ${compactDuration(trend.delta)} this week.`
-        : `Your average hydration gap increased by ${compactDuration(trend.delta)} this week.`;
-    }
-    if (config.metric === "highRiskGaps") {
-      return trend.improved
-        ? "Your high-support periods were lower than last week."
-        : "Your high-support periods were higher than last week.";
-    }
-    return trend.improved
-      ? "Your low-energy signals were lower than last week."
-      : "Your low-energy signals were higher than last week.";
   }
 
   function weeklyTrendWindows(entries) {
@@ -2420,96 +2332,168 @@
     `;
   }
 
-  function renderTrendVisualSummary(entries, current, previous, currentMetrics, previousMetrics, config, trend, currentValue, previousValue) {
-    const commonGap = mostCommonFuelGap(entries);
-    const debtTrend = metricTrend(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes, { threshold: 15, lowerIsBetter: true });
-    const rhythmTone = trend.direction === "steady" ? "neutral" : trend.improved ? "protected" : "elevated";
-    const debtTone = debtTrend.direction === "steady" ? "neutral" : debtTrend.improved ? "protected" : "elevated";
-    return `
-      <section class="beta-trends-visual" aria-label="Visual trend summary">
-        <article class="beta-trend-hero-card ${safeText(rhythmTone)}">
-          <div class="beta-metric-card-head">
-            <span class="beta-icon-disc">${dailyIcon("route")}</span>
-            <div><span>Weekly Fuel Rhythm</span><strong>${safeText(trendValueText(currentValue, config))}</strong></div>
-          </div>
-          ${renderTrendMiniBars(currentValue, previousValue, { unit: config.unit })}
-          <b class="beta-status-chip">${safeText(trend.direction === "none" ? "Building" : trend.improved ? "Improving" : trend.direction === "steady" ? "Steady" : "Needs attention")}</b>
-        </article>
+  function maxLongestFuelGap(entries) {
+    const values = entries.map(entry => Number(entry.longestGapMinutes || 0)).filter(value => Number.isFinite(value) && value > 0);
+    return values.length ? Math.max(...values) : null;
+  }
 
-        <div class="beta-trend-pattern-grid">
-          <article class="beta-trend-pattern-card">
-            <span class="beta-icon-disc amber">${dailyIcon("clock")}</span>
-            <div><span>Most Common Fuel Gap</span><strong>${safeText(commonGap.label)}</strong><small>${safeText(commonGap.count ? `${commonGap.count} gap${commonGap.count === 1 ? "" : "s"} in this range` : "Needs more fuel gaps")}</small></div>
-          </article>
-          <article class="beta-trend-pattern-card ${safeText(debtTone)}">
-            <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
-            <div><span>Time Beyond Fuel Window</span><strong>${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}</strong><small>${safeText(debtTrend.copy)}</small></div>
-          </article>
+  function lowEnergyAfterLongGapCount(entries) {
+    const preferredWindow = mediumRiskLimit();
+    return entries.reduce((count, entry) => {
+      const crashCount = Number(entry.crashLogCount || 0);
+      const longGap = Number(entry.fuelDebtMinutes || 0) > 0
+        || Number(entry.longestGapMinutes || 0) >= preferredWindow
+        || Number(entry.highRiskGapCount || 0) > 0
+        || Number(entry.crashZoneGapCount || 0) > 0;
+      return count + (crashCount > 0 && longGap ? crashCount : 0);
+    }, 0);
+  }
+
+  function protectedDayCount(entries) {
+    return entries.filter(entry =>
+      Number(entry.fuelDebtMinutes || 0) <= 0
+      && Number(entry.highRiskGapCount || 0) <= 0
+      && Number(entry.crashZoneGapCount || 0) <= 0
+      && Number(entry.crashLogCount || 0) <= 0
+    ).length;
+  }
+
+  function repeatedWindowLabel(entry) {
+    const windowLabel = impactWindowLabel(entry);
+    if (!windowLabel || /not clear/i.test(windowLabel)) return "";
+    if (entry?.dayType === "work") return `${windowLabel} on working days`;
+    if (entry?.dayType) return `${windowLabel} on ${dayTypeLabel(entry.dayType).toLowerCase()}`;
+    return windowLabel;
+  }
+
+  function repeatedDangerWindow(entries) {
+    const groups = {};
+    entries.forEach(entry => {
+      const hasSignal = Number(entry.fuelDebtMinutes || 0) > 0
+        || Number(entry.highRiskGapCount || 0) > 0
+        || Number(entry.crashZoneGapCount || 0) > 0
+        || Number(entry.crashLogCount || 0) > 0;
+      if (!hasSignal) return;
+      const label = repeatedWindowLabel(entry);
+      if (!label) return;
+      groups[label] = (groups[label] || 0) + 1;
+    });
+    const top = Object.entries(groups).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    return top ? { label: top[0], count: top[1] } : null;
+  }
+
+  function trendPercentCopy(current, previous, { lowerIsBetter = true, metricLabel = "This signal" } = {}) {
+    const plural = /days|events|signals|gaps/i.test(metricLabel);
+    const verb = plural ? "are" : "is";
+    if (!Number.isFinite(current)) return `${metricLabel} needs more matching days before Fuel Guard can compare it.`;
+    if (!Number.isFinite(previous)) return `${metricLabel} ${plural ? "have" : "has"} this-week data; last week needs more matching days.`;
+    if (current === previous) return `${metricLabel} ${verb} about the same as last week.`;
+    if (previous <= 0) {
+      if (current <= 0) return `${metricLabel} ${plural ? "stayed" : "stayed"} at 0 this week.`;
+      return `${metricLabel} ${verb} showing this week; last week was 0.`;
+    }
+    const percent = Math.round(Math.abs(((current - previous) / previous) * 100));
+    const direction = current < previous ? "down" : "up";
+    const helpful = lowerIsBetter ? current < previous : current > previous;
+    const meaning = helpful ? "moving in the right direction" : "needs attention";
+    return `${metricLabel} ${verb} ${direction} ${percent}% compared with last week, so this pattern is ${meaning}.`;
+  }
+
+  function trendTone(current, previous, { lowerIsBetter = true } = {}) {
+    if (!Number.isFinite(current) || !Number.isFinite(previous) || current === previous) return "neutral";
+    const helpful = lowerIsBetter ? current < previous : current > previous;
+    return helpful ? "protected" : "elevated";
+  }
+
+  function trendCardValue(value, unit = "count", fallback = "Building") {
+    if (!Number.isFinite(value)) return fallback;
+    if (unit === "minutes") return compactDuration(value);
+    return String(Math.round(value));
+  }
+
+  function renderImpactTrendCard({ title, value, copy, icon = "route", tone = "neutral", current = null, previous = null, unit = "count" }) {
+    return `
+      <article class="beta-trend-pattern-card beta-impact-trend-card ${safeText(tone)}">
+        <div class="beta-metric-card-head">
+          <span class="beta-icon-disc ${tone === "elevated" ? "amber" : tone === "protected" ? "shield" : ""}">${dailyIcon(icon)}</span>
+          <div><span>${safeText(title)}</span><strong>${safeText(value)}</strong></div>
         </div>
-      </section>
+        ${Number.isFinite(current) || Number.isFinite(previous) ? renderTrendMiniBars(current, previous, { unit }) : ""}
+        <small>${safeText(copy)}</small>
+      </article>
     `;
   }
 
-  function renderTrendInsightDashboard(currentMetrics, previousMetrics, previous, config, trend, currentValue, previousValue) {
-    const hasPreviousMatch = previous.length > 0 && Number.isFinite(previousValue);
-    const comparisonCopy = hasPreviousMatch
-      ? trendInsightCopy(config, trend, currentValue, previousValue)
-      : "Log a few more matching days to unlock stronger week-over-week trends.";
-    const laggingTotal = currentMetrics.mediumRiskGaps + currentMetrics.highRiskGaps + currentMetrics.crashZoneGaps + currentMetrics.extraSupportWindows;
-    const recoveryTone = currentMetrics.crashZoneGaps || currentMetrics.extraSupportWindows ? "elevated" : currentMetrics.mediumRiskGaps || currentMetrics.highRiskGaps ? "watch" : "protected";
-    const previousDebtText = previousMetrics.fuelDebtMinutes ? fuelDebtDurationText(previousMetrics.fuelDebtMinutes) : "Building";
+  function renderImpactSignalTrends(current, previous) {
+    const currentMetrics = trendMetrics(current);
+    const previousMetrics = trendMetrics(previous);
+    const currentLongest = maxLongestFuelGap(current);
+    const previousLongest = maxLongestFuelGap(previous);
+    const currentLowEnergy = lowEnergyAfterLongGapCount(current);
+    const previousLowEnergy = lowEnergyAfterLongGapCount(previous);
+    const currentProtected = protectedDayCount(current);
+    const previousProtected = protectedDayCount(previous);
+    const currentWindow = repeatedDangerWindow(current);
+    const previousWindow = repeatedDangerWindow(previous);
+    const windowCopy = !currentWindow
+      ? "No repeated long-gap window is clear this week."
+      : currentWindow.count < 2
+        ? `This week points most toward ${currentWindow.label}, but it has not repeated enough to call a pattern yet.`
+        : previousWindow?.label === currentWindow.label
+          ? `The same window is still repeating this week: ${currentWindow.label}.`
+          : previousWindow
+            ? `The repeated window moved from ${previousWindow.label} last week to ${currentWindow.label} this week.`
+            : `${currentWindow.label} repeated ${currentWindow.count} time${currentWindow.count === 1 ? "" : "s"} this week.`;
     return `
-      <section class="beta-trend-dashboard" aria-label="Visual weekly pattern insights">
-        <article class="beta-trend-comparison-card ${hasPreviousMatch ? "ready" : "building"}">
-          <div class="beta-metric-card-head">
-            <span class="beta-icon-disc">${dailyIcon("route")}</span>
-            <div><span>Weekly rhythm overview</span><strong>${safeText(trendValueText(currentValue, config))}</strong></div>
-          </div>
-          ${renderTrendMiniBars(currentValue, previousValue, { unit: config.unit })}
-          <div class="beta-comparison-state">
-            <b>${safeText(hasPreviousMatch ? "Week-over-week ready" : "Comparison building")}</b>
-            <p>${safeText(comparisonCopy)}</p>
-            <small>${safeText(trendFilterCopy())}</small>
-          </div>
-        </article>
-
-        <article class="beta-recovery-protection-card ${safeText(recoveryTone)}">
-          <div>
-            <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
-            <div>
-              <h4>Support the Recovery Window</h4>
-              <p>Your goal is to notice long gaps early so work, training, mood, and recovery feel steadier later.</p>
-            </div>
-          </div>
-          <div class="beta-recovery-protection-track" aria-hidden="true">
-            <i class="protected"></i>
-            <i class="risk" style="width:${stylePercent(Math.min(100, laggingTotal * 12 + currentMetrics.fuelDebtMinutes / 6))}"></i>
-          </div>
-          <small>This week beyond fuel window: ${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}. Last week: ${safeText(previousDebtText)}.</small>
-        </article>
+      <section class="beta-impact-trend-grid" aria-label="Impact signals over time">
+        ${renderImpactTrendCard({
+          title: "Longest Fuel Gap Trend",
+          value: trendCardValue(currentLongest, "minutes", "Not enough data"),
+          copy: trendPercentCopy(currentLongest, previousLongest, { metricLabel: "Your longest fuel gap" }),
+          icon: "clock",
+          tone: trendTone(currentLongest, previousLongest),
+          current: currentLongest,
+          previous: previousLongest,
+          unit: "minutes"
+        })}
+        ${renderImpactTrendCard({
+          title: "Fuel Debt Trend",
+          value: fuelDebtDurationText(currentMetrics.fuelDebtMinutes),
+          copy: trendPercentCopy(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes, { metricLabel: "Your Fuel Debt" }),
+          icon: "gap",
+          tone: trendTone(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes),
+          current: currentMetrics.fuelDebtMinutes,
+          previous: previousMetrics.fuelDebtMinutes,
+          unit: "minutes"
+        })}
+        ${renderImpactTrendCard({
+          title: "Low Energy After Long Gaps",
+          value: trendCardValue(currentLowEnergy),
+          copy: trendPercentCopy(currentLowEnergy, previousLowEnergy, { metricLabel: "Low-energy events after long gaps" }),
+          icon: "energy",
+          tone: trendTone(currentLowEnergy, previousLowEnergy),
+          current: currentLowEnergy,
+          previous: previousLowEnergy
+        })}
+        ${renderImpactTrendCard({
+          title: "Repeated Danger Window",
+          value: currentWindow ? currentWindow.label : "Not repeating yet",
+          copy: windowCopy,
+          icon: "route",
+          tone: currentWindow?.count >= 2 ? "elevated" : "protected"
+        })}
+        ${renderImpactTrendCard({
+          title: "Protected Days",
+          value: `${currentProtected}/${current.length || 0}`,
+          copy: trendPercentCopy(currentProtected, previousProtected, { lowerIsBetter: false, metricLabel: "Protected days" }),
+          icon: "shield",
+          tone: trendTone(currentProtected, previousProtected, { lowerIsBetter: false }),
+          current: currentProtected,
+          previous: previousProtected
+        })}
+        <p class="muted beta-trend-filter-note">${safeText(trendFilterCopy())}</p>
       </section>
     `;
-  }
-
-  function metricTrend(current, previous, { lowerIsBetter = true, unit = "", threshold = 0 } = {}) {
-    if (!Number.isFinite(current)) return { direction: "none", copy: "Needs more data", delta: 0, improved: false };
-    if (!Number.isFinite(previous)) return { direction: "none", copy: "Needs last week for comparison", delta: 0, improved: false };
-    const delta = current - previous;
-    if (Math.abs(delta) <= threshold) return { direction: "steady", copy: "About the same as last week", delta, improved: false };
-    const improved = lowerIsBetter ? delta < 0 : delta > 0;
-    const amount = unit === "minutes" ? compactDuration(delta) : `${Math.abs(delta).toFixed(Math.abs(delta) < 1 ? 1 : 0)}${unit}`;
-    return {
-      direction: delta < 0 ? "down" : "up",
-      copy: `${amount} ${delta < 0 ? "lower" : "higher"} than last week`,
-      delta,
-      improved
-    };
-  }
-
-  function renderTrendStatus(label, trend) {
-    const tone = trend.direction === "steady" ? "neutral" : trend.improved ? "good" : "watch";
-    const value = trend.direction === "none" ? "Building" : trend.improved ? "Improving" : trend.direction === "steady" ? "Steady" : "Needs attention";
-    return renderTrendMetric(label, value, trend.copy, tone);
   }
 
   function compactDuration(minutes) {
@@ -2760,108 +2744,16 @@
 
   function renderTrends() {
     const summaryTarget = document.getElementById("fuelAveragesSummary");
-    const insightsTarget = document.getElementById("fuelTrendInsights");
     const allEntries = loggedHistoryEntries();
     const filteredEntries = allEntries.filter(entryMatchesTrendFilters);
-    const config = activeTrendConfig();
-    renderTrendViewControls();
-    if (!summaryTarget || !insightsTarget) return;
+    if (!summaryTarget) return;
     if (!filteredEntries.length) {
-      latestTrendGraphData = null;
       summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match these filters yet.</p>`;
-      insightsTarget.innerHTML = "";
-      requestAnimationFrame(drawTrendsGraph);
       return;
     }
 
     const { current, previous } = weeklyTrendWindows(filteredEntries);
-    const currentMetrics = trendMetrics(current);
-    const previousMetrics = trendMetrics(previous);
-    const currentValue = trendMetricValue(currentMetrics, config.metric);
-    const previousValue = trendMetricValue(previousMetrics, config.metric);
-    const trend = metricTrend(currentValue, previousValue, {
-      unit: config.unit === "minutes" ? "minutes" : "",
-      threshold: config.threshold,
-      lowerIsBetter: true
-    });
-    latestTrendGraphData = {
-      title: config.title,
-      unit: config.unit,
-      color: config.color,
-      current: currentValue,
-      previous: previousValue
-    };
-    summaryTarget.innerHTML = renderTrendVisualSummary(filteredEntries, current, previous, currentMetrics, previousMetrics, config, trend, currentValue, previousValue);
-    insightsTarget.innerHTML = renderTrendInsightDashboard(currentMetrics, previousMetrics, previous, config, trend, currentValue, previousValue);
-    requestAnimationFrame(drawTrendsGraph);
-  }
-
-  function drawTrendsGraph() {
-    const canvas = document.getElementById("fuelTrendsGraph");
-    if (!canvas) return;
-    const prepared = prepareCanvas(canvas, 320, 240);
-    if (!prepared) return;
-    const { ctx, cssWidth, cssHeight } = prepared;
-    const data = latestTrendGraphData;
-    const padding = { left: 76, right: 76, top: 34, bottom: 64 };
-    const plotWidth = cssWidth - padding.left - padding.right;
-    const plotHeight = cssHeight - padding.top - padding.bottom;
-    const bottom = padding.top + plotHeight;
-    ctx.strokeStyle = "rgba(24,42,32,.1)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    [0, 0.25, 0.5, 0.75, 1].forEach(ratio => {
-      const y = bottom - ratio * plotHeight;
-      ctx.moveTo(padding.left, y);
-      ctx.lineTo(cssWidth - padding.right, y);
-    });
-    ctx.stroke();
-    if (!data || (!Number.isFinite(data.current) && !Number.isFinite(data.previous))) {
-      ctx.fillStyle = "rgba(23,35,29,.62)";
-      ctx.font = "13px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("Log more matching days to compare this week with last week.", cssWidth / 2, cssHeight / 2);
-      return;
-    }
-    const values = [data.previous, data.current].filter(Number.isFinite);
-    const maxValue = Math.max(...values, data.unit === "minutes" ? 60 : 1);
-    const pointFor = (value, index) => {
-      const x = padding.left + (index / 1) * plotWidth;
-      const normalized = clamp(value / maxValue, 0, 1);
-      return { x, y: bottom - normalized * plotHeight };
-    };
-    const previousPoint = Number.isFinite(data.previous) ? pointFor(data.previous, 0) : null;
-    const currentPoint = Number.isFinite(data.current) ? pointFor(data.current, 1) : null;
-    if (previousPoint && currentPoint) {
-      ctx.strokeStyle = data.color;
-      ctx.lineWidth = 4;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(previousPoint.x, previousPoint.y);
-      ctx.lineTo(currentPoint.x, currentPoint.y);
-      ctx.stroke();
-    }
-    [
-      { point: previousPoint, value: data.previous, label: "Last week", color: "#9fb7ff" },
-      { point: currentPoint, value: data.current, label: "This week", color: data.color }
-    ].forEach(item => {
-      if (!item.point) return;
-      ctx.fillStyle = item.color;
-      ctx.beginPath();
-      ctx.arc(item.point.x, item.point.y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(23,35,29,.82)";
-      ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(data.unit === "minutes" ? compactDuration(item.value) : String(Math.round(item.value)), item.point.x, Math.max(16, item.point.y - 12));
-      ctx.fillText(item.label, item.point.x, cssHeight - 16);
-    });
-    ctx.fillStyle = "rgba(23,35,29,.7)";
-    ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(data.title, padding.left, 16);
-    ctx.fillText(data.unit === "minutes" ? "gap" : "count", 7, padding.top + 3);
+    summaryTarget.innerHTML = renderImpactSignalTrends(current, previous);
   }
 
   function renderHistory() {
@@ -3374,12 +3266,6 @@
     selectedTrendTrainingSession = event.target.value || "all";
     renderTrends();
   });
-  document.getElementById("fuelTrendViewControls")?.addEventListener("click", event => {
-    const button = event.target.closest("[data-trend-view]");
-    if (!button) return;
-    selectedTrendView = TREND_VIEWS[button.dataset.trendView] ? button.dataset.trendView : "fuel";
-    renderTrends();
-  });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
   document.getElementById("fuelCsvImportButton")?.addEventListener("click", () => {
@@ -3630,7 +3516,6 @@
     requestAnimationFrame(() => {
       graphResizeQueued = false;
       if (document.getElementById("logs")?.classList.contains("active")) drawBetaGraph();
-      if (document.getElementById("trends")?.classList.contains("active")) drawTrendsGraph();
     });
   });
 

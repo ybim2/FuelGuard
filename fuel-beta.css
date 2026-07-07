@@ -1728,6 +1728,33 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   line-height: 1.35;
 }
 
+.beta-impact-trend-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.beta-impact-trend-card {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 1fr;
+}
+
+.beta-impact-trend-card .beta-trend-mini-bars {
+  margin-top: 2px;
+}
+
+.beta-impact-trend-card > small,
+.beta-trend-filter-note {
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.4;
+}
+
+.beta-trend-filter-note {
+  margin: 0;
+}
+
 .beta-trend-mini-bars {
   display: grid;
   gap: 7px;
