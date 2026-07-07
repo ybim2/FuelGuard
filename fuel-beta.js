@@ -2151,10 +2151,11 @@
   }
 
   function renderImpactCard({ title, text, meta = "", icon = "recovery", tone = "stable", children = "" }) {
+    const iconTone = tone === "high" ? "danger" : tone === "elevated" ? "amber" : "shield";
     return `
-      <article class="beta-impact-simple-card ${safeText(tone)}">
+      <article class="beta-impact-simple-card ${safeText(tone)} beta-impact-signal-${safeText(icon)}">
         <div class="beta-impact-simple-head">
-          <span class="beta-icon-disc ${tone === "elevated" || tone === "high" ? "amber" : "shield"}">${dailyIcon(icon)}</span>
+          <span class="beta-icon-disc ${safeText(iconTone)}">${dailyIcon(icon)}</span>
           <div>
             <h4>${safeText(title)}</h4>
             ${meta ? `<small>${safeText(meta)}</small>` : ""}
@@ -2193,6 +2194,13 @@
     return `
       <section class="beta-impact-simple-grid" aria-label="Impact insights">
         ${renderImpactCard({
+          title: "Highest-Risk Window",
+          text: highestRiskWindowImpactCopy(entry),
+          meta: highestRiskWindow,
+          icon: "route",
+          tone: impactSignalTone(entry, "window")
+        })}
+        ${renderImpactCard({
           title: "Longest Fuel Gap",
           text: longestFuelGapImpactCopy(entry),
           meta: entry.longestGap || durationText(entry.longestGapMinutes || 0),
@@ -2213,13 +2221,6 @@
           meta: `${lowEnergyAfterLongGap} event${lowEnergyAfterLongGap === 1 ? "" : "s"}`,
           icon: "energy",
           tone: impactSignalTone(entry, "energy")
-        })}
-        ${renderImpactCard({
-          title: "Highest-Risk Window",
-          text: highestRiskWindowImpactCopy(entry),
-          meta: highestRiskWindow,
-          icon: "route",
-          tone: impactSignalTone(entry, "window")
         })}
         ${renderImpactCard({
           title: "Protected Day",
