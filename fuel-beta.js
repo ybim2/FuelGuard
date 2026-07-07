@@ -2060,6 +2060,19 @@
     `;
   }
 
+  function renderDailyTimelineDetail(entry) {
+    if (!entry) return `<p class="muted">No daily timeline yet. Log fuel or hydration to build today's rhythm.</p>`;
+    return `
+      <section class="beta-daily-visual beta-daily-timeline-section" aria-label="Daily Timeline">
+        <div class="section-heading-row">
+          <h3>Daily Timeline</h3>
+          <span class="row-note">${safeText(entry.dateLabel || "Today")}</span>
+        </div>
+        ${renderDailyTimeline(entry)}
+      </section>
+    `;
+  }
+
   function renderImpactDetail(entry) {
     if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain the cost window.</p>`;
     const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
@@ -2773,19 +2786,15 @@
       `;
     }
     const entries = archiveEntries();
-    const select = document.getElementById("fuelHistoryArchiveDate");
     const count = document.getElementById("fuelHistoryCount");
     const detail = document.getElementById("fuelHistoryArchiveDetail");
-    if (!select || !detail) return;
-    if (!selectedHistoryKey || !entries.some(entry => entry.date === selectedHistoryKey)) selectedHistoryKey = entries[0]?.date || dateKey();
-    select.innerHTML = entries.map(entry => {
-      const labels = [entry.dayType ? entry.dayTypeLabel : "", entry.trainingSession ? entry.trainingSessionLabel : ""].filter(Boolean);
-      return `<option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${labels.length ? ` - ${safeText(labels.join(" / "))}` : ""}</option>`;
-    }).join("");
-    select.value = selectedHistoryKey;
+    if (!detail) return;
     if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
-    detail.innerHTML = `${renderHistoryDayOverview(entries)}${renderArchiveDetail(entries.find(entry => entry.date === selectedHistoryKey))}`;
-    requestAnimationFrame(() => drawDailyRiskGraph(selectedHistoryKey));
+    const todayKey = dateKey();
+    const todayEntry = entries.find(entry => entry.date === todayKey) || buildArchiveEntry(todayKey);
+    detail.innerHTML = renderDailyTimelineDetail(todayEntry);
+    renderGraphModeControls();
+    requestAnimationFrame(() => drawBetaGraph());
   }
 
   function renderImpact() {
@@ -2802,7 +2811,7 @@
     select.value = selectedHistoryKey;
     const impactEntries = loggedHistoryEntries().filter(entry => Number(entry.fuelDebtMinutes || 0) > 0 || Number(entry.highRiskGapCount || 0) > 0 || Number(entry.crashLogCount || 0) > 0 || Number(entry.fuelLogCount || 0) > 0);
     if (count) count.textContent = `${impactEntries.length} impact day${impactEntries.length === 1 ? "" : "s"} tracked`;
-    detail.innerHTML = renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey));
+    detail.innerHTML = `${renderHistoryDayOverview(entries)}${renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey))}`;
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -3096,7 +3105,6 @@
     if (dashboardActive) {
       renderDayTypeControls();
       renderDailyLog();
-      drawBetaGraph();
     }
     if (settingsActive) renderSettings();
     if (historyActive) renderHistory();
@@ -3129,9 +3137,6 @@
     if (target === "impact") renderImpact();
     if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
-    if (target === "dashboard") requestAnimationFrame(() => {
-      drawBetaGraph();
-    });
   };
 
   function saveThresholdSettings() {
@@ -3252,15 +3257,24 @@
     selectedHistoryKey = event.target.value;
     renderHistory();
   });
-  document.getElementById("fuelHistoryArchiveDetail")?.addEventListener("click", event => {
-    const button = event.target.closest("[data-history-day]");
+  function selectHistoryDay(button) {
     if (!button) return;
     selectedHistoryKey = button.dataset.historyDay;
     renderHistory();
+    renderImpact();
+  }
+
+  document.getElementById("fuelHistoryArchiveDetail")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-history-day]");
+    selectHistoryDay(button);
   });
   document.getElementById("fuelImpactArchiveDate")?.addEventListener("change", event => {
     selectedHistoryKey = event.target.value;
     renderImpact();
+  });
+  document.getElementById("fuelImpactDetail")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-history-day]");
+    selectHistoryDay(button);
   });
   document.getElementById("trendDayTypeFilter")?.addEventListener("change", event => {
     selectedTrendDayType = event.target.value || "all";
@@ -3525,10 +3539,7 @@
     graphResizeQueued = true;
     requestAnimationFrame(() => {
       graphResizeQueued = false;
-      if (document.getElementById("dashboard")?.classList.contains("active")) {
-        drawBetaGraph();
-      }
-      if (document.getElementById("logs")?.classList.contains("active")) drawDailyRiskGraph(selectedHistoryKey);
+      if (document.getElementById("logs")?.classList.contains("active")) drawBetaGraph();
       if (document.getElementById("trends")?.classList.contains("active")) drawTrendsGraph();
     });
   });

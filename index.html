@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v35-rhythm-section-cards" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v35-rhythm-section-cards" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v35-rhythm-section-cards" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v36-daily-graph-impact-days" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v36-daily-graph-impact-days" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v36-daily-graph-impact-days" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -86,22 +86,6 @@
                 <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
               </section>
 
-              <section class="beta-rhythm-section-card beta-graph-view-card" aria-label="Choose graph view">
-                <div class="beta-graph-section-heading beta-view-heading">
-                  <h3>Choose graph view</h3>
-                  <p>Switch between fuel risk, fuel logs, and hydration logs.</p>
-                </div>
-                <div class="beta-graph-mode" id="fuelGraphModeControls" role="group" aria-label="Rhythm graph view">
-                  <button class="active" type="button" data-graph-mode="risk">Fuel Risk</button>
-                  <button type="button" data-graph-mode="fuel">Fuel</button>
-                  <button type="button" data-graph-mode="hydration">Hydration</button>
-                </div>
-              </section>
-
-              <div class="fuel-graph-wrap beta-graph-wrap" aria-label="Fuel Rhythm graph">
-                <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Fuel Rhythm curve across today"></canvas>
-                <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
-              </div>
             </div>
           </section>
 
@@ -125,17 +109,25 @@
 
       <section id="logs" class="screen">
         <article class="card">
-          <div class="section-heading-row">
-            <div>
-              <h2>Daily</h2>
-              <p class="muted">What happened today, kept clear and scannable.</p>
-            </div>
-            <span id="fuelHistoryCount" class="row-note"></span>
+          <div class="beta-impact-current-status beta-daily-current-status" aria-label="Current fuel status">
+            <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
+            <div id="fuelGapNextAction" class="fuel-next-action"></div>
           </div>
-          <label class="day-type-field beta-history-date">
-            <span>Review day</span>
-            <select id="fuelHistoryArchiveDate"></select>
-          </label>
+          <section class="beta-rhythm-section-card beta-graph-view-card" aria-label="Choose graph view">
+            <div class="beta-graph-section-heading beta-view-heading">
+              <h3>Choose graph view</h3>
+              <p>Switch between fuel risk, fuel logs, and hydration logs.</p>
+            </div>
+            <div class="beta-graph-mode" id="fuelGraphModeControls" role="group" aria-label="Daily graph view">
+              <button class="active" type="button" data-graph-mode="risk">Fuel Risk</button>
+              <button type="button" data-graph-mode="fuel">Fuel</button>
+              <button type="button" data-graph-mode="hydration">Hydration</button>
+            </div>
+          </section>
+          <div class="fuel-graph-wrap beta-graph-wrap beta-daily-graph-wrap" aria-label="Fuel Rhythm graph">
+            <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Fuel Rhythm curve across today"></canvas>
+            <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
+          </div>
           <div id="fuelHistoryArchiveDetail" class="fuel-archive-detail"></div>
         </article>
 
@@ -154,10 +146,6 @@
             <span>Review day</span>
             <select id="fuelImpactArchiveDate"></select>
           </label>
-          <div class="beta-impact-current-status" aria-label="Current fuel status">
-            <strong id="fuelGraphLastAte" class="fuel-last-ate-badge">Last fuel: --</strong>
-            <div id="fuelGapNextAction" class="fuel-next-action"></div>
-          </div>
           <div id="fuelImpactDetail" class="fuel-archive-detail beta-impact-detail"></div>
         </article>
       </section>
@@ -310,7 +298,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v35-rhythm-section-cards</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v36-daily-graph-impact-days</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -341,16 +329,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="build-info.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="app-ui.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v35-rhythm-section-cards"></script>
+  <script src="app-state.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="app-ui.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v36-daily-graph-impact-days"></script>
 </body>
 </html>
