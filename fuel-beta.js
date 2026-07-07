@@ -2423,10 +2423,6 @@
   function renderTrendVisualSummary(entries, current, previous, currentMetrics, previousMetrics, config, trend, currentValue, previousValue) {
     const commonGap = mostCommonFuelGap(entries);
     const debtTrend = metricTrend(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes, { threshold: 15, lowerIsBetter: true });
-    const score = Number.isFinite(currentMetrics.fuelGuardScore) ? Math.round(currentMetrics.fuelGuardScore) : null;
-    const riskTotal = currentMetrics.mediumRiskGaps + currentMetrics.highRiskGaps + currentMetrics.crashZoneGaps;
-    const riskMax = Math.max(riskTotal, 1);
-    const dayHotspot = trendDayTypeHotspot(entries);
     const rhythmTone = trend.direction === "steady" ? "neutral" : trend.improved ? "protected" : "elevated";
     const debtTone = debtTrend.direction === "steady" ? "neutral" : debtTrend.improved ? "protected" : "elevated";
     return `
@@ -2445,30 +2441,13 @@
             <span class="beta-icon-disc amber">${dailyIcon("clock")}</span>
             <div><span>Most Common Fuel Gap</span><strong>${safeText(commonGap.label)}</strong><small>${safeText(commonGap.count ? `${commonGap.count} gap${commonGap.count === 1 ? "" : "s"} in this range` : "Needs more fuel gaps")}</small></div>
           </article>
-          <article class="beta-trend-pattern-card elevated">
-            <span class="beta-icon-disc amber">${dailyIcon("warning")}</span>
-            <div><span>Support Signal Frequency</span><strong>${riskTotal}</strong><small>Medium, High, and High Support Window signals this week.</small></div>
-            <div class="beta-risk-stack" aria-hidden="true">
-              <i class="medium" style="width:${stylePercent((currentMetrics.mediumRiskGaps / riskMax) * 100)}"></i>
-              <i class="high" style="width:${stylePercent((currentMetrics.highRiskGaps / riskMax) * 100)}"></i>
-              <i class="crash" style="width:${stylePercent((currentMetrics.crashZoneGaps / riskMax) * 100)}"></i>
-            </div>
-          </article>
           <article class="beta-trend-pattern-card ${safeText(debtTone)}">
             <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
             <div><span>Time Beyond Fuel Window</span><strong>${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}</strong><small>${safeText(debtTrend.copy)}</small></div>
           </article>
-          <article class="beta-trend-pattern-card">
-            <span class="beta-icon-disc">${dailyIcon("score")}</span>
-            <div><span>Habit Change Tracker</span><strong>${safeText(score === null ? "Building" : `${score}/100`)}</strong><small>${safeText(score === null ? "Needs more logged days." : scoreStatusLabel(score))}</small></div>
-          </article>
           <article class="beta-trend-pattern-card ${currentMetrics.manualCrashEvents ? "danger" : "protected"}">
             <span class="beta-icon-disc">${dailyIcon("energy")}</span>
             <div><span>Low-Energy Events Pattern</span><strong>${currentMetrics.manualCrashEvents}</strong><small>${safeText(currentMetrics.manualCrashEvents ? "Review these alongside long gaps." : "No marked low-energy events this week.")}</small></div>
-          </article>
-          <article class="beta-trend-pattern-card">
-            <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
-            <div><span>Day Type Comparison</span><strong>${safeText(dayHotspot ? dayHotspot.label : "Building")}</strong><small>${safeText(dayHotspot ? "Most support signals in the current pattern." : "Set day types to compare patterns.")}</small></div>
           </article>
         </div>
       </section>
@@ -2476,8 +2455,6 @@
   }
 
   function renderTrendInsightDashboard(currentMetrics, previousMetrics, previous, config, trend, currentValue, previousValue) {
-    const score = Number.isFinite(currentMetrics.fuelGuardScore) ? Math.round(currentMetrics.fuelGuardScore) : null;
-    const scoreTone = score === null ? "neutral" : score >= 80 ? "protected" : score >= 60 ? "elevated" : "danger";
     const hasPreviousMatch = previous.length > 0 && Number.isFinite(previousValue);
     const comparisonCopy = hasPreviousMatch
       ? trendInsightCopy(config, trend, currentValue, previousValue)
@@ -2501,10 +2478,6 @@
         </article>
 
         <div class="beta-weekly-risk-cards">
-          <article class="beta-risk-summary-card ${safeText(scoreTone)}">
-            <span>${dailyIcon("score")}</span>
-            <div><small>Rhythm support</small><strong>${safeText(score === null ? "Building" : `${score}/100`)}</strong><em>${safeText(score === null ? "Needs more logged days" : scoreStatusLabel(score))}</em></div>
-          </article>
           <article class="beta-risk-summary-card elevated">
             <span>${dailyIcon("warning")}</span>
             <div><small>Medium Risk Nudges</small><strong>${currentMetrics.mediumRiskGaps}</strong><em>Early fuel/sip support signals this week</em></div>
