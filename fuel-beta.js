@@ -2137,17 +2137,17 @@
 
   function protectedDayImpactCopy(entry) {
     if (isProtectedImpactDay(entry)) {
-      return `This was a protected day: Fuel Debt, high-risk fuel gaps, high-support windows, and low-energy events stayed clear.`;
+      return `This was a steadier day: time beyond your preferred fuelling window, Eat now gaps, Recovery needed windows, and low-energy events stayed clear.`;
     }
     const reasons = [];
-    if (Number(entry?.fuelDebtMinutes || 0) > 0) reasons.push("Fuel Debt");
-    if (Number(entry?.highRiskGapCount || 0) > 0) reasons.push("high-risk fuel gaps");
-    if (Number(entry?.crashZoneGapCount || 0) > 0) reasons.push("high-support fuel windows");
+    if (Number(entry?.fuelDebtMinutes || 0) > 0) reasons.push("time beyond your preferred fuelling window");
+    if (Number(entry?.highRiskGapCount || 0) > 0) reasons.push("Eat now gaps");
+    if (Number(entry?.crashZoneGapCount || 0) > 0) reasons.push("Recovery needed windows");
     if (Number(entry?.crashLogCount || 0) > 0) reasons.push("low-energy events");
     const reasonText = reasons.length > 1
       ? `${reasons.slice(0, -1).join(", ")} and ${reasons[reasons.length - 1]}`
       : reasons[0] || "support signals";
-    return `This was not a protected day because ${reasonText} showed up.`;
+    return `This day may need more support because ${reasonText} showed up.`;
   }
 
   function renderImpactCard({ title, text, meta = "", icon = "recovery", tone = "stable", children = "" }) {

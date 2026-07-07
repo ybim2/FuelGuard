@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v52-compact-card-spacing";
-const BUILD_VERSION = "2026-07-07T13:40:29Z";
+const APP_VERSION = "mobile-pwa-v53-status-copy-fix";
+const BUILD_VERSION = "2026-07-07T13:54:46Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v52-compact-card-spacing-20260707T134029Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v53-status-copy-fix-20260707T135446Z";
 const APP_SHELL = [
   "./",
   "./index.html",

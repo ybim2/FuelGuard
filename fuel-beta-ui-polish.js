@@ -2,17 +2,17 @@
 // Event-driven UI adjustments only: no extra one-second render loop.
 (() => {
   const RISK_LABELS = {
-    green: "Low Risk",
-    amber: "Medium Risk",
-    red: "High Risk",
-    crash: "High Support Window"
+    green: "Steady",
+    amber: "Eat soon",
+    red: "Eat now",
+    crash: "Recovery needed"
   };
 
   const RISK_ACTIONS = {
-    green: "rhythm looks okay",
-    amber: "maybe have a snack now",
-    red: "your fuel gap is getting long; a fuel moment may help",
-    crash: "this is a high-support window; fuel gently when you can"
+    green: "Steady",
+    amber: "Eat soon",
+    red: "Eat now",
+    crash: "Recovery needed"
   };
 
   let applying = false;
@@ -55,11 +55,11 @@
   }
 
   function riskLabel(status) {
-    return RISK_LABELS[status] || "High risk";
+    return RISK_LABELS[status] || RISK_LABELS.red;
   }
 
   function riskAction(status, hasLog) {
-    if (!hasLog) return "log fuel when you have a fuel moment";
+    if (!hasLog) return RISK_LABELS.green;
     return RISK_ACTIONS[status] || RISK_ACTIONS.red;
   }
 
@@ -85,7 +85,7 @@
 
     const status = snapshot.status || "red";
     const hasLog = snapshot.lastFuelled && !/no fuel logged/i.test(snapshot.lastFuelled);
-    const nextText = `Current Fuel Risk: ${riskLabel(status)} - ${riskAction(status, hasLog)}`;
+    const nextText = `Status: ${riskAction(status, hasLog)}`;
     const nextClass = `fuel-next-action beta-risk-pill ${status}`;
     if (risk) {
       if (risk.className !== nextClass) risk.className = nextClass;
@@ -98,7 +98,7 @@
 
     document.querySelectorAll(".fuel-gap-insight").forEach(card => {
       const label = card.querySelector("span")?.textContent?.trim().toLowerCase();
-      if (label !== "current gap risk") return;
+      if (label !== "status") return;
       const strong = card.querySelector("strong");
       const small = card.querySelector("small");
       if (strong && strong.textContent !== riskLabel(status)) strong.textContent = riskLabel(status);
@@ -106,7 +106,7 @@
         const greenHours = trimHour(limits().greenMinutes / 60);
         const redHours = trimHour(limits().redMinutes / 60);
         const crashHours = trimHour(Number(limits().crashMinutes || limits().redMinutes + 60) / 60);
-        const copy = `Low Risk before ${greenHours}h. Medium Risk from ${greenHours}-${redHours}h is an early nudge. High Risk from ${redHours}-${crashHours}h means support may help soon. High Support Window starts after ${crashHours}h.`;
+        const copy = `Steady before ${greenHours}h. Eat soon from ${greenHours}-${redHours}h. Eat now from ${redHours}-${crashHours}h. Recovery needed starts after ${crashHours}h.`;
         if (small.textContent !== copy) small.textContent = copy;
       }
     });
@@ -141,10 +141,10 @@
 
   function renameHighRiskGapLabels() {
     document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-stats span").forEach(label => {
-      if (label.textContent.trim().toLowerCase() === "long gaps") label.textContent = "High-support gaps";
+      if (label.textContent.trim().toLowerCase() === "long gaps") label.textContent = "Recovery-needed gaps";
     });
     document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-head .status-pill").forEach(pill => {
-      if (pill.textContent.trim() === "GAPS FOUND") pill.textContent = "HIGH-RISK GAPS";
+      if (pill.textContent.trim() === "GAPS FOUND") pill.textContent = "SUPPORT SIGNALS";
     });
   }
 
@@ -204,7 +204,7 @@
     target.innerHTML = `
       <section class="beta-history-chart"><h3>Longest fuel gap by day</h3>${gapBars}</section>
       <section class="beta-history-chart"><h3>Fuel logs per day</h3>${logBars}</section>
-      <section class="beta-history-chart"><h3>High-support windows</h3>${windows ? `<ul class="beta-high-risk-window-list">${windows}</ul>` : `<p class="muted">No High Support Window detected yet.</p>`}</section>
+      <section class="beta-history-chart"><h3>Recovery-needed windows</h3>${windows ? `<ul class="beta-high-risk-window-list">${windows}</ul>` : `<p class="muted">No recovery-needed window detected yet.</p>`}</section>
     `;
   }
 
