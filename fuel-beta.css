@@ -18,6 +18,13 @@
   overflow: visible;
 }
 
+.beta-data-card {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  overflow: visible;
+}
+
 .beta-rhythm-panel {
   display: flex;
   flex-direction: column;
@@ -454,6 +461,17 @@
 
 .beta-today-log #undoLatestFoodLog {
   margin: 10px 0 0;
+}
+
+.beta-data-card .fuel-archive-detail {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+}
+
+.beta-data-card .beta-daily-visual {
+  width: 100%;
 }
 
 .beta-day-controls,
@@ -2185,6 +2203,12 @@ body.beta-mvp .beta-latest-log-list {
 }
 
 body.beta-mvp .beta-live-card {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-data-card {
   border: 0;
   background: transparent;
   box-shadow: none;

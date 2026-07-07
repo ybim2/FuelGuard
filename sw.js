@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v37-data-tab-undo-rhythm";
-const BUILD_VERSION = "2026-07-07T00:35:26Z";
+const APP_VERSION = "mobile-pwa-v38-data-card-timeline-first";
+const BUILD_VERSION = "2026-07-07T00:53:28Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v37-data-tab-undo-rhythm-20260707T003526Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v38-data-card-timeline-first-20260707T005328Z";
 const APP_SHELL = [
   "./",
   "./index.html",
