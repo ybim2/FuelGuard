@@ -2077,64 +2077,77 @@
     return `You stayed inside your preferred fuelling window ${impactDayPhrase(entry)}.`;
   }
 
-  function impactPatternCopy(entry) {
+  function hasLongGapSignal(entry) {
+    return Number(entry?.fuelDebtMinutes || 0) > 0
+      || Number(entry?.longestGapMinutes || 0) >= mediumRiskLimit()
+      || Number(entry?.highRiskGapCount || 0) > 0
+      || Number(entry?.crashZoneGapCount || 0) > 0;
+  }
+
+  function isProtectedImpactDay(entry) {
+    return Number(entry?.fuelDebtMinutes || 0) <= 0
+      && Number(entry?.highRiskGapCount || 0) <= 0
+      && Number(entry?.crashZoneGapCount || 0) <= 0
+      && Number(entry?.crashLogCount || 0) <= 0;
+  }
+
+  function impactSignalTone(entry, signal = "overall") {
+    if (signal === "protected") return isProtectedImpactDay(entry) ? "stable" : "elevated";
+    if (signal === "energy") return Number(entry?.crashLogCount || 0) > 0 ? "high" : "stable";
+    if (signal === "window") return hasLongGapSignal(entry) || Number(entry?.crashLogCount || 0) > 0 ? "elevated" : "stable";
+    if (signal === "debt") return Number(entry?.fuelDebtMinutes || 0) > 0 ? impactToneForEntry(entry) : "stable";
+    if (signal === "gap") return Number(entry?.longestGapMinutes || 0) >= mediumRiskLimit() ? impactToneForEntry(entry) : "stable";
+    return impactToneForEntry(entry);
+  }
+
+  function longestFuelGapImpactCopy(entry) {
+    const gapText = entry?.longestGap || durationText(entry?.longestGapMinutes || 0);
+    if (!Number(entry?.fuelLogCount || 0)) return "No fuel logs were recorded for this day yet.";
+    if (!Number(entry?.longestGapMinutes || 0)) return "Log at least two fuel moments to see the longest fuel gap for this day.";
+    const zone = gapZoneReached(entry);
+    return `Your longest fuel gap ${impactDayPhrase(entry)} was ${gapText}, reaching ${zone}.`;
+  }
+
+  function lowEnergyAfterLongGapForEntry(entry) {
+    const crashCount = Number(entry?.crashLogCount || 0);
+    return crashCount > 0 && hasLongGapSignal(entry) ? crashCount : 0;
+  }
+
+  function lowEnergyAfterLongGapImpactCopy(entry) {
+    const count = lowEnergyAfterLongGapForEntry(entry);
+    const crashCount = Number(entry?.crashLogCount || 0);
+    if (count > 0) {
+      return `${count} low-energy event${count === 1 ? "" : "s"} appeared after a long fuel gap signal ${impactDayPhrase(entry)}.`;
+    }
+    if (crashCount > 0) return `${crashCount} low-energy event${crashCount === 1 ? " was" : "s were"} marked, but Fuel Guard does not see a long-gap signal before it yet.`;
+    return "No low-energy events were marked after long fuel gaps on this day.";
+  }
+
+  function highestRiskWindowImpactCopy(entry) {
+    if (!hasLongGapSignal(entry) && !Number(entry?.crashLogCount || 0)) {
+      return "No clear highest-risk window stood out from this selected day.";
+    }
     const windowLabel = impactWindowLabel(entry);
     const dayType = entry?.dayType || "";
     const training = entry?.trainingSession || "";
-    const hasDebt = Number(entry?.fuelDebtMinutes || 0) > 0;
-    if (!hasDebt && !Number(entry?.highRiskGapCount || 0)) {
-      return "No repeated long-gap pattern is clear from this day yet.";
-    }
-    if (dayType === "work") {
-      return `Your longest fuel gap is showing up in a working-day pattern, around ${windowLabel}.`;
-    }
-    if (training && training !== "rest") {
-      return `Your longest fuel gap is landing on a ${trainingSessionLabel(training).toLowerCase()} day, around ${windowLabel}.`;
-    }
-    return `Your longest fuel gap is landing around ${windowLabel}.`;
+    if (dayType === "work") return `The highest-risk window ${impactDayPhrase(entry)} was around ${windowLabel} on a working day.`;
+    if (training && training !== "rest") return `The highest-risk window ${impactDayPhrase(entry)} was around ${windowLabel} on a ${trainingSessionLabel(training).toLowerCase()} day.`;
+    return `The highest-risk window ${impactDayPhrase(entry)} was around ${windowLabel}.`;
   }
 
-  function recoveryCostCopy(entry) {
-    const minutes = Math.max(0, Math.round(Number(entry?.fuelDebtMinutes || 0)));
-    const window = entry?.likelyCostWindow && entry.likelyCostWindow !== "stable for now"
-      ? entry.likelyCostWindow
-      : "stable for now";
-    if (minutes <= 0) {
-      return "Your recovery window looks steady for now.";
+  function protectedDayImpactCopy(entry) {
+    if (isProtectedImpactDay(entry)) {
+      return `This was a protected day: Fuel Debt, high-risk fuel gaps, high-support windows, and low-energy events stayed clear.`;
     }
-    if (window === "stable for now") {
-      return "This long gap may make your body feel harder to manage later if the pattern repeats.";
-    }
-    return `This may make your body feel harder to manage ${window}.`;
-  }
-
-  function bestNextImpactAction(entry) {
-    const debtMinutes = Math.max(0, Math.round(Number(entry?.fuelDebtMinutes || 0)));
-    const dayType = entry?.dayType || "";
-    const training = entry?.trainingSession || "";
-    if (!Number(entry?.fuelLogCount || 0)) return "Log your first fuel moment so Fuel Guard can start spotting the pattern.";
-    if (dayType === "work" && debtMinutes > 0) return "Add a small fuel moment before your next long work block.";
-    if (training && training !== "rest" && debtMinutes > 0) return "Put an easy fuel option within reach before your next training block.";
-    if (debtMinutes >= 60) return "Choose one simple fuel option before the next long gap starts.";
-    if (Number(entry?.highRiskHydrationGapCount || 0) > 0) return "Pair your next fuel moment with hydration so the day feels steadier.";
-    return "Keep logging fuel and hydration so the next support window stays visible.";
-  }
-
-  function weeklyImpactCopy(entries) {
-    const windows = weeklyTrendWindows(entries || []);
-    const current = windows.current || [];
-    if (!current.length) return "Log a few days and Impact will show the weekly pattern.";
-    const totalDebt = current.reduce((sum, entry) => sum + Number(entry.fuelDebtMinutes || 0), 0);
-    const longGapDays = current.filter(entry => Number(entry.fuelDebtMinutes || 0) > 0 || Number(entry.highRiskGapCount || 0) > 0).length;
-    const lowEnergyDays = current.filter(entry => Number(entry.crashLogCount || 0) > 0).length;
-    const hotspot = trendDayTypeHotspot(current);
-    if (totalDebt <= 0) {
-      return "This week, your fuel rhythm is mostly staying inside your preferred window.";
-    }
-    const usefulHotspot = hotspot?.label && !/not set|building/i.test(hotspot.label);
-    const context = usefulHotspot ? ` ${hotspot.label.toLowerCase()} days seem to need the most support.` : "";
-    const lowEnergy = lowEnergyDays ? ` Low-energy events appeared on ${lowEnergyDays} day${lowEnergyDays === 1 ? "" : "s"}.` : "";
-    return `This week, the main issue was not lack of effort; it was ${fuelDebtDurationText(totalDebt)} beyond your fuel window across ${longGapDays} day${longGapDays === 1 ? "" : "s"}.${context}${lowEnergy}`;
+    const reasons = [];
+    if (Number(entry?.fuelDebtMinutes || 0) > 0) reasons.push("Fuel Debt");
+    if (Number(entry?.highRiskGapCount || 0) > 0) reasons.push("high-risk fuel gaps");
+    if (Number(entry?.crashZoneGapCount || 0) > 0) reasons.push("high-support fuel windows");
+    if (Number(entry?.crashLogCount || 0) > 0) reasons.push("low-energy events");
+    const reasonText = reasons.length > 1
+      ? `${reasons.slice(0, -1).join(", ")} and ${reasons[reasons.length - 1]}`
+      : reasons[0] || "support signals";
+    return `This was not a protected day because ${reasonText} showed up.`;
   }
 
   function renderImpactCard({ title, text, meta = "", icon = "recovery", tone = "stable", children = "" }) {
@@ -2164,51 +2177,56 @@
       </div>
       <div class="beta-impact-mini-meta">
         <span>Longest gap: ${safeText(longestText)}</span>
-        <span>${longestGap ? safeText(`${formatClock(longestGap.start)}-${formatClock(longestGap.end)}`) : "Window from saved summary"}</span>
+        <span>${longestGap ? safeText(`${formatClock(longestGap.start)}-${formatClock(longestGap.end)}`) : safeText(entry?.highRiskWindow || entry?.vulnerableWindow || "Window from saved summary")}</span>
       </div>
     `;
   }
 
-  function renderImpactDetail(entry, entries = loggedHistoryEntries()) {
+  function renderImpactDetail(entry) {
     if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain possible later energy impact.</p>`;
-    const tone = impactToneForEntry(entry);
+    const fuelDebtMinutes = Math.max(0, Math.round(Number(entry.fuelDebtMinutes || 0)));
+    const lowEnergyAfterLongGap = lowEnergyAfterLongGapForEntry(entry);
+    const highestRiskWindow = hasLongGapSignal(entry) || Number(entry.crashLogCount || 0)
+      ? impactWindowLabel(entry)
+      : "Not clear yet";
+    const protectedDay = isProtectedImpactDay(entry);
     return `
       <section class="beta-impact-simple-grid" aria-label="Impact insights">
         ${renderImpactCard({
-          title: "Fuel Debt Summary",
-          text: fuelDebtTodayCopy(entry),
-          meta: "Time beyond your target fuel window",
+          title: "Longest Fuel Gap",
+          text: longestFuelGapImpactCopy(entry),
+          meta: entry.longestGap || durationText(entry.longestGapMinutes || 0),
           icon: "clock",
-          tone,
+          tone: impactSignalTone(entry, "gap")
+        })}
+        ${renderImpactCard({
+          title: "Fuel Debt",
+          text: fuelDebtTodayCopy(entry),
+          meta: fuelDebtDurationText(fuelDebtMinutes),
+          icon: "gap",
+          tone: impactSignalTone(entry, "debt"),
           children: renderImpactDebtVisual(entry)
         })}
         ${renderImpactCard({
-          title: "Crash Risk Pattern",
-          text: impactPatternCopy(entry),
-          meta: "Where long gaps are showing up",
+          title: "Low Energy After Long Gaps",
+          text: lowEnergyAfterLongGapImpactCopy(entry),
+          meta: `${lowEnergyAfterLongGap} event${lowEnergyAfterLongGap === 1 ? "" : "s"}`,
+          icon: "energy",
+          tone: impactSignalTone(entry, "energy")
+        })}
+        ${renderImpactCard({
+          title: "Highest-Risk Window",
+          text: highestRiskWindowImpactCopy(entry),
+          meta: highestRiskWindow,
           icon: "route",
-          tone
+          tone: impactSignalTone(entry, "window")
         })}
         ${renderImpactCard({
-          title: "Recovery Cost",
-          text: recoveryCostCopy(entry),
-          meta: "Possible later energy impact",
-          icon: "recovery",
-          tone
-        })}
-        ${renderImpactCard({
-          title: "Best Next Action",
-          text: bestNextImpactAction(entry),
-          meta: "One practical step",
-          icon: "check",
-          tone: "action"
-        })}
-        ${renderImpactCard({
-          title: "Weekly Impact",
-          text: weeklyImpactCopy(entries),
-          meta: "The pattern across recent days",
+          title: "Protected Day",
+          text: protectedDayImpactCopy(entry),
+          meta: protectedDay ? "Protected" : "Needs support",
           icon: "shield",
-          tone: "stable"
+          tone: impactSignalTone(entry, "protected")
         })}
       </section>
     `;
@@ -2316,19 +2334,6 @@
       extraSupportWindows: sumMetric(entry => Number(entry.fuelDebtMinutes || 0) >= 60 ? 1 : 0),
       days: entries.length
     };
-  }
-
-  function trendDayTypeHotspot(entries) {
-    const groups = {};
-    entries.forEach(entry => {
-      const key = entry.dayType || "unset";
-      const label = entry.dayType ? entry.dayTypeLabel || dayTypeLabel(entry.dayType) : "Day type not set";
-      if (!groups[key]) groups[key] = { label, count: 0, debt: 0, risk: 0 };
-      groups[key].count += 1;
-      groups[key].debt += Number(entry.fuelDebtMinutes || 0);
-      groups[key].risk += Number(entry.highRiskGapCount || 0) + Number(entry.crashZoneGapCount || 0);
-    });
-    return Object.values(groups).sort((a, b) => (b.debt + b.risk * 30) - (a.debt + a.risk * 30))[0] || null;
   }
 
   function renderTrendMiniBars(current, previous, { currentLabel = "This week", previousLabel = "Last week", unit = "" } = {}) {
@@ -2453,13 +2458,13 @@
     const currentWindow = repeatedDangerWindow(current);
     const previousWindow = repeatedDangerWindow(previous);
     const windowCopy = !currentWindow
-      ? "No repeated long-gap window is clear this week."
+      ? "No repeated highest-risk window is clear this week."
       : currentWindow.count < 2
         ? `This week points most toward ${currentWindow.label}, but it has not repeated enough to call a pattern yet.`
         : previousWindow?.label === currentWindow.label
-          ? `The same window is still repeating this week: ${currentWindow.label}.`
+          ? `The same highest-risk window is still repeating this week: ${currentWindow.label}.`
           : previousWindow
-            ? `The repeated window moved from ${previousWindow.label} last week to ${currentWindow.label} this week.`
+            ? `The highest-risk window moved from ${previousWindow.label} last week to ${currentWindow.label} this week.`
             : `${currentWindow.label} repeated ${currentWindow.count} time${currentWindow.count === 1 ? "" : "s"} this week.`;
     return `
       <section class="beta-impact-trend-grid" aria-label="Impact signals over time">
@@ -2493,7 +2498,7 @@
           previous: previousLowEnergy
         })}
         ${renderImpactTrendCard({
-          title: "Repeated Danger Window",
+          title: "Highest-Risk Window Trend",
           value: currentWindow ? currentWindow.label : "Not repeating yet",
           copy: windowCopy,
           icon: "route",
@@ -2809,8 +2814,7 @@
       return `<option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${labels.length ? ` - ${safeText(labels.join(" / "))}` : ""}</option>`;
     }).join("");
     select.value = selectedHistoryKey;
-    const impactEntries = loggedHistoryEntries().filter(entry => Number(entry.fuelDebtMinutes || 0) > 0 || Number(entry.highRiskGapCount || 0) > 0 || Number(entry.crashLogCount || 0) > 0 || Number(entry.fuelLogCount || 0) > 0);
-    detail.innerHTML = renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey), impactEntries);
+    detail.innerHTML = renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey));
   }
 
   function drawBetaGraph(now = new Date()) {
