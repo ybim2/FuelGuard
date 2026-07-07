@@ -30,7 +30,6 @@ document.addEventListener("click", event => {
 
   const fuelActions = {
     "log-fuel": recordFuelled,
-    "log-crash": typeof window.recordCrashEvent === "function" ? window.recordCrashEvent : undefined,
     "end-day": endFuelDayAndStartFasting,
     "continue-tracking": continueFuelDayTracking
   };
