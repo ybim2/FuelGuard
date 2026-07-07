@@ -2445,10 +2445,6 @@
             <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
             <div><span>Time Beyond Fuel Window</span><strong>${safeText(fuelDebtDurationText(currentMetrics.fuelDebtMinutes))}</strong><small>${safeText(debtTrend.copy)}</small></div>
           </article>
-          <article class="beta-trend-pattern-card ${currentMetrics.manualCrashEvents ? "danger" : "protected"}">
-            <span class="beta-icon-disc">${dailyIcon("energy")}</span>
-            <div><span>Low-Energy Events Pattern</span><strong>${currentMetrics.manualCrashEvents}</strong><small>${safeText(currentMetrics.manualCrashEvents ? "Review these alongside long gaps." : "No marked low-energy events this week.")}</small></div>
-          </article>
         </div>
       </section>
     `;
@@ -2476,33 +2472,6 @@
             <small>${safeText(trendFilterCopy())}</small>
           </div>
         </article>
-
-        <div class="beta-weekly-risk-cards">
-          <article class="beta-risk-summary-card elevated">
-            <span>${dailyIcon("warning")}</span>
-            <div><small>Medium Risk Nudges</small><strong>${currentMetrics.mediumRiskGaps}</strong><em>Early fuel/sip support signals this week</em></div>
-          </article>
-          <article class="beta-risk-summary-card danger">
-            <span>${dailyIcon("gap")}</span>
-            <div><small>High Support Windows</small><strong>${currentMetrics.crashZoneGaps}</strong><em>Long-gap support signals to notice</em></div>
-          </article>
-        </div>
-
-        <section class="beta-indicator-map">
-          <article class="beta-indicator-group leading">
-            <div class="beta-indicator-title"><span>${dailyIcon("fuel")}</span><div><strong>Notice these</strong><small>Leading indicators</small></div></div>
-            <div class="beta-indicator-row"><span>Fuel logs</span><b>${currentMetrics.fuelLogs}</b></div>
-            <div class="beta-indicator-row"><span>Hydration logs</span><b>${currentMetrics.hydrationLogs}</b></div>
-            <p>Your fuel and hydration logs help show the rhythm that supports your day.</p>
-          </article>
-          <article class="beta-indicator-group lagging">
-            <div class="beta-indicator-title"><span>${dailyIcon("warning")}</span><div><strong>Watch these</strong><small>Later support signals</small></div></div>
-            <div class="beta-indicator-row"><span>Medium-risk gaps</span><b>${currentMetrics.mediumRiskGaps}</b></div>
-            <div class="beta-indicator-row"><span>High-support gaps</span><b>${currentMetrics.highRiskGaps}</b></div>
-            <div class="beta-indicator-row"><span>High Support Window gaps</span><b>${currentMetrics.crashZoneGaps}</b></div>
-            <div class="beta-indicator-row"><span>Extra support windows</span><b>${currentMetrics.extraSupportWindows}</b></div>
-          </article>
-        </section>
 
         <article class="beta-recovery-protection-card ${safeText(recoveryTone)}">
           <div>
