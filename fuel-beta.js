@@ -2339,6 +2339,86 @@
     `;
   }
 
+  function trendChartEntries(current, previous, metric) {
+    return [...previous, ...current]
+      .filter(entry => entry?.date)
+      .sort((a, b) => dateFromKey(a.date) - dateFromKey(b.date))
+      .map(entry => ({
+        date: entry.date,
+        label: dateFromKey(entry.date).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }),
+        value: Math.max(0, Number(metric(entry) || 0))
+      }));
+  }
+
+  function trendAxisLabels(points) {
+    if (points.length <= 4) return points.map(point => point.label);
+    return points.map((point, index) => {
+      if (index === 0 || index === points.length - 1 || index === Math.floor(points.length / 2)) return point.label;
+      return "";
+    });
+  }
+
+  function renderTrendLineChart(points, { unit = "minutes", ariaLabel = "Trend line chart" } = {}) {
+    if (!points.length) return `<div class="beta-trend-chart-empty">Needs logged days to draw the chart.</div>`;
+    const width = 320;
+    const height = 148;
+    const padding = { top: 14, right: 18, bottom: 34, left: 38 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const max = Math.max(...points.map(point => point.value), 1);
+    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
+    const polyline = points.map((point, index) => `${xFor(index).toFixed(1)},${yFor(point.value).toFixed(1)}`).join(" ");
+    const area = `${padding.left},${padding.top + plotHeight} ${polyline} ${padding.left + plotWidth},${padding.top + plotHeight}`;
+    const labels = trendAxisLabels(points);
+    const maxLabel = unit === "minutes" ? compactDuration(max) : String(Math.round(max));
+    return `
+      <div class="beta-trend-chart beta-trend-line-chart" role="img" aria-label="${safeText(ariaLabel)}">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          <text class="y-label" x="6" y="${padding.top + 8}">${safeText(maxLabel)}</text>
+          <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
+          <polygon class="line-fill" points="${area}"></polygon>
+          <polyline class="line" points="${polyline}"></polyline>
+          ${points.map((point, index) => `<circle class="point" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.value).toFixed(1)}" r="3"></circle>`).join("")}
+          ${labels.map((label, index) => label ? `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 8}">${safeText(label)}</text>` : "").join("")}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderTrendBarChart(points, { unit = "minutes", ariaLabel = "Trend bar chart" } = {}) {
+    if (!points.length) return `<div class="beta-trend-chart-empty">Needs logged days to draw the chart.</div>`;
+    const width = 320;
+    const height = 148;
+    const padding = { top: 14, right: 18, bottom: 34, left: 38 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const max = Math.max(...points.map(point => point.value), 1);
+    const slot = plotWidth / points.length;
+    const barWidth = Math.min(28, Math.max(10, slot * 0.58));
+    const xFor = index => padding.left + slot * index + (slot - barWidth) / 2;
+    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
+    const labels = trendAxisLabels(points);
+    const maxLabel = unit === "minutes" ? compactDuration(max) : String(Math.round(max));
+    return `
+      <div class="beta-trend-chart beta-trend-bar-chart" role="img" aria-label="${safeText(ariaLabel)}">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          <text class="y-label" x="6" y="${padding.top + 8}">${safeText(maxLabel)}</text>
+          <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
+          ${points.map((point, index) => {
+            const barHeight = Math.max(2, padding.top + plotHeight - yFor(point.value));
+            return `<rect class="bar" x="${xFor(index).toFixed(1)}" y="${(padding.top + plotHeight - barHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="4"></rect>`;
+          }).join("")}
+          ${labels.map((label, index) => label ? `<text class="x-label" x="${(xFor(index) + barWidth / 2).toFixed(1)}" y="${height - 8}">${safeText(label)}</text>` : "").join("")}
+        </svg>
+      </div>
+    `;
+  }
+
   function maxLongestFuelGap(entries) {
     const values = entries.map(entry => Number(entry.longestGapMinutes || 0)).filter(value => Number.isFinite(value) && value > 0);
     return values.length ? Math.max(...values) : null;
@@ -2418,13 +2498,14 @@
     return String(Math.round(value));
   }
 
-  function renderImpactTrendCard({ title, value, copy, icon = "route", tone = "neutral", current = null, previous = null, unit = "count" }) {
+  function renderImpactTrendCard({ title, value, copy, icon = "route", tone = "neutral", current = null, previous = null, unit = "count", visual = "" }) {
     return `
       <article class="beta-trend-pattern-card beta-impact-trend-card ${safeText(tone)}">
         <div class="beta-metric-card-head">
           <span class="beta-icon-disc ${tone === "elevated" ? "amber" : tone === "protected" ? "shield" : ""}">${dailyIcon(icon)}</span>
           <div><span>${safeText(title)}</span><strong>${safeText(value)}</strong></div>
         </div>
+        ${visual}
         ${Number.isFinite(current) || Number.isFinite(previous) ? renderTrendMiniBars(current, previous, { unit }) : ""}
         <small>${safeText(copy)}</small>
       </article>
@@ -2436,6 +2517,8 @@
     const previousMetrics = trendMetrics(previous);
     const currentLongest = maxLongestFuelGap(current);
     const previousLongest = maxLongestFuelGap(previous);
+    const longestGapPoints = trendChartEntries(current, previous, entry => Number(entry.longestGapMinutes || 0));
+    const fuelDebtPoints = trendChartEntries(current, previous, entry => Number(entry.fuelDebtMinutes || 0));
     const currentWindow = repeatedDangerWindow(current);
     const previousWindow = repeatedDangerWindow(previous);
     const windowCopy = !currentWindow
@@ -2464,7 +2547,8 @@
           tone: trendTone(currentLongest, previousLongest),
           current: currentLongest,
           previous: previousLongest,
-          unit: "minutes"
+          unit: "minutes",
+          visual: renderTrendBarChart(longestGapPoints, { ariaLabel: "Longest Fuel Gap daily bar chart" })
         })}
         ${renderImpactTrendCard({
           title: "Fuel Debt Trend",
@@ -2474,7 +2558,8 @@
           tone: trendTone(currentMetrics.fuelDebtMinutes, previousMetrics.fuelDebtMinutes),
           current: currentMetrics.fuelDebtMinutes,
           previous: previousMetrics.fuelDebtMinutes,
-          unit: "minutes"
+          unit: "minutes",
+          visual: renderTrendLineChart(fuelDebtPoints, { ariaLabel: "Fuel Debt line chart over time" })
         })}
         <p class="muted beta-trend-filter-note">${safeText(trendFilterCopy())}</p>
       </section>
