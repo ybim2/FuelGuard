@@ -2339,81 +2339,142 @@
     `;
   }
 
-  function trendChartEntries(current, previous, metric) {
-    return [...previous, ...current]
-      .filter(entry => entry?.date)
-      .sort((a, b) => dateFromKey(a.date) - dateFromKey(b.date))
-      .map(entry => ({
-        date: entry.date,
-        label: dateFromKey(entry.date).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }),
-        value: Math.max(0, Number(metric(entry) || 0))
-      }));
+  function entryMetricValue(entry, metric) {
+    if (!entry) return null;
+    const value = Number(metric(entry));
+    return Number.isFinite(value) ? Math.max(0, value) : null;
   }
 
-  function trendAxisLabels(points) {
-    if (points.length <= 4) return points.map(point => point.label);
-    return points.map((point, index) => {
-      if (index === 0 || index === points.length - 1 || index === Math.floor(points.length / 2)) return point.label;
-      return "";
+  function trendChartWeekStart(current) {
+    const dated = current.filter(entry => entry?.date).sort((a, b) => dateFromKey(a.date) - dateFromKey(b.date));
+    return startOfCalendarWeek(dated.length ? dateFromKey(dated[0].date) : new Date());
+  }
+
+  function weeklyTrendChartPoints(current, previous, metric) {
+    const currentStart = trendChartWeekStart(current);
+    const previousStart = addDays(currentStart, -7);
+    const currentByDate = Object.fromEntries(current.filter(entry => entry?.date).map(entry => [entry.date, entry]));
+    const previousByDate = Object.fromEntries(previous.filter(entry => entry?.date).map(entry => [entry.date, entry]));
+    return Array.from({ length: 7 }, (_, index) => {
+      const currentDate = addDays(currentStart, index);
+      const previousDate = addDays(previousStart, index);
+      const currentKey = dateKey(currentDate);
+      const previousKey = dateKey(previousDate);
+      return {
+        label: currentDate.toLocaleDateString(undefined, { weekday: "short", day: "numeric" }),
+        shortLabel: currentDate.toLocaleDateString(undefined, { weekday: "short" }),
+        current: entryMetricValue(currentByDate[currentKey], metric),
+        previous: entryMetricValue(previousByDate[previousKey], metric)
+      };
     });
   }
 
-  function renderTrendLineChart(points, { unit = "minutes", ariaLabel = "Trend line chart" } = {}) {
-    if (!points.length) return `<div class="beta-trend-chart-empty">Needs logged days to draw the chart.</div>`;
+  function hasTrendChartData(points) {
+    return points.some(point => Number.isFinite(point.current) || Number.isFinite(point.previous));
+  }
+
+  function trendChartMax(points) {
+    const values = points
+      .flatMap(point => [point.current, point.previous])
+      .filter(value => Number.isFinite(value));
+    return Math.max(...values, 1);
+  }
+
+  function renderTrendLegend() {
+    return `
+      <div class="beta-trend-chart-legend" aria-hidden="true">
+        <span><i class="current"></i>This week</span>
+        <span><i class="previous"></i>Last week</span>
+      </div>
+    `;
+  }
+
+  function renderTrendAxisCopy(xLabel, yLabel) {
+    return `<div class="beta-trend-axis-copy">Y: ${safeText(yLabel)} · X: ${safeText(xLabel)}</div>`;
+  }
+
+  function renderTrendLinePath(points, valueKey, xFor, yFor) {
+    const segments = [];
+    let currentSegment = [];
+    points.forEach((point, index) => {
+      const value = point[valueKey];
+      if (Number.isFinite(value)) {
+        currentSegment.push(`${xFor(index).toFixed(1)},${yFor(value).toFixed(1)}`);
+      } else if (currentSegment.length) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+    });
+    if (currentSegment.length) segments.push(currentSegment);
+    return segments.map(segment => `<polyline class="line ${safeText(valueKey)}" points="${segment.join(" ")}"></polyline>`).join("");
+  }
+
+  function renderTrendLineChart(points, { unit = "minutes", ariaLabel = "Trend line chart", xLabel = "Day/date", yLabel = "Fuel Debt" } = {}) {
+    if (!hasTrendChartData(points)) return `<div class="beta-trend-chart-empty">Needs logged days to draw the chart.</div>`;
     const width = 320;
-    const height = 148;
-    const padding = { top: 14, right: 18, bottom: 34, left: 38 };
+    const height = 172;
+    const padding = { top: 18, right: 14, bottom: 48, left: 42 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const max = Math.max(...points.map(point => point.value), 1);
+    const max = trendChartMax(points);
     const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
     const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
-    const polyline = points.map((point, index) => `${xFor(index).toFixed(1)},${yFor(point.value).toFixed(1)}`).join(" ");
-    const area = `${padding.left},${padding.top + plotHeight} ${polyline} ${padding.left + plotWidth},${padding.top + plotHeight}`;
-    const labels = trendAxisLabels(points);
     const maxLabel = unit === "minutes" ? compactDuration(max) : String(Math.round(max));
     return `
       <div class="beta-trend-chart beta-trend-line-chart" role="img" aria-label="${safeText(ariaLabel)}">
+        ${renderTrendLegend()}
+        ${renderTrendAxisCopy(xLabel, yLabel)}
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
           <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
           <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
           <text class="y-label" x="6" y="${padding.top + 8}">${safeText(maxLabel)}</text>
           <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
-          <polygon class="line-fill" points="${area}"></polygon>
-          <polyline class="line" points="${polyline}"></polyline>
-          ${points.map((point, index) => `<circle class="point" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.value).toFixed(1)}" r="3"></circle>`).join("")}
-          ${labels.map((label, index) => label ? `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 8}">${safeText(label)}</text>` : "").join("")}
+          ${renderTrendLinePath(points, "previous", xFor, yFor)}
+          ${renderTrendLinePath(points, "current", xFor, yFor)}
+          ${points.map((point, index) => Number.isFinite(point.previous) ? `<circle class="point previous" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.previous).toFixed(1)}" r="2.6"></circle>` : "").join("")}
+          ${points.map((point, index) => Number.isFinite(point.current) ? `<circle class="point current" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.current).toFixed(1)}" r="3"></circle>` : "").join("")}
+          ${points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 23}">${safeText(point.label)}</text>`).join("")}
         </svg>
       </div>
     `;
   }
 
-  function renderTrendBarChart(points, { unit = "minutes", ariaLabel = "Trend bar chart" } = {}) {
-    if (!points.length) return `<div class="beta-trend-chart-empty">Needs logged days to draw the chart.</div>`;
+  function renderTrendBarChart(points, { unit = "minutes", ariaLabel = "Trend bar chart", xLabel = "Day/date", yLabel = "Longest gap" } = {}) {
+    if (!hasTrendChartData(points)) return `<div class="beta-trend-chart-empty">Needs logged days to draw the chart.</div>`;
     const width = 320;
-    const height = 148;
-    const padding = { top: 14, right: 18, bottom: 34, left: 38 };
+    const height = 172;
+    const padding = { top: 18, right: 14, bottom: 48, left: 42 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const max = Math.max(...points.map(point => point.value), 1);
+    const max = trendChartMax(points);
     const slot = plotWidth / points.length;
-    const barWidth = Math.min(28, Math.max(10, slot * 0.58));
-    const xFor = index => padding.left + slot * index + (slot - barWidth) / 2;
+    const barWidth = Math.min(11, Math.max(6, slot * 0.25));
+    const groupCenter = index => padding.left + slot * index + slot / 2;
     const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
-    const labels = trendAxisLabels(points);
     const maxLabel = unit === "minutes" ? compactDuration(max) : String(Math.round(max));
     return `
       <div class="beta-trend-chart beta-trend-bar-chart" role="img" aria-label="${safeText(ariaLabel)}">
+        ${renderTrendLegend()}
+        ${renderTrendAxisCopy(xLabel, yLabel)}
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
           <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
           <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
           <text class="y-label" x="6" y="${padding.top + 8}">${safeText(maxLabel)}</text>
           <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
           ${points.map((point, index) => {
-            const barHeight = Math.max(2, padding.top + plotHeight - yFor(point.value));
-            return `<rect class="bar" x="${xFor(index).toFixed(1)}" y="${(padding.top + plotHeight - barHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="4"></rect>`;
+            const center = groupCenter(index);
+            const bars = [];
+            if (Number.isFinite(point.previous)) {
+              const previousHeight = Math.max(2, padding.top + plotHeight - yFor(point.previous));
+              bars.push(`<rect class="bar previous" x="${(center - barWidth - 1.5).toFixed(1)}" y="${(padding.top + plotHeight - previousHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${previousHeight.toFixed(1)}" rx="3"></rect>`);
+            }
+            if (Number.isFinite(point.current)) {
+              const currentHeight = Math.max(2, padding.top + plotHeight - yFor(point.current));
+              bars.push(`<rect class="bar current" x="${(center + 1.5).toFixed(1)}" y="${(padding.top + plotHeight - currentHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${currentHeight.toFixed(1)}" rx="3"></rect>`);
+            }
+            return bars.join("");
           }).join("")}
-          ${labels.map((label, index) => label ? `<text class="x-label" x="${(xFor(index) + barWidth / 2).toFixed(1)}" y="${height - 8}">${safeText(label)}</text>` : "").join("")}
+          ${points.map((point, index) => `<text class="x-label" x="${groupCenter(index).toFixed(1)}" y="${height - 23}">${safeText(point.label)}</text>`).join("")}
         </svg>
       </div>
     `;
@@ -2517,8 +2578,8 @@
     const previousMetrics = trendMetrics(previous);
     const currentLongest = maxLongestFuelGap(current);
     const previousLongest = maxLongestFuelGap(previous);
-    const longestGapPoints = trendChartEntries(current, previous, entry => Number(entry.longestGapMinutes || 0));
-    const fuelDebtPoints = trendChartEntries(current, previous, entry => Number(entry.fuelDebtMinutes || 0));
+    const longestGapPoints = weeklyTrendChartPoints(current, previous, entry => Number(entry.longestGapMinutes || 0));
+    const fuelDebtPoints = weeklyTrendChartPoints(current, previous, entry => Number(entry.fuelDebtMinutes || 0));
     const currentWindow = repeatedDangerWindow(current);
     const previousWindow = repeatedDangerWindow(previous);
     const windowCopy = !currentWindow
@@ -2548,7 +2609,10 @@
           current: currentLongest,
           previous: previousLongest,
           unit: "minutes",
-          visual: renderTrendBarChart(longestGapPoints, { ariaLabel: "Longest Fuel Gap daily bar chart" })
+          visual: renderTrendBarChart(longestGapPoints, {
+            ariaLabel: "Longest Fuel Gap this week versus last week bar chart",
+            yLabel: "Longest gap"
+          })
         })}
         ${renderImpactTrendCard({
           title: "Fuel Debt Trend",
@@ -2559,7 +2623,10 @@
           current: currentMetrics.fuelDebtMinutes,
           previous: previousMetrics.fuelDebtMinutes,
           unit: "minutes",
-          visual: renderTrendLineChart(fuelDebtPoints, { ariaLabel: "Fuel Debt line chart over time" })
+          visual: renderTrendLineChart(fuelDebtPoints, {
+            ariaLabel: "Fuel Debt this week versus last week line chart",
+            yLabel: "Fuel Debt"
+          })
         })}
         <p class="muted beta-trend-filter-note">${safeText(trendFilterCopy())}</p>
       </section>

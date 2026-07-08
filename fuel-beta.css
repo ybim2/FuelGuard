@@ -1778,12 +1778,50 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   background:
     linear-gradient(180deg, rgba(248, 252, 247, .98), rgba(255, 255, 255, .98));
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.beta-trend-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 850;
+}
+
+.beta-trend-chart-legend span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.beta-trend-chart-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2f8eb8;
+}
+
+.beta-trend-chart-legend i.previous {
+  background: #9fb7ff;
+}
+
+.beta-trend-axis-copy {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 850;
+  line-height: 1.2;
 }
 
 .beta-trend-chart svg {
   display: block;
   width: 100%;
-  height: 148px;
+  height: 172px;
   overflow: visible;
 }
 
@@ -1796,7 +1834,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 .beta-trend-chart .x-label,
 .beta-trend-chart .y-label {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 850;
 }
 
@@ -1813,6 +1851,11 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   vector-effect: non-scaling-stroke;
 }
 
+.beta-trend-chart .line.previous {
+  stroke: #9fb7ff;
+  stroke-dasharray: 5 4;
+}
+
 .beta-trend-chart .line-fill {
   fill: rgba(47, 142, 184, .12);
 }
@@ -1824,8 +1867,16 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   vector-effect: non-scaling-stroke;
 }
 
+.beta-trend-chart .point.previous {
+  stroke: #9fb7ff;
+}
+
 .beta-trend-chart .bar {
-  fill: #f0a33a;
+  fill: #2f8eb8;
+}
+
+.beta-trend-chart .bar.previous {
+  fill: #9fb7ff;
 }
 
 .beta-trend-chart-empty {
