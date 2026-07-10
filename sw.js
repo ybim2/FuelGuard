@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v55-weekly-trend-compare";
-const BUILD_VERSION = "2026-07-08T21:53:36Z";
+const APP_VERSION = "mobile-pwa-v56-logistics-system";
+const BUILD_VERSION = "2026-07-10T22:26:42Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v55-weekly-trend-compare-20260708T215336Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v56-logistics-system-20260710T222642Z";
 const APP_SHELL = [
   "./",
   "./index.html",

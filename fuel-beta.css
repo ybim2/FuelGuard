@@ -3108,6 +3108,98 @@ body.beta-mvp .beta-trend-comparison-card.building {
     #ffffff;
 }
 
+body.beta-mvp .beta-logistics-panel,
+body.beta-mvp .beta-missed-log-panel {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(35,55,42,.06);
+  box-sizing: border-box;
+}
+
+body.beta-mvp .beta-logistics-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+body.beta-mvp .beta-food-runway-cards {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+body.beta-mvp .beta-runway-mini-card,
+body.beta-mvp .beta-logistics-item {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(35,55,42,.06);
+  box-sizing: border-box;
+}
+
+body.beta-mvp .beta-runway-mini-card h3,
+body.beta-mvp .beta-runway-mini-card p {
+  margin: 0;
+}
+
+body.beta-mvp .beta-runway-mini-card strong {
+  font-size: 1.05rem;
+}
+
+body.beta-mvp .beta-logistics-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.beta-mvp .beta-logistics-item > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+body.beta-mvp .beta-logistics-item span,
+body.beta-mvp .beta-runway-mini-card p {
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.35;
+}
+
+body.beta-mvp .beta-ride-reminder-list {
+  display: grid;
+  gap: 8px;
+}
+
+body.beta-mvp .beta-ride-reminder-list article {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: rgba(29,49,38,.06);
+}
+
+body.beta-mvp .beta-log-event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+body.beta-mvp .beta-log-event-actions button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: .78rem;
+}
+
 body.beta-mvp .beta-comparison-state {
   display: grid;
   gap: 4px;

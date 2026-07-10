@@ -35,6 +35,11 @@
     labels[option.value] = option.label;
     return labels;
   }, {});
+  const SHOP_TYPE_OPTIONS = {
+    full_shop: "Full shop",
+    top_up: "Top-up shop",
+    meal_prep: "Meal-prep batch"
+  };
   const GRAPH_MODES = new Set(["fuel", "hydration", "risk"]);
   const CRASH_NOTE = "fuel_guard_event:crash";
   const LEGACY_FOLLOWUP_NOTE_RE = /(?:^|[;\n]\s*)fuel_guard_long_gap_reason:[^;\n]*/g;
@@ -84,6 +89,13 @@
   let csvImportBusy = false;
   let csvImportPreview = null;
   let csvImportStatus = "";
+  let missedLogEditingId = "";
+  let missedLogStatus = "";
+  let missedLogBusy = false;
+  let runwayEditingId = "";
+  let runwayStatus = "";
+  let rideStatus = "";
+  let activeRideTimer = null;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -324,14 +336,20 @@
       logs.push({
         id,
         timestamp,
+        eventTime: timestamp,
+        logged_at: timestamp,
         label: "Fuelled",
         type: "fuel",
+        logType: "fuel",
+        entryMethod: "imported",
         source: "csv_import",
         dayType: dayTypeForKey(key),
         trainingSession: trainingSessionForKey(key),
         importEventId: String(row.event_id || "").trim(),
         importSource: String(row.source || "").trim(),
         importDeviceId: String(row.device_id || "").trim(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         syncStatus: "pending"
       });
     });
@@ -431,6 +449,10 @@
     if (!gap.dayTypes || Array.isArray(gap.dayTypes)) gap.dayTypes = {};
     if (!gap.trainingSessions || Array.isArray(gap.trainingSessions)) gap.trainingSessions = {};
     if (!gap.archive || Array.isArray(gap.archive)) gap.archive = {};
+    if (!Array.isArray(gap.ridePlans)) gap.ridePlans = [];
+    if (!Array.isArray(gap.rideTemplates)) gap.rideTemplates = [];
+    if (!gap.activeRide || typeof gap.activeRide !== "object" || Array.isArray(gap.activeRide)) gap.activeRide = null;
+    if (!Array.isArray(gap.foodRunway)) gap.foodRunway = [];
     if (!gap.thresholds || typeof gap.thresholds !== "object") gap.thresholds = { ...DEFAULT_THRESHOLDS };
     const hasCrashThreshold = Number.isFinite(Number(gap.thresholds.crashMinutes));
     if (!hasCrashThreshold && Number(gap.thresholds.greenMinutes) === 180 && Number(gap.thresholds.redMinutes) === 300) {
@@ -472,6 +494,23 @@
   function dateFromKey(key) {
     const date = new Date(`${key}T12:00:00`);
     return Number.isNaN(date.getTime()) ? new Date() : date;
+  }
+
+  function dateInputValue(date = new Date()) {
+    return dateKey(date);
+  }
+
+  function timeInputValue(date = new Date()) {
+    return [
+      String(date.getHours()).padStart(2, "0"),
+      String(date.getMinutes()).padStart(2, "0")
+    ].join(":");
+  }
+
+  function dateTimeFromInputs(dateValue, timeValue) {
+    const text = `${dateValue || ""}T${timeValue || ""}`;
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   function formatDateKey(key) {
@@ -1289,7 +1328,7 @@
       : normalizedType === "fuel_hydration"
         ? "Fuel + hydration logged"
         : "Fuelled";
-    if (includesFuel && cooldownRemainingSeconds() > 0) {
+    if (includesFuel && cooldownRemainingSeconds() > 0 && !options.bypassCooldown) {
       renderFuelGap();
       return;
     }
@@ -1301,15 +1340,23 @@
       id: localId,
       localId,
       timestamp: loggedAt.toISOString(),
+      eventTime: loggedAt.toISOString(),
+      logged_at: loggedAt.toISOString(),
       label,
       type: normalizedType,
+      logType: normalizedType,
+      entryMethod: options.entryMethod || "live",
       source: options.source || "manual",
+      plannedTime: options.plannedTime || null,
+      ridePlanId: options.ridePlanId || "",
       dayType: dayTypeForKey(key),
       trainingSession: trainingSessionForKey(key),
+      createdAt: loggedAt.toISOString(),
+      updatedAt: loggedAt.toISOString(),
       syncStatus: "pending"
     };
     betaState().logs.push(log);
-    if (includesFuel) setCooldown();
+    if (includesFuel && !options.bypassCooldown) setCooldown();
     storeArchive(key);
     state.completed.liveFuelStatus = true;
     if (typeof recordFuelMomentum === "function") {
@@ -1333,6 +1380,135 @@
 
   function recordHydration() {
     recordRhythmLog("hydration", { source: "manual" });
+  }
+
+  function logById(id) {
+    return betaState().logs.find(log => String(log.id || log.localId || log.cloudId || "") === String(id));
+  }
+
+  function logIndexById(id) {
+    return betaState().logs.findIndex(log => String(log.id || log.localId || log.cloudId || "") === String(id));
+  }
+
+  function setMissedLogDefaults(log = null) {
+    const date = logDate(log) || new Date();
+    const type = log ? logType(log) : "fuel";
+    const typeInput = document.getElementById("missedLogType");
+    const dateInput = document.getElementById("missedLogDate");
+    const timeInput = document.getElementById("missedLogTime");
+    if (typeInput) typeInput.value = type === "hydration" ? "hydration" : "fuel";
+    if (dateInput) dateInput.value = dateInputValue(date);
+    if (timeInput) timeInput.value = timeInputValue(date);
+  }
+
+  function setMissedLogPanel(open, log = null) {
+    const panel = document.getElementById("missedLogPanel");
+    const button = document.getElementById("showMissedLogButton");
+    if (panel) panel.hidden = !open;
+    if (button) button.textContent = open ? "Editing missed log" : "Add missed log";
+    missedLogEditingId = log ? String(log.id || log.localId || log.cloudId || "") : "";
+    if (open) setMissedLogDefaults(log);
+    if (!open) missedLogStatus = "";
+    renderMissedLogPanel();
+  }
+
+  function duplicateLogExists(type, timestamp, ignoreId = "") {
+    const target = new Date(timestamp).getTime();
+    if (!Number.isFinite(target)) return false;
+    return betaState().logs.some(log => {
+      const id = String(log.id || log.localId || log.cloudId || "");
+      if (ignoreId && id === String(ignoreId)) return false;
+      const logTime = logDate(log);
+      return logType(log) === type && logTime && Math.abs(logTime.getTime() - target) < 1000;
+    });
+  }
+
+  function refreshLogDatesAfterChange(oldDate, newDate) {
+    if (oldDate) storeArchive(dateKey(oldDate));
+    if (newDate) storeArchive(dateKey(newDate));
+    if (!oldDate && !newDate) storeArchive(dateKey());
+  }
+
+  function renderMissedLogPanel() {
+    const panel = document.getElementById("missedLogPanel");
+    if (!panel || panel.hidden) return;
+    const status = document.getElementById("missedLogStatus");
+    const saveButton = document.getElementById("saveMissedLogButton");
+    if (status) status.textContent = missedLogStatus;
+    if (saveButton) {
+      saveButton.disabled = missedLogBusy;
+      saveButton.textContent = missedLogEditingId ? "Save changes" : "Save";
+    }
+  }
+
+  async function saveMissedLog() {
+    if (missedLogBusy) return;
+    const type = document.getElementById("missedLogType")?.value === "hydration" ? "hydration" : "fuel";
+    const dateValue = document.getElementById("missedLogDate")?.value || "";
+    const timeValue = document.getElementById("missedLogTime")?.value || "";
+    const eventDate = dateTimeFromInputs(dateValue, timeValue);
+    if (!eventDate) {
+      missedLogStatus = "Choose a valid date and time.";
+      renderMissedLogPanel();
+      return;
+    }
+    if (eventDate > new Date()) {
+      missedLogStatus = "Missed logs cannot be in the future.";
+      renderMissedLogPanel();
+      return;
+    }
+    if (duplicateLogExists(type, eventDate.toISOString(), missedLogEditingId)) {
+      missedLogStatus = "That log already exists.";
+      renderMissedLogPanel();
+      return;
+    }
+
+    missedLogBusy = true;
+    renderMissedLogPanel();
+    const existing = missedLogEditingId ? logById(missedLogEditingId) : null;
+    const oldDate = existing ? logDate(existing) : null;
+    const label = type === "hydration" ? "Hydration logged" : "Fuelled";
+    const key = dateKey(eventDate);
+    const log = existing || {
+      id: uid(),
+      localId: uid(),
+      createdAt: new Date().toISOString(),
+      source: "manual"
+    };
+    Object.assign(log, {
+      timestamp: eventDate.toISOString(),
+      eventTime: eventDate.toISOString(),
+      logged_at: eventDate.toISOString(),
+      label,
+      type,
+      logType: type,
+      entryMethod: existing?.entryMethod || "retrospective",
+      source: existing?.source || "manual",
+      dayType: dayTypeForKey(key),
+      trainingSession: trainingSessionForKey(key),
+      updatedAt: new Date().toISOString(),
+      syncStatus: "pending"
+    });
+    if (!existing) betaState().logs.push(log);
+    refreshLogDatesAfterChange(oldDate, eventDate);
+    state.completed.liveFuelStatus = true;
+    save();
+    renderAll();
+    await window.fuelGuardCloud?.saveLog(log);
+    missedLogBusy = false;
+    missedLogStatus = "";
+    setMissedLogPanel(false);
+  }
+
+  async function deleteRhythmLogById(id) {
+    const index = logIndexById(id);
+    if (index < 0) return;
+    if (!window.confirm("Delete this log?")) return;
+    const removed = betaState().logs.splice(index, 1)[0];
+    refreshLogDatesAfterChange(logDate(removed), null);
+    save();
+    renderAll();
+    await window.fuelGuardCloud?.deleteLog(removed);
   }
 
   function recordCrashEvent() {
@@ -1592,6 +1768,7 @@
     target.innerHTML = logs.length
       ? `<div class="beta-history-log-list beta-latest-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>`
       : `<p class="muted fuel-daily-empty">Log fuel or hydration when it happens.</p>`;
+    renderMissedLogPanel();
   }
 
   function gapZoneReached(entry) {
@@ -1952,7 +2129,9 @@
     const date = logDate(log.timestamp || log);
     const displayNote = noteOverride || displayNoteForLog(log);
     const type = logType(log);
+    const id = String(log?.id || log?.localId || log?.cloudId || "");
     const note = displayNote ? `<small>${safeText(displayNote)}</small>` : "";
+    const method = log.entryMethod && log.entryMethod !== "live" ? `<small>${safeText(log.entryMethod)}</small>` : "";
     const source = log.source && log.source !== "manual" ? `<small>${safeText(log.source)}</small>` : "";
     return `
       <article class="beta-history-log-event ${safeText(type)}">
@@ -1960,7 +2139,8 @@
         <div>
           <strong>${date ? formatClock(date) : "--"}</strong>
           <span>${safeText(log.typeLabel || logTypeLabel(log))}</span>
-          ${note || source ? `<div class="beta-history-log-meta">${note}${source}</div>` : ""}
+          ${note || method || source ? `<div class="beta-history-log-meta">${note}${method}${source}</div>` : ""}
+          ${id && type !== "crash" ? `<div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-log="${safeText(id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-log="${safeText(id)}">Delete</button></div>` : ""}
         </div>
       </article>
     `;
@@ -3184,6 +3364,369 @@
     drawRiskGraphCanvas(canvas, key, { endedAt: entry?.endedAt || "", compact: true });
   }
 
+  function readNumberField(id, fallback = null) {
+    const value = Number(document.getElementById(id)?.value || "");
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  function generateRideSchedule(plan, startedAt = null) {
+    const events = new Map();
+    const durationMinutes = Number(plan.durationMinutes || 0);
+    const addSeries = (type, first, interval) => {
+      const firstOffset = Number(first || 0);
+      const every = Number(interval || 0);
+      if (!durationMinutes || !firstOffset || !every) return;
+      for (let offset = firstOffset; offset <= durationMinutes; offset += every) {
+        const existing = events.get(offset) || { plannedOffsetMinutes: offset, reminderType: type };
+        existing.reminderType = existing.reminderType === type ? type : "both";
+        events.set(offset, existing);
+      }
+    };
+    addSeries("fuel", plan.firstFuelReminderMinutes, plan.fuelIntervalMinutes);
+    addSeries("hydration", plan.firstHydrationReminderMinutes, plan.hydrationIntervalMinutes);
+    return [...events.values()].sort((a, b) => a.plannedOffsetMinutes - b.plannedOffsetMinutes).map(event => {
+      const plannedDate = startedAt ? addMinutes(new Date(startedAt), event.plannedOffsetMinutes) : null;
+      return {
+        id: event.id || uid(),
+        ridePlanId: plan.id || "",
+        reminderType: event.reminderType,
+        plannedOffsetMinutes: event.plannedOffsetMinutes,
+        plannedTime: plannedDate ? plannedDate.toISOString() : null,
+        confirmedTime: null,
+        status: "pending",
+        delayMinutes: null
+      };
+    });
+  }
+
+  function readRidePlanFromForm() {
+    return {
+      id: document.getElementById("ridePlanName")?.dataset.editingId || uid(),
+      userId: window.fuelGuardCloud?.accountView?.().userId || "",
+      name: document.getElementById("ridePlanName")?.value?.trim() || "Ride plan",
+      durationMinutes: readNumberField("rideDurationMinutes", 120),
+      fuelIntervalMinutes: readNumberField("rideFuelInterval", null),
+      firstFuelReminderMinutes: readNumberField("rideFirstFuel", null),
+      hydrationIntervalMinutes: readNumberField("rideHydrationInterval", null),
+      firstHydrationReminderMinutes: readNumberField("rideFirstHydration", null),
+      alertType: "in_app",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function fillRideForm(plan = {}) {
+    const fields = [
+      ["ridePlanName", plan.name || ""],
+      ["rideDurationMinutes", plan.durationMinutes || 120],
+      ["rideFuelInterval", plan.fuelIntervalMinutes || 40],
+      ["rideFirstFuel", plan.firstFuelReminderMinutes || 40],
+      ["rideHydrationInterval", plan.hydrationIntervalMinutes || 15],
+      ["rideFirstHydration", plan.firstHydrationReminderMinutes || 15]
+    ];
+    fields.forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && document.activeElement !== input) input.value = value;
+    });
+    const name = document.getElementById("ridePlanName");
+    if (name) name.dataset.editingId = plan.id || "";
+  }
+
+  function reminderLabel(type) {
+    if (type === "both") return "Fuel + Hydration";
+    return type === "hydration" ? "Hydrate" : "Fuel";
+  }
+
+  function renderRideScheduleList(reminders) {
+    if (!reminders.length) return `<p class="muted">Add ride duration and reminder intervals to preview the schedule.</p>`;
+    return `<div class="beta-ride-reminder-list">${reminders.map(reminder => `<article><strong>${reminder.plannedOffsetMinutes} min</strong><span>${safeText(reminderLabel(reminder.reminderType))}</span></article>`).join("")}</div>`;
+  }
+
+  function saveRidePlan({ asTemplate = false } = {}) {
+    const plan = readRidePlanFromForm();
+    if (!plan.durationMinutes) {
+      rideStatus = "Ride duration is required.";
+      renderRidePlan();
+      return null;
+    }
+    plan.devicePayload = {
+      planId: plan.id,
+      rideDurationMinutes: plan.durationMinutes,
+      fuelIntervalMinutes: plan.fuelIntervalMinutes,
+      firstFuelReminderMinutes: plan.firstFuelReminderMinutes,
+      hydrationIntervalMinutes: plan.hydrationIntervalMinutes,
+      firstHydrationReminderMinutes: plan.firstHydrationReminderMinutes,
+      alertType: plan.alertType,
+      createdAt: plan.createdAt
+    };
+    const gap = betaState();
+    const target = asTemplate ? gap.rideTemplates : gap.ridePlans;
+    const existingIndex = target.findIndex(item => item.id === plan.id);
+    if (existingIndex >= 0) target[existingIndex] = { ...target[existingIndex], ...plan, updatedAt: new Date().toISOString() };
+    else target.unshift(plan);
+    rideStatus = asTemplate ? "Ride template saved." : "Ride plan saved.";
+    save();
+    renderRidePlan();
+    return plan;
+  }
+
+  function startRide(plan = null) {
+    const basePlan = plan || saveRidePlan() || readRidePlanFromForm();
+    const startedAt = new Date().toISOString();
+    betaState().activeRide = {
+      id: uid(),
+      planId: basePlan.id,
+      plan: basePlan,
+      startedAt,
+      status: "active",
+      reminders: generateRideSchedule(basePlan, startedAt),
+      completedAt: null
+    };
+    rideStatus = "Ride started. Keep Fuel Guard open for in-app reminders.";
+    save();
+    renderAll();
+    startActiveRideTimer();
+  }
+
+  function activeRideDueReminders() {
+    const ride = betaState().activeRide;
+    if (!ride || ride.status !== "active") return [];
+    const now = Date.now();
+    return ride.reminders.filter(reminder => reminder.status === "pending" && reminder.plannedTime && new Date(reminder.plannedTime).getTime() <= now);
+  }
+
+  function confirmRideReminder(type) {
+    const ride = betaState().activeRide;
+    if (!ride) return;
+    const now = new Date();
+    const due = ride.reminders.find(reminder => reminder.status === "pending" && (reminder.reminderType === type || reminder.reminderType === "both") && new Date(reminder.plannedTime).getTime() <= now.getTime());
+    if (!due) {
+      rideStatus = `No ${reminderLabel(type).toLowerCase()} reminder is due yet.`;
+      renderRidePlan();
+      return;
+    }
+    due.status = "completed";
+    due.confirmedTime = now.toISOString();
+    due.delayMinutes = Math.max(0, Math.round((now - new Date(due.plannedTime)) / 60000));
+    const confirmedType = due.reminderType === "both" ? "fuel_hydration" : type === "hydration" ? "hydration" : "fuel";
+    recordRhythmLog(confirmedType, {
+      source: "ride_plan",
+      entryMethod: "live",
+      plannedTime: due.plannedTime,
+      ridePlanId: ride.planId,
+      bypassCooldown: true
+    });
+    rideStatus = `${reminderLabel(type)} confirmed.`;
+    save();
+    renderAll();
+  }
+
+  function endActiveRide() {
+    const ride = betaState().activeRide;
+    if (!ride) return;
+    const now = new Date().toISOString();
+    ride.status = "completed";
+    ride.completedAt = now;
+    ride.reminders.forEach(reminder => {
+      if (reminder.status === "pending") reminder.status = "missed";
+    });
+    rideStatus = "Ride completed. Remaining reminders were marked missed.";
+    save();
+    renderAll();
+  }
+
+  function renderRidePlan() {
+    const rideActive = document.getElementById("ride")?.classList.contains("active");
+    if (!rideActive) return;
+    if (!document.getElementById("rideDurationMinutes")?.value) fillRideForm();
+    const currentPlan = readRidePlanFromForm();
+    const preview = document.getElementById("rideSchedulePreview");
+    if (preview) preview.innerHTML = renderRideScheduleList(generateRideSchedule(currentPlan));
+    const status = document.getElementById("ridePlanStatus");
+    if (status) status.textContent = rideStatus || "Fuel Guard Go device transfer: not connected yet.";
+    const saved = document.getElementById("rideSavedPlans");
+    if (saved) {
+      const plans = betaState().ridePlans || [];
+      saved.innerHTML = plans.length
+        ? plans.map(plan => `<article class="beta-logistics-item"><div><strong>${safeText(plan.name)}</strong><span>${plan.durationMinutes} min · Fuel ${plan.firstFuelReminderMinutes || "--"}/${plan.fuelIntervalMinutes || "--"} · Hydration ${plan.firstHydrationReminderMinutes || "--"}/${plan.hydrationIntervalMinutes || "--"}</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-ride="${safeText(plan.id)}">Edit</button><button class="secondary" type="button" data-start-ride="${safeText(plan.id)}">Start</button><button class="secondary danger-secondary" type="button" data-delete-ride="${safeText(plan.id)}">Delete</button></div></article>`).join("")
+        : `<p class="muted">No saved ride plans yet.</p>`;
+    }
+    const active = document.getElementById("activeRidePanel");
+    if (active) active.innerHTML = renderActiveRide();
+  }
+
+  function renderActiveRide() {
+    const ride = betaState().activeRide;
+    if (!ride) return `<p class="muted">No active ride.</p>`;
+    const started = new Date(ride.startedAt);
+    const elapsed = Math.max(0, Math.round((Date.now() - started.getTime()) / 60000));
+    const pending = ride.reminders.filter(reminder => reminder.status === "pending");
+    const nextFuel = pending.find(reminder => reminder.reminderType === "fuel" || reminder.reminderType === "both");
+    const nextHydration = pending.find(reminder => reminder.reminderType === "hydration" || reminder.reminderType === "both");
+    const completed = ride.reminders.filter(reminder => reminder.status === "completed").length;
+    const missed = ride.reminders.filter(reminder => reminder.status === "missed").length;
+    return `
+      <article class="beta-logistics-item">
+        <div>
+          <strong>${safeText(ride.plan?.name || "Active ride")}</strong>
+          <span>Elapsed: ${elapsed} min</span>
+          <span>Next fuel: ${nextFuel ? formatClock(new Date(nextFuel.plannedTime)) : "none"}</span>
+          <span>Next hydration: ${nextHydration ? formatClock(new Date(nextHydration.plannedTime)) : "none"}</span>
+          <span>Completed ${completed}; missed ${missed}</span>
+        </div>
+        <div class="button-row beta-settings-actions">
+          <button class="secondary" type="button" data-confirm-ride="fuel">Confirm fuel</button>
+          <button class="secondary" type="button" data-confirm-ride="hydration">Confirm hydration</button>
+          <button class="secondary danger-secondary" type="button" data-end-ride>End ride</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function startActiveRideTimer() {
+    if (activeRideTimer) return;
+    activeRideTimer = window.setInterval(() => {
+      const due = activeRideDueReminders();
+      if (due.length) rideStatus = `${due.map(reminder => reminderLabel(reminder.reminderType)).join(" + ")} reminder due. Confirm when you actually fuel or hydrate.`;
+      renderRidePlan();
+    }, 30000);
+  }
+
+  function runwayEntries() {
+    return betaState().foodRunway || [];
+  }
+
+  function shopTypeLabel(type) {
+    return SHOP_TYPE_OPTIONS[type] || "Full shop";
+  }
+
+  function daysBetweenKeys(startKey, endKey) {
+    const start = dateFromKey(startKey);
+    const end = dateFromKey(endKey);
+    return Math.round((end - start) / 86400000);
+  }
+
+  function completedRunwayEntries(type = "") {
+    return runwayEntries()
+      .filter(entry => entry.actualFinishDate && (!type || entry.shopType === type))
+      .sort((a, b) => dateFromKey(b.actualFinishDate) - dateFromKey(a.actualFinishDate));
+  }
+
+  function runwayPrediction(type = "full_shop") {
+    const completed = completedRunwayEntries(type).slice(0, 3);
+    const durations = completed.map(entry => daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)).filter(value => Number.isFinite(value) && value >= 0);
+    const average = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : null;
+    const active = runwayEntries().find(entry => entry.shopType === type && !entry.actualFinishDate);
+    const predicted = active
+      ? addDays(dateFromKey(active.shoppingDate), Math.round(average ?? daysBetweenKeys(active.shoppingDate, active.expectedFinishDate)))
+      : null;
+    const errors = completed.map(entry => Math.abs(daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate) - daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)));
+    const averageError = errors.length ? errors.reduce((sum, value) => sum + value, 0) / errors.length : null;
+    return { completed, average, active, predicted, averageError };
+  }
+
+  function runwayDifference(entry) {
+    if (!entry?.actualFinishDate) return "Not finished yet";
+    const expected = daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate);
+    const actual = daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate);
+    const diff = actual - expected;
+    if (diff === 0) return "On time";
+    return `${Math.abs(diff)} day${Math.abs(diff) === 1 ? "" : "s"} ${diff < 0 ? "earlier" : "later"}`;
+  }
+
+  function saveRunwayEntry() {
+    const shoppingDate = document.getElementById("runwayShoppingDate")?.value || dateKey();
+    const expectedFinishDate = document.getElementById("runwayExpectedFinishDate")?.value || "";
+    const actualFinishDate = document.getElementById("runwayActualFinishDate")?.value || "";
+    const shopType = document.getElementById("runwayShopType")?.value || "full_shop";
+    if (!expectedFinishDate) {
+      runwayStatus = "Expected finish date is required.";
+      renderFoodRunway();
+      return;
+    }
+    const entries = runwayEntries();
+    const existingActive = entries.find(entry => entry.shopType === shopType && !entry.actualFinishDate && entry.id !== runwayEditingId);
+    if (!actualFinishDate && existingActive) {
+      runwayStatus = `Only one current ${shopTypeLabel(shopType).toLowerCase()} can be active. Mark the current one finished first.`;
+      renderFoodRunway();
+      return;
+    }
+    const now = new Date().toISOString();
+    const existing = runwayEditingId ? entries.find(entry => entry.id === runwayEditingId) : null;
+    const entry = existing || { id: uid(), createdAt: now };
+    Object.assign(entry, {
+      userId: window.fuelGuardCloud?.accountView?.().userId || "",
+      shopType,
+      shoppingDate,
+      expectedFinishDate,
+      actualFinishDate: actualFinishDate || null,
+      updatedAt: now
+    });
+    if (!existing) entries.unshift(entry);
+    runwayEditingId = "";
+    runwayStatus = "Food Runway saved.";
+    save();
+    renderAll();
+  }
+
+  function fillRunwayForm(entry = null) {
+    const todayValue = dateKey();
+    const fields = [
+      ["runwayShoppingDate", entry?.shoppingDate || todayValue],
+      ["runwayExpectedFinishDate", entry?.expectedFinishDate || ""],
+      ["runwayActualFinishDate", entry?.actualFinishDate || ""],
+      ["runwayShopType", entry?.shopType || "full_shop"]
+    ];
+    fields.forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input) input.value = value;
+    });
+  }
+
+  function renderFoodRunwayCards() {
+    const target = document.getElementById("foodRunwayCards");
+    if (!target) return;
+    const prediction = runwayPrediction("full_shop");
+    const last = completedRunwayEntries()[0];
+    if (!runwayEntries().length) {
+      target.innerHTML = `<article class="beta-runway-mini-card"><h3>Food Runway</h3><p>No shopping data yet</p><button class="secondary" type="button" data-open-screen="runway">Add first shop</button></article>`;
+      return;
+    }
+    const predictedText = prediction.predicted ? formatDateKey(dateKey(prediction.predicted)) : "More history is needed";
+    const daysRemaining = prediction.predicted ? Math.max(0, daysBetweenKeys(dateKey(), dateKey(prediction.predicted))) : null;
+    target.innerHTML = `
+      <article class="beta-runway-mini-card"><h3>Food Runway</h3><strong>${safeText(predictedText)}</strong><p>${daysRemaining === null ? "More history is needed to improve this prediction" : `${daysRemaining} estimated day${daysRemaining === 1 ? "" : "s"} remaining`}</p><button class="secondary" type="button" data-open-screen="runway">Open Food Runway</button></article>
+      <article class="beta-runway-mini-card"><h3>Last Shop</h3><strong>${last ? shopTypeLabel(last.shopType) : "No completed shops"}</strong><p>${last ? `Expected ${daysBetweenKeys(last.shoppingDate, last.expectedFinishDate)} days; actual ${daysBetweenKeys(last.shoppingDate, last.actualFinishDate)} days. ${runwayDifference(last)}.` : "Actual finish dates improve predictions."}</p></article>
+      <article class="beta-runway-mini-card"><h3>Prediction Accuracy</h3><strong>${Number.isFinite(prediction.averageError) ? `${prediction.averageError.toFixed(1)} days` : "Building"}</strong><p>${prediction.completed.length ? `${prediction.completed.length} completed shop${prediction.completed.length === 1 ? "" : "s"} used` : "More history is needed to improve this prediction"}</p></article>
+    `;
+  }
+
+  function renderFoodRunway() {
+    const runwayActive = document.getElementById("runway")?.classList.contains("active");
+    renderFoodRunwayCards();
+    if (!runwayActive) return;
+    fillRunwayForm(runwayEditingId ? runwayEntries().find(entry => entry.id === runwayEditingId) : null);
+    const status = document.getElementById("foodRunwayStatus");
+    if (status) status.textContent = runwayStatus;
+    const current = document.getElementById("foodRunwayCurrent");
+    const active = runwayEntries().filter(entry => !entry.actualFinishDate);
+    if (current) current.innerHTML = active.length
+      ? active.map(entry => `<article class="beta-logistics-item"><div><strong>${safeText(shopTypeLabel(entry.shopType))}</strong><span>Shopped ${safeText(formatDateKey(entry.shoppingDate))}</span><span>Expected finish ${safeText(formatDateKey(entry.expectedFinishDate))}</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-finish-runway="${safeText(entry.id)}">Mark finished</button><button class="secondary" type="button" data-edit-runway="${safeText(entry.id)}">Edit</button></div></article>`).join("")
+      : `<p class="muted">No current shop is active.</p>`;
+    const insights = document.getElementById("foodRunwayInsights");
+    if (insights) {
+      const full = runwayPrediction("full_shop");
+      insights.innerHTML = `<article class="beta-runway-mini-card"><h3>Average actual shop duration</h3><strong>${Number.isFinite(full.average) ? `${full.average.toFixed(1)} days` : "Building"}</strong><p>${full.completed.length ? `${full.completed.length} completed full shop${full.completed.length === 1 ? "" : "s"} used.` : "Complete a shop to build history."}</p></article><article class="beta-runway-mini-card"><h3>Predicted next shopping date</h3><strong>${full.predicted ? formatDateKey(dateKey(full.predicted)) : "More history needed"}</strong><p>Prediction uses comparable completed entries only.</p></article>`;
+    }
+    const previous = document.getElementById("foodRunwayPrevious");
+    if (previous) {
+      const entries = runwayEntries().filter(entry => entry.actualFinishDate).sort((a, b) => dateFromKey(b.shoppingDate) - dateFromKey(a.shoppingDate));
+      previous.innerHTML = entries.length
+        ? entries.map(entry => `<article class="beta-logistics-item"><div><strong>${safeText(formatDateKey(entry.shoppingDate))}</strong><span>${safeText(shopTypeLabel(entry.shopType))}</span><span>Expected ${daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate)} days · Actual ${daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)} days · ${safeText(runwayDifference(entry))}</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-runway="${safeText(entry.id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-runway="${safeText(entry.id)}">Delete</button></div></article>`).join("")
+        : `<p class="muted">No completed shops yet.</p>`;
+    }
+  }
+
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
@@ -3191,6 +3734,8 @@
     const historyActive = document.getElementById("logs")?.classList.contains("active");
     const impactActive = document.getElementById("impact")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
+    const rideActive = document.getElementById("ride")?.classList.contains("active");
+    const runwayActive = document.getElementById("runway")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
     const badge = document.getElementById("fuelGraphLastAte");
@@ -3226,11 +3771,14 @@
     if (historyActive) renderHistory();
     if (impactActive) renderImpact();
     if (trendsActive) renderTrends();
+    if (rideActive) renderRidePlan();
+    if (runwayActive) renderFoodRunway();
+    if (historyActive && !runwayActive) renderFoodRunwayCards();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "logs", "impact", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "logs", "impact", "trends", "ride", "runway", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -3243,6 +3791,8 @@
       logs: ["Data", "Status, logs, and today's timeline."],
       impact: ["Impact", "Later energy impact and support windows."],
       trends: ["Trends", "How habits are changing over time."],
+      ride: ["Ride Plan", "Plan and run in-app fuel and hydration reminders."],
+      runway: ["Food Runway", "Track how long shops and meal prep actually last."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
     const title = document.getElementById("pageTitle");
@@ -3252,6 +3802,8 @@
     if (target === "logs") renderHistory();
     if (target === "impact") renderImpact();
     if (target === "trends") renderTrends();
+    if (target === "ride") renderRidePlan();
+    if (target === "runway") renderFoodRunway();
     if (target === "checklist") renderSettings();
   };
 
@@ -3295,6 +3847,10 @@
     gap.dayEndedAt = "";
     gap.fastingStartedAt = "";
     gap.cooldownUntil = 0;
+    gap.ridePlans = [];
+    gap.rideTemplates = [];
+    gap.activeRide = null;
+    gap.foodRunway = [];
     if (settingsStatus) settingsStatus.textContent = clearStatus;
     save();
     renderAll();
@@ -3348,6 +3904,97 @@
 
   document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestRhythmLog);
   document.getElementById("graphLogHydrationButton")?.addEventListener("click", recordHydration);
+  document.getElementById("showMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(true));
+  document.getElementById("cancelMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(false));
+  document.getElementById("saveMissedLogButton")?.addEventListener("click", saveMissedLog);
+  document.getElementById("openRidePlanButton")?.addEventListener("click", () => switchScreen("ride"));
+  document.getElementById("openFoodRunwayButton")?.addEventListener("click", () => switchScreen("runway"));
+  document.getElementById("rideSavePlanButton")?.addEventListener("click", () => saveRidePlan());
+  document.getElementById("rideTemplateButton")?.addEventListener("click", () => saveRidePlan({ asTemplate: true }));
+  document.getElementById("rideStartButton")?.addEventListener("click", () => startRide());
+  ["ridePlanName", "rideDurationMinutes", "rideFuelInterval", "rideFirstFuel", "rideHydrationInterval", "rideFirstHydration"].forEach(id => {
+    document.getElementById(id)?.addEventListener("input", renderRidePlan);
+  });
+  document.getElementById("runwaySaveEntryButton")?.addEventListener("click", saveRunwayEntry);
+  document.getElementById("runwayCancelEditButton")?.addEventListener("click", () => {
+    runwayEditingId = "";
+    runwayStatus = "";
+    fillRunwayForm();
+    renderFoodRunway();
+  });
+  document.addEventListener("click", event => {
+    const editLog = event.target.closest("[data-edit-log]");
+    if (editLog) {
+      const log = logById(editLog.dataset.editLog);
+      if (log) setMissedLogPanel(true, log);
+      return;
+    }
+    const deleteLogButton = event.target.closest("[data-delete-log]");
+    if (deleteLogButton) {
+      deleteRhythmLogById(deleteLogButton.dataset.deleteLog);
+      return;
+    }
+    const openScreen = event.target.closest("[data-open-screen]");
+    if (openScreen) {
+      switchScreen(openScreen.dataset.openScreen);
+      return;
+    }
+    const editRide = event.target.closest("[data-edit-ride]");
+    if (editRide) {
+      const plan = betaState().ridePlans.find(item => item.id === editRide.dataset.editRide);
+      if (plan) fillRideForm(plan);
+      renderRidePlan();
+      return;
+    }
+    const startRideButton = event.target.closest("[data-start-ride]");
+    if (startRideButton) {
+      const plan = betaState().ridePlans.find(item => item.id === startRideButton.dataset.startRide);
+      if (plan) startRide(plan);
+      return;
+    }
+    const deleteRide = event.target.closest("[data-delete-ride]");
+    if (deleteRide) {
+      betaState().ridePlans = betaState().ridePlans.filter(plan => plan.id !== deleteRide.dataset.deleteRide);
+      rideStatus = "Ride plan deleted.";
+      save();
+      renderRidePlan();
+      return;
+    }
+    const confirmRide = event.target.closest("[data-confirm-ride]");
+    if (confirmRide) {
+      confirmRideReminder(confirmRide.dataset.confirmRide);
+      return;
+    }
+    if (event.target.closest("[data-end-ride]")) {
+      endActiveRide();
+      return;
+    }
+    const editRunway = event.target.closest("[data-edit-runway]");
+    if (editRunway) {
+      runwayEditingId = editRunway.dataset.editRunway;
+      renderFoodRunway();
+      return;
+    }
+    const finishRunway = event.target.closest("[data-finish-runway]");
+    if (finishRunway) {
+      const entry = runwayEntries().find(item => item.id === finishRunway.dataset.finishRunway);
+      if (entry) {
+        entry.actualFinishDate = dateKey();
+        entry.updatedAt = new Date().toISOString();
+        runwayStatus = "Shop marked as finished.";
+        save();
+        renderAll();
+      }
+      return;
+    }
+    const deleteRunway = event.target.closest("[data-delete-runway]");
+    if (deleteRunway) {
+      betaState().foodRunway = runwayEntries().filter(entry => entry.id !== deleteRunway.dataset.deleteRunway);
+      runwayStatus = "Food Runway entry deleted.";
+      save();
+      renderAll();
+    }
+  });
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
     const key = dateKey();
     setDayType(key, event.target.value);
@@ -3661,6 +4308,7 @@
     }, delay);
   }
 
+  if (betaState().activeRide?.status === "active") startActiveRideTimer();
   renderAll();
   scheduleFuelGuardTick();
 })();
