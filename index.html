@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v56-logistics-system" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v56-logistics-system" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v56-logistics-system" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v57-logistics-ui-revisions" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v57-logistics-ui-revisions" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v57-logistics-ui-revisions" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -24,13 +24,12 @@
       <nav class="side-nav beta-nav">
         <button class="nav-item active" data-screen="dashboard">Fuel Rhythm</button>
         <button class="nav-item" data-screen="logs">Data</button>
-        <button class="nav-item" data-screen="impact">Impact</button>
         <button class="nav-item" data-screen="trends">Trends</button>
         <button class="nav-item" data-screen="ride">Ride Plan</button>
         <button class="nav-item" data-screen="runway">Food Runway</button>
         <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel Rhythm</strong><p>Log quickly here. Review later energy impact in Impact.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel Rhythm</strong><p>Log quickly here. Review patterns in Data, Trends, and Food Runway.</p></div>
     </aside>
 
     <main class="app">
@@ -97,26 +96,33 @@
                 <span id="fuelDailyLogDate" class="row-note"></span>
               </div>
               <div id="fuelDailyLog" class="list"></div>
-              <div class="button-row beta-settings-actions">
-                <button id="showMissedLogButton" class="secondary" type="button">Add missed log</button>
-              </div>
-              <div id="missedLogPanel" class="beta-missed-log-panel" hidden>
-                <div class="form-grid beta-settings-grid">
-                  <label>Log type<select id="missedLogType">
-                    <option value="fuel">Fuel</option>
-                    <option value="hydration">Hydration</option>
-                  </select></label>
-                  <label>Date<input id="missedLogDate" type="date"></label>
-                  <label>Time<input id="missedLogTime" type="time"></label>
-                </div>
-                <div class="button-row beta-settings-actions">
-                  <button id="saveMissedLogButton" class="primary" type="button">Save</button>
-                  <button id="cancelMissedLogButton" class="secondary" type="button">Cancel</button>
-                </div>
-                <p id="missedLogStatus" class="row-note" aria-live="polite"></p>
-              </div>
               <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
             </div>
+          </div>
+        </article>
+
+        <article class="card beta-missed-log-card">
+          <div class="section-heading-row">
+            <div>
+              <h3>Missed Log</h3>
+              <p class="muted">Add fuel or hydration after the fact so the day stays accurate.</p>
+            </div>
+            <button id="showMissedLogButton" class="secondary" type="button">Add missed log</button>
+          </div>
+          <div id="missedLogPanel" class="beta-missed-log-panel" hidden>
+            <div class="form-grid beta-settings-grid">
+              <label>Log type<select id="missedLogType">
+                <option value="fuel">Fuel</option>
+                <option value="hydration">Hydration</option>
+              </select></label>
+              <label>Date<input id="missedLogDate" type="date"></label>
+              <label>Time<input id="missedLogTime" type="time"></label>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="saveMissedLogButton" class="primary" type="button">Save</button>
+              <button id="cancelMissedLogButton" class="secondary" type="button">Cancel</button>
+            </div>
+            <p id="missedLogStatus" class="row-note" aria-live="polite"></p>
           </div>
         </article>
 
@@ -147,19 +153,8 @@
             </div>
             <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Status curve across today"></canvas>
           </div>
-          <div id="foodRunwayCards" class="beta-food-runway-cards"></div>
         </article>
 
-      </section>
-
-      <section id="impact" class="screen">
-        <article class="card beta-impact-card">
-          <label class="day-type-field beta-history-date">
-            <span>Review day</span>
-            <select id="fuelImpactArchiveDate"></select>
-          </label>
-          <div id="fuelImpactDetail" class="fuel-archive-detail beta-impact-detail"></div>
-        </article>
       </section>
 
       <section id="trends" class="screen">
@@ -263,11 +258,6 @@
               <button id="runwayCancelEditButton" class="secondary" type="button">Cancel</button>
             </div>
             <p id="foodRunwayStatus" class="row-note" aria-live="polite"></p>
-          </section>
-
-          <section class="beta-logistics-panel">
-            <h3>Insights</h3>
-            <div id="foodRunwayInsights" class="beta-food-runway-cards"></div>
           </section>
 
           <section class="beta-logistics-panel">
@@ -389,7 +379,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v56-logistics-system</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v57-logistics-ui-revisions</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -406,13 +396,17 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/><path d="M8 5v14"/></svg>
       <span>Data</span>
     </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="impact" data-mobile-tab="impact">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="M8 13h2.5l1.5-4 2 7 1.5-3H18"/></svg>
-      <span>Impact</span>
-    </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="trends" data-mobile-tab="trends">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 4-5 3 3 5-7"/></svg>
       <span>Trends</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="ride" data-mobile-tab="ride">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17a3 3 0 1 0 0 .01"/><path d="M19 17a3 3 0 1 0 0 .01"/><path d="M8 17h5l3-8h-4"/><path d="M6 7h3l4 10"/><path d="M14 7h3"/></svg>
+      <span>Ride</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="runway" data-mobile-tab="runway">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16"/><path d="M6 9l1 11h10l1-11"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/><path d="M9 14h6"/></svg>
+      <span>Runway</span>
     </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="checklist" data-mobile-tab="settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9.1 1.7 1.7 0 0 0-.9 1.6v.2h-4v-.2a1.7 1.7 0 0 0-.9-1.6 1.7 1.7 0 0 0-1.9-.1l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 6.2 15a1.7 1.7 0 0 0-1.4-1H4.6v-4h.2a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9-.1 1.7 1.7 0 0 0 .9-1.6V1.8h4V2a1.7 1.7 0 0 0 .9 1.6 1.7 1.7 0 0 0 1.9.1l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
@@ -420,16 +414,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v56-logistics-system"></script>
+  <script src="build-info.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="app-ui.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v56-logistics-system"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v56-logistics-system"></script>
+  <script src="app-state.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="app-ui.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v57-logistics-ui-revisions"></script>
 </body>
 </html>

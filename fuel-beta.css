@@ -936,7 +936,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-mvp .mobile-bottom-nav {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .beta-hidden-duplicate-risk {
@@ -1810,6 +1810,14 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   background: #9fb7ff;
 }
 
+.beta-trend-chart-legend i.expected {
+  background: #9fb7ff;
+}
+
+.beta-trend-chart-legend i.actual {
+  background: #2f8eb8;
+}
+
 .beta-trend-axis-copy {
   margin: 0 0 2px;
   color: var(--muted);
@@ -1856,6 +1864,15 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   stroke-dasharray: 5 4;
 }
 
+.beta-trend-chart .line.expected {
+  stroke: #9fb7ff;
+  stroke-dasharray: 5 4;
+}
+
+.beta-trend-chart .line.actual {
+  stroke: #2f8eb8;
+}
+
 .beta-trend-chart .line-fill {
   fill: rgba(47, 142, 184, .12);
 }
@@ -1869,6 +1886,14 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-trend-chart .point.previous {
   stroke: #9fb7ff;
+}
+
+.beta-trend-chart .point.expected {
+  stroke: #9fb7ff;
+}
+
+.beta-trend-chart .point.actual {
+  stroke: #2f8eb8;
 }
 
 .beta-trend-chart .bar {
@@ -2164,7 +2189,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   }
 
   .beta-mvp .mobile-bottom-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     box-shadow: none;
   }
 
@@ -3120,6 +3145,22 @@ body.beta-mvp .beta-missed-log-panel {
   background: #ffffff;
   box-shadow: 0 14px 34px rgba(35,55,42,.06);
   box-sizing: border-box;
+}
+
+body.beta-mvp .beta-missed-log-card {
+  width: 100%;
+  max-width: none;
+  border-color: rgba(47,142,184,.18);
+  background:
+    linear-gradient(180deg, rgba(247,251,249,.98), rgba(255,255,255,.98));
+}
+
+body.beta-mvp .beta-missed-log-card .section-heading-row {
+  align-items: start;
+}
+
+body.beta-mvp .beta-missed-log-card .muted {
+  margin: 4px 0 0;
 }
 
 body.beta-mvp .beta-logistics-panel h3 {

@@ -2813,6 +2813,80 @@
     `;
   }
 
+  function renderFoodRunwayTrendLegend() {
+    return `
+      <div class="beta-trend-chart-legend" aria-hidden="true">
+        <span><i class="expected"></i>Expected duration</span>
+        <span><i class="actual"></i>Actual duration</span>
+      </div>
+    `;
+  }
+
+  function runwayTrendPath(points, key, xFor, yFor) {
+    const coordinates = points
+      .filter(point => Number.isFinite(point[key]))
+      .map(point => `${xFor(point.index).toFixed(1)},${yFor(point[key]).toFixed(1)}`);
+    return coordinates.length ? `<polyline class="line ${safeText(key)}" points="${coordinates.join(" ")}"></polyline>` : "";
+  }
+
+  function renderFoodRunwayTrendChart(entries) {
+    const points = entries
+      .filter(entry => entry.actualFinishDate)
+      .sort((a, b) => dateFromKey(a.shoppingDate) - dateFromKey(b.shoppingDate))
+      .slice(-8)
+      .map((entry, index) => ({
+        index,
+        label: dateFromKey(entry.shoppingDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        expected: daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate),
+        actual: daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)
+      }))
+      .filter(point => Number.isFinite(point.expected) && Number.isFinite(point.actual));
+
+    if (!points.length) return `<div class="beta-trend-chart-empty">Complete a Food Runway entry to draw the chart.</div>`;
+
+    const width = 320;
+    const height = 172;
+    const padding = { top: 18, right: 14, bottom: 48, left: 42 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const max = Math.max(...points.flatMap(point => [point.expected, point.actual]), 1);
+    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
+    const maxLabel = `${Math.round(max)}d`;
+    return `
+      <div class="beta-trend-chart beta-runway-trend-chart" role="img" aria-label="Food Runway expected versus actual duration line graph">
+        ${renderFoodRunwayTrendLegend()}
+        ${renderTrendAxisCopy("Shopping date", "Duration days")}
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          <text class="y-label" x="8" y="${padding.top + 8}">${safeText(maxLabel)}</text>
+          <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
+          ${runwayTrendPath(points, "expected", xFor, yFor)}
+          ${runwayTrendPath(points, "actual", xFor, yFor)}
+          ${points.map(point => `<circle class="point expected" cx="${xFor(point.index).toFixed(1)}" cy="${yFor(point.expected).toFixed(1)}" r="2.6"></circle><circle class="point actual" cx="${xFor(point.index).toFixed(1)}" cy="${yFor(point.actual).toFixed(1)}" r="3"></circle>`).join("")}
+          ${points.map(point => `<text class="x-label" x="${xFor(point.index).toFixed(1)}" y="${height - 23}">${safeText(point.label)}</text>`).join("")}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderFoodRunwayTrendCard() {
+    const completed = completedRunwayEntries();
+    const errors = completed.map(entry => Math.abs(daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate) - daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)));
+    const averageError = errors.length ? errors.reduce((sum, value) => sum + value, 0) / errors.length : null;
+    return `
+      <article class="beta-trend-pattern-card beta-impact-trend-card beta-runway-trend-card">
+        <div class="beta-metric-card-head">
+          <span class="beta-icon-disc shield">${dailyIcon("route")}</span>
+          <div><span>Food Runway Trend</span><strong>${Number.isFinite(averageError) ? `${averageError.toFixed(1)}d average error` : "Building"}</strong></div>
+        </div>
+        ${renderFoodRunwayTrendChart(completed)}
+        <small>${completed.length ? `${completed.length} completed shop${completed.length === 1 ? "" : "s"} included. Incomplete shops are excluded from prediction accuracy.` : "Complete a shop to start tracking prediction accuracy over time."}</small>
+      </article>
+    `;
+  }
+
   function compactDuration(minutes) {
     if (!Number.isFinite(minutes)) return "Not enough data";
     const rounded = Math.max(0, Math.round(Math.abs(minutes)));
@@ -3065,12 +3139,12 @@
     const filteredEntries = allEntries.filter(entryMatchesTrendFilters);
     if (!summaryTarget) return;
     if (!filteredEntries.length) {
-      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match these filters yet.</p>`;
+      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match these filters yet.</p>${renderFoodRunwayTrendCard()}`;
       return;
     }
 
     const { current, previous } = weeklyTrendWindows(filteredEntries);
-    summaryTarget.innerHTML = renderImpactSignalTrends(current, previous);
+    summaryTarget.innerHTML = `${renderImpactSignalTrends(current, previous)}${renderFoodRunwayTrendCard()}`;
   }
 
   function renderHistory() {
@@ -3096,20 +3170,6 @@
     detail.innerHTML = renderDailyTimelineDetail(todayEntry);
     renderGraphModeControls();
     requestAnimationFrame(() => drawBetaGraph());
-  }
-
-  function renderImpact() {
-    const entries = archiveEntries();
-    const select = document.getElementById("fuelImpactArchiveDate");
-    const detail = document.getElementById("fuelImpactDetail");
-    if (!select || !detail) return;
-    if (!selectedHistoryKey || !entries.some(entry => entry.date === selectedHistoryKey)) selectedHistoryKey = entries[0]?.date || dateKey();
-    select.innerHTML = entries.map(entry => {
-      const labels = [entry.dayType ? entry.dayTypeLabel : "", entry.trainingSession ? entry.trainingSessionLabel : ""].filter(Boolean);
-      return `<option value="${safeText(entry.date)}">${safeText(entry.dateLabel)}${labels.length ? ` - ${safeText(labels.join(" / "))}` : ""}</option>`;
-    }).join("");
-    select.value = selectedHistoryKey;
-    detail.innerHTML = renderImpactDetail(entries.find(entry => entry.date === selectedHistoryKey));
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -3683,27 +3743,8 @@
     });
   }
 
-  function renderFoodRunwayCards() {
-    const target = document.getElementById("foodRunwayCards");
-    if (!target) return;
-    const prediction = runwayPrediction("full_shop");
-    const last = completedRunwayEntries()[0];
-    if (!runwayEntries().length) {
-      target.innerHTML = `<article class="beta-runway-mini-card"><h3>Food Runway</h3><p>No shopping data yet</p><button class="secondary" type="button" data-open-screen="runway">Add first shop</button></article>`;
-      return;
-    }
-    const predictedText = prediction.predicted ? formatDateKey(dateKey(prediction.predicted)) : "More history is needed";
-    const daysRemaining = prediction.predicted ? Math.max(0, daysBetweenKeys(dateKey(), dateKey(prediction.predicted))) : null;
-    target.innerHTML = `
-      <article class="beta-runway-mini-card"><h3>Food Runway</h3><strong>${safeText(predictedText)}</strong><p>${daysRemaining === null ? "More history is needed to improve this prediction" : `${daysRemaining} estimated day${daysRemaining === 1 ? "" : "s"} remaining`}</p><button class="secondary" type="button" data-open-screen="runway">Open Food Runway</button></article>
-      <article class="beta-runway-mini-card"><h3>Last Shop</h3><strong>${last ? shopTypeLabel(last.shopType) : "No completed shops"}</strong><p>${last ? `Expected ${daysBetweenKeys(last.shoppingDate, last.expectedFinishDate)} days; actual ${daysBetweenKeys(last.shoppingDate, last.actualFinishDate)} days. ${runwayDifference(last)}.` : "Actual finish dates improve predictions."}</p></article>
-      <article class="beta-runway-mini-card"><h3>Prediction Accuracy</h3><strong>${Number.isFinite(prediction.averageError) ? `${prediction.averageError.toFixed(1)} days` : "Building"}</strong><p>${prediction.completed.length ? `${prediction.completed.length} completed shop${prediction.completed.length === 1 ? "" : "s"} used` : "More history is needed to improve this prediction"}</p></article>
-    `;
-  }
-
   function renderFoodRunway() {
     const runwayActive = document.getElementById("runway")?.classList.contains("active");
-    renderFoodRunwayCards();
     if (!runwayActive) return;
     fillRunwayForm(runwayEditingId ? runwayEntries().find(entry => entry.id === runwayEditingId) : null);
     const status = document.getElementById("foodRunwayStatus");
@@ -3711,13 +3752,13 @@
     const current = document.getElementById("foodRunwayCurrent");
     const active = runwayEntries().filter(entry => !entry.actualFinishDate);
     if (current) current.innerHTML = active.length
-      ? active.map(entry => `<article class="beta-logistics-item"><div><strong>${safeText(shopTypeLabel(entry.shopType))}</strong><span>Shopped ${safeText(formatDateKey(entry.shoppingDate))}</span><span>Expected finish ${safeText(formatDateKey(entry.expectedFinishDate))}</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-finish-runway="${safeText(entry.id)}">Mark finished</button><button class="secondary" type="button" data-edit-runway="${safeText(entry.id)}">Edit</button></div></article>`).join("")
+      ? active.map(entry => {
+        const prediction = runwayPrediction(entry.shopType);
+        const predicted = prediction.predicted ? dateKey(prediction.predicted) : entry.expectedFinishDate;
+        const remaining = Math.max(0, daysBetweenKeys(dateKey(), predicted));
+        return `<article class="beta-logistics-item"><div><strong>${safeText(shopTypeLabel(entry.shopType))}</strong><span>Shopped ${safeText(formatDateKey(entry.shoppingDate))}</span><span>Expected finish ${safeText(formatDateKey(entry.expectedFinishDate))}</span><span>Predicted finish ${safeText(formatDateKey(predicted))}</span><span>${remaining} estimated day${remaining === 1 ? "" : "s"} remaining</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-finish-runway="${safeText(entry.id)}">Mark finished</button><button class="secondary" type="button" data-edit-runway="${safeText(entry.id)}">Edit</button></div></article>`;
+      }).join("")
       : `<p class="muted">No current shop is active.</p>`;
-    const insights = document.getElementById("foodRunwayInsights");
-    if (insights) {
-      const full = runwayPrediction("full_shop");
-      insights.innerHTML = `<article class="beta-runway-mini-card"><h3>Average actual shop duration</h3><strong>${Number.isFinite(full.average) ? `${full.average.toFixed(1)} days` : "Building"}</strong><p>${full.completed.length ? `${full.completed.length} completed full shop${full.completed.length === 1 ? "" : "s"} used.` : "Complete a shop to build history."}</p></article><article class="beta-runway-mini-card"><h3>Predicted next shopping date</h3><strong>${full.predicted ? formatDateKey(dateKey(full.predicted)) : "More history needed"}</strong><p>Prediction uses comparable completed entries only.</p></article>`;
-    }
     const previous = document.getElementById("foodRunwayPrevious");
     if (previous) {
       const entries = runwayEntries().filter(entry => entry.actualFinishDate).sort((a, b) => dateFromKey(b.shoppingDate) - dateFromKey(a.shoppingDate));
@@ -3732,7 +3773,6 @@
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const historyActive = document.getElementById("logs")?.classList.contains("active");
-    const impactActive = document.getElementById("impact")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const rideActive = document.getElementById("ride")?.classList.contains("active");
     const runwayActive = document.getElementById("runway")?.classList.contains("active");
@@ -3769,16 +3809,14 @@
     }
     if (settingsActive) renderSettings();
     if (historyActive) renderHistory();
-    if (impactActive) renderImpact();
     if (trendsActive) renderTrends();
     if (rideActive) renderRidePlan();
     if (runwayActive) renderFoodRunway();
-    if (historyActive && !runwayActive) renderFoodRunwayCards();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "logs", "impact", "trends", "ride", "runway", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "logs", "trends", "ride", "runway", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -3789,7 +3827,6 @@
     const titles = {
       dashboard: ["Fuel Rhythm", "What is happening today."],
       logs: ["Data", "Status, logs, and today's timeline."],
-      impact: ["Impact", "Later energy impact and support windows."],
       trends: ["Trends", "How habits are changing over time."],
       ride: ["Ride Plan", "Plan and run in-app fuel and hydration reminders."],
       runway: ["Food Runway", "Track how long shops and meal prep actually last."],
@@ -3800,7 +3837,6 @@
     if (title) title.textContent = titles[target][0];
     if (subtitle) subtitle.textContent = titles[target][1];
     if (target === "logs") renderHistory();
-    if (target === "impact") renderImpact();
     if (target === "trends") renderTrends();
     if (target === "ride") renderRidePlan();
     if (target === "runway") renderFoodRunway();
@@ -4024,18 +4060,9 @@
     if (!button) return;
     selectedHistoryKey = button.dataset.historyDay;
     renderHistory();
-    renderImpact();
   }
 
   document.getElementById("fuelHistoryArchiveDetail")?.addEventListener("click", event => {
-    const button = event.target.closest("[data-history-day]");
-    selectHistoryDay(button);
-  });
-  document.getElementById("fuelImpactArchiveDate")?.addEventListener("change", event => {
-    selectedHistoryKey = event.target.value;
-    renderImpact();
-  });
-  document.getElementById("fuelImpactDetail")?.addEventListener("click", event => {
     const button = event.target.closest("[data-history-day]");
     selectHistoryDay(button);
   });
@@ -4087,7 +4114,6 @@
   });
   window.addEventListener("fuelguard:cloud-status", () => {
     if (document.getElementById("checklist")?.classList.contains("active")) renderSettings();
-    if (document.getElementById("impact")?.classList.contains("active")) renderImpact();
   });
   document.getElementById("checkAppUpdateButton")?.addEventListener("click", async () => {
     const status = document.getElementById("appUpdateStatus");
