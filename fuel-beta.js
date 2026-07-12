@@ -2108,18 +2108,63 @@
     return { className: "fuel", label: "F" };
   }
 
+  function stackedTimelineLogs(logs, { closeMinutes = 18, laneStep = 14, maxOffset = 22 } = {}) {
+    const sorted = (Array.isArray(logs) ? logs : [])
+      .filter(log => log?.date)
+      .sort((a, b) => a.date - b.date);
+    const clusters = [];
+    sorted.forEach(log => {
+      const minute = minutesIntoDay(log.date);
+      const lastCluster = clusters[clusters.length - 1];
+      const lastLog = lastCluster?.[lastCluster.length - 1];
+      if (lastCluster && lastLog && Math.abs(minute - minutesIntoDay(lastLog.date)) <= closeMinutes) {
+        lastCluster.push(log);
+      } else {
+        clusters.push([log]);
+      }
+    });
+    return clusters.flatMap(cluster => cluster.map((log, index) => {
+      const centeredIndex = index - (cluster.length - 1) / 2;
+      const offset = clamp(centeredIndex * laneStep, -maxOffset, maxOffset);
+      return { ...log, laneOffset: offset, closeCount: cluster.length };
+    }));
+  }
+
+  function logMarkerTooltip(log) {
+    return `${formatClock(log.date)} ${logTypeLabel(log)}`;
+  }
+
+  function renderDailyFuelLogTimeline(entry) {
+    const fuelLogs = stackedTimelineLogs(entryLogsWithDates(entry).filter(isFuelLog), { closeMinutes: 20, laneStep: 14, maxOffset: 22 });
+    if (!fuelLogs.length) return `<p class="muted beta-history-empty">No fuel logs for this day yet.</p>`;
+    const markers = fuelLogs.map(log => {
+      const left = (minutesIntoDay(log.date) / 1440) * 100;
+      const tooltip = logMarkerTooltip(log);
+      return `<span class="beta-fuel-time-marker" style="left:${stylePercent(left)};--lane-y:${Number(log.laneOffset || 0).toFixed(1)}px" title="${safeText(tooltip)}" data-tooltip="${safeText(tooltip)}" tabindex="0" aria-label="${safeText(tooltip)}"></span>`;
+    }).join("");
+    const times = fuelLogs.map(log => `<span>${safeText(formatClock(log.date))}</span>`).join("");
+    return `
+      <div class="beta-fuel-log-timeline" aria-label="Fuel log times across the selected day">
+        <div class="beta-fuel-log-track">${markers}</div>
+        <div class="beta-timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+        <div class="beta-fuel-log-times" aria-label="Exact fuel log times">${times}</div>
+      </div>
+    `;
+  }
+
   function renderDailyTimeline(entry) {
-    const logs = (entry.logs || []).map(log => ({ ...log, date: logDate(log.timestamp || log) })).filter(log => log.date);
+    const logs = stackedTimelineLogs((entry.logs || []).map(log => ({ ...log, date: logDate(log.timestamp || log) })).filter(log => log.date));
     if (!logs.length) return `<p class="muted beta-history-empty">No timeline points for this day yet.</p>`;
     const points = logs.map(log => {
       const style = pointStyleForLog(log);
       const left = clamp((minutesIntoDay(log.date) / 1440) * 100, 0, 100);
-      return `<span class="beta-timeline-point ${style.className}" style="left:${left}%" title="${safeText(formatClock(log.date))} ${safeText(logTypeLabel(log))}">${safeText(style.label)}</span>`;
+      const tooltip = logMarkerTooltip(log);
+      return `<span class="beta-timeline-point ${style.className}" style="left:${stylePercent(left)};--lane-y:${Number(log.laneOffset || 0).toFixed(1)}px" title="${safeText(tooltip)}" data-tooltip="${safeText(tooltip)}" tabindex="0" aria-label="${safeText(tooltip)}">${safeText(style.label)}</span>`;
     }).join("");
     return `
       <div class="beta-daily-timeline" aria-label="Fuel, hydration and low-energy markers across the day">
         <div class="beta-timeline-track">${points}</div>
-        <div class="beta-timeline-axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
+        <div class="beta-timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
         <div class="beta-timeline-legend"><span class="fuel">Fuel</span><span class="hydration">Hydration</span><span class="crash">Low-energy marker</span></div>
       </div>
     `;
@@ -2225,7 +2270,14 @@
           <h3>Daily Timeline</h3>
           <span class="row-note">${safeText(entry.dateLabel || "Today")}</span>
         </div>
-        ${renderDailyTimeline(entry)}
+        <div class="beta-daily-timeline-group">
+          <h4>Fuel log times</h4>
+          ${renderDailyFuelLogTimeline(entry)}
+        </div>
+        <div class="beta-daily-timeline-group">
+          <h4>All daily logs</h4>
+          ${renderDailyTimeline(entry)}
+        </div>
       </section>
     `;
   }
@@ -2569,6 +2621,13 @@
     `;
   }
 
+  function trendPointTooltip(point, valueKey, unit = "minutes") {
+    const label = valueKey === "previous" ? "Last week" : "This week";
+    const value = point[valueKey];
+    const valueText = unit === "minutes" ? compactDuration(value) : String(Math.round(value));
+    return `${label} ${point.shortLabel || point.label}: ${valueText}`;
+  }
+
   function renderTrendAxisCopy(xLabel, yLabel) {
     return `<div class="beta-trend-axis-copy">Y: ${safeText(yLabel)} · X: ${safeText(xLabel)}</div>`;
   }
@@ -2611,8 +2670,8 @@
           <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
           ${renderTrendLinePath(points, "previous", xFor, yFor)}
           ${renderTrendLinePath(points, "current", xFor, yFor)}
-          ${points.map((point, index) => Number.isFinite(point.previous) ? `<circle class="point previous" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.previous).toFixed(1)}" r="2.6"></circle>` : "").join("")}
-          ${points.map((point, index) => Number.isFinite(point.current) ? `<circle class="point current" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.current).toFixed(1)}" r="3"></circle>` : "").join("")}
+          ${points.map((point, index) => Number.isFinite(point.previous) ? `<circle class="point previous" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.previous).toFixed(1)}" r="2.6"><title>${safeText(trendPointTooltip(point, "previous", unit))}</title></circle>` : "").join("")}
+          ${points.map((point, index) => Number.isFinite(point.current) ? `<circle class="point current" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.current).toFixed(1)}" r="3"><title>${safeText(trendPointTooltip(point, "current", unit))}</title></circle>` : "").join("")}
           ${points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 23}">${safeText(point.label)}</text>`).join("")}
         </svg>
       </div>
@@ -2663,6 +2722,46 @@
   function maxLongestFuelGap(entries) {
     const values = entries.map(entry => Number(entry.longestGapMinutes || 0)).filter(value => Number.isFinite(value) && value > 0);
     return values.length ? Math.max(...values) : null;
+  }
+
+  function renderWeeklyFuelLogTimeline(entries) {
+    const weekStart = trendChartWeekStart(entries);
+    const entriesByDate = Object.fromEntries((entries || []).filter(entry => entry?.date).map(entry => [entry.date, entry]));
+    let totalFuelLogs = 0;
+    const rows = Array.from({ length: 7 }, (_, index) => {
+      const day = addDays(weekStart, index);
+      const key = dateKey(day);
+      const entry = entriesByDate[key];
+      const fuelLogs = stackedTimelineLogs(entryLogsWithDates(entry).filter(isFuelLog), { closeMinutes: 20, laneStep: 10, maxOffset: 17 });
+      totalFuelLogs += fuelLogs.length;
+      const markers = fuelLogs.map(log => {
+        const left = (minutesIntoDay(log.date) / 1440) * 100;
+        const tooltip = logMarkerTooltip(log);
+        return `<span class="beta-weekly-fuel-marker" style="left:${stylePercent(left)};--lane-y:${Number(log.laneOffset || 0).toFixed(1)}px" title="${safeText(tooltip)}" data-tooltip="${safeText(tooltip)}" tabindex="0" aria-label="${safeText(tooltip)}"></span>`;
+      }).join("");
+      const times = fuelLogs.length ? fuelLogs.map(log => formatClock(log.date)).join(", ") : "No fuel logs";
+      return `
+        <div class="beta-weekly-fuel-row">
+          <div class="beta-weekly-fuel-day"><strong>${safeText(day.toLocaleDateString(undefined, { weekday: "short" }))}</strong><span>${safeText(day.toLocaleDateString(undefined, { month: "short", day: "numeric" }))}</span></div>
+          <div class="beta-weekly-fuel-track">${markers}</div>
+          <div class="beta-weekly-fuel-times">${safeText(times)}</div>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <article class="beta-trend-pattern-card beta-impact-trend-card beta-weekly-fuel-card">
+        <div class="beta-metric-card-head">
+          <span class="beta-icon-disc shield">${dailyIcon("fuel")}</span>
+          <div><span>Weekly Fuel Log Times</span><strong>${totalFuelLogs} fuel log${totalFuelLogs === 1 ? "" : "s"}</strong></div>
+        </div>
+        <div class="beta-weekly-fuel-timeline" aria-label="Weekly fuel log timing">
+          ${rows}
+          <div class="beta-weekly-fuel-axis" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+        </div>
+        <small>Each marker is one fuel log at its recorded time. Hover or focus a marker for the exact time.</small>
+      </article>
+    `;
   }
 
   function lowEnergyAfterLongGapCount(entries) {
@@ -2739,7 +2838,7 @@
     return String(Math.round(value));
   }
 
-  function renderImpactTrendCard({ title, value, copy, icon = "route", tone = "neutral", current = null, previous = null, unit = "count", visual = "" }) {
+  function renderImpactTrendCard({ title, value, copy, icon = "route", tone = "neutral", current = null, previous = null, unit = "count", visual = "", showComparisonBars = true }) {
     return `
       <article class="beta-trend-pattern-card beta-impact-trend-card ${safeText(tone)}">
         <div class="beta-metric-card-head">
@@ -2747,7 +2846,7 @@
           <div><span>${safeText(title)}</span><strong>${safeText(value)}</strong></div>
         </div>
         ${visual}
-        ${Number.isFinite(current) || Number.isFinite(previous) ? renderTrendMiniBars(current, previous, { unit }) : ""}
+        ${showComparisonBars && (Number.isFinite(current) || Number.isFinite(previous)) ? renderTrendMiniBars(current, previous, { unit }) : ""}
         <small>${safeText(copy)}</small>
       </article>
     `;
@@ -2773,6 +2872,7 @@
             : `${currentWindow.label} repeated ${currentWindow.count} time${currentWindow.count === 1 ? "" : "s"} this week.`;
     return `
       <section class="beta-impact-trend-grid" aria-label="Impact signals over time">
+        ${renderWeeklyFuelLogTimeline(current)}
         ${renderImpactTrendCard({
           title: "Highest-Risk Window Trend",
           value: currentWindow ? currentWindow.label : "Not repeating yet",
@@ -2789,8 +2889,9 @@
           current: currentLongest,
           previous: previousLongest,
           unit: "minutes",
-          visual: renderTrendBarChart(longestGapPoints, {
-            ariaLabel: "Longest Fuel Gap this week versus last week bar chart",
+          showComparisonBars: false,
+          visual: renderTrendLineChart(longestGapPoints, {
+            ariaLabel: "Longest Fuel Gap this week versus last week line chart",
             yLabel: "Longest gap"
           })
         })}
@@ -2803,6 +2904,7 @@
           current: currentMetrics.fuelDebtMinutes,
           previous: previousMetrics.fuelDebtMinutes,
           unit: "minutes",
+          showComparisonBars: false,
           visual: renderTrendLineChart(fuelDebtPoints, {
             ariaLabel: "Fuel Debt this week versus last week line chart",
             yLabel: "Fuel Debt"

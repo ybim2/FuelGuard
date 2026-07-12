@@ -1548,9 +1548,115 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   gap: 10px;
 }
 
+.beta-daily-timeline-group {
+  display: grid;
+  gap: 8px;
+}
+
+.beta-daily-timeline-group + .beta-daily-timeline-group {
+  margin-top: 14px;
+}
+
+.beta-daily-timeline-group h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: .92rem;
+  line-height: 1.25;
+}
+
+.beta-fuel-log-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.beta-fuel-log-track {
+  position: relative;
+  height: 68px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(45,255,136,.1), rgba(255,176,32,.07)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.1) 0 1px, transparent 1px 25%);
+}
+
+.beta-fuel-time-marker,
+.beta-weekly-fuel-marker {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(3,10,8,.9);
+  border-radius: 999px;
+  background: #2dff88;
+  box-shadow: 0 0 0 4px rgba(45,255,136,.14);
+  transform: translate(-50%, calc(-50% + var(--lane-y, 0px)));
+}
+
+.beta-fuel-time-marker:hover,
+.beta-fuel-time-marker:focus-visible,
+.beta-weekly-fuel-marker:hover,
+.beta-weekly-fuel-marker:focus-visible,
+.beta-timeline-point:hover,
+.beta-timeline-point:focus-visible {
+  z-index: 6;
+  outline: 2px solid rgba(255,176,32,.62);
+  outline-offset: 2px;
+}
+
+.beta-fuel-time-marker::after,
+.beta-weekly-fuel-marker::after,
+.beta-timeline-point::after {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 10;
+  display: none;
+  width: max-content;
+  max-width: min(220px, 72vw);
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #07130f;
+  color: #f5fff8;
+  content: attr(data-tooltip);
+  font-size: .72rem;
+  font-weight: 850;
+  line-height: 1.2;
+  text-align: center;
+  box-shadow: 0 10px 26px rgba(0,0,0,.22);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.beta-fuel-time-marker:hover::after,
+.beta-fuel-time-marker:focus-visible::after,
+.beta-weekly-fuel-marker:hover::after,
+.beta-weekly-fuel-marker:focus-visible::after,
+.beta-timeline-point:hover::after,
+.beta-timeline-point:focus-visible::after {
+  display: block;
+}
+
+.beta-fuel-log-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.beta-fuel-log-times span {
+  display: inline-flex;
+  padding: 4px 8px;
+  border: 1px solid rgba(45,255,136,.18);
+  border-radius: 999px;
+  background: rgba(45,255,136,.08);
+  color: var(--text);
+  font-size: .74rem;
+  font-weight: 850;
+}
+
 .beta-timeline-track {
   position: relative;
-  height: 54px;
+  height: 68px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(45,255,136,.08), rgba(32,214,255,.06), rgba(255,176,32,.08));
@@ -1568,7 +1674,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   color: #06100b;
   font-size: .62rem;
   font-weight: 1000;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% + var(--lane-y, 0px)));
 }
 
 .beta-timeline-point.fuel,
@@ -1803,11 +1909,11 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   width: 18px;
   height: 6px;
   border-radius: 999px;
-  background: #2f8eb8;
+  background: #167a45;
 }
 
 .beta-trend-chart-legend i.previous {
-  background: #9fb7ff;
+  background: #7c3aed;
 }
 
 .beta-trend-chart-legend i.expected {
@@ -1829,7 +1935,8 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 .beta-trend-chart svg {
   display: block;
   width: 100%;
-  height: 172px;
+  height: clamp(190px, 32vw, 300px);
+  min-height: 190px;
   overflow: visible;
 }
 
@@ -1852,15 +1959,19 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-trend-chart .line {
   fill: none;
-  stroke: #2f8eb8;
+  stroke: #167a45;
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 
+.beta-trend-chart .line.current {
+  stroke: #167a45;
+}
+
 .beta-trend-chart .line.previous {
-  stroke: #9fb7ff;
+  stroke: #7c3aed;
   stroke-dasharray: 5 4;
 }
 
@@ -1879,13 +1990,17 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-trend-chart .point {
   fill: #ffffff;
-  stroke: #2f8eb8;
+  stroke: #167a45;
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
+.beta-trend-chart .point.current {
+  stroke: #167a45;
+}
+
 .beta-trend-chart .point.previous {
-  stroke: #9fb7ff;
+  stroke: #7c3aed;
 }
 
 .beta-trend-chart .point.expected {
@@ -1897,11 +2012,90 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-chart .bar {
-  fill: #2f8eb8;
+  fill: #167a45;
 }
 
 .beta-trend-chart .bar.previous {
-  fill: #9fb7ff;
+  fill: #7c3aed;
+}
+
+.beta-weekly-fuel-card {
+  gap: 12px;
+}
+
+.beta-weekly-fuel-timeline {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(29, 49, 38, .1);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(248, 252, 247, .98), rgba(255, 255, 255, .98));
+}
+
+.beta-weekly-fuel-row {
+  display: grid;
+  grid-template-columns: minmax(58px, 76px) minmax(0, 1fr) minmax(94px, 180px);
+  gap: 8px;
+  align-items: center;
+}
+
+.beta-weekly-fuel-day {
+  display: grid;
+  gap: 1px;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.beta-weekly-fuel-day strong {
+  margin: 0;
+  font-size: .82rem;
+}
+
+.beta-weekly-fuel-day span,
+.beta-weekly-fuel-times {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.beta-weekly-fuel-track {
+  position: relative;
+  height: 46px;
+  min-width: 0;
+  border: 1px solid rgba(29, 49, 38, .1);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(22,122,69,.11), rgba(255,176,32,.08)),
+    repeating-linear-gradient(90deg, rgba(29,49,38,.08) 0 1px, transparent 1px 25%);
+}
+
+.beta-weekly-fuel-marker {
+  width: 13px;
+  height: 13px;
+  border-color: #ffffff;
+  background: #167a45;
+  box-shadow: 0 0 0 3px rgba(22,122,69,.14);
+}
+
+.beta-weekly-fuel-times {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.beta-weekly-fuel-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-left: 84px;
+  margin-right: 188px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 850;
+}
+
+.beta-weekly-fuel-axis span {
+  text-align: center;
 }
 
 .beta-trend-chart-empty {
@@ -2227,6 +2421,19 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   .beta-trend-filters,
   .beta-trend-view-mode {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .beta-weekly-fuel-row {
+    grid-template-columns: minmax(48px, 58px) minmax(0, 1fr);
+  }
+
+  .beta-weekly-fuel-times {
+    grid-column: 2;
+  }
+
+  .beta-weekly-fuel-axis {
+    margin-left: 66px;
+    margin-right: 0;
   }
 
   .beta-fuel-story-head {
@@ -2959,6 +3166,10 @@ body.beta-mvp .beta-timeline-legend .crash::before {
 
 body.beta-mvp .beta-trend-mini-bars i {
   background: #167a45;
+}
+
+body.beta-mvp .beta-trend-mini-bars i.previous {
+  background: #7c3aed;
 }
 
 body.beta-mvp .beta-risk-stack,
