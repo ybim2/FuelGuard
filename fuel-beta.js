@@ -1731,7 +1731,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v59-mvp-daily-weekly"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v62-sticky-nav-cards"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2205,24 +2205,6 @@
     `;
   }
 
-  function renderDailyTimeline(entry) {
-    const logs = stackedTimelineLogs((entry.logs || []).map(log => ({ ...log, date: logDate(log.timestamp || log) })).filter(log => log.date));
-    if (!logs.length) return `<p class="muted beta-history-empty">No timeline points for this day yet.</p>`;
-    const points = logs.map(log => {
-      const style = pointStyleForLog(log);
-      const left = clamp((minutesIntoDay(log.date) / 1440) * 100, 0, 100);
-      const tooltip = logMarkerTooltip(log);
-      return `<span class="beta-timeline-point ${style.className}" style="left:${stylePercent(left)};--lane-y:${Number(log.laneOffset || 0).toFixed(1)}px" title="${safeText(tooltip)}" data-tooltip="${safeText(tooltip)}" tabindex="0" aria-label="${safeText(tooltip)}">${safeText(style.label)}</span>`;
-    }).join("");
-    return `
-      <div class="beta-daily-timeline" aria-label="Fuel, hydration and low-energy markers across the day">
-        <div class="beta-timeline-track">${points}</div>
-        <div class="beta-timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
-        <div class="beta-timeline-legend"><span class="fuel">Fuel</span><span class="hydration">Hydration</span><span class="crash">Low-energy marker</span></div>
-      </div>
-    `;
-  }
-
   function metricValueOrPending(value, fallback = "Not enough data yet") {
     if (value === null || value === undefined || value === "") return fallback;
     return safeText(value);
@@ -2266,7 +2248,7 @@
     return entry?.riskLabel || "Not enough data yet";
   }
 
-  function renderDailyMetrics(entry) {
+  function renderDailyMetrics(entry, { includeHeading = true } = {}) {
     const key = entry?.date || selectedDataDateKey();
     const logs = entryLogsWithDates(entry);
     const fuelLogs = logs.filter(isFuelLog);
@@ -2275,10 +2257,12 @@
     const status = selectedDayStatusText(entry);
     return `
       <section class="beta-daily-metrics-section" aria-label="Selected day metrics">
-        <div class="section-heading-row">
-          <h3>Selected day</h3>
-          <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
-        </div>
+        ${includeHeading ? `
+          <div class="section-heading-row">
+            <h3>Selected day</h3>
+            <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
+          </div>
+        ` : ""}
         <div class="beta-daily-metric-grid">
           ${dailyMetricCard("Status", status)}
           ${dailyMetricCard("Time since last fuel", timeSinceLastEventText(fuelLogs, key))}
@@ -2295,6 +2279,26 @@
         </div>
       </section>
     `;
+  }
+
+  function selectedDataEntry() {
+    const selectedKey = selectedDataDateKey();
+    return archiveEntries().find(entry => entry.date === selectedKey) || buildArchiveEntry(selectedKey);
+  }
+
+  function syncSelectedDataDateInput() {
+    const dateInput = document.getElementById("fuelDataDate");
+    if (!dateInput) return;
+    const selectedKey = selectedDataDateKey();
+    dateInput.max = dateKey();
+    if (dateInput.value !== selectedKey) dateInput.value = selectedKey;
+  }
+
+  function renderSelectedDayCard() {
+    syncSelectedDataDateInput();
+    const target = document.getElementById("fuelSelectedDayMetrics");
+    if (!target) return;
+    target.innerHTML = renderDailyMetrics(selectedDataEntry(), { includeHeading: false });
   }
 
   function renderLogEvent(log, { note: noteOverride = "" } = {}) {
@@ -2315,95 +2319,6 @@
           ${id && type !== "crash" ? `<div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-log="${safeText(id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-log="${safeText(id)}">Delete</button></div>` : ""}
         </div>
       </article>
-    `;
-  }
-
-  function renderRawLogs(entry) {
-    if (!entry.logs.length) return `<p class="muted">No raw logs stored for this day.</p>`;
-    const logsHtml = entry.logs.map(log => renderLogEvent(log)).join("");
-    return `<section class="beta-raw-log-details beta-history-log-view"><h4>Logged events</h4><div class="beta-history-log-list">${logsHtml}</div></section>`;
-  }
-
-  function renderDailySummaryNote(entry) {
-    const fuelCount = Number(entry?.fuelLogCount || 0);
-    const hydrationCount = Number(entry?.hydrationLogCount || 0);
-    const gap = entry?.longestGap || durationText(entry?.longestGapMinutes || 0);
-    const zone = gapZoneReached(entry);
-    const crashCount = Number(entry?.crashLogCount || 0);
-    return `
-      <p class="beta-daily-summary-note">
-        You logged fuel ${fuelCount} time${fuelCount === 1 ? "" : "s"} and hydration ${hydrationCount} time${hydrationCount === 1 ? "" : "s"}. Your longest fuel gap was ${safeText(gap)}, reaching ${safeText(zone)}.${crashCount ? ` ${crashCount} low-energy event${crashCount === 1 ? " was" : "s were"} marked.` : " No low-energy events were marked."}
-      </p>
-    `;
-  }
-
-  function renderHistoryDayOverview(entries) {
-    const logged = entries
-      .filter(entry => Number(entry.fuelLogCount || 0) > 0 || Number(entry.hydrationLogCount || 0) > 0 || Number(entry.crashLogCount || 0) > 0)
-      .sort((a, b) => dateFromKey(b.date) - dateFromKey(a.date))
-      .slice(0, 14);
-    if (!logged.length) return "";
-    return `
-      <section class="beta-history-day-strip" aria-label="Previous fuel rhythm days">
-        <div class="beta-history-day-strip-head">
-          <h4>Previous days</h4>
-          <span>Fuel, hydration, longest gap and support level reached</span>
-        </div>
-        <div class="beta-history-day-cards">
-          ${logged.map(entry => {
-            const zone = gapZoneReached(entry);
-            const tone = riskToneFromText(zone);
-            const selected = entry.date === selectedHistoryKey;
-            return `
-              <button class="beta-history-day-card ${safeText(tone)}${selected ? " selected" : ""}" type="button" data-history-day="${safeText(entry.date)}" aria-pressed="${selected ? "true" : "false"}">
-                <span>${safeText(entry.dateLabel)}</span>
-                <strong>${safeText(entry.longestGap || durationText(entry.longestGapMinutes || 0))}</strong>
-                <small>${safeText(zone)}</small>
-                <em>${dailyIcon("fuel")}${Number(entry.fuelLogCount || 0)} ${dailyIcon("hydration")}${Number(entry.hydrationLogCount || 0)} ${Number(entry.crashLogCount || 0) ? `${dailyIcon("energy")}${Number(entry.crashLogCount || 0)}` : ""}</em>
-              </button>
-            `;
-          }).join("")}
-        </div>
-      </section>
-    `;
-  }
-
-  function renderArchiveDetail(entry) {
-    if (!entry) return `<p class="muted">No daily summaries yet.</p>`;
-    const heading = [dayTypeLabel(entry.dayType), entry.trainingSession ? trainingSessionLabel(entry.trainingSession) : ""]
-      .filter(Boolean)
-      .join(" - ");
-    const mediumRiskTotal = Number(entry.mediumRiskGapCount || 0) + Number(entry.mediumRiskHydrationGapCount || 0);
-    const highRiskTotal = Number(entry.highRiskGapCount || 0) + Number(entry.highRiskHydrationGapCount || 0);
-    const crashZoneTotal = Number(entry.crashZoneGapCount || 0) + Number(entry.hydrationCrashZoneGapCount || 0);
-    const riskSignalTotal = mediumRiskTotal + highRiskTotal + crashZoneTotal + Number(entry.crashLogCount || 0);
-
-    return `
-      <div class="fuel-archive-head"><div><p class="label">${safeText(entry.dateLabel)}</p><h3>${safeText(heading || "Day context not set")}</h3></div><span class="status-pill ${riskSignalTotal ? "amber" : "green"}">${riskSignalTotal ? "SUPPORT SIGNALS" : "STABLE"}</span></div>
-      ${renderDailySummaryNote(entry)}
-      ${renderDailySummaryBullets(entry)}
-      <div class="beta-daily-visuals">
-        <section class="beta-daily-visual"><h4>Daily timeline</h4>${renderDailyTimeline(entry)}</section>
-      </div>
-      ${renderRawLogs(entry)}
-    `;
-  }
-
-  function renderDailyTimelineDetail(entry) {
-    if (!entry) return `<p class="muted">No daily timeline yet. Log fuel, hydration, or low energy to build today's rhythm.</p>`;
-    return `
-      ${renderDailyMetrics(entry)}
-      <section class="beta-daily-visual beta-daily-timeline-section" aria-label="Daily Timeline">
-        <div class="section-heading-row">
-          <h3>Daily Timeline</h3>
-          <span class="row-note">${safeText(entry.dateLabel || "Today")}</span>
-        </div>
-        <div class="beta-daily-timeline-group">
-          <h4>Fuel, hydration, and Low Energy</h4>
-          ${renderDailyTimeline(entry)}
-        </div>
-        ${renderRawLogs(entry)}
-      </section>
     `;
   }
 
@@ -3622,6 +3537,8 @@
   function renderTrends() {
     const summaryTarget = document.getElementById("fuelAveragesSummary");
     if (!summaryTarget) return;
+    renderSelectedDayCard();
+    renderGraphModeControls();
     const weekStart = selectedTrendWeekStart();
     const weekLabel = document.getElementById("trendWeekLabel");
     const nextButton = document.getElementById("trendNextWeekButton");
@@ -3635,6 +3552,7 @@
       summaryTarget.innerHTML = `
         <p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for ${safeText(formatWeekRange(weekStart))} yet.</p>
       `;
+      requestAnimationFrame(() => drawBetaGraph());
       return;
     }
 
@@ -3652,53 +3570,11 @@
       ${renderWeeklyFuelLogTimeline(weekEntries, weekStart)}
       ${renderWeeklyGraphs(weekEntries, weekStart)}
     `;
+    requestAnimationFrame(() => drawBetaGraph());
   }
 
   function renderHistory() {
-    const summary = document.getElementById("fuelHistorySummary");
-    const weekly = weeklySummary();
-    if (summary) {
-      summary.innerHTML = `
-        <div class="fuel-gap-insight"><span>Days stored</span><strong>${weekly.entries.length}</strong><small>Local daily summaries.</small></div>
-        <div class="fuel-gap-insight"><span>Fuel logs this week</span><strong>${weekly.totalLogs}</strong><small>One-tap fuel records.</small></div>
-        <div class="fuel-gap-insight"><span>Longest weekly gap</span><strong>${safeText(durationText(weekly.longestGap))}</strong><small>Largest stored gap in the last 7 days.</small></div>
-        <div class="fuel-gap-insight"><span>Repeated act-now window</span><strong>${safeText(weekly.topWindow ? weekly.topWindow[0] : "Building")}</strong><small>${safeText(weekly.topWindow ? "Common act-now gap window." : "Needs more daily summaries.")}</small></div>
-        <div class="fuel-gap-insight"><span>Day type pattern</span><strong>${safeText(weekly.riskType ? weekly.riskType.label : "Building")}</strong><small>${safeText(weekly.riskType ? "Longest gaps cluster here." : "Tag day type to compare patterns.")}</small></div>
-        <div class="fuel-gap-insight"><span>Average gap pattern</span><strong>${safeText(weekly.averageType ? weekly.averageType.label : "Building")}</strong><small>${safeText(weekly.averageType ? "Highest average gaps so far." : "Needs more history.")}</small></div>
-      `;
-    }
-    const entries = archiveEntries();
-    const count = document.getElementById("fuelHistoryCount");
-    const detail = document.getElementById("fuelHistoryArchiveDetail");
-    const dateInput = document.getElementById("fuelDataDate");
-    if (!detail) return;
-    if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
-    const selectedKey = selectedDataDateKey();
-    if (dateInput) {
-      dateInput.max = dateKey();
-      if (dateInput.value !== selectedKey) dateInput.value = selectedKey;
-    }
-    const selectedEntry = entries.find(entry => entry.date === selectedKey) || buildArchiveEntry(selectedKey);
-    detail.innerHTML = renderDailyTimelineDetail(selectedEntry);
-    const selectedLogs = entryLogsWithDates(selectedEntry);
-    const selectedFuelLogs = selectedLogs.filter(isFuelLog);
-    const selectedStatus = selectedDayStatusText(selectedEntry);
-    const badge = document.getElementById("fuelGraphLastAte");
-    if (badge) {
-      if (selectedKey === dateKey()) {
-        const snapshot = fuelGapSnapshot();
-        badge.textContent = snapshot.lastFuelled === "No fuel logged" ? "Last fuel: not logged yet" : `Last fuel: ${snapshot.timeSinceFuel} ago`;
-      } else {
-        badge.textContent = selectedFuelLogs.length ? `Last fuel: ${formatClock(selectedFuelLogs[selectedFuelLogs.length - 1].date)}` : "Last fuel: not logged yet";
-      }
-    }
-    const next = document.getElementById("fuelGapNextAction");
-    if (next) {
-      next.textContent = `Status: ${selectedStatus}`;
-      next.className = `fuel-next-action beta-risk-pill ${riskToneFromText(selectedStatus)}`;
-    }
-    renderGraphModeControls();
-    requestAnimationFrame(() => drawBetaGraph());
+    renderSelectedDayCard();
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -3965,13 +3841,6 @@
     return samples.length ? samples[samples.length - 1].score : 0;
   }
 
-  function drawDailyRiskGraph(key = selectedHistoryKey || dateKey()) {
-    const canvas = document.getElementById("dailyRiskGraph");
-    if (!canvas) return;
-    const entry = archiveEntries().find(item => item.date === key);
-    drawRiskGraphCanvas(canvas, key, { endedAt: entry?.endedAt || "", compact: true });
-  }
-
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
@@ -3979,15 +3848,6 @@
     const historyActive = document.getElementById("logs")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
-
-    const badge = document.getElementById("fuelGraphLastAte");
-    if (badge) badge.textContent = snapshot.lastFuelled === "No fuel logged" ? "Last fuel: not logged yet" : `Last fuel: ${snapshot.timeSinceFuel} ago`;
-
-    const next = document.getElementById("fuelGapNextAction");
-    if (next) {
-      next.textContent = snapshot.nextAction || `Status: ${snapshot.statusLabel || riskStatusLabel(snapshot.status)}`;
-      next.className = `fuel-next-action beta-risk-pill ${snapshot.status}`;
-    }
 
     const button = document.getElementById("graphLogFoodButton");
     if (button) {
@@ -4010,6 +3870,7 @@
     renderGraphModeControls();
     if (dashboardActive) {
       renderDayTypeControls();
+      renderSelectedDayCard();
       renderDailyLog();
     }
     if (settingsActive) renderSettings();
@@ -4028,9 +3889,9 @@
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
     const titles = {
-      dashboard: ["Fuel Rhythm", "What is happening today."],
-      logs: ["Data", "Status, logs, and today's timeline."],
-      trends: ["Trends", "How habits are changing over time."],
+      dashboard: ["Fuel Rhythm", "Log quickly and review the selected day."],
+      logs: ["Data", "Selected-day cards now live in Fuel Rhythm."],
+      trends: ["Trends", "Graph views and weekly patterns."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
     const title = document.getElementById("pageTitle");
@@ -4180,17 +4041,7 @@
   });
   document.getElementById("fuelDataDate")?.addEventListener("change", event => {
     setSelectedDataDate(event.target.value);
-    renderHistory();
-  });
-  function selectHistoryDay(button) {
-    if (!button) return;
-    selectedHistoryKey = button.dataset.historyDay;
-    renderHistory();
-  }
-
-  document.getElementById("fuelHistoryArchiveDetail")?.addEventListener("click", event => {
-    const button = event.target.closest("[data-history-day]");
-    selectHistoryDay(button);
+    renderFuelGap();
   });
   document.getElementById("trendDayTypeFilter")?.addEventListener("change", event => {
     selectedTrendDayType = event.target.value || "all";

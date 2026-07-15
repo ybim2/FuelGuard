@@ -12,8 +12,17 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v59-mvp-daily-weekly
+Canonical app: mobile-pwa-v62-sticky-nav-cards
 Build version: shown from `build-info.js`
+
+The shared top header contains the Fuel Guard logo and remains sticky across the active screens.
+
+Current card ownership:
+
+- Rhythm: day/session setup, quick logging, selected-day date/metrics, and latest log.
+- Data: intentionally simplified; removed daily timeline, logged-events, status, and graph cards.
+- Trends: weekly trend review plus the moved graph view selector/canvas.
+- Settings: preferences, account sync, import, update, and app metadata.
 
 ## Removed legacy features
 
@@ -102,7 +111,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v59-mvp-daily-weekly`.
+The current canonical version is `mobile-pwa-v62-sticky-nav-cards`.
 
 ## Future frontend changes
 

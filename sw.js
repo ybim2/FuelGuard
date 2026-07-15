@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v59-mvp-daily-weekly";
-const BUILD_VERSION = "2026-07-15T12:19:31Z";
+const APP_VERSION = "mobile-pwa-v62-sticky-nav-cards";
+const BUILD_VERSION = "2026-07-15T20:40:02Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v59-mvp-daily-weekly-20260715T121931Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v62-sticky-nav-cards-20260715T204002Z";
 const APP_SHELL = [
   "./",
   "./index.html",

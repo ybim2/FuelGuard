@@ -73,18 +73,6 @@
   text-align: left;
 }
 
-.beta-rhythm-status-stack #fuelGapNextAction {
-  display: block;
-  max-width: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
 .beta-rhythm-status-stack .fuel-last-ate-badge {
   justify-self: start;
   max-width: 100%;
@@ -2446,6 +2434,11 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 @media(max-width:720px) {
   .beta-mvp .topbar {
+    display: grid;
+    margin-bottom: 10px;
+  }
+
+  .beta-mvp .sidebar {
     display: none;
   }
 
@@ -2690,10 +2683,31 @@ body.beta-mvp .logo {
 }
 
 body.beta-mvp .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   grid-template-columns: 1fr;
   justify-items: center;
   text-align: center;
-  margin-bottom: 12px;
+  margin: -14px 0 12px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+  border-bottom: 1px solid rgba(29,49,38,.09);
+  background: rgba(251,253,249,.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 28px rgba(35,55,42,.06);
+}
+
+body.beta-mvp .beta-topbar-brandline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-topbar-logo {
+  flex: 0 0 auto;
 }
 
 body.beta-mvp .topbar h1 {
@@ -2750,6 +2764,30 @@ body.beta-mvp .beta-trends-filter-title {
 
 body.beta-mvp .beta-panel-copy {
   font-size: .9rem;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-data-date-row {
+  align-items: start;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-data-date-row h3 {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.18;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-data-date-row p {
+  margin: 0;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-daily-metrics-section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 body.beta-mvp .beta-day-type-row {
@@ -3142,6 +3180,12 @@ body.beta-mvp .beta-trends-week-row {
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 12px 28px rgba(35,55,42,.06);
+}
+
+body.beta-mvp .beta-trends-graph-wrap {
+  width: 100%;
+  margin: 0 0 12px;
+  background: #ffffff;
 }
 
 body.beta-mvp .beta-trends-filter-row .beta-trend-filters,
@@ -3790,12 +3834,7 @@ body.beta-mvp .mobile-nav-item.active {
 
 @media(max-width:720px) {
   body.beta-mvp .sidebar {
-    display: grid;
-    justify-items: center;
-    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
-    background: rgba(255,255,255,.92);
-    border-bottom-color: rgba(29,49,38,.08);
-    box-shadow: 0 12px 28px rgba(35,55,42,.05);
+    display: none;
   }
 
   body.beta-mvp .beta-brand-marker {
