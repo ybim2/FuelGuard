@@ -928,7 +928,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-mvp .mobile-bottom-nav {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .beta-hidden-duplicate-risk {
@@ -2551,7 +2551,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   }
 
   .beta-mvp .mobile-bottom-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     box-shadow: none;
   }
 
@@ -2560,11 +2560,15 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   }
 
   .beta-daily-log-tiles,
-  .beta-daily-metric-grid,
   .beta-trend-pattern-grid,
   .beta-crash-summary-row,
   .beta-crash-callouts {
     grid-template-columns: 1fr;
+  }
+
+  .beta-daily-metric-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+    gap: 8px;
   }
 
   .beta-crash-insight-head {
@@ -2788,6 +2792,28 @@ body.beta-mvp .beta-selected-day-card .beta-daily-metrics-section {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-daily-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 138px), 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-daily-metric-card {
+  min-width: 0;
+  padding: 10px;
+}
+
+body.beta-mvp .beta-selected-day-card .beta-daily-metric-card span,
+body.beta-mvp .beta-selected-day-card .beta-daily-metric-card strong,
+body.beta-mvp .beta-selected-day-card .beta-daily-metric-card small {
+  overflow-wrap: anywhere;
+}
+
+@media(max-width:340px) {
+  body.beta-mvp .beta-selected-day-card .beta-daily-metric-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 body.beta-mvp .beta-day-type-row {

@@ -1,5 +1,5 @@
 function switchScreen(screen) {
-  const target = ["dashboard", "logs", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+  const target = ["dashboard", "trends", "checklist"].includes(screen) ? screen : "dashboard";
   const targetElement = document.getElementById(target);
   if (!targetElement) return;
 

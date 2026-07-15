@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v62-sticky-nav-cards";
-const BUILD_VERSION = "2026-07-15T20:40:02Z";
+const APP_VERSION = "mobile-pwa-v63-log-nav-grid";
+const BUILD_VERSION = "2026-07-15T20:59:07Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v62-sticky-nav-cards-20260715T204002Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v63-log-nav-grid-20260715T205907Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -14,7 +14,6 @@ const APP_SHELL = [
   "./fuel-supabase.js",
   "./app-ui.js",
   "./app-pwa.js",
-  "./fuel-history-render-guard.js",
   "./fuel-beta.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",

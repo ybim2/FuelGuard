@@ -16,19 +16,6 @@
   };
 
   let applying = false;
-  let historyQueued = false;
-
-  function safeText(value) {
-    if (typeof escapeHtml === "function") return escapeHtml(value || "");
-    return String(value || "").replace(/[&<>"']/g, char => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    }[char]));
-  }
-
   function trimHour(value) {
     if (!Number.isFinite(value)) return "";
     return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
@@ -47,11 +34,6 @@
     gap.thresholds.crashMinutes = Number(gap.thresholds.crashMinutes || 220);
     if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
     return gap.thresholds;
-  }
-
-  function durationLabel(minutes) {
-    if (!Number.isFinite(minutes) || minutes <= 0) return "Not enough data";
-    return typeof duration === "function" ? duration(minutes) : `${Math.round(minutes)}m`;
   }
 
   function riskLabel(status) {
@@ -112,115 +94,6 @@
     });
   }
 
-  function archiveEntries() {
-    const archive = gapState().archive || {};
-    return Object.values(archive)
-      .filter(entry => entry && entry.date)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-      .slice(-7);
-  }
-
-  function renderBar(label, value, max, meta, tone = "green") {
-    const width = max > 0 ? Math.max(6, Math.round((value / max) * 100)) : 0;
-    return `
-      <div class="beta-history-bar-row">
-        <div class="beta-history-bar-label"><span>${safeText(label)}</span><small>${safeText(meta)}</small></div>
-        <div class="beta-history-bar-track"><i class="${tone}" style="width:${width}%"></i></div>
-      </div>
-    `;
-  }
-
-  function historyOverviewCard() {
-    return [...document.querySelectorAll("#logs > article.card")]
-      .find(card => /^insights\s*\/\s*history$/i.test(card.querySelector("h2")?.textContent?.trim() || ""));
-  }
-
-  function removeHistoryOverviewCard() {
-    historyOverviewCard()?.remove();
-  }
-
-  function renameHighRiskGapLabels() {
-    document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-stats span").forEach(label => {
-      if (label.textContent.trim().toLowerCase() === "long gaps") label.textContent = "Recovery-needed gaps";
-    });
-    document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-head .status-pill").forEach(pill => {
-      if (pill.textContent.trim() === "GAPS FOUND") pill.textContent = "SUPPORT SIGNALS";
-    });
-  }
-
-  function reorderHistorySections() {
-    const screen = document.getElementById("logs");
-    if (!screen) return;
-    const cards = [...screen.querySelectorAll(":scope > article.card")];
-    const daily = cards.find(card => /daily summaries/i.test(card.querySelector("h2")?.textContent || ""));
-    const insight = historyOverviewCard();
-    if (daily && insight && daily.compareDocumentPosition(insight) & Node.DOCUMENT_POSITION_PRECEDING) {
-      screen.insertBefore(daily, insight);
-    }
-  }
-
-  function removeEndOfDayAnalysis() {
-    document.querySelectorAll("#fuelHistoryArchiveDetail .fuel-archive-section").forEach(section => {
-      const heading = section.querySelector("h4")?.textContent?.trim().toLowerCase();
-      if (heading === "end-of-day analysis") section.remove();
-    });
-  }
-
-  function renderHistoryVisuals() {
-    const summaryCard = historyOverviewCard();
-    if (!summaryCard) return;
-    let target = document.getElementById("fuelHistoryVisuals");
-    if (!target) {
-      target = document.createElement("div");
-      target.id = "fuelHistoryVisuals";
-      target.className = "beta-history-visuals";
-      const summary = document.getElementById("fuelHistorySummary");
-      if (summary) summary.insertAdjacentElement("afterend", target);
-      else summaryCard.appendChild(target);
-    }
-
-    const entries = archiveEntries();
-    if (!entries.length) {
-      target.innerHTML = `<p class="muted beta-history-empty">Graphs appear here after daily summaries are saved.</p>`;
-      return;
-    }
-
-    const maxGap = Math.max(...entries.map(entry => Number(entry.longestGapMinutes || 0)), 1);
-    const maxLogs = Math.max(...entries.map(entry => Number(entry.fuelLogCount || 0)), 1);
-    const gapBars = entries.map(entry => {
-      const value = Number(entry.longestGapMinutes || 0);
-      const tone = Number(entry.longGapCount || 0) ? "red" : "green";
-      return renderBar(entry.dateLabel || entry.date, value, maxGap, durationLabel(value), tone);
-    }).join("");
-    const logBars = entries.map(entry => {
-      const value = Number(entry.fuelLogCount || 0);
-      return renderBar(entry.dateLabel || entry.date, value, maxLogs, `${value} fuel logs`, "blue");
-    }).join("");
-    const windows = entries
-      .filter(entry => entry.highRiskWindow && entry.highRiskWindow !== "Not detected")
-      .map(entry => `<li><strong>${safeText(entry.dateLabel || entry.date)}</strong><span>${safeText(entry.highRiskWindow)}</span></li>`)
-      .join("");
-
-    target.innerHTML = `
-      <section class="beta-history-chart"><h3>Longest fuel gap by day</h3>${gapBars}</section>
-      <section class="beta-history-chart"><h3>Fuel logs per day</h3>${logBars}</section>
-      <section class="beta-history-chart"><h3>Recovery-needed windows</h3>${windows ? `<ul class="beta-high-risk-window-list">${windows}</ul>` : `<p class="muted">No recovery-needed window detected yet.</p>`}</section>
-    `;
-  }
-
-  function queueHistoryPolish() {
-    if (historyQueued) return;
-    historyQueued = true;
-    requestAnimationFrame(() => {
-      historyQueued = false;
-      reorderHistorySections();
-      removeHistoryOverviewCard();
-      removeEndOfDayAnalysis();
-      renameHighRiskGapLabels();
-      renderHistoryVisuals();
-    });
-  }
-
   function ensureHourSettingsUi() {
     const settingsCopy = document.querySelector("#checklist article.card > p.muted");
     if (settingsCopy) settingsCopy.textContent = "Adjust the estimated support thresholds for fuel and hydration gaps.";
@@ -260,7 +133,6 @@
     orderLiveRhythm();
     updateDayControlsCopy();
     updateRiskCopy();
-    queueHistoryPolish();
     renderHourSettings();
     installHourSettingsHandler();
     applying = false;
@@ -278,12 +150,9 @@
     button.addEventListener("click", () => requestAnimationFrame(applyUiPolish));
   });
   document.getElementById("fuelDayType")?.addEventListener("change", () => requestAnimationFrame(applyUiPolish));
-  document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", () => requestAnimationFrame(queueHistoryPolish));
   document.getElementById("clearFuelBetaData")?.addEventListener("click", () => setTimeout(applyUiPolish, 50));
   window.addEventListener("resize", applyUiPolish);
 
-  observeElement("fuelHistoryArchiveDetail", queueHistoryPolish);
-  observeElement("fuelHistorySummary", queueHistoryPolish);
   observeElement("checklist", renderHourSettings);
 
   wrapRenderFuelGapPolish();

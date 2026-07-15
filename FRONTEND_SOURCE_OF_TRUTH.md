@@ -2,25 +2,23 @@
 
 ## Canonical app
 
-The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the four main tabs:
+The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the three main tabs:
 
-- Rhythm
-- Data
+- Log
 - Trends
 - Settings
 
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v62-sticky-nav-cards
+Canonical app: mobile-pwa-v63-log-nav-grid
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and remains sticky across the active screens.
 
 Current card ownership:
 
-- Rhythm: day/session setup, quick logging, selected-day date/metrics, and latest log.
-- Data: intentionally simplified; removed daily timeline, logged-events, status, and graph cards.
+- Log: day/session setup, quick logging, selected-day date/metrics, and latest log.
 - Trends: weekly trend review plus the moved graph view selector/canvas.
 - Settings: preferences, account sync, import, update, and app metadata.
 
@@ -48,9 +46,8 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-supabase.js`: Supabase Auth and cloud log sync layer
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
-- `fuel-beta.js`: canonical 4-tab mobile PWA behavior for Rhythm, Data, Trends, and Settings
+- `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Log, Trends, and Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
-- `fuel-history-render-guard.js`: History rendering guard
 - `day-type-overrides.js`: day type and training session support
 - `manifest.webmanifest`: PWA manifest
 - `sw.js`: service worker and app shell cache
@@ -90,7 +87,7 @@ No `package.json`, Vite, Next, Netlify, or Firebase config is present in this re
 
 ## Mobile PWA update rules
 
-1. The canonical app is the 4-tab mobile PWA with Rhythm, Data, Trends, and Settings.
+1. The canonical app is the 3-tab mobile PWA with Log, Trends, and Settings.
 2. The deployed Vercel URL is the source for the installed mobile PWA.
 3. Settings must show the canonical marker and build version from `build-info.js`.
 4. Service worker caches must be versioned for each app-shell deployment.
@@ -111,8 +108,8 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v62-sticky-nav-cards`.
+The current canonical version is `mobile-pwa-v63-log-nav-grid`.
 
 ## Future frontend changes
 
-Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main tabs Rhythm, Data, Trends, and Settings.
+Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main tabs Log, Trends, and Settings.

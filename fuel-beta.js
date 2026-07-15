@@ -1731,7 +1731,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v62-sticky-nav-cards"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v63-log-nav-grid"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2265,15 +2265,15 @@
         ` : ""}
         <div class="beta-daily-metric-grid">
           ${dailyMetricCard("Status", status)}
-          ${dailyMetricCard("Time since last fuel", timeSinceLastEventText(fuelLogs, key))}
-          ${dailyMetricCard("Time since last hydration", timeSinceLastEventText(hydrationLogs, key))}
+          ${dailyMetricCard("Last fuel", timeSinceLastEventText(fuelLogs, key))}
+          ${dailyMetricCard("Last hydration", timeSinceLastEventText(hydrationLogs, key))}
           ${dailyMetricCard("Fuel logs", String(fuelLogs.length))}
           ${dailyMetricCard("Hydration logs", String(hydrationLogs.length))}
           ${dailyMetricCard("Low Energy logs", String(lowEnergyLogs.length))}
           ${dailyMetricCard("First fuel", firstEventTime(fuelLogs))}
-          ${dailyMetricCard("Last fuel", lastEventTime(fuelLogs))}
+          ${dailyMetricCard("Last fuel time", lastEventTime(fuelLogs))}
           ${dailyMetricCard("First hydration", firstEventTime(hydrationLogs))}
-          ${dailyMetricCard("Last hydration", lastEventTime(hydrationLogs))}
+          ${dailyMetricCard("Last hydration time", lastEventTime(hydrationLogs))}
           ${dailyMetricCard("Longest fuel gap", longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs), fuelLogs.length < 2 ? "Needs two fuel logs." : "")}
           ${dailyMetricCard("Longest hydration gap", longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs), hydrationLogs.length < 2 ? "Needs two hydration logs." : "")}
         </div>
@@ -3573,10 +3573,6 @@
     requestAnimationFrame(() => drawBetaGraph());
   }
 
-  function renderHistory() {
-    renderSelectedDayCard();
-  }
-
   function drawBetaGraph(now = new Date()) {
     const canvas = document.getElementById("fuelRhythmGraph");
     if (!canvas) return;
@@ -3845,7 +3841,6 @@
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
-    const historyActive = document.getElementById("logs")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
@@ -3874,13 +3869,12 @@
       renderDailyLog();
     }
     if (settingsActive) renderSettings();
-    if (historyActive) renderHistory();
     if (trendsActive) renderTrends();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "logs", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -3889,8 +3883,7 @@
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
     const titles = {
-      dashboard: ["Fuel Rhythm", "Log quickly and review the selected day."],
-      logs: ["Data", "Selected-day cards now live in Fuel Rhythm."],
+      dashboard: ["Log", "Log quickly and review the selected day."],
       trends: ["Trends", "Graph views and weekly patterns."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
@@ -3898,7 +3891,6 @@
     const subtitle = document.getElementById("pageSubtitle");
     if (title) title.textContent = titles[target][0];
     if (subtitle) subtitle.textContent = titles[target][1];
-    if (target === "logs") renderHistory();
     if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
   };
@@ -4307,7 +4299,7 @@
     graphResizeQueued = true;
     requestAnimationFrame(() => {
       graphResizeQueued = false;
-      if (document.getElementById("logs")?.classList.contains("active")) drawBetaGraph();
+      if (document.getElementById("trends")?.classList.contains("active")) drawBetaGraph();
     });
   });
 
