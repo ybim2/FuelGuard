@@ -2689,40 +2689,30 @@ body.beta-mvp .logo {
 body.beta-mvp .topbar {
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 120;
+  display: grid;
   grid-template-columns: 1fr;
   justify-items: center;
   text-align: center;
-  margin: -14px 0 12px;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+  margin: 0 0 12px;
+  padding: calc(9px + env(safe-area-inset-top, 0px)) 12px 9px;
   border-bottom: 1px solid rgba(29,49,38,.09);
-  background: rgba(251,253,249,.88);
+  background: rgba(251,253,249,.96);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   box-shadow: 0 12px 28px rgba(35,55,42,.06);
 }
 
 body.beta-mvp .beta-topbar-brandline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 11px;
-  min-width: 0;
+  display: contents;
 }
 
 body.beta-mvp .beta-topbar-logo {
   flex: 0 0 auto;
 }
 
-body.beta-mvp .topbar h1 {
-  margin-bottom: 5px;
-  color: var(--text);
-  font-size: clamp(1.55rem, 2.6vw, 2.35rem);
-  line-height: 1.08;
-}
-
 body.beta-mvp .app {
-  padding-top: 14px;
+  padding-top: 0;
   padding-left: 0;
   padding-right: 0;
   width: 100%;
@@ -2894,7 +2884,6 @@ body.beta-mvp .beta-logging-card {
   box-shadow: none;
 }
 
-body.beta-mvp .topbar p,
 body.beta-mvp .muted,
 body.beta-mvp p {
   color: var(--muted);

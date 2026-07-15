@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v63-log-nav-grid";
-const BUILD_VERSION = "2026-07-15T20:59:07Z";
+const APP_VERSION = "mobile-pwa-v64-sticky-logo-trends";
+const BUILD_VERSION = "2026-07-15T21:12:22Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v63-log-nav-grid-20260715T205907Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v64-sticky-logo-trends-20260715T211222Z";
 const APP_SHELL = [
   "./",
   "./index.html",

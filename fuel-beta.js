@@ -35,7 +35,6 @@
     labels[option.value] = option.label;
     return labels;
   }, {});
-  const GRAPH_MODES = new Set(["fuel", "hydration", "risk"]);
   const CRASH_NOTE = "fuel_guard_event:crash";
   const LEGACY_FOLLOWUP_NOTE_RE = /(?:^|[;\n]\s*)fuel_guard_long_gap_reason:[^;\n]*/g;
   const LEGACY_FOLLOWUP_LINE_RE = /^(most long gaps|sleep was marked for long gaps|your .* block may have worked|.* shift gap logged|forgotten fuel gap logged|no .* available|sleep gap logged|long gap logged\. protect)/i;
@@ -460,7 +459,6 @@
     if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
     if (gap.thresholds.hydrationRedMinutes <= gap.thresholds.hydrationGreenMinutes) gap.thresholds.hydrationRedMinutes = gap.thresholds.hydrationGreenMinutes + 15;
     if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
-    if (!GRAPH_MODES.has(gap.graphMode)) gap.graphMode = "risk";
     normalizeStoredDayTypes(gap);
     removeStoredFollowUpData(gap);
     return gap;
@@ -707,10 +705,6 @@
     });
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
-  }
-
-  function graphMode() {
-    return GRAPH_MODES.has(betaState().graphMode) ? betaState().graphMode : "risk";
   }
 
   function cooldownRemainingSeconds(now = Date.now()) {
@@ -1640,13 +1634,6 @@
     renderAll();
   };
 
-  function renderGraphModeControls() {
-    const mode = graphMode();
-    document.querySelectorAll("[data-graph-mode]").forEach(button => {
-      button.classList.toggle("active", button.dataset.graphMode === mode);
-    });
-  }
-
   function renderGapInsights(snapshot, analysis = analyseDay(dateKey())) {
     const target = document.getElementById("fuelGapInsights");
     if (!target) return;
@@ -1731,7 +1718,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v63-log-nav-grid"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v64-sticky-logo-trends"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3538,7 +3525,6 @@
     const summaryTarget = document.getElementById("fuelAveragesSummary");
     if (!summaryTarget) return;
     renderSelectedDayCard();
-    renderGraphModeControls();
     const weekStart = selectedTrendWeekStart();
     const weekLabel = document.getElementById("trendWeekLabel");
     const nextButton = document.getElementById("trendNextWeekButton");
@@ -3552,7 +3538,6 @@
       summaryTarget.innerHTML = `
         <p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for ${safeText(formatWeekRange(weekStart))} yet.</p>
       `;
-      requestAnimationFrame(() => drawBetaGraph());
       return;
     }
 
@@ -3570,7 +3555,6 @@
       ${renderWeeklyFuelLogTimeline(weekEntries, weekStart)}
       ${renderWeeklyGraphs(weekEntries, weekStart)}
     `;
-    requestAnimationFrame(() => drawBetaGraph());
   }
 
   function drawBetaGraph(now = new Date()) {
@@ -3594,7 +3578,7 @@
     const plotHeight = cssHeight - padding.top - padding.bottom;
     const bottom = padding.top + plotHeight;
     const xForMinute = minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth;
-    const selectedMode = graphMode();
+    const selectedMode = "risk";
     const selectedKey = selectedDataDateKey();
     const entry = archiveEntries().find(item => item.date === selectedKey) || buildArchiveEntry(selectedKey);
     const isSelectedToday = selectedKey === dateKey(now);
@@ -3862,7 +3846,6 @@
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
 
-    renderGraphModeControls();
     if (dashboardActive) {
       renderDayTypeControls();
       renderSelectedDayCard();
@@ -3882,15 +3865,6 @@
     document.querySelectorAll(".mobile-nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
-    const titles = {
-      dashboard: ["Log", "Log quickly and review the selected day."],
-      trends: ["Trends", "Graph views and weekly patterns."],
-      checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
-    };
-    const title = document.getElementById("pageTitle");
-    const subtitle = document.getElementById("pageSubtitle");
-    if (title) title.textContent = titles[target][0];
-    if (subtitle) subtitle.textContent = titles[target][1];
     if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
   };
@@ -4023,13 +3997,6 @@
     save();
     renderAll();
     window.fuelGuardCloud?.syncLogsForDay(key);
-  });
-  document.getElementById("fuelGraphModeControls")?.addEventListener("click", event => {
-    const button = event.target.closest("[data-graph-mode]");
-    if (!button) return;
-    betaState().graphMode = GRAPH_MODES.has(button.dataset.graphMode) ? button.dataset.graphMode : "risk";
-    save();
-    renderFuelGap();
   });
   document.getElementById("fuelDataDate")?.addEventListener("change", event => {
     setSelectedDataDate(event.target.value);
@@ -4292,16 +4259,6 @@
   if (urlRequestsPasswordRecovery()) {
     requestAnimationFrame(() => switchScreen("checklist"));
   }
-
-  let graphResizeQueued = false;
-  window.addEventListener("resize", () => {
-    if (graphResizeQueued) return;
-    graphResizeQueued = true;
-    requestAnimationFrame(() => {
-      graphResizeQueued = false;
-      if (document.getElementById("trends")?.classList.contains("active")) drawBetaGraph();
-    });
-  });
 
   function scheduleFuelGuardTick() {
     const delay = cooldownRemainingSeconds() > 0 ? 1000 : 30000;
