@@ -24,6 +24,13 @@ const DEFAULT_STATE = {
       hydrationRedMinutes: HYDRATION_RED_LIMIT_MINUTES,
       hydrationCrashMinutes: HYDRATION_CRASH_LIMIT_MINUTES
     },
+    targets: {
+      dailyFuelLogs: null,
+      dailyHydrationLogs: null,
+      weeklyFuelLogs: null,
+      weeklyHydrationLogs: null,
+      updatedAt: ""
+    },
     dayEndedDate: "",
     dayEndedAt: "",
     fastingStartedAt: "",
@@ -80,6 +87,10 @@ function load() {
         thresholds: {
           ...defaults.fuelGap.thresholds,
           ...(isPlainObject(parsedFuelGap.thresholds) ? parsedFuelGap.thresholds : {})
+        },
+        targets: {
+          ...defaults.fuelGap.targets,
+          ...(isPlainObject(parsedFuelGap.targets) ? parsedFuelGap.targets : {})
         },
         cloud: {
           ...defaults.fuelGap.cloud,
@@ -174,6 +185,11 @@ function fuelGapState() {
   state.fuelGap.thresholds = {
     ...DEFAULT_STATE.fuelGap.thresholds,
     ...state.fuelGap.thresholds
+  };
+  if (!isPlainObject(state.fuelGap.targets)) state.fuelGap.targets = { ...DEFAULT_STATE.fuelGap.targets };
+  state.fuelGap.targets = {
+    ...DEFAULT_STATE.fuelGap.targets,
+    ...state.fuelGap.targets
   };
   if (!isPlainObject(state.fuelGap.cloud)) state.fuelGap.cloud = { ...DEFAULT_STATE.fuelGap.cloud };
   state.fuelGap.cloud = {

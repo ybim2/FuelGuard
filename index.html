@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v64-sticky-logo-trends" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v64-sticky-logo-trends" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v64-sticky-logo-trends" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v65-targets-share" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v65-targets-share" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v65-targets-share" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -95,6 +95,11 @@
                   </label>
                 </div>
                 <div id="fuelSelectedDayMetrics"></div>
+                <div class="button-row beta-selected-day-actions">
+                  <button id="shareDailySummaryButton" class="secondary" type="button">Share</button>
+                  <button id="downloadDailySummaryButton" class="secondary" type="button">Download image</button>
+                </div>
+                <p id="dailySummaryShareStatus" class="row-note" aria-live="polite"></p>
               </section>
 
             </div>
@@ -182,6 +187,22 @@
           <p id="fuelSettingsStatus" class="row-note"></p>
         </article>
 
+        <article class="card beta-targets-card">
+          <h2>Fuelling targets</h2>
+          <p class="muted">Set optional fuel and hydration log targets. Leave a field blank to remove that target.</p>
+          <div class="form-grid beta-settings-grid">
+            <label>Fuel logs per day<input id="dailyFuelTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+            <label>Hydration logs per day<input id="dailyHydrationTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+            <label>Fuel logs per week<input id="weeklyFuelTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+            <label>Hydration logs per week<input id="weeklyHydrationTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+          </div>
+          <div class="button-row beta-settings-actions">
+            <button id="saveFuelTargets" class="primary" type="button">Save targets</button>
+            <button id="clearFuelTargets" class="secondary" type="button">Clear targets</button>
+          </div>
+          <p id="fuelTargetsStatus" class="row-note" aria-live="polite"></p>
+        </article>
+
         <article class="card beta-update-card">
           <h2>App update</h2>
           <p class="muted">Check for the latest deployed PWA shell without clearing fuel or hydration logs.</p>
@@ -265,7 +286,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v64-sticky-logo-trends</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v65-targets-share</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -288,15 +309,15 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
+  <script src="build-info.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v65-targets-share"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="app-ui.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v64-sticky-logo-trends"></script>
+  <script src="app-state.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="app-ui.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v65-targets-share"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v65-targets-share"></script>
 </body>
 </html>

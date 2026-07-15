@@ -1,6 +1,7 @@
 // Fuel Guard Supabase Auth and cloud log sync.
 (() => {
   const TABLE = "fuel_logs";
+  const TARGETS_TABLE = "fuel_targets";
   const STATUS_EVENT = "fuelguard:cloud-status";
   const SYNCED = "synced";
   const PENDING = "pending";
@@ -204,6 +205,103 @@
     return gap.logs;
   }
 
+
+  function targetNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isInteger(number) && number > 0 ? number : null;
+  }
+
+  function targetsState() {
+    const gap = gapState();
+    if (!gap) return null;
+    if (!gap.targets || typeof gap.targets !== "object" || Array.isArray(gap.targets)) gap.targets = {};
+    ["dailyFuelLogs", "dailyHydrationLogs", "weeklyFuelLogs", "weeklyHydrationLogs"].forEach(key => {
+      gap.targets[key] = targetNumber(gap.targets[key]);
+    });
+    gap.targets.updatedAt = String(gap.targets.updatedAt || "");
+    return gap.targets;
+  }
+
+  function hasAnyTarget(targets) {
+    return Boolean(targets && [
+      targets.dailyFuelLogs,
+      targets.dailyHydrationLogs,
+      targets.weeklyFuelLogs,
+      targets.weeklyHydrationLogs
+    ].some(value => Number.isInteger(value) && value > 0));
+  }
+
+  function targetUpdatedAt(targets) {
+    const time = Date.parse(targets?.updatedAt || "");
+    return Number.isFinite(time) ? time : 0;
+  }
+
+  function targetRowFromState(currentUser) {
+    const localTargets = targetsState();
+    if (!currentUser?.id || !localTargets) return null;
+    return {
+      user_id: currentUser.id,
+      daily_fuel_logs: targetNumber(localTargets.dailyFuelLogs),
+      daily_hydration_logs: targetNumber(localTargets.dailyHydrationLogs),
+      weekly_fuel_logs: targetNumber(localTargets.weeklyFuelLogs),
+      weekly_hydration_logs: targetNumber(localTargets.weeklyHydrationLogs),
+      updated_at: localTargets.updatedAt || new Date().toISOString()
+    };
+  }
+
+  function applyTargetRow(row) {
+    if (!row) return;
+    const localTargets = targetsState();
+    if (!localTargets) return;
+    localTargets.dailyFuelLogs = targetNumber(row.daily_fuel_logs);
+    localTargets.dailyHydrationLogs = targetNumber(row.daily_hydration_logs);
+    localTargets.weeklyFuelLogs = targetNumber(row.weekly_fuel_logs);
+    localTargets.weeklyHydrationLogs = targetNumber(row.weekly_hydration_logs);
+    localTargets.updatedAt = row.updated_at || localTargets.updatedAt || "";
+  }
+
+  async function fetchTargetRow() {
+    const currentUser = user();
+    if (!client || !currentUser) return null;
+    const { data, error } = await client
+      .from(TARGETS_TABLE)
+      .select("user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  async function upsertTargets() {
+    const currentUser = user();
+    const row = targetRowFromState(currentUser);
+    if (!client || !currentUser || !row) return null;
+    const { data, error } = await client
+      .from(TARGETS_TABLE)
+      .upsert(row, { onConflict: "user_id" })
+      .select("user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at")
+      .single();
+    if (error) throw error;
+    applyTargetRow(data);
+    return data;
+  }
+
+  async function syncTargets() {
+    if (!client || !user()) return;
+    const localTargets = targetsState();
+    const cloudTargets = await fetchTargetRow();
+    if (!cloudTargets) {
+      if (hasAnyTarget(localTargets) || localTargets?.updatedAt) await upsertTargets();
+      return;
+    }
+    if (targetUpdatedAt(cloudTargets) >= targetUpdatedAt(localTargets)) {
+      applyTargetRow(cloudTargets);
+      return;
+    }
+    await upsertTargets();
+  }
+
   function mergeSyncedRows(rows) {
     const gap = gapState();
     if (!gap) return;
@@ -390,11 +488,17 @@
       await uploadLogs(matchPendingLogsToCloudRows(pending, existingRows));
       const rows = await fetchRows();
       mergeSyncedRows(rows);
+      let targetWarning = "";
+      try {
+        await syncTargets();
+      } catch (targetError) {
+        targetWarning = ` Targets stayed cached locally: ${targetError?.message || "target sync failed"}.`;
+      }
       if (gap) {
         gap.cloud.lastSyncedAt = new Date().toISOString();
         gap.cloud.lastError = "";
       }
-      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.`);
+      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.${targetWarning}`);
       persistAndRender();
     } catch (error) {
       if (gap) gap.cloud.lastError = error?.message || "Sync failed.";
@@ -546,6 +650,21 @@
     persistAndRender();
   }
 
+
+  async function saveTargets() {
+    if (!configured()) {
+      status("Targets saved locally. Cloud sync needs Supabase public URL/key configuration.");
+      return;
+    }
+    if (!user() || !isOnline()) {
+      status(user() ? "Offline. Targets cached for later sync." : "Targets saved locally. Sign in to sync across devices.");
+      return;
+    }
+    await upsertTargets();
+    status("Targets synced to Supabase.");
+    persistAndRender();
+  }
+
   function accountView() {
     const gap = gapState();
     const pending = allLogs().filter(log => log.syncStatus !== SYNCED).length;
@@ -613,6 +732,7 @@
     syncLogsForDay,
     deleteLog,
     clearCloudLogs,
+    saveTargets,
     signIn,
     signUp,
     sendPasswordReset,

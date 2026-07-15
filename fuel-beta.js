@@ -88,6 +88,13 @@
   let missedLogStatus = "";
   let missedLogBusy = false;
 
+  const TARGET_FIELDS = [
+    "dailyFuelLogs",
+    "dailyHydrationLogs",
+    "weeklyFuelLogs",
+    "weeklyHydrationLogs"
+  ];
+
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
       || /(?:^|[&#?])(?:type|auth)=recovery(?:$|[&#=])/.test(window.location.hash || "");
@@ -459,6 +466,11 @@
     if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
     if (gap.thresholds.hydrationRedMinutes <= gap.thresholds.hydrationGreenMinutes) gap.thresholds.hydrationRedMinutes = gap.thresholds.hydrationGreenMinutes + 15;
     if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
+    if (!gap.targets || typeof gap.targets !== "object" || Array.isArray(gap.targets)) gap.targets = {};
+    TARGET_FIELDS.forEach(key => {
+      gap.targets[key] = normalizeTargetNumber(gap.targets[key]);
+    });
+    gap.targets.updatedAt = String(gap.targets.updatedAt || "");
     normalizeStoredDayTypes(gap);
     removeStoredFollowUpData(gap);
     return gap;
@@ -466,6 +478,30 @@
 
   function thresholds() {
     return betaState().thresholds;
+  }
+
+  function normalizeTargetNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const text = String(value).trim();
+    if (!/^\d+$/.test(text)) return null;
+    const number = Number(text);
+    return Number.isInteger(number) && number > 0 ? number : null;
+  }
+
+  function targets() {
+    return betaState().targets;
+  }
+
+  function hasTarget(value) {
+    return Number.isInteger(value) && value > 0;
+  }
+
+  function targetPercent(actual, target) {
+    return hasTarget(target) ? Math.round((Math.max(0, actual) / target) * 100) : null;
+  }
+
+  function targetInputValue(value) {
+    return hasTarget(value) ? String(value) : "";
   }
 
   fuelGapStatus = function fuelGapStatusBeta(minutes) {
@@ -1713,12 +1749,21 @@
       const input = document.getElementById(id);
       if (input && active !== input) input.value = hoursValue(minutes);
     });
+    [
+      ["dailyFuelTarget", targets().dailyFuelLogs],
+      ["dailyHydrationTarget", targets().dailyHydrationLogs],
+      ["weeklyFuelTarget", targets().weeklyFuelLogs],
+      ["weeklyHydrationTarget", targets().weeklyHydrationLogs]
+    ].forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && active !== input) input.value = targetInputValue(value);
+    });
     const buildInfo = window.FUEL_GUARD_BUILD || {};
     const canonical = document.getElementById("canonicalAppVersion");
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v64-sticky-logo-trends"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v65-targets-share"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1830,6 +1875,7 @@
       chart: '<path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/>',
       recovery: '<path d="M4 13h4l2-5 4 9 2-4h4"/><path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
       route: '<path d="M5 7a2 2 0 1 0 0 .01"/><path d="M19 17a2 2 0 1 0 0 .01"/><path d="M7 7h4a3 3 0 0 1 0 6h2a3 3 0 0 1 0 6h4"/>',
+      target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/>',
       check: '<path d="m5 12 4 4L19 6"/>'
     };
     return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.fuel}</svg>`;
@@ -2207,6 +2253,51 @@
     `;
   }
 
+
+  function targetDifferenceText(actual, target) {
+    if (!hasTarget(target)) return "No target set.";
+    const difference = Math.round(actual - target);
+    if (difference === 0) return "Right on target.";
+    const label = Math.abs(difference) === 1 ? "log" : "logs";
+    return difference > 0
+      ? `${difference} ${label} above target.`
+      : `${Math.abs(difference)} ${label} below target.`;
+  }
+
+  function targetProgressNote(label, actual, target, period = "target") {
+    if (!hasTarget(target)) return `No ${period} ${label.toLowerCase()} target set.`;
+    return `${label} target completed: ${targetPercent(actual, target)}%.`;
+  }
+
+  function renderTargetProgressCard(label, actual, target, tone = "fuel", period = "daily") {
+    const percent = targetPercent(actual, target);
+    const width = percent === null ? 0 : Math.min(100, Math.max(0, percent));
+    const value = hasTarget(target) ? `${actual} of ${target}` : `${actual} log${actual === 1 ? "" : "s"}`;
+    const note = hasTarget(target)
+      ? targetProgressNote(label, actual, target, period)
+      : `No ${period} ${label.toLowerCase()} target set.`;
+    const fill = percent === null ? "" : `<i style="width:${stylePercent(width)}"></i>`;
+    return `
+      <article class="beta-target-progress-card ${safeText(tone)}">
+        <div class="beta-target-progress-head">
+          <span>${safeText(label)}</span>
+          <strong>${safeText(value)}</strong>
+        </div>
+        <div class="beta-target-progress-bar" aria-hidden="true">${fill}</div>
+        <small>${safeText(note)}</small>
+      </article>
+    `;
+  }
+
+  function renderDailyTargetProgress(fuelActual, hydrationActual, currentTargets = targets()) {
+    return `
+      <div class="beta-target-progress-grid" aria-label="Daily target progress">
+        ${renderTargetProgressCard("Fuel", fuelActual, currentTargets.dailyFuelLogs, "fuel", "daily")}
+        ${renderTargetProgressCard("Hydration", hydrationActual, currentTargets.dailyHydrationLogs, "hydration", "daily")}
+      </div>
+    `;
+  }
+
   function firstEventTime(logs) {
     return logs.length ? formatClock(logs[0].date) : "Not enough data yet";
   }
@@ -2250,6 +2341,7 @@
             <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
           </div>
         ` : ""}
+        ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length)}
         <div class="beta-daily-metric-grid">
           ${dailyMetricCard("Status", status)}
           ${dailyMetricCard("Last fuel", timeSinceLastEventText(fuelLogs, key))}
@@ -2266,6 +2358,259 @@
         </div>
       </section>
     `;
+  }
+
+
+  function selectedDaySummaryFilename(key = selectedDataDateKey()) {
+    return `fuel-guard-${key || dateKey()}.png`;
+  }
+
+  function setDailySummaryShareStatus(message) {
+    const status = document.getElementById("dailySummaryShareStatus");
+    if (status) status.textContent = message || "";
+  }
+
+  function canvasBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      if (!canvas?.toBlob) {
+        reject(new Error("Image export is not supported in this browser."));
+        return;
+      }
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error("Daily summary image could not be created."));
+      }, "image/png", 0.95);
+    });
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  }
+
+  function drawRoundedRect(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
+  function drawPill(ctx, x, y, width, height, fill, text, color = "#07130f") {
+    drawRoundedRect(ctx, x, y, width, height, height / 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.font = "700 30px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x + width / 2, y + height / 2 + 1);
+  }
+
+  function drawShareMetric(ctx, { x, y, width, label, value, note, color, percent }) {
+    drawRoundedRect(ctx, x, y, width, 210, 34);
+    ctx.fillStyle = "rgba(255,255,255,0.94)";
+    ctx.fill();
+    ctx.fillStyle = "#34423c";
+    ctx.font = "700 28px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, x + 30, y + 26);
+    ctx.fillStyle = "#07130f";
+    ctx.font = "800 54px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(value, x + 30, y + 66);
+    ctx.fillStyle = "#5b6b64";
+    ctx.font = "500 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(note, x + 30, y + 132);
+    drawRoundedRect(ctx, x + 30, y + 166, width - 60, 16, 8);
+    ctx.fillStyle = "#dfe8e3";
+    ctx.fill();
+    if (Number.isFinite(percent)) {
+      drawRoundedRect(ctx, x + 30, y + 166, (width - 60) * Math.min(1, Math.max(0, percent / 100)), 16, 8);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+  }
+
+  function drawDailySummaryTimeline(ctx, x, y, width, logs) {
+    const fuelLogs = stackedTimelineLogs(logs.filter(isFuelLog), { closeMinutes: 20, laneStep: 22, maxOffset: 44 });
+    const hydrationLogs = stackedTimelineLogs(logs.filter(isHydrationLog), { closeMinutes: 20, laneStep: 22, maxOffset: 44 });
+    drawRoundedRect(ctx, x, y, width, 240, 36);
+    ctx.fillStyle = "rgba(255,255,255,0.94)";
+    ctx.fill();
+    ctx.fillStyle = "#07130f";
+    ctx.font = "800 34px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("Daily rhythm", x + 34, y + 28);
+    const trackX = x + 54;
+    const trackY = y + 134;
+    const trackWidth = width - 108;
+    ctx.strokeStyle = "#cfdad4";
+    ctx.lineWidth = 6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(trackX, trackY);
+    ctx.lineTo(trackX + trackWidth, trackY);
+    ctx.stroke();
+    [0, 360, 720, 1080, 1440].forEach(minute => {
+      const px = trackX + (minute / 1440) * trackWidth;
+      ctx.strokeStyle = "#aab8b0";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px, trackY - 16);
+      ctx.lineTo(px, trackY + 16);
+      ctx.stroke();
+      ctx.fillStyle = "#5b6b64";
+      ctx.font = "600 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = minute === 0 ? "left" : minute === 1440 ? "right" : "center";
+      ctx.fillText(`${String(Math.floor(minute / 60)).padStart(2, "0")}:00`, px, trackY + 34);
+    });
+    const drawMarker = (log, color, yBase) => {
+      const px = trackX + (minutesIntoDay(log.date) / 1440) * trackWidth;
+      const py = yBase + Number(log.laneOffset || 0);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(px, py, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    };
+    fuelLogs.forEach(log => drawMarker(log, "#19b86a", trackY - 38));
+    hydrationLogs.forEach(log => drawMarker(log, "#2d7ff9", trackY + 46));
+    drawPill(ctx, x + 34, y + 184, 132, 40, "#dff6ea", "Fuel", "#0b6f3e");
+    drawPill(ctx, x + 182, y + 184, 174, 40, "#e4efff", "Hydration", "#1d5fbf");
+  }
+
+  function createDailySummaryCanvas(entry = selectedDataEntry()) {
+    const key = entry?.date || selectedDataDateKey();
+    const logs = entryLogsWithDates(entry);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const currentTargets = targets();
+    const fuelPercent = targetPercent(fuelLogs.length, currentTargets.dailyFuelLogs);
+    const hydrationPercent = targetPercent(hydrationLogs.length, currentTargets.dailyHydrationLogs);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Image export is not supported in this browser.");
+    ctx.fillStyle = "#07130f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, "rgba(45,255,136,0.18)");
+    gradient.addColorStop(0.56, "rgba(255,176,32,0.12)");
+    gradient.addColorStop(1, "rgba(45,127,249,0.16)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(118, 118, 56, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#07130f";
+    ctx.font = "900 38px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("FG", 118, 120);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = "800 62px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Fuel Guard", 194, 76);
+    ctx.font = "600 32px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.76)";
+    ctx.fillText(formatDateKey(key), 198, 148);
+
+    const fuelValue = hasTarget(currentTargets.dailyFuelLogs) ? `${fuelLogs.length} / ${currentTargets.dailyFuelLogs}` : String(fuelLogs.length);
+    const hydrationValue = hasTarget(currentTargets.dailyHydrationLogs) ? `${hydrationLogs.length} / ${currentTargets.dailyHydrationLogs}` : String(hydrationLogs.length);
+    drawShareMetric(ctx, {
+      x: 70,
+      y: 260,
+      width: 450,
+      label: "Fuel logs",
+      value: fuelValue,
+      note: hasTarget(currentTargets.dailyFuelLogs) ? `${fuelPercent}% of daily target` : "No daily target set",
+      color: "#19b86a",
+      percent: fuelPercent
+    });
+    drawShareMetric(ctx, {
+      x: 560,
+      y: 260,
+      width: 450,
+      label: "Hydration logs",
+      value: hydrationValue,
+      note: hasTarget(currentTargets.dailyHydrationLogs) ? `${hydrationPercent}% of daily target` : "No daily target set",
+      color: "#2d7ff9",
+      percent: hydrationPercent
+    });
+    drawDailySummaryTimeline(ctx, 70, 540, 940, logs);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 44px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Your fuelling rhythm", 70, 860);
+    ctx.fillStyle = "rgba(255,255,255,0.78)";
+    ctx.font = "500 31px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    const summaryLines = [
+      `Fuel: ${fuelLogs.length} log${fuelLogs.length === 1 ? "" : "s"}`,
+      `Hydration: ${hydrationLogs.length} log${hydrationLogs.length === 1 ? "" : "s"}`,
+      hasTarget(currentTargets.dailyFuelLogs) ? `Daily fuel target: ${fuelPercent}% complete` : "Set a daily fuel target in Settings",
+      hasTarget(currentTargets.dailyHydrationLogs) ? `Daily hydration target: ${hydrationPercent}% complete` : "Set a daily hydration target in Settings"
+    ];
+    summaryLines.forEach((line, index) => ctx.fillText(line, 70, 938 + index * 52));
+
+    ctx.fillStyle = "rgba(255,255,255,0.58)";
+    ctx.font = "600 25px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("A simple summary of fuel and hydration timing. No private account info included.", 70, 1260);
+    return canvas;
+  }
+
+  async function dailySummaryBlob() {
+    return canvasBlob(createDailySummaryCanvas(selectedDataEntry()));
+  }
+
+  async function downloadDailySummaryImage() {
+    setDailySummaryShareStatus("Creating image...");
+    try {
+      const blob = await dailySummaryBlob();
+      downloadBlob(blob, selectedDaySummaryFilename());
+      setDailySummaryShareStatus("Daily summary image downloaded.");
+    } catch (error) {
+      setDailySummaryShareStatus(`Image download failed: ${error?.message || "unknown error"}`);
+    }
+  }
+
+  async function shareDailySummaryImage() {
+    setDailySummaryShareStatus("Creating image...");
+    try {
+      const blob = await dailySummaryBlob();
+      const filename = selectedDaySummaryFilename();
+      const file = new File([blob], filename, { type: "image/png" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Fuel Guard daily summary", text: "Fuel Guard daily summary" });
+        setDailySummaryShareStatus("Daily summary shared.");
+        return;
+      }
+      downloadBlob(blob, filename);
+      setDailySummaryShareStatus("Sharing image downloaded because native sharing is not available here.");
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setDailySummaryShareStatus("Share cancelled.");
+        return;
+      }
+      setDailySummaryShareStatus(`Share failed: ${error?.message || "unknown error"}`);
+    }
   }
 
   function selectedDataEntry() {
@@ -2844,6 +3189,89 @@
         <strong>${safeText(value)}</strong>
         ${note ? `<small>${safeText(note)}</small>` : ""}
       </article>
+    `;
+  }
+
+
+  function weeklyLogCount(entries, predicate) {
+    return entries.reduce((sum, entry) => sum + logsForEntryType(entry, predicate).length, 0);
+  }
+
+  function renderWeeklyTargetMetric(label, actual, target, tone = "fuel") {
+    const percent = targetPercent(actual, target);
+    const width = percent === null ? 0 : Math.min(100, Math.max(0, percent));
+    const value = hasTarget(target) ? `${actual} of ${target}` : `${actual} log${actual === 1 ? "" : "s"}`;
+    const progressNote = hasTarget(target)
+      ? targetProgressNote(label, actual, target, "weekly")
+      : `No weekly ${label.toLowerCase()} target set.`;
+    const differenceNote = hasTarget(target)
+      ? `${percent}% complete. ${targetDifferenceText(actual, target)}`
+      : `Set a weekly ${label.toLowerCase()} target in Settings.`;
+    const fill = percent === null ? "" : `<i style="width:${stylePercent(width)}"></i>`;
+    return `
+      <article class="beta-target-progress-card beta-weekly-target-card ${safeText(tone)}">
+        <div class="beta-target-progress-head">
+          <span>${safeText(label)}</span>
+          <strong>${safeText(value)}</strong>
+        </div>
+        <div class="beta-target-progress-bar" aria-hidden="true">${fill}</div>
+        <small>${safeText(progressNote)}</small>
+        <div class="beta-target-difference">${safeText(differenceNote)}</div>
+      </article>
+    `;
+  }
+
+  function renderTargetComparisonChart(items) {
+    const max = Math.max(...items.flatMap(item => [item.actual, hasTarget(item.target) ? item.target : 0]), 1);
+    const bars = items.map(item => {
+      const actualWidth = Math.max(0, Math.min(100, (item.actual / max) * 100));
+      const targetWidth = hasTarget(item.target) ? Math.max(0, Math.min(100, (item.target / max) * 100)) : 0;
+      return `
+        <div class="beta-target-comparison-row">
+          <div class="beta-target-comparison-label"><strong>${safeText(item.label)}</strong><span>${safeText(hasTarget(item.target) ? `${item.actual} actual · ${item.target} target` : `${item.actual} actual · no target set`)}</span></div>
+          <div class="beta-target-comparison-bars" aria-hidden="true">
+            <i class="actual ${safeText(item.tone)}" style="width:${stylePercent(actualWidth)}"></i>
+            ${hasTarget(item.target) ? `<i class="target" style="width:${stylePercent(targetWidth)}"></i>` : ""}
+          </div>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="beta-target-comparison-chart" role="img" aria-label="Weekly actual logs compared with target logs">
+        <div class="beta-target-legend" aria-hidden="true"><span><i class="actual"></i>Actual</span><span><i class="target"></i>Target</span></div>
+        ${bars}
+      </div>
+    `;
+  }
+
+  function renderWeeklyTargetSection(entries) {
+    const currentTargets = targets();
+    const fuelActual = weeklyLogCount(entries, isFuelLog);
+    const hydrationActual = weeklyLogCount(entries, isHydrationLog);
+    const hasAnyWeeklyTarget = hasTarget(currentTargets.weeklyFuelLogs) || hasTarget(currentTargets.weeklyHydrationLogs);
+    const hasAnyLogs = fuelActual > 0 || hydrationActual > 0;
+    const empty = !hasAnyWeeklyTarget && !hasAnyLogs
+      ? `<p class="muted beta-history-empty">Set weekly targets in Settings or log fuel and hydration to see target progress here.</p>`
+      : "";
+    return `
+      <section class="beta-weekly-section beta-weekly-target-section">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("target")}</span>
+          <div>
+            <h3>Weekly targets</h3>
+            <p>Actual logs compared with your optional weekly targets.</p>
+          </div>
+        </div>
+        ${empty}
+        <div class="beta-target-progress-grid beta-weekly-target-grid">
+          ${renderWeeklyTargetMetric("Fuel", fuelActual, currentTargets.weeklyFuelLogs, "fuel")}
+          ${renderWeeklyTargetMetric("Hydration", hydrationActual, currentTargets.weeklyHydrationLogs, "hydration")}
+        </div>
+        ${renderTargetComparisonChart([
+          { label: "Fuel", actual: fuelActual, target: currentTargets.weeklyFuelLogs, tone: "fuel" },
+          { label: "Hydration", actual: hydrationActual, target: currentTargets.weeklyHydrationLogs, tone: "hydration" }
+        ])}
+      </section>
     `;
   }
 
@@ -3536,6 +3964,14 @@
     const hasLogs = weekEntries.some(entry => entryLogsWithDates(entry).length > 0);
     if (!hasLogs) {
       summaryTarget.innerHTML = `
+        <section class="beta-weekly-overview">
+          <div class="beta-weekly-range">
+            <span>Selected week</span>
+            <strong>${safeText(formatWeekRange(weekStart))}</strong>
+            <small>Monday to Sunday. Trends only use logs inside this week.</small>
+          </div>
+        </section>
+        ${renderWeeklyTargetSection(weekEntries)}
         <p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for ${safeText(formatWeekRange(weekStart))} yet.</p>
       `;
       return;
@@ -3549,6 +3985,7 @@
           <small>Monday to Sunday. Trends only use logs inside this week.</small>
         </div>
       </section>
+      ${renderWeeklyTargetSection(weekEntries)}
       ${renderWeeklyFuelSection(weekEntries)}
       ${renderWeeklyHydrationSection(weekEntries)}
       ${renderWeeklyLowEnergySection(weekEntries)}
@@ -3889,6 +4326,60 @@
     renderAll();
   }
 
+  function readTargetField(id) {
+    const input = document.getElementById(id);
+    const text = String(input?.value || "").trim();
+    if (!text) return null;
+    if (!/^\d+$/.test(text)) throw new Error("Targets must be whole numbers.");
+    const value = Number(text);
+    if (!Number.isInteger(value) || value < 1) throw new Error("Targets must be whole numbers of 1 or more.");
+    return value;
+  }
+
+  async function persistTargetSettings(message = "Targets saved.") {
+    const status = document.getElementById("fuelTargetsStatus");
+    if (status) status.textContent = message;
+    save();
+    renderAll();
+    try {
+      await window.fuelGuardCloud?.saveTargets?.();
+      if (status) {
+        const cloud = window.fuelGuardCloud?.accountView?.() || {};
+        status.textContent = cloud.signedIn ? `${message} Synced to your account.` : `${message} Sign in to sync across devices.`;
+      }
+    } catch (error) {
+      if (status) status.textContent = `${message} Saved locally; cloud target sync failed: ${error?.message || "unknown error"}`;
+    }
+  }
+
+  async function saveTargetSettings() {
+    const status = document.getElementById("fuelTargetsStatus");
+    try {
+      const next = {
+        dailyFuelLogs: readTargetField("dailyFuelTarget"),
+        dailyHydrationLogs: readTargetField("dailyHydrationTarget"),
+        weeklyFuelLogs: readTargetField("weeklyFuelTarget"),
+        weeklyHydrationLogs: readTargetField("weeklyHydrationTarget"),
+        updatedAt: new Date().toISOString()
+      };
+      betaState().targets = next;
+      await persistTargetSettings("Targets saved.");
+    } catch (error) {
+      if (status) status.textContent = error?.message || "Targets could not be saved.";
+    }
+  }
+
+  async function clearTargetSettings() {
+    betaState().targets = {
+      dailyFuelLogs: null,
+      dailyHydrationLogs: null,
+      weeklyFuelLogs: null,
+      weeklyHydrationLogs: null,
+      updatedAt: new Date().toISOString()
+    };
+    await persistTargetSettings("Targets cleared.");
+  }
+
   async function clearBetaData() {
     if (!window.confirm("Clear fuel beta logs, summaries, day types and thresholds?")) return;
     const settingsStatus = document.getElementById("fuelSettingsStatus");
@@ -4019,6 +4510,8 @@
     renderTrends();
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
+  document.getElementById("saveFuelTargets")?.addEventListener("click", saveTargetSettings);
+  document.getElementById("clearFuelTargets")?.addEventListener("click", clearTargetSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
   document.getElementById("fuelCsvImportButton")?.addEventListener("click", () => {
     const input = document.getElementById("fuelCsvImportFileInput");
@@ -4050,6 +4543,8 @@
     }
   });
   document.getElementById("fuelCsvImportConfirmButton")?.addEventListener("click", commitFuelCsvImport);
+  document.getElementById("shareDailySummaryButton")?.addEventListener("click", shareDailySummaryImage);
+  document.getElementById("downloadDailySummaryButton")?.addEventListener("click", downloadDailySummaryImage);
   window.addEventListener("fuelguard:pwa-update-status", event => {
     const status = document.getElementById("appUpdateStatus");
     if (!status) return;
