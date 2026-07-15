@@ -35,11 +35,6 @@
     labels[option.value] = option.label;
     return labels;
   }, {});
-  const SHOP_TYPE_OPTIONS = {
-    full_shop: "Full shop",
-    top_up: "Top-up shop",
-    meal_prep: "Meal-prep batch"
-  };
   const GRAPH_MODES = new Set(["fuel", "hydration", "risk"]);
   const CRASH_NOTE = "fuel_guard_event:crash";
   const LEGACY_FOLLOWUP_NOTE_RE = /(?:^|[;\n]\s*)fuel_guard_long_gap_reason:[^;\n]*/g;
@@ -85,6 +80,7 @@
   let selectedTrainingFilter = "all";
   let selectedTrendDayType = "all";
   let selectedTrendTrainingSession = "all";
+  let selectedTrendWeekStartKey = "";
   let accountBusy = false;
   let csvImportBusy = false;
   let csvImportPreview = null;
@@ -92,10 +88,6 @@
   let missedLogEditingId = "";
   let missedLogStatus = "";
   let missedLogBusy = false;
-  let runwayEditingId = "";
-  let runwayStatus = "";
-  let rideStatus = "";
-  let activeRideTimer = null;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -1229,6 +1221,55 @@
     return [...keys].sort().reverse().map(key => buildArchiveEntry(key));
   }
 
+  function selectedDataDateKey() {
+    const todayKey = dateKey();
+    if (!selectedHistoryKey) selectedHistoryKey = todayKey;
+    if (selectedHistoryKey > todayKey) selectedHistoryKey = todayKey;
+    return selectedHistoryKey;
+  }
+
+  function setSelectedDataDate(value) {
+    const todayKey = dateKey();
+    selectedHistoryKey = value && value <= todayKey ? value : todayKey;
+    return selectedHistoryKey;
+  }
+
+  function selectedTrendWeekStart() {
+    if (!selectedTrendWeekStartKey) selectedTrendWeekStartKey = dateKey(startOfCalendarWeek(new Date()));
+    const start = startOfCalendarWeek(dateFromKey(selectedTrendWeekStartKey));
+    const currentStart = startOfCalendarWeek(new Date());
+    if (start > currentStart) {
+      selectedTrendWeekStartKey = dateKey(currentStart);
+      return currentStart;
+    }
+    selectedTrendWeekStartKey = dateKey(start);
+    return start;
+  }
+
+  function setSelectedTrendWeekStart(date) {
+    const currentStart = startOfCalendarWeek(new Date());
+    const next = startOfCalendarWeek(date);
+    selectedTrendWeekStartKey = dateKey(next > currentStart ? currentStart : next);
+    return selectedTrendWeekStart();
+  }
+
+  function weekDays(start) {
+    return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+  }
+
+  function formatWeekRange(start) {
+    const end = addDays(start, 6);
+    return `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  }
+
+  function entriesForWeek(entries, start) {
+    const end = addDays(start, 7);
+    return entries.filter(entry => {
+      const date = dateFromKey(entry.date);
+      return date >= start && date < end;
+    });
+  }
+
   function weeklySummary() {
     const cutoff = startOfDay();
     cutoff.setDate(cutoff.getDate() - 6);
@@ -1396,7 +1437,7 @@
     const typeInput = document.getElementById("missedLogType");
     const dateInput = document.getElementById("missedLogDate");
     const timeInput = document.getElementById("missedLogTime");
-    if (typeInput) typeInput.value = type === "hydration" ? "hydration" : "fuel";
+    if (typeInput) typeInput.value = type === "crash" ? "crash" : type === "hydration" ? "hydration" : "fuel";
     if (dateInput) dateInput.value = dateInputValue(date);
     if (timeInput) timeInput.value = timeInputValue(date);
   }
@@ -1443,7 +1484,8 @@
 
   async function saveMissedLog() {
     if (missedLogBusy) return;
-    const type = document.getElementById("missedLogType")?.value === "hydration" ? "hydration" : "fuel";
+    const requestedType = document.getElementById("missedLogType")?.value || "fuel";
+    const type = requestedType === "hydration" ? "hydration" : requestedType === "crash" ? "crash" : "fuel";
     const dateValue = document.getElementById("missedLogDate")?.value || "";
     const timeValue = document.getElementById("missedLogTime")?.value || "";
     const eventDate = dateTimeFromInputs(dateValue, timeValue);
@@ -1467,7 +1509,7 @@
     renderMissedLogPanel();
     const existing = missedLogEditingId ? logById(missedLogEditingId) : null;
     const oldDate = existing ? logDate(existing) : null;
-    const label = type === "hydration" ? "Hydration logged" : "Fuelled";
+    const label = type === "hydration" ? "Hydration logged" : type === "crash" ? "Low energy event" : "Fuelled";
     const key = dateKey(eventDate);
     const log = existing || {
       id: uid(),
@@ -1484,6 +1526,7 @@
       logType: type,
       entryMethod: existing?.entryMethod || "retrospective",
       source: existing?.source || "manual",
+      note: type === "crash" ? CRASH_NOTE : displayNoteForLog(existing),
       dayType: dayTypeForKey(key),
       trainingSession: trainingSessionForKey(key),
       updatedAt: new Date().toISOString(),
@@ -1512,16 +1555,25 @@
   }
 
   function recordCrashEvent() {
+    const loggedAt = new Date();
     const key = dateKey();
+    const localId = uid();
     const log = {
-      id: uid(),
-      timestamp: new Date().toISOString(),
+      id: localId,
+      localId,
+      timestamp: loggedAt.toISOString(),
+      eventTime: loggedAt.toISOString(),
+      logged_at: loggedAt.toISOString(),
       label: "Low energy event",
       type: "crash",
+      logType: "crash",
+      entryMethod: "live",
       source: "manual",
       dayType: dayTypeForKey(key),
       trainingSession: trainingSessionForKey(key),
       note: CRASH_NOTE,
+      createdAt: loggedAt.toISOString(),
+      updatedAt: loggedAt.toISOString(),
       syncStatus: "pending"
     };
     betaState().logs.push(log);
@@ -1679,7 +1731,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v16-medium-risk-fix"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v59-mvp-daily-weekly"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1788,6 +1840,7 @@
       score: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="m12 14 4-5"/><path d="M6.5 18h11"/>',
       shield: '<path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/>',
       clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
+      chart: '<path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/>',
       recovery: '<path d="M4 13h4l2-5 4 9 2-4h4"/><path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
       route: '<path d="M5 7a2 2 0 1 0 0 .01"/><path d="M19 17a2 2 0 1 0 0 .01"/><path d="M7 7h4a3 3 0 0 1 0 6h2a3 3 0 0 1 0 6h4"/>',
       check: '<path d="m5 12 4 4L19 6"/>'
@@ -2170,6 +2223,80 @@
     `;
   }
 
+  function metricValueOrPending(value, fallback = "Not enough data yet") {
+    if (value === null || value === undefined || value === "") return fallback;
+    return safeText(value);
+  }
+
+  function dailyMetricCard(label, value, note = "") {
+    return `
+      <article class="beta-daily-metric-card">
+        <span>${safeText(label)}</span>
+        <strong>${metricValueOrPending(value)}</strong>
+        ${note ? `<small>${safeText(note)}</small>` : ""}
+      </article>
+    `;
+  }
+
+  function firstEventTime(logs) {
+    return logs.length ? formatClock(logs[0].date) : "Not enough data yet";
+  }
+
+  function lastEventTime(logs) {
+    return logs.length ? formatClock(logs[logs.length - 1].date) : "Not enough data yet";
+  }
+
+  function longestGapTextFromLogs(logs, gapBuilder) {
+    if (logs.length < 2) return "Not enough data yet";
+    const gaps = gapBuilder(logs);
+    const longest = gaps.length ? Math.max(...gaps.map(gap => Number(gap.minutes || 0))) : null;
+    return Number.isFinite(longest) && longest > 0 ? duration(longest) : "Not enough data yet";
+  }
+
+  function timeSinceLastEventText(logs, key, now = new Date()) {
+    if (!logs.length) return "Not enough data yet";
+    if (key !== dateKey(now)) return "Selected day complete";
+    const minutes = Math.max(0, (now - logs[logs.length - 1].date) / 60000);
+    return duration(minutes);
+  }
+
+  function selectedDayStatusText(entry, now = new Date()) {
+    const key = entry?.date || selectedDataDateKey();
+    if (key === dateKey(now)) return riskStatusLabel(fuelGapStatus(minutesSinceLastFuel(now)));
+    return entry?.riskLabel || "Not enough data yet";
+  }
+
+  function renderDailyMetrics(entry) {
+    const key = entry?.date || selectedDataDateKey();
+    const logs = entryLogsWithDates(entry);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const lowEnergyLogs = logs.filter(isCrashLog);
+    const status = selectedDayStatusText(entry);
+    return `
+      <section class="beta-daily-metrics-section" aria-label="Selected day metrics">
+        <div class="section-heading-row">
+          <h3>Selected day</h3>
+          <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
+        </div>
+        <div class="beta-daily-metric-grid">
+          ${dailyMetricCard("Status", status)}
+          ${dailyMetricCard("Time since last fuel", timeSinceLastEventText(fuelLogs, key))}
+          ${dailyMetricCard("Time since last hydration", timeSinceLastEventText(hydrationLogs, key))}
+          ${dailyMetricCard("Fuel logs", String(fuelLogs.length))}
+          ${dailyMetricCard("Hydration logs", String(hydrationLogs.length))}
+          ${dailyMetricCard("Low Energy logs", String(lowEnergyLogs.length))}
+          ${dailyMetricCard("First fuel", firstEventTime(fuelLogs))}
+          ${dailyMetricCard("Last fuel", lastEventTime(fuelLogs))}
+          ${dailyMetricCard("First hydration", firstEventTime(hydrationLogs))}
+          ${dailyMetricCard("Last hydration", lastEventTime(hydrationLogs))}
+          ${dailyMetricCard("Longest fuel gap", longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs), fuelLogs.length < 2 ? "Needs two fuel logs." : "")}
+          ${dailyMetricCard("Longest hydration gap", longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs), hydrationLogs.length < 2 ? "Needs two hydration logs." : "")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderLogEvent(log, { note: noteOverride = "" } = {}) {
     const date = logDate(log.timestamp || log);
     const displayNote = noteOverride || displayNoteForLog(log);
@@ -2263,21 +2390,19 @@
   }
 
   function renderDailyTimelineDetail(entry) {
-    if (!entry) return `<p class="muted">No daily timeline yet. Log fuel or hydration to build today's rhythm.</p>`;
+    if (!entry) return `<p class="muted">No daily timeline yet. Log fuel, hydration, or low energy to build today's rhythm.</p>`;
     return `
+      ${renderDailyMetrics(entry)}
       <section class="beta-daily-visual beta-daily-timeline-section" aria-label="Daily Timeline">
         <div class="section-heading-row">
           <h3>Daily Timeline</h3>
           <span class="row-note">${safeText(entry.dateLabel || "Today")}</span>
         </div>
         <div class="beta-daily-timeline-group">
-          <h4>Fuel log times</h4>
-          ${renderDailyFuelLogTimeline(entry)}
-        </div>
-        <div class="beta-daily-timeline-group">
-          <h4>All daily logs</h4>
+          <h4>Fuel, hydration, and Low Energy</h4>
           ${renderDailyTimeline(entry)}
         </div>
+        ${renderRawLogs(entry)}
       </section>
     `;
   }
@@ -2724,8 +2849,7 @@
     return values.length ? Math.max(...values) : null;
   }
 
-  function renderWeeklyFuelLogTimeline(entries) {
-    const weekStart = trendChartWeekStart(entries);
+  function renderWeeklyFuelLogTimeline(entries, weekStart = trendChartWeekStart(entries)) {
     const entriesByDate = Object.fromEntries((entries || []).filter(entry => entry?.date).map(entry => [entry.date, entry]));
     let totalFuelLogs = 0;
     const rows = Array.from({ length: 7 }, (_, index) => {
@@ -2761,6 +2885,340 @@
         </div>
         <small>Each marker is one fuel log at its recorded time. Hover or focus a marker for the exact time.</small>
       </article>
+    `;
+  }
+
+  function weeklyEntriesByDate(entries) {
+    return Object.fromEntries((entries || []).filter(entry => entry?.date).map(entry => [entry.date, entry]));
+  }
+
+  function logsForEntryType(entry, predicate) {
+    return entryLogsWithDates(entry).filter(predicate);
+  }
+
+  function activeEntriesForType(entries, predicate) {
+    return entries.filter(entry => logsForEntryType(entry, predicate).length > 0);
+  }
+
+  function nthEventMinute(entry, predicate, index) {
+    const logs = logsForEntryType(entry, predicate);
+    return logs[index] ? minutesIntoDay(logs[index].date) : null;
+  }
+
+  function lastEventMinute(entry, predicate) {
+    const logs = logsForEntryType(entry, predicate);
+    return logs.length ? minutesIntoDay(logs[logs.length - 1].date) : null;
+  }
+
+  function averageClockForEvents(entries, predicate, selector) {
+    const minutes = entries
+      .map(entry => selector(entry, predicate))
+      .filter(value => Number.isFinite(value));
+    return averageClock(minutes);
+  }
+
+  function eventGapsForEntries(entries, predicate, gapBuilder) {
+    return entries.flatMap(entry => gapBuilder(logsForEntryType(entry, predicate)).map(gap => Number(gap.minutes || 0))).filter(Number.isFinite);
+  }
+
+  function averageDurationForValues(values) {
+    const average = averageValue(values);
+    return Number.isFinite(average) ? duration(average) : "Not enough data yet";
+  }
+
+  function longestDurationForValues(values) {
+    const finite = values.filter(value => Number.isFinite(value) && value > 0);
+    return finite.length ? duration(Math.max(...finite)) : "Not enough data yet";
+  }
+
+  function activeDayNote(count) {
+    return `Based on ${count} active day${count === 1 ? "" : "s"}.`;
+  }
+
+  function renderWeeklyMetricCard(label, value, note = "") {
+    return `
+      <article class="beta-weekly-metric-card">
+        <span>${safeText(label)}</span>
+        <strong>${safeText(value)}</strong>
+        ${note ? `<small>${safeText(note)}</small>` : ""}
+      </article>
+    `;
+  }
+
+  function averageFirstEvent(entries, predicate) {
+    return averageClockForEvents(entries, predicate, (entry, test) => nthEventMinute(entry, test, 0));
+  }
+
+  function averageSecondEvent(entries, predicate) {
+    return averageClockForEvents(entries, predicate, (entry, test) => nthEventMinute(entry, test, 1));
+  }
+
+  function averageLastEvent(entries, predicate) {
+    return averageClockForEvents(entries, predicate, lastEventMinute);
+  }
+
+  function renderWeeklyFuelSection(entries) {
+    const active = activeEntriesForType(entries, isFuelLog);
+    const secondActive = entries.filter(entry => logsForEntryType(entry, isFuelLog).length >= 2);
+    const totalLogs = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isFuelLog).length, 0);
+    const gaps = eventGapsForEntries(entries, isFuelLog, gapsFromFuelLogs);
+    const activeCount = active.length;
+    return `
+      <section class="beta-weekly-section beta-weekly-section-fuel">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc amber">${dailyIcon("fuel")}</span>
+          <div>
+            <h3>Fuel</h3>
+            <p>${safeText(activeDayNote(activeCount))}</p>
+          </div>
+        </div>
+        <div class="beta-weekly-metric-grid">
+          ${renderWeeklyMetricCard("Average first fuel", activeCount ? averageFirstEvent(entries, isFuelLog) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Average second fuel", secondActive.length ? averageSecondEvent(secondActive, isFuelLog) : "Not enough data yet", activeDayNote(secondActive.length))}
+          ${renderWeeklyMetricCard("Average last fuel", activeCount ? averageLastEvent(entries, isFuelLog) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Total fuel logs", String(totalLogs), "Actual fuel logs this week.")}
+          ${renderWeeklyMetricCard("Average fuel logs / active day", activeCount ? (totalLogs / activeCount).toFixed(1) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Average fuel gap", averageDurationForValues(gaps), gaps.length ? `${gaps.length} fuel gap${gaps.length === 1 ? "" : "s"} counted.` : "Needs at least two fuel logs in a day.")}
+          ${renderWeeklyMetricCard("Longest weekly fuel gap", longestDurationForValues(gaps), gaps.length ? "Longest fuel gap inside this week." : "Needs at least two fuel logs in a day.")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderWeeklyHydrationSection(entries) {
+    const active = activeEntriesForType(entries, isHydrationLog);
+    const secondActive = entries.filter(entry => logsForEntryType(entry, isHydrationLog).length >= 2);
+    const totalLogs = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isHydrationLog).length, 0);
+    const gaps = eventGapsForEntries(entries, isHydrationLog, gapsFromHydrationLogs);
+    const activeCount = active.length;
+    return `
+      <section class="beta-weekly-section beta-weekly-section-hydration">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("hydration")}</span>
+          <div>
+            <h3>Hydration</h3>
+            <p>${safeText(activeDayNote(activeCount))}</p>
+          </div>
+        </div>
+        <div class="beta-weekly-metric-grid">
+          ${renderWeeklyMetricCard("Average first hydration", activeCount ? averageFirstEvent(entries, isHydrationLog) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Average second hydration", secondActive.length ? averageSecondEvent(secondActive, isHydrationLog) : "Not enough data yet", activeDayNote(secondActive.length))}
+          ${renderWeeklyMetricCard("Average last hydration", activeCount ? averageLastEvent(entries, isHydrationLog) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Total hydration logs", String(totalLogs), "Actual hydration logs this week.")}
+          ${renderWeeklyMetricCard("Average hydration logs / active day", activeCount ? (totalLogs / activeCount).toFixed(1) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Average hydration gap", averageDurationForValues(gaps), gaps.length ? `${gaps.length} hydration gap${gaps.length === 1 ? "" : "s"} counted.` : "Needs at least two hydration logs in a day.")}
+          ${renderWeeklyMetricCard("Longest weekly hydration gap", longestDurationForValues(gaps), gaps.length ? "Longest hydration gap inside this week." : "Needs at least two hydration logs in a day.")}
+        </div>
+      </section>
+    `;
+  }
+
+  function commonTimeRangeForLogs(logs) {
+    if (logs.length < 2) return "Not enough data yet";
+    const buckets = {};
+    logs.forEach(log => {
+      const label = timeWindowBucket(minutesIntoDay(log.date));
+      buckets[label] = (buckets[label] || 0) + 1;
+    });
+    const top = Object.entries(buckets).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    return top ? `${top[0]} (${top[1]} event${top[1] === 1 ? "" : "s"})` : "Not enough data yet";
+  }
+
+  function lowEnergyAfterLongGapWeeklyInsight(entries) {
+    const lowEnergyLogs = entries.flatMap(entry => logsForEntryType(entry, isCrashLog));
+    if (!lowEnergyLogs.length) return "No Low Energy logs this week.";
+    let supported = 0;
+    lowEnergyLogs.forEach(event => {
+      const dayLogs = logsForDay(dateKey(event.date)).filter(log => log.date <= event.date);
+      const previousFuel = dayLogs.filter(isFuelLog).pop();
+      const previousHydration = dayLogs.filter(isHydrationLog).pop();
+      const fuelGap = previousFuel ? (event.date - previousFuel.date) / 60000 : null;
+      const hydrationGap = previousHydration ? (event.date - previousHydration.date) / 60000 : null;
+      if ((Number.isFinite(fuelGap) && fuelGap >= mediumRiskLimit()) || (Number.isFinite(hydrationGap) && hydrationGap >= hydrationGreenLimit())) supported += 1;
+    });
+    if (supported > 0) return `${supported} of ${lowEnergyLogs.length} Low Energy log${lowEnergyLogs.length === 1 ? "" : "s"} happened after a longer fuel or hydration gap.`;
+    return "This week does not show a clear long-gap link before Low Energy logs yet.";
+  }
+
+  function renderWeeklyLowEnergySection(entries) {
+    const active = activeEntriesForType(entries, isCrashLog);
+    const activeCount = active.length;
+    const total = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isCrashLog).length, 0);
+    const allLogs = entries.flatMap(entry => logsForEntryType(entry, isCrashLog));
+    const dayWithMost = entries
+      .map(entry => ({ entry, count: logsForEntryType(entry, isCrashLog).length }))
+      .sort((a, b) => b.count - a.count || dateFromKey(a.entry.date) - dateFromKey(b.entry.date))[0];
+    return `
+      <section class="beta-weekly-section beta-weekly-section-low-energy">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc amber">${dailyIcon("energy")}</span>
+          <div>
+            <h3>Low Energy</h3>
+            <p>${safeText(activeDayNote(activeCount))}</p>
+          </div>
+        </div>
+        <div class="beta-weekly-metric-grid">
+          ${renderWeeklyMetricCard("Total Low Energy logs", String(total), "Actual Low Energy events this week.")}
+          ${renderWeeklyMetricCard("Average / active day", activeCount ? (total / activeCount).toFixed(1) : "Not enough data yet", activeDayNote(activeCount))}
+          ${renderWeeklyMetricCard("Day with most", dayWithMost?.count ? `${dayWithMost.entry.dateLabel || formatDateKey(dayWithMost.entry.date)} (${dayWithMost.count})` : "Not enough data yet")}
+          ${renderWeeklyMetricCard("Common time range", commonTimeRangeForLogs(allLogs), allLogs.length >= 2 ? "Based on Low Energy log times." : "Needs at least two Low Energy logs.")}
+        </div>
+        <p class="beta-weekly-insight">${safeText(lowEnergyAfterLongGapWeeklyInsight(entries))}</p>
+      </section>
+    `;
+  }
+
+  function weeklyPointLabel(day) {
+    return day.toLocaleDateString(undefined, { weekday: "short" });
+  }
+
+  function weeklyDateLabel(day) {
+    return day.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function weeklySeriesPoints(entries, weekStart, valueForEntry) {
+    const byDate = weeklyEntriesByDate(entries);
+    return weekDays(weekStart).map(day => {
+      const key = dateKey(day);
+      const value = valueForEntry(byDate[key], key);
+      return {
+        key,
+        label: weeklyPointLabel(day),
+        dateLabel: weeklyDateLabel(day),
+        value: Number.isFinite(value) ? Math.max(0, value) : null
+      };
+    });
+  }
+
+  function weeklyChartMax(points) {
+    const values = points.flatMap(point => Array.isArray(point.value) ? point.value : [point.value]).filter(value => Number.isFinite(value));
+    return Math.max(...values, 1);
+  }
+
+  function weeklyChartValueText(value, unit = "count") {
+    if (!Number.isFinite(value)) return "Not enough data";
+    return unit === "minutes" ? compactDuration(value) : String(Math.round(value));
+  }
+
+  function renderWeeklySingleLineChart(points, { unit = "minutes", ariaLabel = "Weekly line chart", yLabel = "Duration", colorClass = "fuel" } = {}) {
+    if (!points.some(point => Number.isFinite(point.value))) return `<div class="beta-trend-chart-empty">Needs matching logs to draw the chart.</div>`;
+    const width = 420;
+    const height = 190;
+    const padding = { top: 22, right: 18, bottom: 48, left: 48 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const max = weeklyChartMax(points);
+    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
+    const path = points.reduce((segments, point, index) => {
+      if (!Number.isFinite(point.value)) {
+        if (segments.current.length) {
+          segments.done.push(segments.current);
+          segments.current = [];
+        }
+        return segments;
+      }
+      segments.current.push(`${xFor(index).toFixed(1)},${yFor(point.value).toFixed(1)}`);
+      return segments;
+    }, { current: [], done: [] });
+    if (path.current.length) path.done.push(path.current);
+    return `
+      <div class="beta-trend-chart beta-weekly-single-chart" role="img" aria-label="${safeText(ariaLabel)}">
+        <div class="beta-trend-axis-copy">Y: ${safeText(yLabel)} · X: day/date</div>
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          <text class="y-label" x="6" y="${padding.top + 8}">${safeText(weeklyChartValueText(max, unit))}</text>
+          <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
+          ${path.done.map(segment => `<polyline class="line ${safeText(colorClass)}" points="${segment.join(" ")}"></polyline>`).join("")}
+          ${points.map((point, index) => Number.isFinite(point.value) ? `<circle class="point ${safeText(colorClass)}" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.value).toFixed(1)}" r="3.2"><title>${safeText(`${point.label} ${point.dateLabel}: ${weeklyChartValueText(point.value, unit)}`)}</title></circle>` : "").join("")}
+          ${points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 24}">${safeText(point.label)}</text>`).join("")}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderWeeklyGroupedCountChart(entries, weekStart) {
+    const points = weekDays(weekStart).map(day => {
+      const entry = weeklyEntriesByDate(entries)[dateKey(day)];
+      return {
+        label: weeklyPointLabel(day),
+        dateLabel: weeklyDateLabel(day),
+        fuel: logsForEntryType(entry, isFuelLog).length,
+        hydration: logsForEntryType(entry, isHydrationLog).length,
+        lowEnergy: logsForEntryType(entry, isCrashLog).length
+      };
+    });
+    const max = Math.max(...points.flatMap(point => [point.fuel, point.hydration, point.lowEnergy]), 1);
+    const width = 420;
+    const height = 190;
+    const padding = { top: 22, right: 18, bottom: 48, left: 42 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const slot = plotWidth / points.length;
+    const barWidth = Math.min(11, Math.max(5, slot * 0.18));
+    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
+    const centerFor = index => padding.left + slot * index + slot / 2;
+    const bar = (point, index, key, offset, className, label) => {
+      const value = Number(point[key] || 0);
+      const heightValue = value ? Math.max(2, padding.top + plotHeight - yFor(value)) : 0;
+      const center = centerFor(index);
+      return `<rect class="bar ${className}" x="${(center + offset - barWidth / 2).toFixed(1)}" y="${(padding.top + plotHeight - heightValue).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${heightValue.toFixed(1)}" rx="3"><title>${safeText(`${point.label} ${point.dateLabel}: ${value} ${label}`)}</title></rect>`;
+    };
+    return `
+      <div class="beta-trend-chart beta-weekly-count-chart" role="img" aria-label="Fuel, hydration, and Low Energy logs by day">
+        <div class="beta-trend-chart-legend" aria-hidden="true">
+          <span><i class="fuel"></i>Fuel</span>
+          <span><i class="hydration"></i>Hydration</span>
+          <span><i class="crash"></i>Low Energy</span>
+        </div>
+        <div class="beta-trend-axis-copy">Y: log count · X: day/date</div>
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          <text class="y-label" x="8" y="${padding.top + 8}">${safeText(String(max))}</text>
+          <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
+          ${points.map((point, index) => [
+            bar(point, index, "fuel", -barWidth - 1.5, "fuel", "fuel logs"),
+            bar(point, index, "hydration", 0, "hydration", "hydration logs"),
+            bar(point, index, "lowEnergy", barWidth + 1.5, "crash", "Low Energy logs")
+          ].join("")).join("")}
+          ${points.map((point, index) => `<text class="x-label" x="${centerFor(index).toFixed(1)}" y="${height - 24}">${safeText(point.label)}</text>`).join("")}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderWeeklyGraphs(entries, weekStart) {
+    const fuelGapPoints = weeklySeriesPoints(entries, weekStart, entry => {
+      const logs = logsForEntryType(entry, isFuelLog);
+      if (logs.length < 2) return null;
+      const gaps = gapsFromFuelLogs(logs);
+      return gaps.length ? Math.max(...gaps.map(gap => Number(gap.minutes || 0))) : null;
+    });
+    const hydrationGapPoints = weeklySeriesPoints(entries, weekStart, entry => {
+      const logs = logsForEntryType(entry, isHydrationLog);
+      if (logs.length < 2) return null;
+      const gaps = gapsFromHydrationLogs(logs);
+      return gaps.length ? Math.max(...gaps.map(gap => Number(gap.minutes || 0))) : null;
+    });
+    const lowEnergyPoints = weeklySeriesPoints(entries, weekStart, entry => logsForEntryType(entry, isCrashLog).length);
+    return `
+      <section class="beta-weekly-section beta-weekly-graphs-section">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
+          <div>
+            <h3>Weekly graphs</h3>
+            <p>Selected week only. Blank points mean there was not enough data for that metric.</p>
+          </div>
+        </div>
+        <div class="beta-weekly-graph-grid">
+          <article class="beta-chart-card"><h4>Logs by day</h4>${renderWeeklyGroupedCountChart(entries, weekStart)}</article>
+          <article class="beta-chart-card"><h4>Fuel gap trend</h4>${renderWeeklySingleLineChart(fuelGapPoints, { unit: "minutes", ariaLabel: "Longest fuel gap by day", yLabel: "longest fuel gap", colorClass: "fuel" })}</article>
+          <article class="beta-chart-card"><h4>Hydration gap trend</h4>${renderWeeklySingleLineChart(hydrationGapPoints, { unit: "minutes", ariaLabel: "Longest hydration gap by day", yLabel: "longest hydration gap", colorClass: "hydration" })}</article>
+          <article class="beta-chart-card"><h4>Low Energy trend</h4>${renderWeeklySingleLineChart(lowEnergyPoints, { unit: "count", ariaLabel: "Low Energy logs by day", yLabel: "Low Energy logs", colorClass: "crash" })}</article>
+        </div>
+      </section>
     `;
   }
 
@@ -2912,80 +3370,6 @@
         })}
         <p class="muted beta-trend-filter-note">${safeText(trendFilterCopy())}</p>
       </section>
-    `;
-  }
-
-  function renderFoodRunwayTrendLegend() {
-    return `
-      <div class="beta-trend-chart-legend" aria-hidden="true">
-        <span><i class="expected"></i>Expected duration</span>
-        <span><i class="actual"></i>Actual duration</span>
-      </div>
-    `;
-  }
-
-  function runwayTrendPath(points, key, xFor, yFor) {
-    const coordinates = points
-      .filter(point => Number.isFinite(point[key]))
-      .map(point => `${xFor(point.index).toFixed(1)},${yFor(point[key]).toFixed(1)}`);
-    return coordinates.length ? `<polyline class="line ${safeText(key)}" points="${coordinates.join(" ")}"></polyline>` : "";
-  }
-
-  function renderFoodRunwayTrendChart(entries) {
-    const points = entries
-      .filter(entry => entry.actualFinishDate)
-      .sort((a, b) => dateFromKey(a.shoppingDate) - dateFromKey(b.shoppingDate))
-      .slice(-8)
-      .map((entry, index) => ({
-        index,
-        label: dateFromKey(entry.shoppingDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-        expected: daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate),
-        actual: daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)
-      }))
-      .filter(point => Number.isFinite(point.expected) && Number.isFinite(point.actual));
-
-    if (!points.length) return `<div class="beta-trend-chart-empty">Complete a Food Runway entry to draw the chart.</div>`;
-
-    const width = 320;
-    const height = 172;
-    const padding = { top: 18, right: 14, bottom: 48, left: 42 };
-    const plotWidth = width - padding.left - padding.right;
-    const plotHeight = height - padding.top - padding.bottom;
-    const max = Math.max(...points.flatMap(point => [point.expected, point.actual]), 1);
-    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
-    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
-    const maxLabel = `${Math.round(max)}d`;
-    return `
-      <div class="beta-trend-chart beta-runway-trend-chart" role="img" aria-label="Food Runway expected versus actual duration line graph">
-        ${renderFoodRunwayTrendLegend()}
-        ${renderTrendAxisCopy("Shopping date", "Duration days")}
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
-          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
-          <text class="y-label" x="8" y="${padding.top + 8}">${safeText(maxLabel)}</text>
-          <text class="y-label" x="8" y="${padding.top + plotHeight}">0</text>
-          ${runwayTrendPath(points, "expected", xFor, yFor)}
-          ${runwayTrendPath(points, "actual", xFor, yFor)}
-          ${points.map(point => `<circle class="point expected" cx="${xFor(point.index).toFixed(1)}" cy="${yFor(point.expected).toFixed(1)}" r="2.6"></circle><circle class="point actual" cx="${xFor(point.index).toFixed(1)}" cy="${yFor(point.actual).toFixed(1)}" r="3"></circle>`).join("")}
-          ${points.map(point => `<text class="x-label" x="${xFor(point.index).toFixed(1)}" y="${height - 23}">${safeText(point.label)}</text>`).join("")}
-        </svg>
-      </div>
-    `;
-  }
-
-  function renderFoodRunwayTrendCard() {
-    const completed = completedRunwayEntries();
-    const errors = completed.map(entry => Math.abs(daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate) - daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)));
-    const averageError = errors.length ? errors.reduce((sum, value) => sum + value, 0) / errors.length : null;
-    return `
-      <article class="beta-trend-pattern-card beta-impact-trend-card beta-runway-trend-card">
-        <div class="beta-metric-card-head">
-          <span class="beta-icon-disc shield">${dailyIcon("route")}</span>
-          <div><span>Food Runway Trend</span><strong>${Number.isFinite(averageError) ? `${averageError.toFixed(1)}d average error` : "Building"}</strong></div>
-        </div>
-        ${renderFoodRunwayTrendChart(completed)}
-        <small>${completed.length ? `${completed.length} completed shop${completed.length === 1 ? "" : "s"} included. Incomplete shops are excluded from prediction accuracy.` : "Complete a shop to start tracking prediction accuracy over time."}</small>
-      </article>
     `;
   }
 
@@ -3237,16 +3621,37 @@
 
   function renderTrends() {
     const summaryTarget = document.getElementById("fuelAveragesSummary");
-    const allEntries = loggedHistoryEntries();
-    const filteredEntries = allEntries.filter(entryMatchesTrendFilters);
     if (!summaryTarget) return;
-    if (!filteredEntries.length) {
-      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match these filters yet.</p>${renderFoodRunwayTrendCard()}`;
+    const weekStart = selectedTrendWeekStart();
+    const weekLabel = document.getElementById("trendWeekLabel");
+    const nextButton = document.getElementById("trendNextWeekButton");
+    if (weekLabel) weekLabel.textContent = formatWeekRange(weekStart);
+    if (nextButton) nextButton.disabled = weekStart >= startOfCalendarWeek(new Date());
+
+    const entries = archiveEntries();
+    const weekEntries = entriesForWeek(entries, weekStart);
+    const hasLogs = weekEntries.some(entry => entryLogsWithDates(entry).length > 0);
+    if (!hasLogs) {
+      summaryTarget.innerHTML = `
+        <p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for ${safeText(formatWeekRange(weekStart))} yet.</p>
+      `;
       return;
     }
 
-    const { current, previous } = weeklyTrendWindows(filteredEntries);
-    summaryTarget.innerHTML = `${renderImpactSignalTrends(current, previous)}${renderFoodRunwayTrendCard()}`;
+    summaryTarget.innerHTML = `
+      <section class="beta-weekly-overview">
+        <div class="beta-weekly-range">
+          <span>Selected week</span>
+          <strong>${safeText(formatWeekRange(weekStart))}</strong>
+          <small>Monday to Sunday. Trends only use logs inside this week.</small>
+        </div>
+      </section>
+      ${renderWeeklyFuelSection(weekEntries)}
+      ${renderWeeklyHydrationSection(weekEntries)}
+      ${renderWeeklyLowEnergySection(weekEntries)}
+      ${renderWeeklyFuelLogTimeline(weekEntries, weekStart)}
+      ${renderWeeklyGraphs(weekEntries, weekStart)}
+    `;
   }
 
   function renderHistory() {
@@ -3265,11 +3670,33 @@
     const entries = archiveEntries();
     const count = document.getElementById("fuelHistoryCount");
     const detail = document.getElementById("fuelHistoryArchiveDetail");
+    const dateInput = document.getElementById("fuelDataDate");
     if (!detail) return;
     if (count) count.textContent = `${loggedHistoryEntries().length} logged day${loggedHistoryEntries().length === 1 ? "" : "s"} stored`;
-    const todayKey = dateKey();
-    const todayEntry = entries.find(entry => entry.date === todayKey) || buildArchiveEntry(todayKey);
-    detail.innerHTML = renderDailyTimelineDetail(todayEntry);
+    const selectedKey = selectedDataDateKey();
+    if (dateInput) {
+      dateInput.max = dateKey();
+      if (dateInput.value !== selectedKey) dateInput.value = selectedKey;
+    }
+    const selectedEntry = entries.find(entry => entry.date === selectedKey) || buildArchiveEntry(selectedKey);
+    detail.innerHTML = renderDailyTimelineDetail(selectedEntry);
+    const selectedLogs = entryLogsWithDates(selectedEntry);
+    const selectedFuelLogs = selectedLogs.filter(isFuelLog);
+    const selectedStatus = selectedDayStatusText(selectedEntry);
+    const badge = document.getElementById("fuelGraphLastAte");
+    if (badge) {
+      if (selectedKey === dateKey()) {
+        const snapshot = fuelGapSnapshot();
+        badge.textContent = snapshot.lastFuelled === "No fuel logged" ? "Last fuel: not logged yet" : `Last fuel: ${snapshot.timeSinceFuel} ago`;
+      } else {
+        badge.textContent = selectedFuelLogs.length ? `Last fuel: ${formatClock(selectedFuelLogs[selectedFuelLogs.length - 1].date)}` : "Last fuel: not logged yet";
+      }
+    }
+    const next = document.getElementById("fuelGapNextAction");
+    if (next) {
+      next.textContent = `Status: ${selectedStatus}`;
+      next.className = `fuel-next-action beta-risk-pill ${riskToneFromText(selectedStatus)}`;
+    }
     renderGraphModeControls();
     requestAnimationFrame(() => drawBetaGraph());
   }
@@ -3296,12 +3723,16 @@
     const bottom = padding.top + plotHeight;
     const xForMinute = minute => padding.left + (clamp(minute, 0, 1440) / 1440) * plotWidth;
     const selectedMode = graphMode();
-    const logs = todayLogs(now).filter(log => log.date <= now);
+    const selectedKey = selectedDataDateKey();
+    const entry = archiveEntries().find(item => item.date === selectedKey) || buildArchiveEntry(selectedKey);
+    const isSelectedToday = selectedKey === dateKey(now);
+    const logs = logsForDay(selectedKey).filter(log => !isSelectedToday || log.date <= now);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
+    const crashLogs = logs.filter(isCrashLog);
     const series = [];
     if (selectedMode === "risk") {
-      drawRiskGraphCanvas(canvas, dateKey(now), { now });
+      drawRiskGraphCanvas(canvas, selectedKey, { now, endedAt: entry?.endedAt || "" });
       return;
     }
     if (selectedMode === "fuel") {
@@ -3393,16 +3824,31 @@
       });
     });
 
-    const currentX = xForMinute(minutesIntoDay(now));
-    ctx.strokeStyle = "rgba(24,42,32,.13)";
-    ctx.beginPath();
-    ctx.moveTo(currentX, padding.top);
-    ctx.lineTo(currentX, bottom);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(23,35,29,.62)";
-    ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), padding.top + 14);
+    crashLogs.forEach(log => {
+      const x = xForMinute(minutesIntoDay(log.date));
+      const y = padding.top + 12;
+      ctx.fillStyle = "#ff4d6d";
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 6);
+      ctx.lineTo(x - 6, y);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    if (isSelectedToday) {
+      const currentX = xForMinute(minutesIntoDay(now));
+      ctx.strokeStyle = "rgba(24,42,32,.13)";
+      ctx.beginPath();
+      ctx.moveTo(currentX, padding.top);
+      ctx.lineTo(currentX, bottom);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(23,35,29,.62)";
+      ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Now", clamp(currentX, padding.left + 18, cssWidth - padding.right - 18), padding.top + 14);
+    }
     ctx.textAlign = "left";
   }
 
@@ -3526,358 +3972,12 @@
     drawRiskGraphCanvas(canvas, key, { endedAt: entry?.endedAt || "", compact: true });
   }
 
-  function readNumberField(id, fallback = null) {
-    const value = Number(document.getElementById(id)?.value || "");
-    return Number.isFinite(value) && value > 0 ? value : fallback;
-  }
-
-  function generateRideSchedule(plan, startedAt = null) {
-    const events = new Map();
-    const durationMinutes = Number(plan.durationMinutes || 0);
-    const addSeries = (type, first, interval) => {
-      const firstOffset = Number(first || 0);
-      const every = Number(interval || 0);
-      if (!durationMinutes || !firstOffset || !every) return;
-      for (let offset = firstOffset; offset <= durationMinutes; offset += every) {
-        const existing = events.get(offset) || { plannedOffsetMinutes: offset, reminderType: type };
-        existing.reminderType = existing.reminderType === type ? type : "both";
-        events.set(offset, existing);
-      }
-    };
-    addSeries("fuel", plan.firstFuelReminderMinutes, plan.fuelIntervalMinutes);
-    addSeries("hydration", plan.firstHydrationReminderMinutes, plan.hydrationIntervalMinutes);
-    return [...events.values()].sort((a, b) => a.plannedOffsetMinutes - b.plannedOffsetMinutes).map(event => {
-      const plannedDate = startedAt ? addMinutes(new Date(startedAt), event.plannedOffsetMinutes) : null;
-      return {
-        id: event.id || uid(),
-        ridePlanId: plan.id || "",
-        reminderType: event.reminderType,
-        plannedOffsetMinutes: event.plannedOffsetMinutes,
-        plannedTime: plannedDate ? plannedDate.toISOString() : null,
-        confirmedTime: null,
-        status: "pending",
-        delayMinutes: null
-      };
-    });
-  }
-
-  function readRidePlanFromForm() {
-    return {
-      id: document.getElementById("ridePlanName")?.dataset.editingId || uid(),
-      userId: window.fuelGuardCloud?.accountView?.().userId || "",
-      name: document.getElementById("ridePlanName")?.value?.trim() || "Ride plan",
-      durationMinutes: readNumberField("rideDurationMinutes", 120),
-      fuelIntervalMinutes: readNumberField("rideFuelInterval", null),
-      firstFuelReminderMinutes: readNumberField("rideFirstFuel", null),
-      hydrationIntervalMinutes: readNumberField("rideHydrationInterval", null),
-      firstHydrationReminderMinutes: readNumberField("rideFirstHydration", null),
-      alertType: "in_app",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-  }
-
-  function fillRideForm(plan = {}) {
-    const fields = [
-      ["ridePlanName", plan.name || ""],
-      ["rideDurationMinutes", plan.durationMinutes || 120],
-      ["rideFuelInterval", plan.fuelIntervalMinutes || 40],
-      ["rideFirstFuel", plan.firstFuelReminderMinutes || 40],
-      ["rideHydrationInterval", plan.hydrationIntervalMinutes || 15],
-      ["rideFirstHydration", plan.firstHydrationReminderMinutes || 15]
-    ];
-    fields.forEach(([id, value]) => {
-      const input = document.getElementById(id);
-      if (input && document.activeElement !== input) input.value = value;
-    });
-    const name = document.getElementById("ridePlanName");
-    if (name) name.dataset.editingId = plan.id || "";
-  }
-
-  function reminderLabel(type) {
-    if (type === "both") return "Fuel + Hydration";
-    return type === "hydration" ? "Hydrate" : "Fuel";
-  }
-
-  function renderRideScheduleList(reminders) {
-    if (!reminders.length) return `<p class="muted">Add ride duration and reminder intervals to preview the schedule.</p>`;
-    return `<div class="beta-ride-reminder-list">${reminders.map(reminder => `<article><strong>${reminder.plannedOffsetMinutes} min</strong><span>${safeText(reminderLabel(reminder.reminderType))}</span></article>`).join("")}</div>`;
-  }
-
-  function saveRidePlan({ asTemplate = false } = {}) {
-    const plan = readRidePlanFromForm();
-    if (!plan.durationMinutes) {
-      rideStatus = "Ride duration is required.";
-      renderRidePlan();
-      return null;
-    }
-    plan.devicePayload = {
-      planId: plan.id,
-      rideDurationMinutes: plan.durationMinutes,
-      fuelIntervalMinutes: plan.fuelIntervalMinutes,
-      firstFuelReminderMinutes: plan.firstFuelReminderMinutes,
-      hydrationIntervalMinutes: plan.hydrationIntervalMinutes,
-      firstHydrationReminderMinutes: plan.firstHydrationReminderMinutes,
-      alertType: plan.alertType,
-      createdAt: plan.createdAt
-    };
-    const gap = betaState();
-    const target = asTemplate ? gap.rideTemplates : gap.ridePlans;
-    const existingIndex = target.findIndex(item => item.id === plan.id);
-    if (existingIndex >= 0) target[existingIndex] = { ...target[existingIndex], ...plan, updatedAt: new Date().toISOString() };
-    else target.unshift(plan);
-    rideStatus = asTemplate ? "Ride template saved." : "Ride plan saved.";
-    save();
-    renderRidePlan();
-    return plan;
-  }
-
-  function startRide(plan = null) {
-    const basePlan = plan || saveRidePlan() || readRidePlanFromForm();
-    const startedAt = new Date().toISOString();
-    betaState().activeRide = {
-      id: uid(),
-      planId: basePlan.id,
-      plan: basePlan,
-      startedAt,
-      status: "active",
-      reminders: generateRideSchedule(basePlan, startedAt),
-      completedAt: null
-    };
-    rideStatus = "Ride started. Keep Fuel Guard open for in-app reminders.";
-    save();
-    renderAll();
-    startActiveRideTimer();
-  }
-
-  function activeRideDueReminders() {
-    const ride = betaState().activeRide;
-    if (!ride || ride.status !== "active") return [];
-    const now = Date.now();
-    return ride.reminders.filter(reminder => reminder.status === "pending" && reminder.plannedTime && new Date(reminder.plannedTime).getTime() <= now);
-  }
-
-  function confirmRideReminder(type) {
-    const ride = betaState().activeRide;
-    if (!ride) return;
-    const now = new Date();
-    const due = ride.reminders.find(reminder => reminder.status === "pending" && (reminder.reminderType === type || reminder.reminderType === "both") && new Date(reminder.plannedTime).getTime() <= now.getTime());
-    if (!due) {
-      rideStatus = `No ${reminderLabel(type).toLowerCase()} reminder is due yet.`;
-      renderRidePlan();
-      return;
-    }
-    due.status = "completed";
-    due.confirmedTime = now.toISOString();
-    due.delayMinutes = Math.max(0, Math.round((now - new Date(due.plannedTime)) / 60000));
-    const confirmedType = due.reminderType === "both" ? "fuel_hydration" : type === "hydration" ? "hydration" : "fuel";
-    recordRhythmLog(confirmedType, {
-      source: "ride_plan",
-      entryMethod: "live",
-      plannedTime: due.plannedTime,
-      ridePlanId: ride.planId,
-      bypassCooldown: true
-    });
-    rideStatus = `${reminderLabel(type)} confirmed.`;
-    save();
-    renderAll();
-  }
-
-  function endActiveRide() {
-    const ride = betaState().activeRide;
-    if (!ride) return;
-    const now = new Date().toISOString();
-    ride.status = "completed";
-    ride.completedAt = now;
-    ride.reminders.forEach(reminder => {
-      if (reminder.status === "pending") reminder.status = "missed";
-    });
-    rideStatus = "Ride completed. Remaining reminders were marked missed.";
-    save();
-    renderAll();
-  }
-
-  function renderRidePlan() {
-    const rideActive = document.getElementById("ride")?.classList.contains("active");
-    if (!rideActive) return;
-    if (!document.getElementById("rideDurationMinutes")?.value) fillRideForm();
-    const currentPlan = readRidePlanFromForm();
-    const preview = document.getElementById("rideSchedulePreview");
-    if (preview) preview.innerHTML = renderRideScheduleList(generateRideSchedule(currentPlan));
-    const status = document.getElementById("ridePlanStatus");
-    if (status) status.textContent = rideStatus || "Fuel Guard Go device transfer: not connected yet.";
-    const saved = document.getElementById("rideSavedPlans");
-    if (saved) {
-      const plans = betaState().ridePlans || [];
-      saved.innerHTML = plans.length
-        ? plans.map(plan => `<article class="beta-logistics-item"><div><strong>${safeText(plan.name)}</strong><span>${plan.durationMinutes} min · Fuel ${plan.firstFuelReminderMinutes || "--"}/${plan.fuelIntervalMinutes || "--"} · Hydration ${plan.firstHydrationReminderMinutes || "--"}/${plan.hydrationIntervalMinutes || "--"}</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-ride="${safeText(plan.id)}">Edit</button><button class="secondary" type="button" data-start-ride="${safeText(plan.id)}">Start</button><button class="secondary danger-secondary" type="button" data-delete-ride="${safeText(plan.id)}">Delete</button></div></article>`).join("")
-        : `<p class="muted">No saved ride plans yet.</p>`;
-    }
-    const active = document.getElementById("activeRidePanel");
-    if (active) active.innerHTML = renderActiveRide();
-  }
-
-  function renderActiveRide() {
-    const ride = betaState().activeRide;
-    if (!ride) return `<p class="muted">No active ride.</p>`;
-    const started = new Date(ride.startedAt);
-    const elapsed = Math.max(0, Math.round((Date.now() - started.getTime()) / 60000));
-    const pending = ride.reminders.filter(reminder => reminder.status === "pending");
-    const nextFuel = pending.find(reminder => reminder.reminderType === "fuel" || reminder.reminderType === "both");
-    const nextHydration = pending.find(reminder => reminder.reminderType === "hydration" || reminder.reminderType === "both");
-    const completed = ride.reminders.filter(reminder => reminder.status === "completed").length;
-    const missed = ride.reminders.filter(reminder => reminder.status === "missed").length;
-    return `
-      <article class="beta-logistics-item">
-        <div>
-          <strong>${safeText(ride.plan?.name || "Active ride")}</strong>
-          <span>Elapsed: ${elapsed} min</span>
-          <span>Next fuel: ${nextFuel ? formatClock(new Date(nextFuel.plannedTime)) : "none"}</span>
-          <span>Next hydration: ${nextHydration ? formatClock(new Date(nextHydration.plannedTime)) : "none"}</span>
-          <span>Completed ${completed}; missed ${missed}</span>
-        </div>
-        <div class="button-row beta-settings-actions">
-          <button class="secondary" type="button" data-confirm-ride="fuel">Confirm fuel</button>
-          <button class="secondary" type="button" data-confirm-ride="hydration">Confirm hydration</button>
-          <button class="secondary danger-secondary" type="button" data-end-ride>End ride</button>
-        </div>
-      </article>
-    `;
-  }
-
-  function startActiveRideTimer() {
-    if (activeRideTimer) return;
-    activeRideTimer = window.setInterval(() => {
-      const due = activeRideDueReminders();
-      if (due.length) rideStatus = `${due.map(reminder => reminderLabel(reminder.reminderType)).join(" + ")} reminder due. Confirm when you actually fuel or hydrate.`;
-      renderRidePlan();
-    }, 30000);
-  }
-
-  function runwayEntries() {
-    return betaState().foodRunway || [];
-  }
-
-  function shopTypeLabel(type) {
-    return SHOP_TYPE_OPTIONS[type] || "Full shop";
-  }
-
-  function daysBetweenKeys(startKey, endKey) {
-    const start = dateFromKey(startKey);
-    const end = dateFromKey(endKey);
-    return Math.round((end - start) / 86400000);
-  }
-
-  function completedRunwayEntries(type = "") {
-    return runwayEntries()
-      .filter(entry => entry.actualFinishDate && (!type || entry.shopType === type))
-      .sort((a, b) => dateFromKey(b.actualFinishDate) - dateFromKey(a.actualFinishDate));
-  }
-
-  function runwayPrediction(type = "full_shop") {
-    const completed = completedRunwayEntries(type).slice(0, 3);
-    const durations = completed.map(entry => daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)).filter(value => Number.isFinite(value) && value >= 0);
-    const average = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : null;
-    const active = runwayEntries().find(entry => entry.shopType === type && !entry.actualFinishDate);
-    const predicted = active
-      ? addDays(dateFromKey(active.shoppingDate), Math.round(average ?? daysBetweenKeys(active.shoppingDate, active.expectedFinishDate)))
-      : null;
-    const errors = completed.map(entry => Math.abs(daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate) - daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)));
-    const averageError = errors.length ? errors.reduce((sum, value) => sum + value, 0) / errors.length : null;
-    return { completed, average, active, predicted, averageError };
-  }
-
-  function runwayDifference(entry) {
-    if (!entry?.actualFinishDate) return "Not finished yet";
-    const expected = daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate);
-    const actual = daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate);
-    const diff = actual - expected;
-    if (diff === 0) return "On time";
-    return `${Math.abs(diff)} day${Math.abs(diff) === 1 ? "" : "s"} ${diff < 0 ? "earlier" : "later"}`;
-  }
-
-  function saveRunwayEntry() {
-    const shoppingDate = document.getElementById("runwayShoppingDate")?.value || dateKey();
-    const expectedFinishDate = document.getElementById("runwayExpectedFinishDate")?.value || "";
-    const actualFinishDate = document.getElementById("runwayActualFinishDate")?.value || "";
-    const shopType = document.getElementById("runwayShopType")?.value || "full_shop";
-    if (!expectedFinishDate) {
-      runwayStatus = "Expected finish date is required.";
-      renderFoodRunway();
-      return;
-    }
-    const entries = runwayEntries();
-    const existingActive = entries.find(entry => entry.shopType === shopType && !entry.actualFinishDate && entry.id !== runwayEditingId);
-    if (!actualFinishDate && existingActive) {
-      runwayStatus = `Only one current ${shopTypeLabel(shopType).toLowerCase()} can be active. Mark the current one finished first.`;
-      renderFoodRunway();
-      return;
-    }
-    const now = new Date().toISOString();
-    const existing = runwayEditingId ? entries.find(entry => entry.id === runwayEditingId) : null;
-    const entry = existing || { id: uid(), createdAt: now };
-    Object.assign(entry, {
-      userId: window.fuelGuardCloud?.accountView?.().userId || "",
-      shopType,
-      shoppingDate,
-      expectedFinishDate,
-      actualFinishDate: actualFinishDate || null,
-      updatedAt: now
-    });
-    if (!existing) entries.unshift(entry);
-    runwayEditingId = "";
-    runwayStatus = "Food Runway saved.";
-    save();
-    renderAll();
-  }
-
-  function fillRunwayForm(entry = null) {
-    const todayValue = dateKey();
-    const fields = [
-      ["runwayShoppingDate", entry?.shoppingDate || todayValue],
-      ["runwayExpectedFinishDate", entry?.expectedFinishDate || ""],
-      ["runwayActualFinishDate", entry?.actualFinishDate || ""],
-      ["runwayShopType", entry?.shopType || "full_shop"]
-    ];
-    fields.forEach(([id, value]) => {
-      const input = document.getElementById(id);
-      if (input) input.value = value;
-    });
-  }
-
-  function renderFoodRunway() {
-    const runwayActive = document.getElementById("runway")?.classList.contains("active");
-    if (!runwayActive) return;
-    fillRunwayForm(runwayEditingId ? runwayEntries().find(entry => entry.id === runwayEditingId) : null);
-    const status = document.getElementById("foodRunwayStatus");
-    if (status) status.textContent = runwayStatus;
-    const current = document.getElementById("foodRunwayCurrent");
-    const active = runwayEntries().filter(entry => !entry.actualFinishDate);
-    if (current) current.innerHTML = active.length
-      ? active.map(entry => {
-        const prediction = runwayPrediction(entry.shopType);
-        const predicted = prediction.predicted ? dateKey(prediction.predicted) : entry.expectedFinishDate;
-        const remaining = Math.max(0, daysBetweenKeys(dateKey(), predicted));
-        return `<article class="beta-logistics-item"><div><strong>${safeText(shopTypeLabel(entry.shopType))}</strong><span>Shopped ${safeText(formatDateKey(entry.shoppingDate))}</span><span>Expected finish ${safeText(formatDateKey(entry.expectedFinishDate))}</span><span>Predicted finish ${safeText(formatDateKey(predicted))}</span><span>${remaining} estimated day${remaining === 1 ? "" : "s"} remaining</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-finish-runway="${safeText(entry.id)}">Mark finished</button><button class="secondary" type="button" data-edit-runway="${safeText(entry.id)}">Edit</button></div></article>`;
-      }).join("")
-      : `<p class="muted">No current shop is active.</p>`;
-    const previous = document.getElementById("foodRunwayPrevious");
-    if (previous) {
-      const entries = runwayEntries().filter(entry => entry.actualFinishDate).sort((a, b) => dateFromKey(b.shoppingDate) - dateFromKey(a.shoppingDate));
-      previous.innerHTML = entries.length
-        ? entries.map(entry => `<article class="beta-logistics-item"><div><strong>${safeText(formatDateKey(entry.shoppingDate))}</strong><span>${safeText(shopTypeLabel(entry.shopType))}</span><span>Expected ${daysBetweenKeys(entry.shoppingDate, entry.expectedFinishDate)} days · Actual ${daysBetweenKeys(entry.shoppingDate, entry.actualFinishDate)} days · ${safeText(runwayDifference(entry))}</span></div><div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-runway="${safeText(entry.id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-runway="${safeText(entry.id)}">Delete</button></div></article>`).join("")
-        : `<p class="muted">No completed shops yet.</p>`;
-    }
-  }
-
   renderFuelGap = function renderFuelGapBeta() {
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const historyActive = document.getElementById("logs")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
-    const rideActive = document.getElementById("ride")?.classList.contains("active");
-    const runwayActive = document.getElementById("runway")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
     const badge = document.getElementById("fuelGraphLastAte");
@@ -3898,6 +3998,9 @@
     const hydrationButton = document.getElementById("graphLogHydrationButton");
     if (hydrationButton) hydrationButton.disabled = false;
 
+    const lowEnergyButton = document.getElementById("graphLogLowEnergyButton");
+    if (lowEnergyButton) lowEnergyButton.disabled = false;
+
     const undo = document.getElementById("undoLatestFoodLog");
     if (undo) undo.disabled = !todayLogs().length;
 
@@ -3912,13 +4015,11 @@
     if (settingsActive) renderSettings();
     if (historyActive) renderHistory();
     if (trendsActive) renderTrends();
-    if (rideActive) renderRidePlan();
-    if (runwayActive) renderFoodRunway();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "logs", "trends", "ride", "runway", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "logs", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -3930,8 +4031,6 @@
       dashboard: ["Fuel Rhythm", "What is happening today."],
       logs: ["Data", "Status, logs, and today's timeline."],
       trends: ["Trends", "How habits are changing over time."],
-      ride: ["Ride Plan", "Plan and run in-app fuel and hydration reminders."],
-      runway: ["Food Runway", "Track how long shops and meal prep actually last."],
       checklist: ["Settings", "Adjust beta gap thresholds and reset test data."]
     };
     const title = document.getElementById("pageTitle");
@@ -3940,8 +4039,6 @@
     if (subtitle) subtitle.textContent = titles[target][1];
     if (target === "logs") renderHistory();
     if (target === "trends") renderTrends();
-    if (target === "ride") renderRidePlan();
-    if (target === "runway") renderFoodRunway();
     if (target === "checklist") renderSettings();
   };
 
@@ -3985,10 +4082,6 @@
     gap.dayEndedAt = "";
     gap.fastingStartedAt = "";
     gap.cooldownUntil = 0;
-    gap.ridePlans = [];
-    gap.rideTemplates = [];
-    gap.activeRide = null;
-    gap.foodRunway = [];
     if (settingsStatus) settingsStatus.textContent = clearStatus;
     save();
     renderAll();
@@ -4042,24 +4135,10 @@
 
   document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestRhythmLog);
   document.getElementById("graphLogHydrationButton")?.addEventListener("click", recordHydration);
+  document.getElementById("graphLogLowEnergyButton")?.addEventListener("click", recordCrashEvent);
   document.getElementById("showMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(true));
   document.getElementById("cancelMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(false));
   document.getElementById("saveMissedLogButton")?.addEventListener("click", saveMissedLog);
-  document.getElementById("openRidePlanButton")?.addEventListener("click", () => switchScreen("ride"));
-  document.getElementById("openFoodRunwayButton")?.addEventListener("click", () => switchScreen("runway"));
-  document.getElementById("rideSavePlanButton")?.addEventListener("click", () => saveRidePlan());
-  document.getElementById("rideTemplateButton")?.addEventListener("click", () => saveRidePlan({ asTemplate: true }));
-  document.getElementById("rideStartButton")?.addEventListener("click", () => startRide());
-  ["ridePlanName", "rideDurationMinutes", "rideFuelInterval", "rideFirstFuel", "rideHydrationInterval", "rideFirstHydration"].forEach(id => {
-    document.getElementById(id)?.addEventListener("input", renderRidePlan);
-  });
-  document.getElementById("runwaySaveEntryButton")?.addEventListener("click", saveRunwayEntry);
-  document.getElementById("runwayCancelEditButton")?.addEventListener("click", () => {
-    runwayEditingId = "";
-    runwayStatus = "";
-    fillRunwayForm();
-    renderFoodRunway();
-  });
   document.addEventListener("click", event => {
     const editLog = event.target.closest("[data-edit-log]");
     if (editLog) {
@@ -4076,61 +4155,6 @@
     if (openScreen) {
       switchScreen(openScreen.dataset.openScreen);
       return;
-    }
-    const editRide = event.target.closest("[data-edit-ride]");
-    if (editRide) {
-      const plan = betaState().ridePlans.find(item => item.id === editRide.dataset.editRide);
-      if (plan) fillRideForm(plan);
-      renderRidePlan();
-      return;
-    }
-    const startRideButton = event.target.closest("[data-start-ride]");
-    if (startRideButton) {
-      const plan = betaState().ridePlans.find(item => item.id === startRideButton.dataset.startRide);
-      if (plan) startRide(plan);
-      return;
-    }
-    const deleteRide = event.target.closest("[data-delete-ride]");
-    if (deleteRide) {
-      betaState().ridePlans = betaState().ridePlans.filter(plan => plan.id !== deleteRide.dataset.deleteRide);
-      rideStatus = "Ride plan deleted.";
-      save();
-      renderRidePlan();
-      return;
-    }
-    const confirmRide = event.target.closest("[data-confirm-ride]");
-    if (confirmRide) {
-      confirmRideReminder(confirmRide.dataset.confirmRide);
-      return;
-    }
-    if (event.target.closest("[data-end-ride]")) {
-      endActiveRide();
-      return;
-    }
-    const editRunway = event.target.closest("[data-edit-runway]");
-    if (editRunway) {
-      runwayEditingId = editRunway.dataset.editRunway;
-      renderFoodRunway();
-      return;
-    }
-    const finishRunway = event.target.closest("[data-finish-runway]");
-    if (finishRunway) {
-      const entry = runwayEntries().find(item => item.id === finishRunway.dataset.finishRunway);
-      if (entry) {
-        entry.actualFinishDate = dateKey();
-        entry.updatedAt = new Date().toISOString();
-        runwayStatus = "Shop marked as finished.";
-        save();
-        renderAll();
-      }
-      return;
-    }
-    const deleteRunway = event.target.closest("[data-delete-runway]");
-    if (deleteRunway) {
-      betaState().foodRunway = runwayEntries().filter(entry => entry.id !== deleteRunway.dataset.deleteRunway);
-      runwayStatus = "Food Runway entry deleted.";
-      save();
-      renderAll();
     }
   });
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
@@ -4154,8 +4178,8 @@
     save();
     renderFuelGap();
   });
-  document.getElementById("fuelHistoryArchiveDate")?.addEventListener("change", event => {
-    selectedHistoryKey = event.target.value;
+  document.getElementById("fuelDataDate")?.addEventListener("change", event => {
+    setSelectedDataDate(event.target.value);
     renderHistory();
   });
   function selectHistoryDay(button) {
@@ -4174,6 +4198,14 @@
   });
   document.getElementById("trendTrainingFilter")?.addEventListener("change", event => {
     selectedTrendTrainingSession = event.target.value || "all";
+    renderTrends();
+  });
+  document.getElementById("trendPreviousWeekButton")?.addEventListener("click", () => {
+    setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), -7));
+    renderTrends();
+  });
+  document.getElementById("trendNextWeekButton")?.addEventListener("click", () => {
+    setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), 7));
     renderTrends();
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
@@ -4436,7 +4468,6 @@
     }, delay);
   }
 
-  if (betaState().activeRide?.status === "active") startActiveRideTimer();
   renderAll();
   scheduleFuelGuardTick();
 })();

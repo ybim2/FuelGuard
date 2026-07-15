@@ -420,12 +420,14 @@
 .beta-log-actions {
   order: 4;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 132px));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   align-items: stretch;
   justify-content: center;
   justify-items: stretch;
   width: 100%;
+  max-width: 340px;
+  justify-self: center;
 }
 
 .beta-mvp .fuel-cooldown-message {
@@ -488,7 +490,8 @@
 }
 
 .beta-log-entry-card #graphLogFoodButton,
-.beta-log-entry-card #graphLogHydrationButton {
+.beta-log-entry-card #graphLogHydrationButton,
+.beta-log-entry-card #graphLogLowEnergyButton {
   min-height: 44px;
   margin-top: 0;
   padding: 8px 7px;
@@ -504,7 +507,8 @@
 }
 
 .beta-log-entry-card #graphLogFoodButton span,
-.beta-log-entry-card #graphLogHydrationButton span {
+.beta-log-entry-card #graphLogHydrationButton span,
+.beta-log-entry-card #graphLogLowEnergyButton span {
   display: block;
 }
 
@@ -936,7 +940,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-mvp .mobile-bottom-nav {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .beta-hidden-duplicate-risk {
@@ -1218,6 +1222,51 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.beta-daily-metrics-section {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(35,55,42,.05);
+  box-sizing: border-box;
+}
+
+.beta-daily-metric-card,
+.beta-weekly-metric-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(29,49,38,.1);
+  border-radius: 15px;
+  background: rgba(248,252,247,.84);
+}
+
+.beta-daily-metric-card span,
+.beta-weekly-metric-card span {
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.beta-daily-metric-card strong,
+.beta-weekly-metric-card strong {
+  color: var(--text);
+  font-size: .98rem;
+  line-height: 1.18;
+}
+
+.beta-daily-metric-card small,
+.beta-weekly-metric-card small {
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.25;
 }
 
 .beta-visual-metric-card.elevated,
@@ -1916,6 +1965,18 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   background: #7c3aed;
 }
 
+.beta-trend-chart-legend i.fuel {
+  background: #167a45;
+}
+
+.beta-trend-chart-legend i.hydration {
+  background: #2f8eb8;
+}
+
+.beta-trend-chart-legend i.crash {
+  background: #c53d52;
+}
+
 .beta-trend-chart-legend i.expected {
   background: #9fb7ff;
 }
@@ -1975,6 +2036,18 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   stroke-dasharray: 5 4;
 }
 
+.beta-trend-chart .line.fuel {
+  stroke: #167a45;
+}
+
+.beta-trend-chart .line.hydration {
+  stroke: #2f8eb8;
+}
+
+.beta-trend-chart .line.crash {
+  stroke: #c53d52;
+}
+
 .beta-trend-chart .line.expected {
   stroke: #9fb7ff;
   stroke-dasharray: 5 4;
@@ -2003,6 +2076,18 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   stroke: #7c3aed;
 }
 
+.beta-trend-chart .point.fuel {
+  stroke: #167a45;
+}
+
+.beta-trend-chart .point.hydration {
+  stroke: #2f8eb8;
+}
+
+.beta-trend-chart .point.crash {
+  stroke: #c53d52;
+}
+
 .beta-trend-chart .point.expected {
   stroke: #9fb7ff;
 }
@@ -2017,6 +2102,18 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-trend-chart .bar.previous {
   fill: #7c3aed;
+}
+
+.beta-trend-chart .bar.fuel {
+  fill: #167a45;
+}
+
+.beta-trend-chart .bar.hydration {
+  fill: #2f8eb8;
+}
+
+.beta-trend-chart .bar.crash {
+  fill: #c53d52;
 }
 
 .beta-weekly-fuel-card {
@@ -2096,6 +2193,84 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-weekly-fuel-axis span {
   text-align: center;
+}
+
+.beta-weekly-overview,
+.beta-weekly-section,
+.beta-chart-card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(35,55,42,.05);
+  box-sizing: border-box;
+}
+
+.beta-weekly-range {
+  display: grid;
+  gap: 4px;
+}
+
+.beta-weekly-range span,
+.beta-weekly-range small,
+.beta-weekly-section-head p,
+.beta-weekly-insight {
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+.beta-weekly-range strong {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
+.beta-weekly-section-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.beta-weekly-section-head h3,
+.beta-chart-card h4 {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.beta-weekly-section-head p,
+.beta-weekly-insight {
+  margin: 0;
+}
+
+.beta-weekly-metric-grid,
+.beta-weekly-graph-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.beta-weekly-graph-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+
+.beta-weekly-section-fuel {
+  border-color: rgba(22,122,69,.18);
+}
+
+.beta-weekly-section-hydration {
+  border-color: rgba(47,142,184,.18);
+}
+
+.beta-weekly-section-low-energy {
+  border-color: rgba(197,61,82,.18);
 }
 
 .beta-trend-chart-empty {
@@ -2383,7 +2558,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   }
 
   .beta-mvp .mobile-bottom-nav {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     box-shadow: none;
   }
 
@@ -2953,7 +3128,8 @@ body.beta-mvp .beta-trends-card {
   box-shadow: none;
 }
 
-body.beta-mvp .beta-trends-filter-row {
+body.beta-mvp .beta-trends-filter-row,
+body.beta-mvp .beta-trends-week-row {
   display: grid;
   gap: 12px;
   width: 100%;
@@ -2969,11 +3145,43 @@ body.beta-mvp .beta-trends-filter-row {
 }
 
 body.beta-mvp .beta-trends-filter-row .beta-trend-filters,
+body.beta-mvp .beta-trends-week-row .beta-week-selector,
 body.beta-mvp .beta-averages-summary,
 body.beta-mvp .beta-impact-trend-grid {
   width: 100%;
   max-width: none;
   min-width: 0;
+}
+
+body.beta-mvp .beta-week-selector {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+body.beta-mvp .beta-week-selector > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  text-align: center;
+}
+
+body.beta-mvp .beta-week-selector span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-week-selector strong {
+  color: var(--text);
+  font-size: .92rem;
+  line-height: 1.2;
+}
+
+body.beta-mvp .beta-week-selector button {
+  min-height: 38px;
+  padding-inline: 12px;
 }
 
 body.beta-mvp .beta-impact-trend-grid {
@@ -3344,7 +3552,6 @@ body.beta-mvp .beta-trend-comparison-card.building {
     #ffffff;
 }
 
-body.beta-mvp .beta-logistics-panel,
 body.beta-mvp .beta-missed-log-panel {
   display: grid;
   gap: 12px;
@@ -3372,71 +3579,6 @@ body.beta-mvp .beta-missed-log-card .section-heading-row {
 
 body.beta-mvp .beta-missed-log-card .muted {
   margin: 4px 0 0;
-}
-
-body.beta-mvp .beta-logistics-panel h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-body.beta-mvp .beta-food-runway-cards {
-  display: grid;
-  gap: 12px;
-  width: 100%;
-  margin-top: 12px;
-}
-
-body.beta-mvp .beta-runway-mini-card,
-body.beta-mvp .beta-logistics-item {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  padding: 13px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 10px 26px rgba(35,55,42,.06);
-  box-sizing: border-box;
-}
-
-body.beta-mvp .beta-runway-mini-card h3,
-body.beta-mvp .beta-runway-mini-card p {
-  margin: 0;
-}
-
-body.beta-mvp .beta-runway-mini-card strong {
-  font-size: 1.05rem;
-}
-
-body.beta-mvp .beta-logistics-list {
-  display: grid;
-  gap: 10px;
-}
-
-body.beta-mvp .beta-logistics-item > div:first-child {
-  display: grid;
-  gap: 4px;
-}
-
-body.beta-mvp .beta-logistics-item span,
-body.beta-mvp .beta-runway-mini-card p {
-  color: var(--muted);
-  font-size: .86rem;
-  line-height: 1.35;
-}
-
-body.beta-mvp .beta-ride-reminder-list {
-  display: grid;
-  gap: 8px;
-}
-
-body.beta-mvp .beta-ride-reminder-list article {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 11px;
-  border-radius: 14px;
-  background: rgba(29,49,38,.06);
 }
 
 body.beta-mvp .beta-log-event-actions {

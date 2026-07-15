@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v58-fuel-log-visuals" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v58-fuel-log-visuals" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v58-fuel-log-visuals" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v59-mvp-daily-weekly" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v59-mvp-daily-weekly" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v59-mvp-daily-weekly" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -25,11 +25,9 @@
         <button class="nav-item active" data-screen="dashboard">Fuel Rhythm</button>
         <button class="nav-item" data-screen="logs">Data</button>
         <button class="nav-item" data-screen="trends">Trends</button>
-        <button class="nav-item" data-screen="ride">Ride Plan</button>
-        <button class="nav-item" data-screen="runway">Food Runway</button>
         <button class="nav-item" data-screen="checklist">Settings</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel Rhythm</strong><p>Log quickly here. Review patterns in Data, Trends, and Food Runway.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Beta focus</span><strong>Fuel Rhythm</strong><p>Log quickly here. Review daily data and weekly trends separately.</p></div>
     </aside>
 
     <main class="app">
@@ -77,11 +75,12 @@
               <section class="beta-rhythm-section-card beta-log-entry-card" aria-label="Log data into your rhythm">
                 <div class="beta-graph-section-heading beta-log-heading">
                   <h3>Log data into your rhythm</h3>
-                  <p>Tap these when you fuel or hydrate so the app reflects your day.</p>
+                  <p>Tap these when you fuel, hydrate, or feel low energy so the app reflects your day.</p>
                 </div>
-                <div class="beta-log-actions" aria-label="Log fuel or hydration">
+                <div class="beta-log-actions" aria-label="Log fuel, hydration, or low energy">
                   <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
                   <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
+                  <button id="graphLogLowEnergyButton" class="secondary beta-low-energy-button" type="button"><span>Low</span><span>Energy</span></button>
                 </div>
                 <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
               </section>
@@ -105,7 +104,7 @@
           <div class="section-heading-row">
             <div>
               <h3>Missed Log</h3>
-              <p class="muted">Add fuel or hydration after the fact so the day stays accurate.</p>
+              <p class="muted">Add fuel, hydration, or low energy after the fact so the day stays accurate.</p>
             </div>
             <button id="showMissedLogButton" class="secondary" type="button">Add missed log</button>
           </div>
@@ -114,6 +113,7 @@
               <label>Log type<select id="missedLogType">
                 <option value="fuel">Fuel</option>
                 <option value="hydration">Hydration</option>
+                <option value="crash">Low Energy</option>
               </select></label>
               <label>Date<input id="missedLogDate" type="date"></label>
               <label>Time<input id="missedLogTime" type="time"></label>
@@ -135,6 +135,16 @@
 
       <section id="logs" class="screen">
         <article class="card beta-data-card">
+          <div class="section-heading-row beta-data-date-row">
+            <div>
+              <h2>Daily Timeline</h2>
+              <p class="muted">Choose one day to review fuel, hydration, and low-energy events.</p>
+            </div>
+            <label class="day-type-field beta-history-date">
+              <span>Review day</span>
+              <input id="fuelDataDate" type="date">
+            </label>
+          </div>
           <div id="fuelHistoryArchiveDetail" class="fuel-archive-detail"></div>
           <div class="beta-impact-current-status beta-daily-current-status" aria-label="Current fuel status">
             <h3>Status</h3>
@@ -151,7 +161,7 @@
               <button type="button" data-graph-mode="fuel">Fuel</button>
               <button type="button" data-graph-mode="hydration">Hydration</button>
             </div>
-            <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Status curve across today"></canvas>
+            <canvas id="fuelRhythmGraph" width="760" height="260" aria-label="Status curve across the selected day"></canvas>
           </div>
         </article>
 
@@ -159,111 +169,18 @@
 
       <section id="trends" class="screen">
         <article class="card beta-trends-card">
-          <div class="section-heading-row beta-insight-heading beta-trends-filter-row">
-            <h2 class="beta-trends-filter-title">Review trends</h2>
-            <div class="beta-trend-filters" aria-label="Trend filters">
-              <label class="day-type-field beta-training-filter">
-                <span>Day type</span>
-                <select id="trendDayTypeFilter">
-                  <option value="all">All days</option>
-                  <option value="work">Working Day</option>
-                  <option value="competition">Competition Day</option>
-                  <option value="travel">Travelling Day</option>
-                  <option value="holiday">Holiday</option>
-                </select>
-              </label>
-              <label class="day-type-field beta-training-filter">
-                <span>Training session</span>
-                <select id="trendTrainingFilter">
-                  <option value="all">All training sessions</option>
-                  <option value="rest">No training</option>
-                  <option value="run">Run</option>
-                  <option value="bike">Bike</option>
-                  <option value="swim">Swim</option>
-                  <option value="strength">Strength</option>
-                  <option value="brick">Brick</option>
-                </select>
-              </label>
+          <div class="section-heading-row beta-insight-heading beta-trends-week-row">
+            <h2 class="beta-trends-filter-title">Review week</h2>
+            <div class="beta-week-selector" aria-label="Trend week selector">
+              <button id="trendPreviousWeekButton" class="secondary" type="button">Previous</button>
+              <div>
+                <span>Selected week</span>
+                <strong id="trendWeekLabel">This week</strong>
+              </div>
+              <button id="trendNextWeekButton" class="secondary" type="button">Next</button>
             </div>
           </div>
           <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
-        </article>
-      </section>
-
-      <section id="ride" class="screen">
-        <article class="card beta-ride-card">
-          <h2>Ride Plan</h2>
-          <p class="muted">Plan fuel and hydration reminders for bike rides. In-app reminders work while Fuel Guard is open; Fuel Guard Go transfer is not connected yet.</p>
-
-          <section class="beta-logistics-panel">
-            <h3>Plan setup</h3>
-            <div class="form-grid beta-settings-grid">
-              <label>Ride name<input id="ridePlanName" type="text" placeholder="Saturday ride"></label>
-              <label>Ride duration (minutes)<input id="rideDurationMinutes" type="number" min="1" max="1440" step="1" inputmode="numeric"></label>
-              <label>Fuel interval (minutes)<input id="rideFuelInterval" type="number" min="1" max="240" step="1" inputmode="numeric"></label>
-              <label>First fuel reminder (minutes)<input id="rideFirstFuel" type="number" min="1" max="240" step="1" inputmode="numeric"></label>
-              <label>Hydration interval (minutes)<input id="rideHydrationInterval" type="number" min="1" max="240" step="1" inputmode="numeric"></label>
-              <label>First hydration reminder (minutes)<input id="rideFirstHydration" type="number" min="1" max="240" step="1" inputmode="numeric"></label>
-            </div>
-            <div class="button-row beta-settings-actions">
-              <button id="rideSavePlanButton" class="primary" type="button">Save plan</button>
-              <button id="rideStartButton" class="secondary" type="button">Start ride</button>
-              <button id="rideTemplateButton" class="secondary" type="button">Save as template</button>
-              <button id="rideSendGoButton" class="secondary" type="button" disabled>Send to Fuel Guard Go</button>
-            </div>
-            <p id="ridePlanStatus" class="row-note" aria-live="polite"></p>
-          </section>
-
-          <section class="beta-logistics-panel">
-            <h3>Schedule preview</h3>
-            <div id="rideSchedulePreview" class="beta-ride-timeline"></div>
-          </section>
-
-          <section class="beta-logistics-panel">
-            <h3>Active ride</h3>
-            <div id="activeRidePanel" class="beta-active-ride"></div>
-          </section>
-
-          <section class="beta-logistics-panel">
-            <h3>Saved plans</h3>
-            <div id="rideSavedPlans" class="beta-logistics-list"></div>
-          </section>
-        </article>
-      </section>
-
-      <section id="runway" class="screen">
-        <article class="card beta-runway-card">
-          <h2>Food Runway</h2>
-          <p class="muted">Track how long a shop or meal-prep batch actually lasts so Fuel Guard can improve future shopping-date predictions.</p>
-
-          <section class="beta-logistics-panel">
-            <h3>Current shop</h3>
-            <div id="foodRunwayCurrent" class="beta-logistics-list"></div>
-          </section>
-
-          <section class="beta-logistics-panel">
-            <h3>Add new shop</h3>
-            <div class="form-grid beta-settings-grid">
-              <label>Shopping date<input id="runwayShoppingDate" type="date"></label>
-              <label>Expected finish date<input id="runwayExpectedFinishDate" type="date"></label>
-              <label>Shop type<select id="runwayShopType">
-                <option value="full_shop">Full shop</option>
-                <option value="top_up">Top-up shop</option>
-                <option value="meal_prep">Meal-prep batch</option>
-              </select></label>
-              <label>Actual finish date<input id="runwayActualFinishDate" type="date"></label>
-            </div>
-            <div class="button-row beta-settings-actions">
-              <button id="runwaySaveEntryButton" class="primary" type="button">Save shop</button>
-              <button id="runwayCancelEditButton" class="secondary" type="button">Cancel</button>
-            </div>
-            <p id="foodRunwayStatus" class="row-note" aria-live="polite"></p>
-          </section>
-
-          <section class="beta-logistics-panel">
-            <h3>Previous shops</h3>
-            <div id="foodRunwayPrevious" class="beta-logistics-list"></div>
-          </section>
         </article>
       </section>
 
@@ -298,15 +215,6 @@
             <button id="checkAppUpdateButton" class="secondary" type="button">Check for update / Refresh app</button>
           </div>
           <p id="appUpdateStatus" class="row-note" aria-live="polite">Update status: ready.</p>
-        </article>
-
-        <article class="card beta-logistics-card">
-          <h2>Nutrition logistics</h2>
-          <p class="muted">Plan ride reminders and track Food Runway without adding calories, macros, or food-item tracking.</p>
-          <div class="button-row beta-settings-actions">
-            <button id="openRidePlanButton" class="secondary" type="button">Open Ride Plan</button>
-            <button id="openFoodRunwayButton" class="secondary" type="button">Open Food Runway</button>
-          </div>
         </article>
 
         <article class="card beta-import-card">
@@ -379,7 +287,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v58-fuel-log-visuals</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v59-mvp-daily-weekly</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -400,30 +308,22 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 4-5 3 3 5-7"/></svg>
       <span>Trends</span>
     </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="ride" data-mobile-tab="ride">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17a3 3 0 1 0 0 .01"/><path d="M19 17a3 3 0 1 0 0 .01"/><path d="M8 17h5l3-8h-4"/><path d="M6 7h3l4 10"/><path d="M14 7h3"/></svg>
-      <span>Ride</span>
-    </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="runway" data-mobile-tab="runway">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16"/><path d="M6 9l1 11h10l1-11"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/><path d="M9 14h6"/></svg>
-      <span>Runway</span>
-    </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="checklist" data-mobile-tab="settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9.1 1.7 1.7 0 0 0-.9 1.6v.2h-4v-.2a1.7 1.7 0 0 0-.9-1.6 1.7 1.7 0 0 0-1.9-.1l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 6.2 15a1.7 1.7 0 0 0-1.4-1H4.6v-4h.2a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9-.1 1.7 1.7 0 0 0 .9-1.6V1.8h4V2a1.7 1.7 0 0 0 .9 1.6 1.7 1.7 0 0 0 1.9.1l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
       <span>Settings</span>
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
+  <script src="build-info.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="app-ui.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="fuel-history-render-guard.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v58-fuel-log-visuals"></script>
+  <script src="app-state.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="app-ui.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="fuel-history-render-guard.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v59-mvp-daily-weekly"></script>
 </body>
 </html>
