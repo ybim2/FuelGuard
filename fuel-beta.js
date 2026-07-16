@@ -80,6 +80,8 @@
   let selectedTrendDayType = "all";
   let selectedTrendTrainingSession = "all";
   let selectedTrendWeekStartKey = "";
+  let selectedTrendMonthKey = "";
+  let selectedTrendPeriod = "week";
   let accountBusy = false;
   let csvImportBusy = false;
   let csvImportPreview = null;
@@ -1300,6 +1302,126 @@
     });
   }
 
+
+  function startOfCalendarMonth(date = new Date()) {
+    const start = startOfDay(date);
+    start.setDate(1);
+    return start;
+  }
+
+  function addMonths(date, months) {
+    const next = startOfCalendarMonth(date);
+    next.setMonth(next.getMonth() + months);
+    return startOfCalendarMonth(next);
+  }
+
+  function daysBetween(start, end) {
+    return Math.max(0, Math.round((startOfDay(end) - startOfDay(start)) / 86400000));
+  }
+
+  function entriesForRange(entries, start, end) {
+    return entries.filter(entry => {
+      const date = dateFromKey(entry.date);
+      return date >= start && date < end;
+    });
+  }
+
+  function formatMonthRange(start) {
+    return start.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  }
+
+  function selectedTrendMonthStart() {
+    if (!selectedTrendMonthKey) selectedTrendMonthKey = dateKey(startOfCalendarMonth(new Date()));
+    const start = startOfCalendarMonth(dateFromKey(selectedTrendMonthKey));
+    const currentStart = startOfCalendarMonth(new Date());
+    if (start > currentStart) {
+      selectedTrendMonthKey = dateKey(currentStart);
+      return currentStart;
+    }
+    selectedTrendMonthKey = dateKey(start);
+    return start;
+  }
+
+  function setSelectedTrendMonthStart(date) {
+    const currentStart = startOfCalendarMonth(new Date());
+    const next = startOfCalendarMonth(date);
+    selectedTrendMonthKey = dateKey(next > currentStart ? currentStart : next);
+    return selectedTrendMonthStart();
+  }
+
+  function selectedTrendRange() {
+    const period = selectedTrendPeriod === "month" ? "month" : "week";
+    if (period === "month") {
+      const start = selectedTrendMonthStart();
+      const end = addMonths(start, 1);
+      const previousStart = addMonths(start, -1);
+      const previousEnd = start;
+      const currentStart = startOfCalendarMonth(new Date());
+      const count = daysBetween(start, end);
+      const days = Array.from({ length: count }, (_, index) => {
+        const currentDate = addDays(start, index);
+        const previousDate = addDays(previousStart, index);
+        return {
+          currentDate,
+          previousDate: previousDate < previousEnd ? previousDate : null,
+          label: String(currentDate.getDate()),
+          shortLabel: String(currentDate.getDate()),
+          dateLabel: weeklyDateLabel(currentDate),
+          previousDateLabel: previousDate < previousEnd ? weeklyDateLabel(previousDate) : ""
+        };
+      });
+      const isCurrent = dateKey(start) === dateKey(currentStart);
+      return {
+        period,
+        start,
+        end,
+        previousStart,
+        previousEnd,
+        days,
+        label: formatMonthRange(start),
+        previousLabelText: formatMonthRange(previousStart),
+        currentLabel: isCurrent ? "This month" : "Selected month",
+        previousLabel: isCurrent ? "Last month" : "Previous month",
+        periodLabel: "Selected month",
+        axisLabel: "day/date",
+        nextDisabled: start >= currentStart
+      };
+    }
+
+    const start = selectedTrendWeekStart();
+    const end = addDays(start, 7);
+    const previousStart = addDays(start, -7);
+    const previousEnd = start;
+    const currentStart = startOfCalendarWeek(new Date());
+    const days = weekDays(start).map((currentDate, index) => {
+      const previousDate = addDays(previousStart, index);
+      return {
+        currentDate,
+        previousDate,
+        label: weeklyPointLabel(currentDate),
+        shortLabel: weeklyPointLabel(currentDate),
+        dateLabel: weeklyDateLabel(currentDate),
+        previousDateLabel: weeklyDateLabel(previousDate)
+      };
+    });
+    const isCurrent = dateKey(start) === dateKey(currentStart);
+    return {
+      period,
+      start,
+      end,
+      previousStart,
+      previousEnd,
+      days,
+      label: formatWeekRange(start),
+      previousLabelText: formatWeekRange(previousStart),
+      currentLabel: isCurrent ? "This week" : "Selected week",
+      previousLabel: isCurrent ? "Last week" : "Previous week",
+      periodLabel: "Selected week",
+      axisLabel: "day/date",
+      nextDisabled: start >= currentStart
+    };
+  }
+
   function weeklySummary() {
     const cutoff = startOfDay();
     cutoff.setDate(cutoff.getDate() - 6);
@@ -1763,7 +1885,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v65-targets-share"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v66-trend-comparisons"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3124,7 +3246,7 @@
       <article class="beta-trend-pattern-card beta-impact-trend-card beta-weekly-fuel-card">
         <div class="beta-metric-card-head">
           <span class="beta-icon-disc shield">${dailyIcon("fuel")}</span>
-          <div><span>Weekly Fuel Log Times</span><strong>${totalFuelLogs} fuel log${totalFuelLogs === 1 ? "" : "s"}</strong></div>
+          <div><span>Fuel log timing archive</span><strong>${totalFuelLogs} fuel log${totalFuelLogs === 1 ? "" : "s"}</strong></div>
         </div>
         <div class="beta-weekly-fuel-timeline" aria-label="Weekly fuel log timing">
           ${rows}
@@ -3949,48 +4071,579 @@
     ].join("");
   }
 
+
+  function trendMetricDefinitions() {
+    return [
+      {
+        id: "logs",
+        title: "Logs by day",
+        description: "Fuel and hydration logs per day.",
+        icon: "chart",
+        chart: "bar",
+        unit: "count",
+        yLabel: "Logs",
+        aggregate: "sum",
+        lowerIsBetter: null,
+        valueForEntry: entry => logsForEntryType(entry, isFuelLog).length + logsForEntryType(entry, isHydrationLog).length,
+        summaryLabel: "Fuel and hydration logs"
+      },
+      {
+        id: "fuel-gap",
+        title: "Fuel gap trend",
+        description: "Longest fuel gap on each day.",
+        icon: "fuel",
+        chart: "line",
+        unit: "minutes",
+        yLabel: "Longest fuel gap",
+        aggregate: "average",
+        lowerIsBetter: true,
+        valueForEntry: entry => {
+          if (!entry) return null;
+          const value = Number(entry.longestGapMinutes || 0);
+          return value > 0 ? value : null;
+        },
+        summaryLabel: "Average daily longest fuel gap"
+      },
+      {
+        id: "hydration-gap",
+        title: "Hydration gap trend",
+        description: "Longest hydration gap on each day.",
+        icon: "hydration",
+        chart: "line",
+        unit: "minutes",
+        yLabel: "Longest hydration gap",
+        aggregate: "average",
+        lowerIsBetter: true,
+        valueForEntry: entry => {
+          if (!entry) return null;
+          const value = Number(entry.longestHydrationGapMinutes || 0);
+          return value > 0 ? value : null;
+        },
+        summaryLabel: "Average daily longest hydration gap"
+      },
+      {
+        id: "low-energy",
+        title: "Low Energy trend",
+        description: "Low Energy logs per day.",
+        icon: "energy",
+        chart: "bar",
+        unit: "count",
+        yLabel: "Low Energy logs",
+        aggregate: "sum",
+        lowerIsBetter: true,
+        valueForEntry: entry => logsForEntryType(entry, isCrashLog).length,
+        summaryLabel: "Low Energy logs"
+      }
+    ];
+  }
+
+  function trendMetricById(id) {
+    return trendMetricDefinitions().find(metric => metric.id === id) || trendMetricDefinitions()[0];
+  }
+
+  function trendEntryValue(entry, metric) {
+    if (!entry) return null;
+    const value = Number(metric.valueForEntry(entry));
+    return Number.isFinite(value) ? Math.max(0, value) : null;
+  }
+
+  function trendComparisonPoints(metric, range, entries) {
+    const currentEntries = entriesForRange(entries, range.start, range.end);
+    const previousEntries = entriesForRange(entries, range.previousStart, range.previousEnd);
+    const currentByDate = weeklyEntriesByDate(currentEntries);
+    const previousByDate = weeklyEntriesByDate(previousEntries);
+    return range.days.map((day, index) => {
+      const currentKey = dateKey(day.currentDate);
+      const previousKey = day.previousDate ? dateKey(day.previousDate) : "";
+      return {
+        index,
+        label: day.label,
+        shortLabel: day.shortLabel,
+        dateLabel: day.dateLabel,
+        previousDateLabel: day.previousDateLabel,
+        currentKey,
+        previousKey,
+        current: trendEntryValue(currentByDate[currentKey], metric),
+        previous: previousKey ? trendEntryValue(previousByDate[previousKey], metric) : null
+      };
+    });
+  }
+
+  function trendValues(points, key) {
+    return points.map(point => point[key]).filter(value => Number.isFinite(value));
+  }
+
+  function trendAggregateValue(points, key, aggregate = "sum") {
+    const values = trendValues(points, key);
+    if (!values.length) return null;
+    if (aggregate === "average") return averageValue(values);
+    if (aggregate === "max") return Math.max(...values);
+    return values.reduce((sum, value) => sum + value, 0);
+  }
+
+  function trendComparisonLabel(value, unit) {
+    if (!Number.isFinite(value)) return "Not enough data";
+    return unit === "minutes" ? compactDuration(value) : String(Math.round(value));
+  }
+
+  function trendDifferenceLabel(diff, unit) {
+    const value = Math.abs(diff);
+    return unit === "minutes" ? compactDuration(value) : String(Math.round(value));
+  }
+
+  function trendSummary(metric, currentValue, previousValue, range) {
+    if (!Number.isFinite(currentValue) && !Number.isFinite(previousValue)) {
+      return { tone: "neutral", label: "Building", copy: `Log more data to compare ${metric.summaryLabel.toLowerCase()}.` };
+    }
+    if (!Number.isFinite(previousValue)) {
+      return { tone: "neutral", label: "Current only", copy: `${metric.summaryLabel} has ${range.currentLabel.toLowerCase()} data. ${range.previousLabel} needs more logs for comparison.` };
+    }
+    if (!Number.isFinite(currentValue)) {
+      return { tone: "neutral", label: "Previous only", copy: `${range.currentLabel} needs more logs before Fuel Guard can compare this signal.` };
+    }
+    const diff = currentValue - previousValue;
+    const tolerance = metric.unit === "minutes" ? 10 : 0.5;
+    if (Math.abs(diff) <= tolerance) {
+      return { tone: "neutral", label: "Staying similar", copy: `${metric.summaryLabel} is staying similar to ${range.previousLabel.toLowerCase()}.` };
+    }
+    const change = trendDifferenceLabel(diff, metric.unit);
+    if (metric.lowerIsBetter === null) {
+      return diff > 0
+        ? { tone: "neutral", label: "More logs", copy: `${metric.summaryLabel} is up by ${change} compared with ${range.previousLabel.toLowerCase()}.` }
+        : { tone: "neutral", label: "Fewer logs", copy: `${metric.summaryLabel} is down by ${change} compared with ${range.previousLabel.toLowerCase()}.` };
+    }
+    const improving = metric.lowerIsBetter ? diff < 0 : diff > 0;
+    if (improving) {
+      const direction = diff < 0 ? "down" : "up";
+      return { tone: "protected", label: "Improving", copy: `${metric.summaryLabel} is ${direction} by ${change} compared with ${range.previousLabel.toLowerCase()}.` };
+    }
+    const direction = diff > 0 ? "up" : "down";
+    return { tone: "elevated", label: "Needs attention", copy: `${metric.summaryLabel} is ${direction} by ${change} compared with ${range.previousLabel.toLowerCase()}.` };
+  }
+
+  function trendComparisonData() {
+    const range = selectedTrendRange();
+    const entries = archiveEntries();
+    const currentEntries = entriesForRange(entries, range.start, range.end);
+    const previousEntries = entriesForRange(entries, range.previousStart, range.previousEnd);
+    const cards = trendMetricDefinitions().map(metric => {
+      const points = trendComparisonPoints(metric, range, entries);
+      const currentValue = trendAggregateValue(points, "current", metric.aggregate);
+      const previousValue = trendAggregateValue(points, "previous", metric.aggregate);
+      const summary = trendSummary(metric, currentValue, previousValue, range);
+      return { metric, points, currentValue, previousValue, summary };
+    });
+    return { range, entries, currentEntries, previousEntries, cards };
+  }
+
+  function comparisonTrendChartMax(points) {
+    const values = points.flatMap(point => [point.current, point.previous]).filter(value => Number.isFinite(value));
+    return Math.max(...values, 1);
+  }
+
+  function trendXAxisLabel(point, index, total, period) {
+    if (period === "week") return point.shortLabel;
+    if (index === 0 || index === total - 1 || (index + 1) % 5 === 0) return point.shortLabel;
+    return "";
+  }
+
+  function comparisonPointTooltip(metric, point, key, range) {
+    const label = key === "previous" ? range.previousLabel : range.currentLabel;
+    const dateLabel = key === "previous" ? point.previousDateLabel : point.dateLabel;
+    const value = point[key];
+    return `${label} ${dateLabel}: ${trendComparisonLabel(value, metric.unit)} ${metric.unit === "minutes" ? "" : metric.yLabel.toLowerCase()}`.trim();
+  }
+
+  function renderComparisonLegend(range) {
+    return `
+      <div class="beta-trend-chart-legend" aria-hidden="true">
+        <span><i class="current"></i>${safeText(range.currentLabel)}</span>
+        <span><i class="previous"></i>${safeText(range.previousLabel)}</span>
+      </div>
+    `;
+  }
+
+  function renderComparisonLinePath(points, key, xFor, yFor) {
+    const segments = [];
+    let current = [];
+    points.forEach((point, index) => {
+      const value = point[key];
+      if (Number.isFinite(value)) current.push(`${xFor(index).toFixed(1)},${yFor(value).toFixed(1)}`);
+      else if (current.length) {
+        segments.push(current);
+        current = [];
+      }
+    });
+    if (current.length) segments.push(current);
+    return segments.map(segment => `<polyline class="line ${safeText(key)}" points="${segment.join(" ")}"></polyline>`).join("");
+  }
+
+  function renderTrendComparisonChart(card, range) {
+    const { metric, points } = card;
+    if (!hasTrendChartData(points)) return `<div class="beta-trend-chart-empty">Needs matching logs to draw this comparison.</div>`;
+    const width = 640;
+    const height = 260;
+    const padding = { top: 24, right: 22, bottom: 58, left: 56 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const max = comparisonTrendChartMax(points);
+    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+    const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
+    const maxLabel = trendComparisonLabel(max, metric.unit);
+    const xLabels = points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 26}">${safeText(trendXAxisLabel(point, index, points.length, range.period))}</text>`).join("");
+    let marks = "";
+    if (metric.chart === "bar") {
+      const slot = plotWidth / points.length;
+      const barWidth = Math.min(12, Math.max(3, slot * 0.28));
+      marks = points.map((point, index) => {
+        const center = padding.left + slot * index + slot / 2;
+        const bars = [];
+        if (Number.isFinite(point.previous)) {
+          const h = point.previous ? Math.max(2, padding.top + plotHeight - yFor(point.previous)) : 0;
+          bars.push(`<rect class="bar previous" x="${(center - barWidth - 1.5).toFixed(1)}" y="${(padding.top + plotHeight - h).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="3"><title>${safeText(comparisonPointTooltip(metric, point, "previous", range))}</title></rect>`);
+        }
+        if (Number.isFinite(point.current)) {
+          const h = point.current ? Math.max(2, padding.top + plotHeight - yFor(point.current)) : 0;
+          bars.push(`<rect class="bar current" x="${(center + 1.5).toFixed(1)}" y="${(padding.top + plotHeight - h).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="3"><title>${safeText(comparisonPointTooltip(metric, point, "current", range))}</title></rect>`);
+        }
+        return bars.join("");
+      }).join("");
+    } else {
+      marks = `
+        ${renderComparisonLinePath(points, "previous", xFor, yFor)}
+        ${renderComparisonLinePath(points, "current", xFor, yFor)}
+        ${points.map((point, index) => Number.isFinite(point.previous) ? `<circle class="point previous" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.previous).toFixed(1)}" r="3.5"><title>${safeText(comparisonPointTooltip(metric, point, "previous", range))}</title></circle>` : "").join("")}
+        ${points.map((point, index) => Number.isFinite(point.current) ? `<circle class="point current" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.current).toFixed(1)}" r="3.9"><title>${safeText(comparisonPointTooltip(metric, point, "current", range))}</title></circle>` : "").join("")}
+      `;
+    }
+    return `
+      <div class="beta-trend-chart beta-trend-comparison-chart" role="img" aria-label="${safeText(metric.title)} comparison chart">
+        ${renderComparisonLegend(range)}
+        ${renderTrendAxisCopy(range.axisLabel, metric.yLabel)}
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          <text class="y-label" x="8" y="${padding.top + 8}">${safeText(maxLabel)}</text>
+          <text class="y-label" x="10" y="${padding.top + plotHeight}">0</text>
+          ${marks}
+          ${xLabels}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderTrendComparisonCard(card, range) {
+    const { metric, currentValue, previousValue, summary } = card;
+    return `
+      <article class="beta-trend-comparison-card ${safeText(summary.tone)}" data-trend-card="${safeText(metric.id)}">
+        <div class="beta-weekly-section-head beta-trend-card-head">
+          <span class="beta-icon-disc ${summary.tone === "elevated" ? "amber" : summary.tone === "protected" ? "shield" : ""}">${dailyIcon(metric.icon)}</span>
+          <div>
+            <h3>${safeText(metric.title)}</h3>
+            <p>${safeText(metric.description)}</p>
+          </div>
+          <span class="beta-trend-result-chip ${safeText(summary.tone)}">${safeText(summary.label)}</span>
+        </div>
+        <div class="beta-trend-value-row">
+          <span><b>${safeText(range.currentLabel)}</b>${safeText(trendComparisonLabel(currentValue, metric.unit))}</span>
+          <span><b>${safeText(range.previousLabel)}</b>${safeText(trendComparisonLabel(previousValue, metric.unit))}</span>
+        </div>
+        ${renderTrendComparisonChart(card, range)}
+        <p class="beta-weekly-insight">${safeText(summary.copy)}</p>
+        <div class="button-row beta-trend-card-actions">
+          <button class="secondary" type="button" data-share-trend-card="${safeText(metric.id)}">Share</button>
+          <button class="secondary" type="button" data-download-trend-card="${safeText(metric.id)}">Download</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function setTrendsShareStatus(message) {
+    const status = document.getElementById("trendsShareStatus");
+    if (status) status.textContent = message || "";
+  }
+
+  function trendImageFilename(id = "trends") {
+    const range = selectedTrendRange();
+    return `fuel-guard-${id}-${range.period}-${dateKey(range.start)}.png`;
+  }
+
+  function drawTrendLogo(ctx) {
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(92, 92, 44, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#07130f";
+    ctx.font = "900 31px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("FG", 92, 94);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 42px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Fuel Guard", 154, 56);
+    ctx.fillStyle = "rgba(255,255,255,.76)";
+    ctx.font = "600 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Trends", 158, 108);
+  }
+
+
+  function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = "";
+    words.forEach(word => {
+      const next = current ? `${current} ${word}` : word;
+      if (ctx.measureText(next).width <= maxWidth || !current) current = next;
+      else {
+        lines.push(current);
+        current = word;
+      }
+    });
+    if (current) lines.push(current);
+    lines.slice(0, maxLines).forEach((line, index) => {
+      const suffix = index === maxLines - 1 && lines.length > maxLines ? "..." : "";
+      ctx.fillText(`${line}${suffix}`, x, y + index * lineHeight);
+    });
+  }
+
+  function drawTrendChartOnCanvas(ctx, card, range, x, y, width, height) {
+    const { metric, points } = card;
+    drawRoundedRect(ctx, x, y, width, height, 28);
+    ctx.fillStyle = "rgba(255,255,255,.94)";
+    ctx.fill();
+    ctx.fillStyle = "#07130f";
+    ctx.font = "800 30px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(metric.title, x + 28, y + 24);
+    ctx.fillStyle = "#5b6b64";
+    ctx.font = "600 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${range.currentLabel} vs ${range.previousLabel}`, x + 28, y + 62);
+    const legendY = y + 102;
+    drawPill(ctx, x + 28, legendY, 155, 38, "#dff6ea", range.currentLabel, "#0b6f3e");
+    drawPill(ctx, x + 198, legendY, 162, 38, "#eee7ff", range.previousLabel, "#5b21b6");
+
+    const plot = { left: x + 62, top: y + 150, width: width - 100, height: Math.max(80, height - 240) };
+    const max = comparisonTrendChartMax(points);
+    const xFor = index => plot.left + (points.length === 1 ? plot.width / 2 : (index / (points.length - 1)) * plot.width);
+    const yFor = value => plot.top + plot.height - (value / max) * plot.height;
+    ctx.strokeStyle = "rgba(7,19,15,.18)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(plot.left, plot.top + plot.height);
+    ctx.lineTo(plot.left + plot.width, plot.top + plot.height);
+    ctx.moveTo(plot.left, plot.top);
+    ctx.lineTo(plot.left, plot.top + plot.height);
+    ctx.stroke();
+    ctx.fillStyle = "#5b6b64";
+    ctx.font = "600 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(trendComparisonLabel(max, metric.unit), x + 20, plot.top - 8);
+    ctx.fillText("0", x + 24, plot.top + plot.height - 18);
+
+    if (metric.chart === "bar") {
+      const slot = plot.width / points.length;
+      const barWidth = Math.min(16, Math.max(5, slot * 0.24));
+      points.forEach((point, index) => {
+        const center = plot.left + slot * index + slot / 2;
+        [["previous", "#7c3aed", -barWidth - 2], ["current", "#167a45", 2]].forEach(([key, color, offset]) => {
+          const value = point[key];
+          if (!Number.isFinite(value)) return;
+          const h = value ? Math.max(3, plot.top + plot.height - yFor(value)) : 0;
+          drawRoundedRect(ctx, center + offset, plot.top + plot.height - h, barWidth, h, 5);
+          ctx.fillStyle = color;
+          ctx.fill();
+        });
+      });
+    } else {
+      const drawLine = (key, color, dash = []) => {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 5;
+        ctx.setLineDash(dash);
+        let started = false;
+        points.forEach((point, index) => {
+          const value = point[key];
+          if (!Number.isFinite(value)) {
+            started = false;
+            return;
+          }
+          const px = xFor(index);
+          const py = yFor(value);
+          if (!started) {
+            ctx.moveTo(px, py);
+            started = true;
+          } else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      };
+      drawLine("previous", "#7c3aed", [10, 8]);
+      drawLine("current", "#167a45");
+      points.forEach((point, index) => {
+        [["previous", "#7c3aed"], ["current", "#167a45"]].forEach(([key, color]) => {
+          const value = point[key];
+          if (!Number.isFinite(value)) return;
+          ctx.fillStyle = "#ffffff";
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(xFor(index), yFor(value), 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+      });
+    }
+
+    ctx.fillStyle = "#5b6b64";
+    ctx.font = "600 18px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    points.forEach((point, index) => {
+      const label = trendXAxisLabel(point, index, points.length, range.period);
+      if (!label) return;
+      ctx.fillText(label, xFor(index), plot.top + plot.height + 28);
+    });
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#07130f";
+    ctx.font = "700 23px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    drawWrappedText(ctx, card.summary.copy, x + 28, y + height - 58, width - 56, 28, 2);
+  }
+
+  function createTrendCardCanvas(card, range) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Image export is not supported in this browser.");
+    ctx.fillStyle = "#07130f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, "rgba(45,255,136,.18)");
+    gradient.addColorStop(1, "rgba(124,58,237,.18)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawTrendLogo(ctx);
+    ctx.fillStyle = "rgba(255,255,255,.78)";
+    ctx.font = "600 25px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${range.label} compared with ${range.previousLabelText}`, 70, 176);
+    drawTrendChartOnCanvas(ctx, card, range, 70, 245, 940, 865);
+    ctx.fillStyle = "rgba(255,255,255,.62)";
+    ctx.font = "600 23px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Generated by Fuel Guard. No private account information included.", 70, 1255);
+    return canvas;
+  }
+
+  function createAllTrendsCanvas(data) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Image export is not supported in this browser.");
+    ctx.fillStyle = "#07130f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, "rgba(45,255,136,.16)");
+    gradient.addColorStop(.5, "rgba(255,176,32,.11)");
+    gradient.addColorStop(1, "rgba(124,58,237,.18)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawTrendLogo(ctx);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 44px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Trend comparison", 70, 176);
+    ctx.fillStyle = "rgba(255,255,255,.78)";
+    ctx.font = "600 25px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${data.range.label} compared with ${data.range.previousLabelText}`, 70, 232);
+    data.cards.forEach((card, index) => drawTrendChartOnCanvas(ctx, card, data.range, 70, 300 + index * 365, 940, 350));
+    ctx.fillStyle = "rgba(255,255,255,.62)";
+    ctx.font = "600 23px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Generated by Fuel Guard. No private account information included.", 70, 1844);
+    return canvas;
+  }
+
+  async function shareTrendCanvas(canvas, filename, statusLabel, downloadOnly = false) {
+    setTrendsShareStatus("Creating trend image...");
+    try {
+      const blob = await canvasBlob(canvas);
+      if (!downloadOnly && navigator.share && typeof File !== "undefined") {
+        const file = new File([blob], filename, { type: "image/png" });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: statusLabel, text: statusLabel });
+          setTrendsShareStatus("Trend image shared.");
+          return;
+        }
+      }
+      downloadBlob(blob, filename);
+      setTrendsShareStatus(downloadOnly ? "Trend image downloaded." : "Trend image downloaded because native sharing is not available here.");
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setTrendsShareStatus("Share cancelled.");
+        return;
+      }
+      setTrendsShareStatus(`Trend image failed: ${error?.message || "unknown error"}`);
+    }
+  }
+
+  async function shareTrendCard(metricId, downloadOnly = false) {
+    const data = trendComparisonData();
+    const card = data.cards.find(item => item.metric.id === metricId) || data.cards[0];
+    if (!card) return;
+    await shareTrendCanvas(createTrendCardCanvas(card, data.range), trendImageFilename(metricId), `Fuel Guard ${card.metric.title}`, downloadOnly);
+  }
+
+  async function shareAllTrends(downloadOnly = false) {
+    const data = trendComparisonData();
+    await shareTrendCanvas(createAllTrendsCanvas(data), trendImageFilename("trends"), "Fuel Guard trends", downloadOnly);
+  }
+
+  function renderTrendOverview(data) {
+    const hasCurrent = data.currentEntries.some(entry => entryLogsWithDates(entry).length > 0);
+    const hasPrevious = data.previousEntries.some(entry => entryLogsWithDates(entry).length > 0);
+    return `
+      <section class="beta-weekly-overview beta-trend-overview-card">
+        <div class="beta-weekly-range">
+          <span>${safeText(data.range.periodLabel)}</span>
+          <strong>${safeText(data.range.label)}</strong>
+          <small>Compared with ${safeText(data.range.previousLabelText)}. Charts use local dates from your stored logs.</small>
+        </div>
+        ${!hasCurrent && !hasPrevious ? `<p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for these comparison periods yet.</p>` : ""}
+      </section>
+    `;
+  }
+
+  function updateTrendControls(range) {
+    const weekButton = document.getElementById("trendPeriodWeekButton");
+    const monthButton = document.getElementById("trendPeriodMonthButton");
+    const periodLabel = document.getElementById("trendPeriodLabel");
+    const rangeLabel = document.getElementById("trendWeekLabel");
+    const nextButton = document.getElementById("trendNextWeekButton");
+    if (weekButton) {
+      weekButton.classList.toggle("active", selectedTrendPeriod === "week");
+      weekButton.setAttribute("aria-pressed", selectedTrendPeriod === "week" ? "true" : "false");
+    }
+    if (monthButton) {
+      monthButton.classList.toggle("active", selectedTrendPeriod === "month");
+      monthButton.setAttribute("aria-pressed", selectedTrendPeriod === "month" ? "true" : "false");
+    }
+    if (periodLabel) periodLabel.textContent = range.periodLabel;
+    if (rangeLabel) rangeLabel.textContent = range.label;
+    if (nextButton) nextButton.disabled = Boolean(range.nextDisabled);
+  }
+
   function renderTrends() {
     const summaryTarget = document.getElementById("fuelAveragesSummary");
     if (!summaryTarget) return;
     renderSelectedDayCard();
-    const weekStart = selectedTrendWeekStart();
-    const weekLabel = document.getElementById("trendWeekLabel");
-    const nextButton = document.getElementById("trendNextWeekButton");
-    if (weekLabel) weekLabel.textContent = formatWeekRange(weekStart);
-    if (nextButton) nextButton.disabled = weekStart >= startOfCalendarWeek(new Date());
-
-    const entries = archiveEntries();
-    const weekEntries = entriesForWeek(entries, weekStart);
-    const hasLogs = weekEntries.some(entry => entryLogsWithDates(entry).length > 0);
-    if (!hasLogs) {
-      summaryTarget.innerHTML = `
-        <section class="beta-weekly-overview">
-          <div class="beta-weekly-range">
-            <span>Selected week</span>
-            <strong>${safeText(formatWeekRange(weekStart))}</strong>
-            <small>Monday to Sunday. Trends only use logs inside this week.</small>
-          </div>
-        </section>
-        ${renderWeeklyTargetSection(weekEntries)}
-        <p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for ${safeText(formatWeekRange(weekStart))} yet.</p>
-      `;
-      return;
-    }
-
+    const data = trendComparisonData();
+    updateTrendControls(data.range);
+    const targetSection = data.range.period === "week" ? renderWeeklyTargetSection(data.currentEntries) : "";
     summaryTarget.innerHTML = `
-      <section class="beta-weekly-overview">
-        <div class="beta-weekly-range">
-          <span>Selected week</span>
-          <strong>${safeText(formatWeekRange(weekStart))}</strong>
-          <small>Monday to Sunday. Trends only use logs inside this week.</small>
-        </div>
+      ${renderTrendOverview(data)}
+      ${targetSection}
+      <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
+        ${data.cards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
       </section>
-      ${renderWeeklyTargetSection(weekEntries)}
-      ${renderWeeklyFuelSection(weekEntries)}
-      ${renderWeeklyHydrationSection(weekEntries)}
-      ${renderWeeklyLowEnergySection(weekEntries)}
-      ${renderWeeklyFuelLogTimeline(weekEntries, weekStart)}
-      ${renderWeeklyGraphs(weekEntries, weekStart)}
     `;
   }
 
@@ -4501,13 +5154,34 @@
     selectedTrendTrainingSession = event.target.value || "all";
     renderTrends();
   });
+  document.getElementById("trendPeriodWeekButton")?.addEventListener("click", () => {
+    selectedTrendPeriod = "week";
+    renderTrends();
+  });
+  document.getElementById("trendPeriodMonthButton")?.addEventListener("click", () => {
+    selectedTrendPeriod = "month";
+    renderTrends();
+  });
   document.getElementById("trendPreviousWeekButton")?.addEventListener("click", () => {
-    setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), -7));
+    if (selectedTrendPeriod === "month") setSelectedTrendMonthStart(addMonths(selectedTrendMonthStart(), -1));
+    else setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), -7));
     renderTrends();
   });
   document.getElementById("trendNextWeekButton")?.addEventListener("click", () => {
-    setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), 7));
+    if (selectedTrendPeriod === "month") setSelectedTrendMonthStart(addMonths(selectedTrendMonthStart(), 1));
+    else setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), 7));
     renderTrends();
+  });
+  document.getElementById("shareTrendsButton")?.addEventListener("click", () => shareAllTrends(false));
+  document.getElementById("downloadTrendsButton")?.addEventListener("click", () => shareAllTrends(true));
+  document.addEventListener("click", event => {
+    const shareCard = event.target.closest("[data-share-trend-card]");
+    if (shareCard) {
+      shareTrendCard(shareCard.dataset.shareTrendCard, false);
+      return;
+    }
+    const downloadCard = event.target.closest("[data-download-trend-card]");
+    if (downloadCard) shareTrendCard(downloadCard.dataset.downloadTrendCard, true);
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("saveFuelTargets")?.addEventListener("click", saveTargetSettings);

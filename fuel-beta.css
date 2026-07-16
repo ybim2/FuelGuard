@@ -4083,3 +4083,183 @@ body.beta-mvp .mobile-nav-item.active {
     gap: 2px;
   }
 }
+
+
+.beta-trend-controls {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.beta-trend-period-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.beta-trend-period-toggle button.active {
+  border-color: rgba(22, 122, 69, .28);
+  background: linear-gradient(180deg, rgba(223, 246, 234, .98), rgba(255,255,255,.98));
+  color: #0b6f3e;
+  box-shadow: inset 0 0 0 1px rgba(22, 122, 69, .18);
+}
+
+.beta-trends-share-actions {
+  width: 100%;
+  justify-content: stretch;
+}
+
+.beta-trends-share-actions button {
+  flex: 1 1 0;
+}
+
+.beta-trend-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.beta-trend-comparison-card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(29,49,38,.11);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(35,55,42,.05);
+  box-sizing: border-box;
+}
+
+.beta-trend-comparison-card.protected {
+  border-color: rgba(22,122,69,.2);
+}
+
+.beta-trend-comparison-card.elevated {
+  border-color: rgba(255,176,32,.28);
+}
+
+.beta-trend-card-head {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.beta-trend-result-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(29,49,38,.07);
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.beta-trend-result-chip.protected {
+  background: rgba(22,122,69,.12);
+  color: #0b6f3e;
+}
+
+.beta-trend-result-chip.elevated {
+  background: rgba(255,176,32,.16);
+  color: #8a5600;
+}
+
+.beta-trend-value-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.beta-trend-value-row span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(29,49,38,.09);
+  border-radius: 14px;
+  background: rgba(248,252,247,.96);
+  color: var(--text);
+  font-size: .95rem;
+  font-weight: 900;
+}
+
+.beta-trend-value-row b {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.beta-trend-comparison-chart {
+  margin-top: 0;
+}
+
+.beta-trend-comparison-chart svg {
+  height: clamp(210px, 34vw, 320px);
+  min-height: 210px;
+}
+
+.beta-trend-chart .bar.current {
+  fill: #167a45;
+}
+
+.beta-trend-chart .bar.previous {
+  fill: #7c3aed;
+  opacity: .82;
+}
+
+.beta-trend-card-actions {
+  justify-content: flex-end;
+  margin-top: -2px;
+}
+
+.beta-trend-card-actions button {
+  min-width: 96px;
+}
+
+@media (min-width: 860px) {
+  .beta-trend-controls {
+    grid-template-columns: minmax(180px, 220px) minmax(320px, 1fr);
+    align-items: center;
+  }
+
+  .beta-trends-share-actions {
+    justify-content: flex-end;
+  }
+
+  .beta-trends-share-actions button {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .beta-trend-card-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .beta-trend-result-chip {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .beta-trend-value-row {
+    grid-template-columns: 1fr;
+  }
+
+  .beta-trend-card-actions {
+    justify-content: stretch;
+  }
+
+  .beta-trend-card-actions button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
