@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v68-habit-insights-window";
-const BUILD_VERSION = "2026-07-17T20:20:52Z";
+const APP_VERSION = "mobile-pwa-v69-target-flow";
+const BUILD_VERSION = "2026-07-17T21:10:09Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v68-habit-insights-window-20260717T202052Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v69-target-flow-20260717T211009Z";
 const APP_SHELL = [
   "./",
   "./index.html",

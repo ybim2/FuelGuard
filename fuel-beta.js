@@ -474,6 +474,8 @@
     TARGET_FIELDS.forEach(key => {
       gap.targets[key] = normalizeTargetNumber(gap.targets[key]);
     });
+    gap.targets.weeklyFuelLogs = weeklyTargetFromDaily(gap.targets.dailyFuelLogs);
+    gap.targets.weeklyHydrationLogs = weeklyTargetFromDaily(gap.targets.dailyHydrationLogs);
     gap.targets.updatedAt = String(gap.targets.updatedAt || "");
     normalizeStoredDayTypes(gap);
     removeStoredFollowUpData(gap);
@@ -530,12 +532,54 @@
     return Number.isInteger(value) && value > 0;
   }
 
+  function weeklyTargetFromDaily(value) {
+    return hasTarget(value) ? value * 7 : null;
+  }
+
+  function derivedTargets(source = targets()) {
+    return {
+      ...source,
+      dailyFuelLogs: normalizeTargetNumber(source?.dailyFuelLogs),
+      dailyHydrationLogs: normalizeTargetNumber(source?.dailyHydrationLogs),
+      weeklyFuelLogs: weeklyTargetFromDaily(normalizeTargetNumber(source?.dailyFuelLogs)),
+      weeklyHydrationLogs: weeklyTargetFromDaily(normalizeTargetNumber(source?.dailyHydrationLogs))
+    };
+  }
+
+  function applyDerivedTargets() {
+    betaState().targets = {
+      ...derivedTargets(betaState().targets),
+      updatedAt: String(betaState().targets?.updatedAt || "")
+    };
+    return betaState().targets;
+  }
+
   function targetPercent(actual, target) {
     return hasTarget(target) ? Math.round((Math.max(0, actual) / target) * 100) : null;
   }
 
   function targetInputValue(value) {
     return hasTarget(value) ? String(value) : "";
+  }
+
+  function weeklyTargetDisplayText(value, label) {
+    return hasTarget(value) ? `${value} ${label} logs per week` : `No daily ${label} target set.`;
+  }
+
+  function readTargetPreviewValue(id) {
+    const text = String(document.getElementById(id)?.value || "").trim();
+    return /^\d+$/.test(text) ? normalizeTargetNumber(text) : null;
+  }
+
+  function updateCalculatedWeeklyTargetDisplays(source = null) {
+    const previewTargets = source || {
+      dailyFuelLogs: readTargetPreviewValue("dailyFuelTarget"),
+      dailyHydrationLogs: readTargetPreviewValue("dailyHydrationTarget")
+    };
+    const fuelDisplay = document.getElementById("weeklyFuelTargetDisplay");
+    const hydrationDisplay = document.getElementById("weeklyHydrationTargetDisplay");
+    if (fuelDisplay) fuelDisplay.textContent = weeklyTargetDisplayText(weeklyTargetFromDaily(previewTargets.dailyFuelLogs), "fuel");
+    if (hydrationDisplay) hydrationDisplay.textContent = weeklyTargetDisplayText(weeklyTargetFromDaily(previewTargets.dailyHydrationLogs), "hydration");
   }
 
   fuelGapStatus = function fuelGapStatusBeta(minutes) {
@@ -1917,19 +1961,18 @@
     syncFuelWindowPreset();
     [
       ["dailyFuelTarget", targets().dailyFuelLogs],
-      ["dailyHydrationTarget", targets().dailyHydrationLogs],
-      ["weeklyFuelTarget", targets().weeklyFuelLogs],
-      ["weeklyHydrationTarget", targets().weeklyHydrationLogs]
+      ["dailyHydrationTarget", targets().dailyHydrationLogs]
     ].forEach(([id, value]) => {
       const input = document.getElementById(id);
       if (input && active !== input) input.value = targetInputValue(value);
     });
+    updateCalculatedWeeklyTargetDisplays(targets());
     const buildInfo = window.FUEL_GUARD_BUILD || {};
     const canonical = document.getElementById("canonicalAppVersion");
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v68-habit-insights-window"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v69-target-flow"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2624,8 +2667,7 @@
           <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
         </div>
         <div class="beta-daily-status-groups">
-          ${renderDailyMetricGroup("Current status", [
-            dailyMetricCard("Status", status),
+          ${renderDailyMetricGroup(`Status: ${status}`, [
             dailyMetricCard("Last fuel", lastEventTime(fuelLogs), "", "fuel"),
             dailyMetricCard("Time since last fuel", timeSinceLastEventText(fuelLogs, key), "", "fuel"),
             dailyMetricCard("Last hydration", lastEventTime(hydrationLogs), "", "hydration"),
@@ -3566,13 +3608,13 @@
   }
 
   function renderWeeklyTargetSection(entries) {
-    const currentTargets = targets();
+    const currentTargets = derivedTargets(targets());
     const fuelActual = weeklyLogCount(entries, isFuelLog);
     const hydrationActual = weeklyLogCount(entries, isHydrationLog);
     const hasAnyWeeklyTarget = hasTarget(currentTargets.weeklyFuelLogs) || hasTarget(currentTargets.weeklyHydrationLogs);
     const hasAnyLogs = fuelActual > 0 || hydrationActual > 0;
     const empty = !hasAnyWeeklyTarget && !hasAnyLogs
-      ? `<p class="muted beta-history-empty">Set weekly targets in Settings or log fuel and hydration to see target progress here.</p>`
+      ? `<p class="muted beta-history-empty">Set daily targets in Settings or log fuel and hydration to see weekly target progress here.</p>`
       : "";
     return `
       <section class="beta-weekly-section beta-weekly-target-section">
@@ -3580,7 +3622,7 @@
           <span class="beta-icon-disc shield">${dailyIcon("target")}</span>
           <div>
             <h3>Weekly targets</h3>
-            <p>Actual logs compared with your optional weekly targets.</p>
+            <p>Weekly targets are calculated from your daily targets × 7.</p>
           </div>
         </div>
         ${empty}
@@ -5361,6 +5403,8 @@
 
   async function persistTargetSettings(message = "Targets saved.") {
     const status = document.getElementById("fuelTargetsStatus");
+    applyDerivedTargets();
+    updateCalculatedWeeklyTargetDisplays(targets());
     if (status) status.textContent = message;
     save();
     renderAll();
@@ -5378,12 +5422,14 @@
   async function saveTargetSettings() {
     const status = document.getElementById("fuelTargetsStatus");
     try {
-      const next = {
+      const dailyTargets = {
         dailyFuelLogs: readTargetField("dailyFuelTarget"),
         dailyHydrationLogs: readTargetField("dailyHydrationTarget"),
-        weeklyFuelLogs: readTargetField("weeklyFuelTarget"),
-        weeklyHydrationLogs: readTargetField("weeklyHydrationTarget"),
         updatedAt: new Date().toISOString()
+      };
+      const next = {
+        ...derivedTargets(dailyTargets),
+        updatedAt: dailyTargets.updatedAt
       };
       betaState().targets = next;
       await persistTargetSettings("Targets saved.");
@@ -5556,6 +5602,8 @@
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
   document.getElementById("fuelWindowPreset")?.addEventListener("change", handleFuelWindowPresetChange);
   document.getElementById("fuelWindowHours")?.addEventListener("change", () => saveFuelWindowSetting());
+  document.getElementById("dailyFuelTarget")?.addEventListener("input", () => updateCalculatedWeeklyTargetDisplays());
+  document.getElementById("dailyHydrationTarget")?.addEventListener("input", () => updateCalculatedWeeklyTargetDisplays());
   document.getElementById("saveFuelTargets")?.addEventListener("click", saveTargetSettings);
   document.getElementById("clearFuelTargets")?.addEventListener("click", clearTargetSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);

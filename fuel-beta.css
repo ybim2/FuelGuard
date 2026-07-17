@@ -4241,6 +4241,36 @@ body.beta-mvp .mobile-nav-item.active {
   color: var(--text);
 }
 
+.beta-calculated-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.beta-calculated-targets div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(29, 49, 38, .11);
+  border-radius: 14px;
+  background: rgba(248, 252, 247, .86);
+}
+
+.beta-calculated-targets span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.beta-calculated-targets strong {
+  color: var(--text);
+  font-size: .95rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
 .beta-weekly-target-grid {
   margin-top: 6px;
 }
