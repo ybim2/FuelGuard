@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v66-trend-comparisons" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v66-trend-comparisons" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v66-trend-comparisons" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v67-fuelling-window" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v67-fuelling-window" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v67-fuelling-window" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -190,6 +190,7 @@
             <label>Hydration Sip soon starts at (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
             <label>Hydration Sip now starts at (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
             <label>Hydration Recovery needed starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
+            <label>Daily fuelling window length (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
           </div>
           <div class="button-row beta-settings-actions">
             <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
@@ -297,7 +298,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v66-trend-comparisons</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v67-fuelling-window</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -320,15 +321,15 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v66-trend-comparisons"></script>
+  <script src="build-info.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v67-fuelling-window"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="app-ui.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v66-trend-comparisons"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v66-trend-comparisons"></script>
+  <script src="app-state.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="app-ui.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v67-fuelling-window"></script>
 </body>
 </html>

@@ -16,6 +16,7 @@ const DEFAULT_STATE = {
     dayTypes: {},
     trainingSessions: {},
     graphMode: "fuel",
+    fuelWindowMinutes: 720,
     thresholds: {
       greenMinutes: FUEL_GREEN_LIMIT_MINUTES,
       redMinutes: FUEL_RED_LIMIT_MINUTES,
@@ -84,6 +85,9 @@ function load() {
         archive: isPlainObject(parsedFuelGap.archive) ? parsedFuelGap.archive : {},
         dayTypes: isPlainObject(parsedFuelGap.dayTypes) ? parsedFuelGap.dayTypes : {},
         trainingSessions: isPlainObject(parsedFuelGap.trainingSessions) ? parsedFuelGap.trainingSessions : {},
+        fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
+          ? Number(parsedFuelGap.fuelWindowMinutes)
+          : defaults.fuelGap.fuelWindowMinutes,
         thresholds: {
           ...defaults.fuelGap.thresholds,
           ...(isPlainObject(parsedFuelGap.thresholds) ? parsedFuelGap.thresholds : {})
@@ -181,6 +185,9 @@ function fuelGapState() {
   if (!isPlainObject(state.fuelGap.archive)) state.fuelGap.archive = {};
   if (!isPlainObject(state.fuelGap.dayTypes)) state.fuelGap.dayTypes = {};
   if (!isPlainObject(state.fuelGap.trainingSessions)) state.fuelGap.trainingSessions = {};
+  if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
+    state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
+  }
   if (!isPlainObject(state.fuelGap.thresholds)) state.fuelGap.thresholds = { ...DEFAULT_STATE.fuelGap.thresholds };
   state.fuelGap.thresholds = {
     ...DEFAULT_STATE.fuelGap.thresholds,

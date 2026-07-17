@@ -1,6 +1,6 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v66-trend-comparisons";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v67-fuelling-window";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;

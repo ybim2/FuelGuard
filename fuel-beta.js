@@ -82,6 +82,7 @@
   let selectedTrendWeekStartKey = "";
   let selectedTrendMonthKey = "";
   let selectedTrendPeriod = "week";
+  let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let csvImportBusy = false;
   let csvImportPreview = null;
@@ -468,6 +469,7 @@
     if (gap.thresholds.crashMinutes <= gap.thresholds.redMinutes) gap.thresholds.crashMinutes = gap.thresholds.redMinutes + 15;
     if (gap.thresholds.hydrationRedMinutes <= gap.thresholds.hydrationGreenMinutes) gap.thresholds.hydrationRedMinutes = gap.thresholds.hydrationGreenMinutes + 15;
     if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
+    gap.fuelWindowMinutes = clamp(Number(gap.fuelWindowMinutes || 720), 240, 1200);
     if (!gap.targets || typeof gap.targets !== "object" || Array.isArray(gap.targets)) gap.targets = {};
     TARGET_FIELDS.forEach(key => {
       gap.targets[key] = normalizeTargetNumber(gap.targets[key]);
@@ -480,6 +482,10 @@
 
   function thresholds() {
     return betaState().thresholds;
+  }
+
+  function fuelWindowMinutes() {
+    return betaState().fuelWindowMinutes;
   }
 
   function normalizeTargetNumber(value) {
@@ -1866,7 +1872,8 @@
       ["fuelCrashHours", thresholds().crashMinutes],
       ["hydrationGreenHours", thresholds().hydrationGreenMinutes],
       ["hydrationRedHours", thresholds().hydrationRedMinutes],
-      ["hydrationCrashHours", thresholds().hydrationCrashMinutes]
+      ["hydrationCrashHours", thresholds().hydrationCrashMinutes],
+      ["fuelWindowHours", fuelWindowMinutes()]
     ].forEach(([id, minutes]) => {
       const input = document.getElementById(id);
       if (input && active !== input) input.value = hoursValue(minutes);
@@ -1885,7 +1892,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v66-trend-comparisons"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v67-fuelling-window"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2420,6 +2427,64 @@
     `;
   }
 
+  function addMinutesToDate(date, minutes) {
+    const next = new Date(date);
+    next.setMinutes(next.getMinutes() + Math.round(minutes));
+    return next;
+  }
+
+  function renderFuellingWindowSummary(fuelLogs, key, now = new Date()) {
+    const windowMinutes = fuelWindowMinutes();
+    const lengthText = fuelDebtDurationText(windowMinutes);
+    const firstFuel = fuelLogs[0]?.date || null;
+    if (!firstFuel) {
+      return `
+        <article class="beta-fuelling-window-card waiting">
+          <div class="section-heading-row">
+            <h3>Fuelling window</h3>
+            <span class="row-note">${safeText(lengthText)}</span>
+          </div>
+          <p>Your fuelling window will begin when you record your first fuel log.</p>
+          <div class="beta-fuelling-window-grid">
+            ${dailyMetricCard("First fuel", "Not started")}
+            ${dailyMetricCard("Window length", lengthText)}
+            ${dailyMetricCard("Closes", "Not started")}
+            ${dailyMetricCard("Time remaining", "Waiting for first fuel")}
+          </div>
+        </article>
+      `;
+    }
+
+    const closesAt = addMinutesToDate(firstFuel, windowMinutes);
+    const isToday = key === dateKey(now);
+    const remainingMinutes = (closesAt - now) / 60000;
+    const remainingText = isToday
+      ? remainingMinutes > 0
+        ? `${fuelDebtDurationText(remainingMinutes)} remaining`
+        : "Fuelling window ended"
+      : "Selected day complete";
+    const message = isToday
+      ? remainingMinutes > 0
+        ? `Your fuelling window closes at ${formatClock(closesAt)}.`
+        : `Your fuelling window ended at ${formatClock(closesAt)}.`
+      : `This day's fuelling window closed at ${formatClock(closesAt)}.`;
+    return `
+      <article class="beta-fuelling-window-card ${remainingMinutes > 0 || !isToday ? "active" : "ended"}">
+        <div class="section-heading-row">
+          <h3>Fuelling window</h3>
+          <span class="row-note">${safeText(lengthText)}</span>
+        </div>
+        <p>${safeText(message)}</p>
+        <div class="beta-fuelling-window-grid">
+          ${dailyMetricCard("First fuel", formatClock(firstFuel))}
+          ${dailyMetricCard("Window length", lengthText)}
+          ${dailyMetricCard("Closes", formatClock(closesAt))}
+          ${dailyMetricCard("Time remaining", remainingText)}
+        </div>
+      </article>
+    `;
+  }
+
   function firstEventTime(logs) {
     return logs.length ? formatClock(logs[0].date) : "Not enough data yet";
   }
@@ -2464,6 +2529,7 @@
           </div>
         ` : ""}
         ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length)}
+        ${renderFuellingWindowSummary(fuelLogs, key)}
         <div class="beta-daily-metric-grid">
           ${dailyMetricCard("Status", status)}
           ${dailyMetricCard("Last fuel", timeSinceLastEventText(fuelLogs, key))}
@@ -4241,6 +4307,16 @@
     return Math.max(...values, 1);
   }
 
+  function comparisonTrendDisplayMax(rawMax, unit) {
+    if (unit === "count") return Math.max(2, Math.ceil(rawMax));
+    return Math.max(60, Math.ceil(rawMax / 30) * 30);
+  }
+
+  function comparisonTrendYAxisTicks(max, unit) {
+    if (unit === "count") return [0, Math.ceil(max / 2), max];
+    return [0, max / 2, max];
+  }
+
   function trendXAxisLabel(point, index, total, period) {
     if (period === "week") return point.shortLabel;
     if (index === 0 || index === total - 1 || (index + 1) % 5 === 0) return point.shortLabel;
@@ -4281,16 +4357,23 @@
   function renderTrendComparisonChart(card, range) {
     const { metric, points } = card;
     if (!hasTrendChartData(points)) return `<div class="beta-trend-chart-empty">Needs matching logs to draw this comparison.</div>`;
-    const width = 640;
-    const height = 260;
-    const padding = { top: 24, right: 22, bottom: 58, left: 56 };
+    const width = 760;
+    const height = 360;
+    const padding = { top: 42, right: 28, bottom: 78, left: 82 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const max = comparisonTrendChartMax(points);
+    const max = comparisonTrendDisplayMax(comparisonTrendChartMax(points), metric.unit);
+    const ticks = comparisonTrendYAxisTicks(max, metric.unit);
     const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
     const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
-    const maxLabel = trendComparisonLabel(max, metric.unit);
     const xLabels = points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 26}">${safeText(trendXAxisLabel(point, index, points.length, range.period))}</text>`).join("");
+    const yTicks = ticks.map(tick => {
+      const y = yFor(tick);
+      return `
+        <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
+        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(trendComparisonLabel(tick, metric.unit))}</text>
+      `;
+    }).join("");
     let marks = "";
     if (metric.chart === "bar") {
       const slot = plotWidth / points.length;
@@ -4318,13 +4401,13 @@
     }
     return `
       <div class="beta-trend-chart beta-trend-comparison-chart" role="img" aria-label="${safeText(metric.title)} comparison chart">
+        <div class="beta-trend-graph-title">${safeText(metric.title)}</div>
         ${renderComparisonLegend(range)}
         ${renderTrendAxisCopy(range.axisLabel, metric.yLabel)}
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
           <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
           <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
-          <text class="y-label" x="8" y="${padding.top + 8}">${safeText(maxLabel)}</text>
-          <text class="y-label" x="10" y="${padding.top + plotHeight}">0</text>
+          ${yTicks}
           ${marks}
           ${xLabels}
         </svg>
@@ -4967,13 +5050,15 @@
     const hydrationGreen = minutesFromHoursField("hydrationGreenHours", gap.thresholds.hydrationGreenMinutes, { min: 15, max: 360 });
     const hydrationRed = minutesFromHoursField("hydrationRedHours", gap.thresholds.hydrationRedMinutes, { min: 30, max: 480 });
     const hydrationCrash = minutesFromHoursField("hydrationCrashHours", gap.thresholds.hydrationCrashMinutes, { min: 45, max: 600 });
+    const fuelWindow = minutesFromHoursField("fuelWindowHours", gap.fuelWindowMinutes, { min: 240, max: 1200 });
     gap.thresholds.greenMinutes = fuelGreen;
     gap.thresholds.redMinutes = Math.max(fuelRed, fuelGreen + 15);
     gap.thresholds.crashMinutes = Math.max(fuelCrash, gap.thresholds.redMinutes + 15);
     gap.thresholds.hydrationGreenMinutes = hydrationGreen;
     gap.thresholds.hydrationRedMinutes = Math.max(hydrationRed, hydrationGreen + 15);
     gap.thresholds.hydrationCrashMinutes = Math.max(hydrationCrash, gap.thresholds.hydrationRedMinutes + 15);
-    document.getElementById("fuelSettingsStatus").textContent = "Support thresholds saved. Eat soon, Eat now, and Recovery needed starts updated for fuel and hydration.";
+    gap.fuelWindowMinutes = fuelWindow;
+    document.getElementById("fuelSettingsStatus").textContent = "Support thresholds and daily fuelling window saved.";
     storeArchive(dateKey());
     save();
     renderAll();
@@ -5432,11 +5517,17 @@
   function scheduleFuelGuardTick() {
     const delay = cooldownRemainingSeconds() > 0 ? 1000 : 30000;
     window.setTimeout(() => {
+      const currentKey = dateKey();
+      if (lastAutoFuelWindowDateKey && currentKey !== lastAutoFuelWindowDateKey) {
+        selectedHistoryKey = currentKey;
+      }
+      lastAutoFuelWindowDateKey = currentKey;
       renderFuelGap();
       scheduleFuelGuardTick();
     }, delay);
   }
 
+  lastAutoFuelWindowDateKey = dateKey();
   renderAll();
   scheduleFuelGuardTick();
 })();

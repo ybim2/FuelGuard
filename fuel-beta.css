@@ -1915,7 +1915,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   width: 100%;
   min-width: 0;
   margin: 2px 0 0;
-  padding: 8px 8px 5px;
+  padding: 12px 10px 8px;
   border: 1px solid rgba(29, 49, 38, .1);
   border-radius: 14px;
   background:
@@ -1930,9 +1930,9 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   gap: 8px 12px;
   align-items: center;
   margin: 0 0 4px;
-  color: var(--muted);
-  font-size: .74rem;
-  font-weight: 850;
+  color: #07130f;
+  font-size: .86rem;
+  font-weight: 900;
 }
 
 .beta-trend-chart-legend span {
@@ -1974,36 +1974,54 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-axis-copy {
-  margin: 0 0 2px;
-  color: var(--muted);
-  font-size: .7rem;
-  font-weight: 850;
-  line-height: 1.2;
+  margin: 0 0 6px;
+  color: #07130f;
+  font-size: .84rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.beta-trend-graph-title {
+  margin: 0 0 6px;
+  color: #07130f;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.15;
 }
 
 .beta-trend-chart svg {
   display: block;
   width: 100%;
-  height: clamp(190px, 32vw, 300px);
-  min-height: 190px;
+  height: clamp(280px, 38vw, 390px);
+  min-height: 280px;
   overflow: visible;
 }
 
 .beta-trend-chart .axis {
-  stroke: rgba(29, 49, 38, .22);
-  stroke-width: 1.2;
+  stroke: rgba(7, 19, 15, .34);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.beta-trend-chart .grid-line {
+  stroke: rgba(7, 19, 15, .12);
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .beta-trend-chart .x-label,
 .beta-trend-chart .y-label {
-  fill: var(--muted);
-  font-size: 9px;
-  font-weight: 850;
+  fill: #07130f;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .beta-trend-chart .x-label {
   text-anchor: middle;
+}
+
+.beta-trend-chart .y-label {
+  text-anchor: end;
 }
 
 .beta-trend-chart .line {
@@ -3989,6 +4007,48 @@ body.beta-mvp .mobile-nav-item.active {
   background: linear-gradient(90deg, #2367d5, #4fa3ff);
 }
 
+.beta-fuelling-window-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 10px;
+  padding: 13px;
+  border: 1px solid rgba(29, 49, 38, .11);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(35, 55, 42, .05);
+  box-sizing: border-box;
+}
+
+.beta-fuelling-window-card.active {
+  border-color: rgba(22, 122, 69, .2);
+}
+
+.beta-fuelling-window-card.ended {
+  border-color: rgba(255, 176, 32, .3);
+}
+
+.beta-fuelling-window-card h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.beta-fuelling-window-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.4;
+}
+
+.beta-fuelling-window-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
 .beta-weekly-target-grid {
   margin-top: 6px;
 }
@@ -4203,8 +4263,8 @@ body.beta-mvp .mobile-nav-item.active {
 }
 
 .beta-trend-comparison-chart svg {
-  height: clamp(210px, 34vw, 320px);
-  min-height: 210px;
+  height: clamp(300px, 42vw, 420px);
+  min-height: 300px;
 }
 
 .beta-trend-chart .bar.current {
