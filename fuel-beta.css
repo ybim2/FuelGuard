@@ -1310,6 +1310,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 #fuelDailyStatusMetrics,
 #fuelFuellingWindowSummary,
+#fuelWeeklyTargetsSummary,
 #fuelDailyTargetsSummary {
   width: 100%;
   min-width: 0;

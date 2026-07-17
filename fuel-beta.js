@@ -1986,7 +1986,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v71-day-type-trends"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v72-log-weekly-targets"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3004,10 +3004,16 @@
     const statusTarget = document.getElementById("fuelDailyStatusMetrics");
     const windowTarget = document.getElementById("fuelFuellingWindowSummary");
     const targetsTarget = document.getElementById("fuelDailyTargetsSummary");
+    const weeklyTargetsTarget = document.getElementById("fuelWeeklyTargetsSummary");
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
     if (windowTarget) windowTarget.innerHTML = renderFuellingWindowSummary(fuelLogs, key);
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
+    if (weeklyTargetsTarget) {
+      const weekStart = startOfCalendarWeek(dateFromKey(key));
+      const weekEntries = entriesForRange(archiveEntries(), weekStart, addDays(weekStart, 7));
+      weeklyTargetsTarget.innerHTML = renderWeeklyTargetSection(weekEntries);
+    }
   }
 
   function renderLogEvent(log, { note: noteOverride = "" } = {}) {
@@ -4608,17 +4614,6 @@
     ));
   }
 
-  function weekendEntries(entries) {
-    return entries.filter(entry => {
-      const day = dateFromKey(entry.date).getDay();
-      return day === 0 || day === 6;
-    });
-  }
-
-  function entriesForSelectableDayType(entries, dayType) {
-    return entries.filter(entry => trendDayTypeValue(entry.dayType || dayTypeForKey(entry.date)) === dayType);
-  }
-
   function trendHabitInsightDefinitions(data, { includeDayType = true } = {}) {
     const insights = [
       {
@@ -4721,31 +4716,6 @@
       title: "Habit insights",
       description: `${data.range.label} compared with ${data.range.previousLabelText}.`
     });
-  }
-
-  function renderWeekendHabitInsights(data) {
-    return renderTrendHabitSection({
-      ...data,
-      currentEntries: weekendEntries(data.currentEntries),
-      previousEntries: weekendEntries(data.previousEntries)
-    }, {
-      title: "Weekend Habits",
-      description: "Saturday and Sunday logs in the selected range.",
-      emptyMessage: "Not enough weekend data yet."
-    });
-  }
-
-  function renderDayTypeHabitInsights(data) {
-    return DAY_TYPE_OPTIONS.map(option => renderTrendHabitSection({
-      ...data,
-      currentEntries: entriesForSelectableDayType(data.currentEntries, option.value),
-      previousEntries: entriesForSelectableDayType(data.previousEntries, option.value)
-    }, {
-      title: `${option.label} Insights`,
-      description: `${option.label} logs in the selected range.`,
-      emptyMessage: "Not enough data for this day type yet.",
-      includeDayType: false
-    })).join("");
   }
 
   function gapInsightTitle(metricId) {
@@ -5195,21 +5165,6 @@
     await shareTrendCanvas(createAllTrendsCanvas(data), trendImageFilename("trends"), "Fuel Guard trends", downloadOnly);
   }
 
-  function renderTrendOverview(data) {
-    const hasCurrent = data.currentEntries.some(entry => entryLogsWithDates(entry).length > 0);
-    const hasPrevious = data.previousEntries.some(entry => entryLogsWithDates(entry).length > 0);
-    return `
-      <section class="beta-weekly-overview beta-trend-overview-card">
-        <div class="beta-weekly-range">
-          <span>${safeText(data.range.periodLabel)}</span>
-          <strong>${safeText(data.range.label)}</strong>
-          <small>Compared with ${safeText(data.range.previousLabelText)}. Charts use local dates from your stored logs.</small>
-        </div>
-        ${!hasCurrent && !hasPrevious ? `<p class="muted beta-history-empty">No fuel, hydration, or Low Energy logs are stored for these comparison periods yet.</p>` : ""}
-      </section>
-    `;
-  }
-
   function updateTrendControls(range) {
     const weekButton = document.getElementById("trendPeriodWeekButton");
     const monthButton = document.getElementById("trendPeriodMonthButton");
@@ -5235,16 +5190,15 @@
     renderSelectedDayCard();
     const data = trendComparisonData();
     updateTrendControls(data.range);
-    const targetSection = data.range.period === "week" ? renderWeeklyTargetSection(data.currentEntries) : "";
+    const primaryTrendIds = ["fuel-gap", "hydration-gap", "low-energy"];
+    const primaryCards = primaryTrendIds.map(id => data.cards.find(card => card.metric.id === id)).filter(Boolean);
+    const remainingCards = data.cards.filter(card => !primaryTrendIds.includes(card.metric.id));
+    const orderedCards = [...primaryCards, ...remainingCards];
     summaryTarget.innerHTML = `
-      ${renderTrendOverview(data)}
-      ${renderTrendHabitInsights(data)}
-      ${renderWeekendHabitInsights(data)}
-      ${renderDayTypeHabitInsights(data)}
       ${renderGapInsights(data)}
-      ${targetSection}
+      ${renderTrendHabitInsights(data)}
       <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
-        ${data.cards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
+        ${orderedCards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
       </section>
     `;
   }
