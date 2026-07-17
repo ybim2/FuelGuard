@@ -488,6 +488,32 @@
     return betaState().fuelWindowMinutes;
   }
 
+  function syncFuelWindowPreset(minutes = fuelWindowMinutes()) {
+    const preset = document.getElementById("fuelWindowPreset");
+    if (!preset) return;
+    const value = String(Math.round(Number(minutes || 0)));
+    const hasPreset = Array.from(preset.options).some(option => option.value === value);
+    preset.value = hasPreset ? value : "custom";
+  }
+
+  function handleFuelWindowPresetChange() {
+    const preset = document.getElementById("fuelWindowPreset");
+    const input = document.getElementById("fuelWindowHours");
+    if (!preset || !input || preset.value === "custom") return;
+    input.value = hoursValue(Number(preset.value));
+    saveFuelWindowSetting();
+  }
+
+  function saveFuelWindowSetting(message = "Daily fuelling window saved.") {
+    const gap = betaState();
+    gap.fuelWindowMinutes = minutesFromHoursField("fuelWindowHours", gap.fuelWindowMinutes, { min: 240, max: 1200 });
+    const status = document.getElementById("fuelSettingsStatus");
+    if (status) status.textContent = message;
+    save();
+    renderFuelGap();
+    syncFuelWindowPreset(gap.fuelWindowMinutes);
+  }
+
   function normalizeTargetNumber(value) {
     if (value === null || value === undefined || value === "") return null;
     const text = String(value).trim();
@@ -948,6 +974,16 @@
     if (status === "amber") return "Eat soon";
     if (status === "red") return "Eat now";
     return "Recovery needed";
+  }
+
+  function displayStatusLabel(value) {
+    const text = String(value || "").toLowerCase();
+    if (!text) return "Not enough data yet";
+    if (text.includes("recovery") || text.includes("crash zone") || text.includes("under-fuel") || text.includes("needed")) return "Recovery needed";
+    if (text.includes("eat now") || text.includes("high support") || text.includes("high risk") || text === "red" || text.includes("urgent")) return "Eat now";
+    if (text.includes("eat soon") || text.includes("medium") || text === "amber") return "Eat soon";
+    if (text.includes("steady") || text.includes("minimal") || text.includes("low risk") || text === "green") return "Steady";
+    return value;
   }
 
   function riskZone(score) {
@@ -1748,7 +1784,7 @@
   window.recordCrashEvent = recordCrashEvent;
 
   function undoLatestRhythmLog() {
-    const key = dateKey();
+    const key = selectedDataDateKey();
     let latestIndex = -1;
     let latestDate = null;
     let latestType = "fuel";
@@ -1878,6 +1914,7 @@
       const input = document.getElementById(id);
       if (input && active !== input) input.value = hoursValue(minutes);
     });
+    syncFuelWindowPreset();
     [
       ["dailyFuelTarget", targets().dailyFuelLogs],
       ["dailyHydrationTarget", targets().dailyHydrationLogs],
@@ -1892,7 +1929,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v67-fuelling-window"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v68-habit-insights-window"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -1976,11 +2013,12 @@
     const dateEl = document.getElementById("fuelDailyLogDate");
     const target = document.getElementById("fuelDailyLog");
     if (!target) return;
-    const logs = todayLogs();
-    if (dateEl) dateEl.textContent = logs.length ? `${logs.length} today` : "No logs yet";
+    const key = selectedDataDateKey();
+    const logs = logsForDay(key);
+    if (dateEl) dateEl.textContent = logs.length ? `${logs.length} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
     target.innerHTML = logs.length
       ? `<div class="beta-history-log-list beta-latest-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>`
-      : `<p class="muted fuel-daily-empty">Log fuel or hydration when it happens.</p>`;
+      : `<p class="muted fuel-daily-empty">No fuel or hydration logs are stored for this day yet.</p>`;
     renderMissedLogPanel();
   }
 
@@ -2372,13 +2410,42 @@
     return safeText(value);
   }
 
-  function dailyMetricCard(label, value, note = "") {
+  function dailyMetricTone(label, value, note = "") {
+    const labelText = String(label || "").toLowerCase();
+    const valueText = String(value || "").toLowerCase();
+    const noteText = String(note || "").toLowerCase();
+    const combined = `${labelText} ${valueText} ${noteText}`;
+    if (/not enough|needs two|not started|waiting|no target|selected day complete/.test(combined)) return "neutral";
+    if (labelText.includes("status")) {
+      if (valueText.includes("recovery")) return "urgent";
+      if (valueText.includes("eat now")) return "urgent";
+      if (valueText.includes("eat soon")) return "warning";
+      return "steady";
+    }
+    if (labelText.includes("hydration")) return "hydration";
+    if (labelText.includes("low energy")) return "low-energy";
+    if (labelText.includes("fuel") || labelText.includes("window") || labelText.includes("closes") || labelText.includes("time remaining")) return "fuel";
+    if (labelText.includes("gap")) return "warning";
+    return "neutral";
+  }
+
+  function dailyMetricCard(label, value, note = "", tone = "") {
+    const cardTone = tone || dailyMetricTone(label, value, note);
     return `
-      <article class="beta-daily-metric-card">
+      <article class="beta-daily-metric-card ${safeText(cardTone)}">
         <span>${safeText(label)}</span>
         <strong>${metricValueOrPending(value)}</strong>
         ${note ? `<small>${safeText(note)}</small>` : ""}
       </article>
+    `;
+  }
+
+  function renderDailyMetricGroup(title, cards) {
+    return `
+      <section class="beta-daily-status-group">
+        <h4>${safeText(title)}</h4>
+        <div class="beta-daily-metric-grid">${cards.join("")}</div>
+      </section>
     `;
   }
 
@@ -2419,11 +2486,39 @@
   }
 
   function renderDailyTargetProgress(fuelActual, hydrationActual, currentTargets = targets()) {
+    const dailyCard = (label, actual, target, tone) => {
+      const lower = label.toLowerCase();
+      const percent = targetPercent(actual, target);
+      const width = percent === null ? 0 : Math.min(100, Math.max(0, percent));
+      const value = hasTarget(target)
+        ? `${actual} of ${target} ${lower} logs`
+        : `${actual} ${lower} log${actual === 1 ? "" : "s"}`;
+      const note = hasTarget(target)
+        ? `${label} target completed: ${percent}%.`
+        : `No daily ${lower} target set.`;
+      const fill = percent === null ? "" : `<i style="width:${stylePercent(width)}"></i>`;
+      return `
+        <article class="beta-target-progress-card ${safeText(tone)}">
+          <div class="beta-target-progress-head">
+            <span>${safeText(label)}</span>
+            <strong>${safeText(value)}</strong>
+          </div>
+          <div class="beta-target-progress-bar" aria-hidden="true">${fill}</div>
+          <small>${safeText(note)}</small>
+        </article>
+      `;
+    };
     return `
-      <div class="beta-target-progress-grid" aria-label="Daily target progress">
-        ${renderTargetProgressCard("Fuel", fuelActual, currentTargets.dailyFuelLogs, "fuel", "daily")}
-        ${renderTargetProgressCard("Hydration", hydrationActual, currentTargets.dailyHydrationLogs, "hydration", "daily")}
-      </div>
+      <section class="beta-daily-targets-card" aria-label="Daily Targets">
+        <div class="section-heading-row">
+          <h3>Daily Targets</h3>
+          <span class="row-note">${safeText(formatDateKey(selectedDataDateKey()))}</span>
+        </div>
+        <div class="beta-target-progress-grid" aria-label="Daily target progress">
+          ${dailyCard("Fuel", fuelActual, currentTargets.dailyFuelLogs, "fuel")}
+          ${dailyCard("Hydration", hydrationActual, currentTargets.dailyHydrationLogs, "hydration")}
+        </div>
+      </section>
     `;
   }
 
@@ -2510,7 +2605,50 @@
   function selectedDayStatusText(entry, now = new Date()) {
     const key = entry?.date || selectedDataDateKey();
     if (key === dateKey(now)) return riskStatusLabel(fuelGapStatus(minutesSinceLastFuel(now)));
-    return entry?.riskLabel || "Not enough data yet";
+    return displayStatusLabel(entry?.riskLabel || gapZoneReached(entry));
+  }
+
+  function renderDailyStatusCard(entry) {
+    const key = entry?.date || selectedDataDateKey();
+    const logs = entryLogsWithDates(entry);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const lowEnergyLogs = logs.filter(isCrashLog);
+    const status = selectedDayStatusText(entry);
+    const fuelGapValue = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
+    const hydrationGapValue = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
+    return `
+      <section class="beta-daily-metrics-section beta-daily-status-card" aria-label="Daily Status">
+        <div class="section-heading-row">
+          <h3>Daily Status</h3>
+          <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
+        </div>
+        <div class="beta-daily-status-groups">
+          ${renderDailyMetricGroup("Current status", [
+            dailyMetricCard("Status", status),
+            dailyMetricCard("Last fuel", lastEventTime(fuelLogs), "", "fuel"),
+            dailyMetricCard("Time since last fuel", timeSinceLastEventText(fuelLogs, key), "", "fuel"),
+            dailyMetricCard("Last hydration", lastEventTime(hydrationLogs), "", "hydration"),
+            dailyMetricCard("Time since last hydration", timeSinceLastEventText(hydrationLogs, key), "", "hydration")
+          ])}
+          ${renderDailyMetricGroup("Daily log totals", [
+            dailyMetricCard("Fuel logs", String(fuelLogs.length), "", "fuel"),
+            dailyMetricCard("Hydration logs", String(hydrationLogs.length), "", "hydration"),
+            dailyMetricCard("Low Energy logs", String(lowEnergyLogs.length), "", lowEnergyLogs.length ? "low-energy" : "neutral")
+          ])}
+          ${renderDailyMetricGroup("Fuel timing", [
+            dailyMetricCard("First fuel", firstEventTime(fuelLogs), "", "fuel"),
+            dailyMetricCard("Last fuel time", lastEventTime(fuelLogs), "", "fuel"),
+            dailyMetricCard("Longest fuel gap", fuelGapValue, fuelLogs.length < 2 ? "Needs two fuel logs." : "", fuelLogs.length < 2 ? "neutral" : "fuel")
+          ])}
+          ${renderDailyMetricGroup("Hydration timing", [
+            dailyMetricCard("First hydration", firstEventTime(hydrationLogs), "", "hydration"),
+            dailyMetricCard("Last hydration time", lastEventTime(hydrationLogs), "", "hydration"),
+            dailyMetricCard("Longest hydration gap", hydrationGapValue, hydrationLogs.length < 2 ? "Needs two hydration logs." : "", hydrationLogs.length < 2 ? "neutral" : "hydration")
+          ])}
+        </div>
+      </section>
+    `;
   }
 
   function renderDailyMetrics(entry, { includeHeading = true } = {}) {
@@ -2518,8 +2656,6 @@
     const logs = entryLogsWithDates(entry);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const lowEnergyLogs = logs.filter(isCrashLog);
-    const status = selectedDayStatusText(entry);
     return `
       <section class="beta-daily-metrics-section" aria-label="Selected day metrics">
         ${includeHeading ? `
@@ -2528,22 +2664,9 @@
             <span class="row-note">${safeText(entry?.dateLabel || formatDateKey(key))}</span>
           </div>
         ` : ""}
-        ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length)}
+        ${renderDailyStatusCard(entry)}
         ${renderFuellingWindowSummary(fuelLogs, key)}
-        <div class="beta-daily-metric-grid">
-          ${dailyMetricCard("Status", status)}
-          ${dailyMetricCard("Last fuel", timeSinceLastEventText(fuelLogs, key))}
-          ${dailyMetricCard("Last hydration", timeSinceLastEventText(hydrationLogs, key))}
-          ${dailyMetricCard("Fuel logs", String(fuelLogs.length))}
-          ${dailyMetricCard("Hydration logs", String(hydrationLogs.length))}
-          ${dailyMetricCard("Low Energy logs", String(lowEnergyLogs.length))}
-          ${dailyMetricCard("First fuel", firstEventTime(fuelLogs))}
-          ${dailyMetricCard("Last fuel time", lastEventTime(fuelLogs))}
-          ${dailyMetricCard("First hydration", firstEventTime(hydrationLogs))}
-          ${dailyMetricCard("Last hydration time", lastEventTime(hydrationLogs))}
-          ${dailyMetricCard("Longest fuel gap", longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs), fuelLogs.length < 2 ? "Needs two fuel logs." : "")}
-          ${dailyMetricCard("Longest hydration gap", longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs), hydrationLogs.length < 2 ? "Needs two hydration logs." : "")}
-        </div>
+        ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length)}
       </section>
     `;
   }
@@ -2816,9 +2939,19 @@
 
   function renderSelectedDayCard() {
     syncSelectedDataDateInput();
-    const target = document.getElementById("fuelSelectedDayMetrics");
-    if (!target) return;
-    target.innerHTML = renderDailyMetrics(selectedDataEntry(), { includeHeading: false });
+    const entry = selectedDataEntry();
+    const key = entry?.date || selectedDataDateKey();
+    const logs = entryLogsWithDates(entry);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const legacyTarget = document.getElementById("fuelSelectedDayMetrics");
+    const statusTarget = document.getElementById("fuelDailyStatusMetrics");
+    const windowTarget = document.getElementById("fuelFuellingWindowSummary");
+    const targetsTarget = document.getElementById("fuelDailyTargetsSummary");
+    if (legacyTarget) legacyTarget.innerHTML = "";
+    if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
+    if (windowTarget) windowTarget.innerHTML = renderFuellingWindowSummary(fuelLogs, key);
+    if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
   }
 
   function renderLogEvent(log, { note: noteOverride = "" } = {}) {
@@ -4302,6 +4435,157 @@
     return { range, entries, currentEntries, previousEntries, cards };
   }
 
+  function minuteOfDayFromDate(date) {
+    return date ? date.getHours() * 60 + date.getMinutes() : null;
+  }
+
+  function averageMinutes(values) {
+    const valid = values.filter(value => Number.isFinite(value));
+    if (!valid.length) return null;
+    return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+  }
+
+  function clockFromMinuteOfDay(minutes) {
+    if (!Number.isFinite(minutes)) return "Not enough data yet";
+    const date = startOfDay();
+    date.setMinutes(Math.round(minutes));
+    return formatClock(date);
+  }
+
+  function logEventsForInsight(entry, predicate = () => true) {
+    return entryLogsWithDates(entry)
+      .filter(log => isFuelLog(log) || isHydrationLog(log))
+      .filter(predicate)
+      .sort((a, b) => a.date - b.date);
+  }
+
+  function averageBoundaryLogInsight(entries, boundary) {
+    const values = entries.map(entry => {
+      const logs = logEventsForInsight(entry);
+      const log = boundary === "final" ? logs[logs.length - 1] : logs[0];
+      return minuteOfDayFromDate(log?.date);
+    }).filter(value => Number.isFinite(value));
+    return {
+      value: clockFromMinuteOfDay(averageMinutes(values)),
+      detail: values.length ? `${values.length} day${values.length === 1 ? "" : "s"} with logs` : "Needs fuel or hydration logs"
+    };
+  }
+
+  function mostCommonValueInsight(values, fallback = "Not enough data yet") {
+    const counts = new Map();
+    values.filter(Boolean).forEach(value => counts.set(value, (counts.get(value) || 0) + 1));
+    if (!counts.size) return { value: fallback, detail: "Needs matching saved days" };
+    const [value, count] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0];
+    return { value, detail: `${count} day${count === 1 ? "" : "s"}` };
+  }
+
+  function mostCommonDayTypeInsight(entries) {
+    return mostCommonValueInsight(entries.map(entry => {
+      const value = normalizeDayType(entry.dayType || dayTypeForKey(entry.date));
+      return value ? dayTypeLabel(value) : "";
+    }));
+  }
+
+  function mostCommonTrainingSessionInsight(entries) {
+    return mostCommonValueInsight(entries.map(entry => {
+      const value = entry.trainingSession || trainingSessionForKey(entry.date);
+      return value ? trainingSessionLabel(value) : "";
+    }));
+  }
+
+  function hourRangeLabel(hour) {
+    const start = clamp(Number(hour) || 0, 0, 23);
+    const end = start + 1;
+    return `${String(start).padStart(2, "0")}:00-${String(end).padStart(2, "0")}:00`;
+  }
+
+  function mostCommonLogHourInsight(entries, predicate) {
+    const hours = entries.flatMap(entry => logEventsForInsight(entry, predicate))
+      .map(log => log.date?.getHours())
+      .filter(hour => Number.isInteger(hour));
+    const counts = new Map();
+    hours.forEach(hour => counts.set(hour, (counts.get(hour) || 0) + 1));
+    if (!counts.size) return { value: "Not enough data yet", detail: "Needs matching logs" };
+    const [hour, count] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+    return { value: hourRangeLabel(hour), detail: `${count} log${count === 1 ? "" : "s"}` };
+  }
+
+  function trendHabitInsightDefinitions(data) {
+    return [
+      {
+        id: "first-log",
+        title: "Average first log time",
+        icon: "clock",
+        current: averageBoundaryLogInsight(data.currentEntries, "first"),
+        previous: averageBoundaryLogInsight(data.previousEntries, "first")
+      },
+      {
+        id: "final-log",
+        title: "Average final log time",
+        icon: "clock",
+        current: averageBoundaryLogInsight(data.currentEntries, "final"),
+        previous: averageBoundaryLogInsight(data.previousEntries, "final")
+      },
+      {
+        id: "day-type",
+        title: "Most common day type",
+        icon: "route",
+        current: mostCommonDayTypeInsight(data.currentEntries),
+        previous: mostCommonDayTypeInsight(data.previousEntries)
+      },
+      {
+        id: "session-type",
+        title: "Most common session type",
+        icon: "score",
+        current: mostCommonTrainingSessionInsight(data.currentEntries),
+        previous: mostCommonTrainingSessionInsight(data.previousEntries)
+      },
+      {
+        id: "fuel-hour",
+        title: "Most common fuelling hour",
+        icon: "fuel",
+        current: mostCommonLogHourInsight(data.currentEntries, isFuelLog),
+        previous: mostCommonLogHourInsight(data.previousEntries, isFuelLog)
+      },
+      {
+        id: "hydration-hour",
+        title: "Most common hydration hour",
+        icon: "hydration",
+        current: mostCommonLogHourInsight(data.currentEntries, isHydrationLog),
+        previous: mostCommonLogHourInsight(data.previousEntries, isHydrationLog)
+      }
+    ];
+  }
+
+  function renderTrendHabitInsights(data) {
+    const insights = trendHabitInsightDefinitions(data);
+    return `
+      <section class="beta-trend-habit-section" aria-label="Habit insights">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
+          <div>
+            <h3>Habit insights</h3>
+            <p>${safeText(data.range.label)} compared with ${safeText(data.range.previousLabelText)}.</p>
+          </div>
+        </div>
+        <div class="beta-trend-habit-grid">
+          ${insights.map(insight => `
+            <article class="beta-trend-habit-card ${safeText(insight.id)}">
+              <span class="beta-icon-disc ${insight.id.includes("hydration") ? "shield" : insight.id.includes("fuel") ? "amber" : ""}">${dailyIcon(insight.icon)}</span>
+              <div>
+                <h4>${safeText(insight.title)}</h4>
+                <div class="beta-trend-habit-values">
+                  <span><b>${safeText(data.range.currentLabel)}</b><strong>${safeText(insight.current.value)}</strong><small>${safeText(insight.current.detail)}</small></span>
+                  <span><b>${safeText(data.range.previousLabel)}</b><strong>${safeText(insight.previous.value)}</strong><small>${safeText(insight.previous.detail)}</small></span>
+                </div>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function comparisonTrendChartMax(points) {
     const values = points.flatMap(point => [point.current, point.previous]).filter(value => Number.isFinite(value));
     return Math.max(...values, 1);
@@ -4723,6 +5007,7 @@
     const targetSection = data.range.period === "week" ? renderWeeklyTargetSection(data.currentEntries) : "";
     summaryTarget.innerHTML = `
       ${renderTrendOverview(data)}
+      ${renderTrendHabitInsights(data)}
       ${targetSection}
       <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
         ${data.cards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
@@ -5014,7 +5299,7 @@
     if (lowEnergyButton) lowEnergyButton.disabled = false;
 
     const undo = document.getElementById("undoLatestFoodLog");
-    if (undo) undo.disabled = !todayLogs().length;
+    if (undo) undo.disabled = !logsForDay(selectedDataDateKey()).length;
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
@@ -5269,6 +5554,8 @@
     if (downloadCard) shareTrendCard(downloadCard.dataset.downloadTrendCard, true);
   });
   document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
+  document.getElementById("fuelWindowPreset")?.addEventListener("change", handleFuelWindowPresetChange);
+  document.getElementById("fuelWindowHours")?.addEventListener("change", () => saveFuelWindowSetting());
   document.getElementById("saveFuelTargets")?.addEventListener("click", saveTargetSettings);
   document.getElementById("clearFuelTargets")?.addEventListener("click", clearTargetSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);

@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v67-fuelling-window" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v67-fuelling-window" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v67-fuelling-window" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v68-habit-insights-window" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v68-habit-insights-window" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v68-habit-insights-window" />
 </head>
 <body class="beta-mvp">
   <div class="layout">
@@ -37,78 +37,77 @@
       <section id="dashboard" class="screen active">
         <article class="card fuel-gap-card beta-live-card">
           <section class="fuel-rhythm-panel beta-rhythm-panel" aria-label="Log">
-            <div class="fuel-day-type-row beta-day-type-row">
-              <div class="fuel-rhythm-header beta-rhythm-header">
+            <section class="beta-rhythm-section-card beta-selected-day-card" aria-label="Selected day">
+              <div class="section-heading-row beta-data-date-row">
                 <div>
-                  <h2 class="beta-panel-title">Log</h2>
-                  <p class="muted beta-panel-copy">Log fuel and hydration quickly. Trends handle review.</p>
+                  <h3>Selected Day</h3>
+                  <p class="muted">Choose the day this Log view should reflect.</p>
                 </div>
+                <label class="day-type-field beta-history-date">
+                  <span>Review day</span>
+                  <input id="fuelDataDate" type="date">
+                </label>
               </div>
-              <label class="day-type-field">
-                <span>Day type</span>
-                <select id="fuelDayType">
-                  <option value="">Select day type</option>
-                  <option value="competition">Competition Day</option>
-                  <option value="travel">Travelling Day</option>
-                  <option value="work">Working Day</option>
-                  <option value="holiday">Holiday</option>
-                </select>
-              </label>
-              <label class="day-type-field" id="trainingSessionField">
-                <span>Training session</span>
-                <select id="fuelTrainingSession">
-                  <option value="">Select session</option>
-                  <option value="run">Run</option>
-                  <option value="bike">Bike</option>
-                  <option value="swim">Swim</option>
-                  <option value="strength">Strength</option>
-                  <option value="brick">Brick</option>
-                  <option value="rest">No training</option>
-                </select>
-              </label>
-              <span id="fuelDayTypeSaved" class="row-note"></span>
-            </div>
-
-            <div class="beta-logging-card">
-              <section class="beta-rhythm-section-card beta-log-entry-card" aria-label="Log data into your rhythm">
-                <div class="beta-graph-section-heading beta-log-heading">
-                  <h3>Log data into your rhythm</h3>
-                  <p>Tap these when you fuel, hydrate, or feel low energy so the app reflects your day.</p>
-                </div>
-                <div class="beta-log-actions" aria-label="Log fuel, hydration, or low energy">
-                  <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
-                  <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
-                  <button id="graphLogLowEnergyButton" class="secondary beta-low-energy-button" type="button"><span>Low</span><span>Energy</span></button>
-                </div>
-                <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
-              </section>
-
-              <section class="beta-rhythm-section-card beta-selected-day-card" aria-label="Selected day">
-                <div class="section-heading-row beta-data-date-row">
+              <div class="fuel-day-type-row beta-day-type-row">
+                <div class="fuel-rhythm-header beta-rhythm-header">
                   <div>
-                    <h3>Selected Day</h3>
-                    <p class="muted">Choose a day to review its fuel, hydration, and Low Energy data.</p>
+                    <h2 class="beta-panel-title">Log</h2>
+                    <p class="muted beta-panel-copy">Log fuel and hydration quickly. Trends handle review.</p>
                   </div>
-                  <label class="day-type-field beta-history-date">
-                    <span>Review day</span>
-                    <input id="fuelDataDate" type="date">
-                  </label>
                 </div>
-                <div id="fuelSelectedDayMetrics"></div>
-                <div class="button-row beta-selected-day-actions">
-                  <button id="shareDailySummaryButton" class="secondary" type="button">Share</button>
-                  <button id="downloadDailySummaryButton" class="secondary" type="button">Download image</button>
-                </div>
-                <p id="dailySummaryShareStatus" class="row-note" aria-live="polite"></p>
-              </section>
+                <label class="day-type-field">
+                  <span>Day type</span>
+                  <select id="fuelDayType">
+                    <option value="">Select day type</option>
+                    <option value="competition">Competition Day</option>
+                    <option value="travel">Travelling Day</option>
+                    <option value="work">Working Day</option>
+                    <option value="holiday">Holiday</option>
+                  </select>
+                </label>
+                <label class="day-type-field" id="trainingSessionField">
+                  <span>Training session</span>
+                  <select id="fuelTrainingSession">
+                    <option value="">Select session</option>
+                    <option value="run">Run</option>
+                    <option value="bike">Bike</option>
+                    <option value="swim">Swim</option>
+                    <option value="strength">Strength</option>
+                    <option value="brick">Brick</option>
+                    <option value="rest">No training</option>
+                  </select>
+                </label>
+                <span id="fuelDayTypeSaved" class="row-note"></span>
+              </div>
+              <div class="button-row beta-selected-day-actions">
+                <button id="shareDailySummaryButton" class="secondary" type="button">Share</button>
+                <button id="downloadDailySummaryButton" class="secondary" type="button">Download image</button>
+              </div>
+              <p id="dailySummaryShareStatus" class="row-note" aria-live="polite"></p>
+            </section>
 
-            </div>
+            <div id="fuelDailyStatusMetrics"></div>
+            <div id="fuelFuellingWindowSummary"></div>
+            <div id="fuelDailyTargetsSummary"></div>
+
+            <section class="beta-rhythm-section-card beta-log-entry-card" aria-label="Log data into your rhythm">
+              <div class="beta-graph-section-heading beta-log-heading">
+                <h3>Log data into your rhythm</h3>
+                <p>Tap these when you fuel, hydrate, or feel low energy so the app reflects your day.</p>
+              </div>
+              <div class="beta-log-actions" aria-label="Log fuel, hydration, or low energy">
+                <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
+                <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
+                <button id="graphLogLowEnergyButton" class="secondary beta-low-energy-button" type="button"><span>Low</span><span>Energy</span></button>
+              </div>
+              <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
+            </section>
           </section>
 
           <div class="fuel-gap-lower beta-today-log">
             <div>
               <div class="section-heading-row">
-                <h3>Latest log</h3>
+                <h3>Recent logs</h3>
                 <span id="fuelDailyLogDate" class="row-note"></span>
               </div>
               <div id="fuelDailyLog" class="list"></div>
@@ -190,7 +189,16 @@
             <label>Hydration Sip soon starts at (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
             <label>Hydration Sip now starts at (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
             <label>Hydration Recovery needed starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
-            <label>Daily fuelling window length (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
+            <label>Daily Fuelling Window
+              <select id="fuelWindowPreset">
+                <option value="480">8 hours</option>
+                <option value="600">10 hours</option>
+                <option value="720">12 hours</option>
+                <option value="840">14 hours</option>
+                <option value="custom">Custom duration</option>
+              </select>
+            </label>
+            <label>Custom fuelling window (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
           </div>
           <div class="button-row beta-settings-actions">
             <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
@@ -298,7 +306,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v67-fuelling-window</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v68-habit-insights-window</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -321,15 +329,15 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="build-info.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v68-habit-insights-window"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="app-ui.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v67-fuelling-window"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v67-fuelling-window"></script>
+  <script src="app-state.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="app-ui.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v68-habit-insights-window"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v68-habit-insights-window"></script>
 </body>
 </html>
