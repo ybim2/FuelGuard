@@ -14,7 +14,12 @@
   const AUTH_EMAIL_SENT_MESSAGE = "Email sent. Check your inbox before requesting another one.";
   const AUTH_RATE_LIMIT_MESSAGE = "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
   const AUTH_EXISTING_ACCOUNT_MESSAGE = "This account may already exist. Try logging in, or wait before requesting another confirmation email.";
-  const FUEL_CSV_REQUIRED_HEADERS = ["schema_version", "event_id", "event_type", "logged_at_iso", "logged_at_ms", "source", "device_id"];
+  const FUEL_CSV_TIMESTAMP_HEADERS = ["schema_version", "event_id", "event_type", "logged_at_iso", "logged_at_ms", "source", "device_id"];
+  const FUEL_CSV_ESP32_MILLIS_HEADERS = ["event_id", "event_type", "event_millis", "source", "device_id"];
+  const FUEL_CSV_REQUIRED_HEADER_SETS = [
+    { name: "Fuel Guard timestamp export", headers: FUEL_CSV_TIMESTAMP_HEADERS },
+    { name: "Fuel Guard ESP32 export", headers: FUEL_CSV_ESP32_MILLIS_HEADERS }
+  ];
   const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
     { value: "work", label: "Working Day" },
@@ -222,10 +227,28 @@
   function parseFuelCsvText(text) {
     const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r\n|\n|\r/);
     const headerIndex = lines.findIndex(line => line.trim());
-    if (headerIndex < 0) return { recognized: false, rows: [] };
-    const headers = parseCsvLine(lines[headerIndex]).map(header => header.trim());
-    const missing = FUEL_CSV_REQUIRED_HEADERS.filter(header => !headers.includes(header));
-    if (missing.length) return { recognized: false, rows: [] };
+    if (headerIndex < 0) {
+      return {
+        recognized: false,
+        rows: [],
+        validationMessage: "CSV file is empty. Please export logs from your FG button and try again."
+      };
+    }
+    const headers = parseCsvLine(lines[headerIndex]).map((header, index) => {
+      const trimmed = header.trim();
+      return index === 0 ? trimmed.replace(/^\uFEFF/, "") : trimmed;
+    });
+    const schema = FUEL_CSV_REQUIRED_HEADER_SETS.find(option => option.headers.every(header => headers.includes(header)));
+    if (!schema) {
+      const esp32Missing = FUEL_CSV_ESP32_MILLIS_HEADERS.filter(header => !headers.includes(header));
+      const timestampMissing = FUEL_CSV_TIMESTAMP_HEADERS.filter(header => !headers.includes(header));
+      const missing = esp32Missing.length <= timestampMissing.length ? esp32Missing : timestampMissing;
+      return {
+        recognized: false,
+        rows: [],
+        validationMessage: `CSV headers not recognised. Missing required ${missing.length === 1 ? "header" : "headers"}: ${missing.join(", ")}.`
+      };
+    }
 
     const rows = [];
     for (let index = headerIndex + 1; index < lines.length; index += 1) {
@@ -237,22 +260,52 @@
       });
       rows.push(row);
     }
-    return { recognized: true, rows };
+    return { recognized: true, rows, schema: schema.name };
   }
 
-  function timestampFromFuelCsvRow(row, now = new Date()) {
+  function selectedImportBaseDate(options = {}) {
+    const key = options.baseDateKey || selectedDataDateKey();
+    const base = dateFromKey(key);
+    base.setHours(0, 0, 0, 0);
+    return base;
+  }
+
+  function timestampResultFromFuelCsvRow(row, now = new Date(), options = {}) {
     const isoText = String(row.logged_at_iso || "").trim();
     let date = null;
     if (isoText) {
       date = logDate(isoText);
-      if (!date) return null;
+      if (!date) return { timestamp: "", validationMessage: `Line ${row.__line}: logged_at_iso is not a valid timestamp.` };
     } else {
-      const ms = Number(String(row.logged_at_ms || "").trim());
-      date = Number.isFinite(ms) && ms > 0 ? new Date(ms) : null;
+      const loggedAtMsText = String(row.logged_at_ms || "").trim();
+      const eventMillisText = String(row.event_millis || "").trim();
+      if (loggedAtMsText) {
+        const ms = Number(loggedAtMsText);
+        if (!Number.isFinite(ms) || ms <= 0) {
+          return { timestamp: "", validationMessage: `Line ${row.__line}: logged_at_ms must be a positive number.` };
+        }
+        date = new Date(ms);
+      } else if (eventMillisText) {
+        const eventMillis = Number(eventMillisText);
+        if (!Number.isFinite(eventMillis) || eventMillis < 0) {
+          return { timestamp: "", validationMessage: `Line ${row.__line}: event_millis must be a number.` };
+        }
+        date = new Date(selectedImportBaseDate(options).getTime() + eventMillis);
+      } else {
+        return { timestamp: "", validationMessage: `Line ${row.__line}: no timestamp found. Expected logged_at_iso, logged_at_ms, or event_millis.` };
+      }
     }
-    if (!date || Number.isNaN(date.getTime())) return null;
-    if (date.getTime() - now.getTime() > FUEL_CSV_FUTURE_LIMIT_MS) return null;
-    return date.toISOString();
+    if (!date || Number.isNaN(date.getTime())) {
+      return { timestamp: "", validationMessage: `Line ${row.__line}: timestamp could not be parsed.` };
+    }
+    if (date.getTime() - now.getTime() > FUEL_CSV_FUTURE_LIMIT_MS) {
+      return { timestamp: "", validationMessage: `Line ${row.__line}: timestamp is more than 5 minutes in the future.` };
+    }
+    return { timestamp: date.toISOString(), validationMessage: "" };
+  }
+
+  function timestampFromFuelCsvRow(row, now = new Date(), options = {}) {
+    return timestampResultFromFuelCsvRow(row, now, options).timestamp || null;
   }
 
   function importHashParts(input) {
@@ -309,22 +362,46 @@
 
   function buildFuelCsvImportPreview(csvText, options = {}) {
     const parsed = parseFuelCsvText(csvText);
-    if (!parsed.recognized) return { recognized: false, logs: [], duplicateCount: 0, invalidCount: 0 };
+    if (!parsed.recognized) {
+      return {
+        recognized: false,
+        logs: [],
+        duplicateCount: 0,
+        invalidCount: 0,
+        validationMessage: parsed.validationMessage || "CSV headers not recognised."
+      };
+    }
 
     const now = options.now || new Date();
     const seen = existingFuelImportKeys();
     const logs = [];
     let duplicateCount = 0;
     let invalidCount = 0;
+    const invalidMessages = [];
+    if (!parsed.rows.length) {
+      return {
+        recognized: true,
+        logs: [],
+        validCount: 0,
+        duplicateCount: 0,
+        invalidCount: 0,
+        earliest: null,
+        latest: null,
+        validationMessage: "CSV headers were recognised, but no data rows were found."
+      };
+    }
 
     parsed.rows.forEach(row => {
       if (row.event_type !== "FUEL_LOG") {
         invalidCount += 1;
+        invalidMessages.push(`Line ${row.__line}: event_type must be FUEL_LOG.`);
         return;
       }
-      const timestamp = timestampFromFuelCsvRow(row, now);
+      const timestampResult = timestampResultFromFuelCsvRow(row, now, options);
+      const timestamp = timestampResult.timestamp;
       if (!timestamp) {
         invalidCount += 1;
+        if (timestampResult.validationMessage) invalidMessages.push(timestampResult.validationMessage);
         return;
       }
       const importKey = importKeyForCsvRow(row, timestamp);
@@ -350,6 +427,7 @@
         dayType: dayTypeForKey(key),
         trainingSession: trainingSessionForKey(key),
         importEventId: String(row.event_id || "").trim(),
+        importEventMillis: String(row.event_millis || "").trim() ? Number(String(row.event_millis || "").trim()) : null,
         importSource: String(row.source || "").trim(),
         importDeviceId: String(row.device_id || "").trim(),
         createdAt: new Date().toISOString(),
@@ -359,7 +437,7 @@
     });
 
     const dates = logs.map(log => logDate(log)).filter(Boolean).sort((a, b) => a - b);
-    return {
+    const preview = {
       recognized: true,
       logs,
       validCount: logs.length,
@@ -368,6 +446,14 @@
       earliest: dates[0] || null,
       latest: dates[dates.length - 1] || null
     };
+    preview.validationMessage = !logs.length && duplicateCount > 0 && !invalidMessages.length
+      ? "All fuel logs in this CSV were already imported."
+      : !logs.length && invalidMessages.length
+        ? invalidMessages[0]
+        : invalidMessages.length
+          ? `${invalidCount} ${invalidCount === 1 ? "row was" : "rows were"} skipped. First issue: ${invalidMessages[0]}`
+          : "";
+    return preview;
   }
 
   async function importFuelLogsFromCsv(file) {
@@ -1987,7 +2073,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v73-trends-boot-log-habits"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v74-esp32-csv-millis-import"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -5845,13 +5931,13 @@
     try {
       const preview = await importFuelLogsFromCsv(file);
       if (!preview.recognized) {
-        csvImportStatus = "CSV format not recognised. Please export logs from your FG button and try again.";
+        csvImportStatus = preview.validationMessage || "CSV headers not recognised. Please export logs from your FG button and try again.";
         return;
       }
       csvImportPreview = preview;
       csvImportStatus = preview.logs.length
         ? "Review the fuel logs before importing."
-        : "No valid fuel logs found.";
+        : preview.validationMessage || "No valid fuel logs found.";
     } catch (error) {
       csvImportStatus = `Import failed: ${error?.message || "unknown error"}`;
     } finally {

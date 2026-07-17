@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v73-trends-boot-log-habits";
-const BUILD_VERSION = "2026-07-17T23:10:20Z";
+const APP_VERSION = "mobile-pwa-v74-esp32-csv-millis-import";
+const BUILD_VERSION = "2026-07-17T23:34:11Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v73-trends-boot-log-habits-20260717T231020Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v74-esp32-csv-millis-import-20260717T233411Z";
 const APP_SHELL = [
   "./",
   "./index.html",
