@@ -17,11 +17,13 @@
   const FUEL_CSV_REQUIRED_HEADERS = ["schema_version", "event_id", "event_type", "logged_at_iso", "logged_at_ms", "source", "device_id"];
   const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
-    { value: "competition", label: "Competition Day" },
-    { value: "travel", label: "Travelling Day" },
     { value: "work", label: "Working Day" },
-    { value: "holiday", label: "Holiday" }
+    { value: "holiday", label: "Holiday" },
+    { value: "competition", label: "Competition Day" }
   ];
+  const DEPRECATED_DAY_TYPES = new Set(["travel"]);
+  const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
+  const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
   const TRAINING_SESSION_OPTIONS = [
     { value: "", label: "Not set" },
     { value: "run", label: "Run" },
@@ -391,6 +393,15 @@
         : "";
   }
 
+  function isSelectableDayType(value) {
+    return DAY_TYPE_OPTIONS.some(option => option.value === value);
+  }
+
+  function trendDayTypeValue(value) {
+    const next = normalizeDayType(value);
+    return next && isSelectableDayType(next) ? next : "";
+  }
+
   function normalizeStoredDayTypes(gap) {
     if (!gap || typeof gap !== "object") return;
     Object.keys(gap.dayTypes || {}).forEach(key => {
@@ -401,7 +412,7 @@
     Object.values(gap.archive || {}).forEach(entry => {
       if (!entry || typeof entry !== "object") return;
       entry.dayType = normalizeDayType(entry.dayType);
-      entry.dayTypeLabel = entry.dayType ? DAY_TYPE_LABELS[entry.dayType] || entry.dayType : "Not set";
+      entry.dayTypeLabel = dayTypeLabel(entry.dayType);
     });
     (gap.logs || []).forEach(log => {
       if (!log || typeof log !== "object") return;
@@ -769,7 +780,10 @@
   }
 
   function dayTypeLabel(value) {
-    return value ? (DAY_TYPE_LABELS[value] || value) : "Not set";
+    const next = normalizeDayType(value);
+    return next && isSelectableDayType(next) && !DEPRECATED_DAY_TYPES.has(next)
+      ? (DAY_TYPE_LABELS[next] || next)
+      : "Not set";
   }
 
   function trainingSessionLabel(value) {
@@ -1972,7 +1986,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v70-log-target-order"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v71-day-type-trends"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3235,7 +3249,9 @@
   }
 
   function entryMatchesTrendFilters(entry) {
-    const dayMatches = selectedTrendDayType === "all" || entry.dayType === selectedTrendDayType;
+    const selectedDayType = trendDayTypeValue(selectedTrendDayType);
+    const entryDayType = trendDayTypeValue(entry.dayType);
+    const dayMatches = !selectedDayType || entryDayType === selectedDayType;
     const session = entry.trainingSession || "";
     const trainingMatches = selectedTrendTrainingSession === "all"
       || (selectedTrendTrainingSession === "rest" ? !session || session === "rest" : session === selectedTrendTrainingSession);
@@ -4496,7 +4512,7 @@
 
   function mostCommonDayTypeInsight(entries) {
     return mostCommonValueInsight(entries.map(entry => {
-      const value = normalizeDayType(entry.dayType || dayTypeForKey(entry.date));
+      const value = trendDayTypeValue(entry.dayType || dayTypeForKey(entry.date));
       return value ? dayTypeLabel(value) : "";
     }));
   }
@@ -4525,8 +4541,86 @@
     return { value: hourRangeLabel(hour), detail: `${count} log${count === 1 ? "" : "s"}` };
   }
 
-  function trendHabitInsightDefinitions(data) {
-    return [
+  function hourClockLabel(hour) {
+    return `${String(clamp(Number(hour) || 0, 0, 24)).padStart(2, "0")}:00`;
+  }
+
+  function gapHourBins(gap) {
+    const start = logDate(gap?.start);
+    const end = logDate(gap?.end);
+    if (!start || !end || end <= start) return [];
+    const startHour = clamp(Math.floor(minutesIntoDay(start) / 60), 0, 23);
+    const endHour = clamp(Math.ceil(minutesIntoDay(end) / 60), startHour + 1, 24);
+    return Array.from({ length: Math.max(0, endHour - startHour) }, (_, index) => startHour + index);
+  }
+
+  function significantGapWindows(entries, predicate, gapBuilder, minimumMinutes) {
+    return entries.flatMap(entry => {
+      const logs = logsForEntryType(entry, predicate);
+      if (logs.length < 2) return [];
+      return gapBuilder(logs)
+        .map(gap => ({ ...gap, minutes: Number(gap.minutes || 0), bins: gapHourBins(gap) }))
+        .filter(gap => gap.minutes >= minimumMinutes && gap.bins.length);
+    });
+  }
+
+  function mostCommonGapWindowInsight(entries, predicate, gapBuilder, minimumMinutes) {
+    const gaps = significantGapWindows(entries, predicate, gapBuilder, minimumMinutes);
+    if (gaps.length < 2) return { value: "Not enough gap data yet.", detail: "Needs recurring significant gaps." };
+    const counts = new Map();
+    gaps.forEach(gap => {
+      new Set(gap.bins).forEach(hour => counts.set(hour, (counts.get(hour) || 0) + 1));
+    });
+    const recurringHours = Array.from(counts.entries())
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => a[0] - b[0]);
+    if (!recurringHours.length) return { value: "Not enough gap data yet.", detail: "No recurring gap window yet." };
+
+    const runs = [];
+    let current = [];
+    recurringHours.forEach(item => {
+      if (!current.length || item[0] === current[current.length - 1][0] + 1) current.push(item);
+      else {
+        runs.push(current);
+        current = [item];
+      }
+    });
+    if (current.length) runs.push(current);
+
+    const best = runs.map(run => ({
+      start: run[0][0],
+      end: run[run.length - 1][0] + 1,
+      score: run.reduce((sum, [, count]) => sum + count, 0),
+      peak: Math.max(...run.map(([, count]) => count))
+    })).sort((a, b) => b.score - a.score || b.peak - a.peak || (b.end - b.start) - (a.end - a.start) || a.start - b.start)[0];
+    if (!best || best.peak < 2) return { value: "Not enough gap data yet.", detail: "Needs a repeated window." };
+    return {
+      value: `${hourClockLabel(best.start)}-${hourClockLabel(best.end)}`,
+      detail: `${best.peak} recurring gap${best.peak === 1 ? "" : "s"} in this window`
+    };
+  }
+
+  function entriesWithHabitData(entries) {
+    return entries.some(entry => (
+      logEventsForInsight(entry).length > 0
+      || trendDayTypeValue(entry.dayType || dayTypeForKey(entry.date))
+      || entry.trainingSession
+    ));
+  }
+
+  function weekendEntries(entries) {
+    return entries.filter(entry => {
+      const day = dateFromKey(entry.date).getDay();
+      return day === 0 || day === 6;
+    });
+  }
+
+  function entriesForSelectableDayType(entries, dayType) {
+    return entries.filter(entry => trendDayTypeValue(entry.dayType || dayTypeForKey(entry.date)) === dayType);
+  }
+
+  function trendHabitInsightDefinitions(data, { includeDayType = true } = {}) {
+    const insights = [
       {
         id: "first-log",
         title: "Average first log time",
@@ -4540,14 +4634,18 @@
         icon: "clock",
         current: averageBoundaryLogInsight(data.currentEntries, "final"),
         previous: averageBoundaryLogInsight(data.previousEntries, "final")
-      },
-      {
+      }
+    ];
+    if (includeDayType) {
+      insights.push({
         id: "day-type",
         title: "Most common day type",
         icon: "route",
         current: mostCommonDayTypeInsight(data.currentEntries),
         previous: mostCommonDayTypeInsight(data.previousEntries)
-      },
+      });
+    }
+    insights.push(
       {
         id: "session-type",
         title: "Most common session type",
@@ -4568,23 +4666,40 @@
         icon: "hydration",
         current: mostCommonLogHourInsight(data.currentEntries, isHydrationLog),
         previous: mostCommonLogHourInsight(data.previousEntries, isHydrationLog)
+      },
+      {
+        id: "fuel-gap-window",
+        title: "Most common fuel-gap window",
+        icon: "fuel",
+        current: mostCommonGapWindowInsight(data.currentEntries, isFuelLog, gapsFromFuelLogs, mediumRiskLimit()),
+        previous: mostCommonGapWindowInsight(data.previousEntries, isFuelLog, gapsFromFuelLogs, mediumRiskLimit())
+      },
+      {
+        id: "hydration-gap-window",
+        title: "Most common hydration-gap window",
+        icon: "hydration",
+        current: mostCommonGapWindowInsight(data.currentEntries, isHydrationLog, gapsFromHydrationLogs, hydrationGreenLimit()),
+        previous: mostCommonGapWindowInsight(data.previousEntries, isHydrationLog, gapsFromHydrationLogs, hydrationGreenLimit())
       }
-    ];
+    );
+    return insights;
   }
 
-  function renderTrendHabitInsights(data) {
-    const insights = trendHabitInsightDefinitions(data);
+  function renderTrendHabitSection(data, { title = "Habit insights", description = "", emptyMessage = "Not enough data yet.", includeDayType = true } = {}) {
+    const insights = trendHabitInsightDefinitions(data, { includeDayType });
+    const hasData = entriesWithHabitData(data.currentEntries) || entriesWithHabitData(data.previousEntries);
     return `
-      <section class="beta-trend-habit-section" aria-label="Habit insights">
+      <section class="beta-trend-habit-section" aria-label="${safeText(title)}">
         <div class="beta-weekly-section-head">
           <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
           <div>
-            <h3>Habit insights</h3>
-            <p>${safeText(data.range.label)} compared with ${safeText(data.range.previousLabelText)}.</p>
+            <h3>${safeText(title)}</h3>
+            <p>${safeText(description || `${data.range.label} compared with ${data.range.previousLabelText}.`)}</p>
           </div>
         </div>
+        ${hasData ? "" : `<p class="muted beta-history-empty">${safeText(emptyMessage)}</p>`}
         <div class="beta-trend-habit-grid">
-          ${insights.map(insight => `
+          ${hasData ? insights.map(insight => `
             <article class="beta-trend-habit-card ${safeText(insight.id)}">
               <span class="beta-icon-disc ${insight.id.includes("hydration") ? "shield" : insight.id.includes("fuel") ? "amber" : ""}">${dailyIcon(insight.icon)}</span>
               <div>
@@ -4595,7 +4710,94 @@
                 </div>
               </div>
             </article>
-          `).join("")}
+          `).join("") : ""}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTrendHabitInsights(data) {
+    return renderTrendHabitSection(data, {
+      title: "Habit insights",
+      description: `${data.range.label} compared with ${data.range.previousLabelText}.`
+    });
+  }
+
+  function renderWeekendHabitInsights(data) {
+    return renderTrendHabitSection({
+      ...data,
+      currentEntries: weekendEntries(data.currentEntries),
+      previousEntries: weekendEntries(data.previousEntries)
+    }, {
+      title: "Weekend Habits",
+      description: "Saturday and Sunday logs in the selected range.",
+      emptyMessage: "Not enough weekend data yet."
+    });
+  }
+
+  function renderDayTypeHabitInsights(data) {
+    return DAY_TYPE_OPTIONS.map(option => renderTrendHabitSection({
+      ...data,
+      currentEntries: entriesForSelectableDayType(data.currentEntries, option.value),
+      previousEntries: entriesForSelectableDayType(data.previousEntries, option.value)
+    }, {
+      title: `${option.label} Insights`,
+      description: `${option.label} logs in the selected range.`,
+      emptyMessage: "Not enough data for this day type yet.",
+      includeDayType: false
+    })).join("");
+  }
+
+  function gapInsightTitle(metricId) {
+    if (metricId === "fuel-gap") return "Fuel gaps";
+    if (metricId === "hydration-gap") return "Hydration gaps";
+    if (metricId === "low-energy") return "Low-energy logs";
+    return "Gap signal";
+  }
+
+  function gapInsightDifference(card) {
+    const { metric, currentValue, previousValue } = card;
+    if (!Number.isFinite(currentValue) || !Number.isFinite(previousValue)) {
+      return { tone: "neutral", label: "Needs more comparison data" };
+    }
+    const diff = currentValue - previousValue;
+    const tolerance = metric.unit === "minutes" ? 10 : 0.5;
+    if (Math.abs(diff) <= tolerance) return { tone: "neutral", label: "Staying similar" };
+    const change = trendDifferenceLabel(diff, metric.unit);
+    const improved = metric.lowerIsBetter ? diff < 0 : diff > 0;
+    return improved
+      ? { tone: "protected", label: `Improved by ${change}` }
+      : { tone: "elevated", label: `Increased by ${change}` };
+  }
+
+  function renderGapInsights(data) {
+    const cards = data.cards.filter(card => GAP_INSIGHT_METRIC_IDS.has(card.metric.id));
+    return `
+      <section class="beta-trend-habit-section beta-gap-insights-section" aria-label="Gap Insights">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc amber">${dailyIcon("chart")}</span>
+          <div>
+            <h3>Gap Insights</h3>
+            <p>Fuel, hydration, and low-energy signals for the selected period.</p>
+          </div>
+        </div>
+        <div class="beta-trend-habit-grid">
+          ${cards.map(card => {
+            const outcome = gapInsightDifference(card);
+            return `
+              <article class="beta-trend-habit-card beta-gap-insight-card ${safeText(outcome.tone)}">
+                <span class="beta-icon-disc ${card.metric.id.includes("hydration") ? "shield" : card.metric.id.includes("fuel") ? "amber" : ""}">${dailyIcon(card.metric.icon)}</span>
+                <div>
+                  <h4>${safeText(gapInsightTitle(card.metric.id))}</h4>
+                  <div class="beta-trend-habit-values">
+                    <span><b>${safeText(data.range.currentLabel)}</b><strong>${safeText(trendComparisonLabel(card.currentValue, card.metric.unit))}</strong><small>${safeText(card.metric.summaryLabel)}</small></span>
+                    <span><b>${safeText(data.range.previousLabel)}</b><strong>${safeText(trendComparisonLabel(card.previousValue, card.metric.unit))}</strong><small>${safeText(data.range.previousLabelText)}</small></span>
+                  </div>
+                  <small class="beta-gap-insight-outcome ${safeText(outcome.tone)}">${safeText(outcome.label)}</small>
+                </div>
+              </article>
+            `;
+          }).join("")}
         </div>
       </section>
     `;
@@ -4606,14 +4808,27 @@
     return Math.max(...values, 1);
   }
 
-  function comparisonTrendDisplayMax(rawMax, unit) {
-    if (unit === "count") return Math.max(2, Math.ceil(rawMax));
+  function comparisonTrendDisplayMax(rawMax, metric) {
+    if (metric.unit === "count") return Math.max(2, Math.ceil(rawMax));
+    if (GAP_DURATION_METRIC_IDS.has(metric.id)) return Math.max(360, Math.ceil(rawMax / 180) * 180);
     return Math.max(60, Math.ceil(rawMax / 30) * 30);
   }
 
-  function comparisonTrendYAxisTicks(max, unit) {
-    if (unit === "count") return [0, Math.ceil(max / 2), max];
+  function comparisonTrendYAxisTicks(max, metric) {
+    if (metric.unit === "count") return [0, Math.ceil(max / 2), max];
+    if (GAP_DURATION_METRIC_IDS.has(metric.id)) {
+      const ticks = [];
+      for (let tick = 0; tick <= max; tick += 180) ticks.push(tick);
+      return ticks.length >= 3 ? ticks : [0, 180, 360];
+    }
     return [0, max / 2, max];
+  }
+
+  function trendYAxisTickLabel(value, metric) {
+    if (metric.unit === "minutes" && GAP_DURATION_METRIC_IDS.has(metric.id)) {
+      return `${Math.round(value / 60)} hours`;
+    }
+    return trendComparisonLabel(value, metric.unit);
   }
 
   function trendXAxisLabel(point, index, total, period) {
@@ -4661,8 +4876,8 @@
     const padding = { top: 42, right: 28, bottom: 78, left: 82 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const max = comparisonTrendDisplayMax(comparisonTrendChartMax(points), metric.unit);
-    const ticks = comparisonTrendYAxisTicks(max, metric.unit);
+    const max = comparisonTrendDisplayMax(comparisonTrendChartMax(points), metric);
+    const ticks = comparisonTrendYAxisTicks(max, metric);
     const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
     const yFor = value => padding.top + plotHeight - (value / max) * plotHeight;
     const xLabels = points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 26}">${safeText(trendXAxisLabel(point, index, points.length, range.period))}</text>`).join("");
@@ -4670,7 +4885,7 @@
       const y = yFor(tick);
       return `
         <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
-        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(trendComparisonLabel(tick, metric.unit))}</text>
+        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(trendYAxisTickLabel(tick, metric))}</text>
       `;
     }).join("");
     let marks = "";
@@ -4716,6 +4931,7 @@
 
   function renderTrendComparisonCard(card, range) {
     const { metric, currentValue, previousValue, summary } = card;
+    const usesGapInsightCard = GAP_INSIGHT_METRIC_IDS.has(metric.id);
     return `
       <article class="beta-trend-comparison-card ${safeText(summary.tone)}" data-trend-card="${safeText(metric.id)}">
         <div class="beta-weekly-section-head beta-trend-card-head">
@@ -4726,12 +4942,12 @@
           </div>
           <span class="beta-trend-result-chip ${safeText(summary.tone)}">${safeText(summary.label)}</span>
         </div>
-        <div class="beta-trend-value-row">
+        ${usesGapInsightCard ? "" : `<div class="beta-trend-value-row">
           <span><b>${safeText(range.currentLabel)}</b>${safeText(trendComparisonLabel(currentValue, metric.unit))}</span>
           <span><b>${safeText(range.previousLabel)}</b>${safeText(trendComparisonLabel(previousValue, metric.unit))}</span>
-        </div>
+        </div>`}
         ${renderTrendComparisonChart(card, range)}
-        <p class="beta-weekly-insight">${safeText(summary.copy)}</p>
+        ${usesGapInsightCard ? "" : `<p class="beta-weekly-insight">${safeText(summary.copy)}</p>`}
         <div class="button-row beta-trend-card-actions">
           <button class="secondary" type="button" data-share-trend-card="${safeText(metric.id)}">Share</button>
           <button class="secondary" type="button" data-download-trend-card="${safeText(metric.id)}">Download</button>
@@ -4808,7 +5024,7 @@
     drawPill(ctx, x + 198, legendY, 162, 38, "#eee7ff", range.previousLabel, "#5b21b6");
 
     const plot = { left: x + 62, top: y + 150, width: width - 100, height: Math.max(80, height - 240) };
-    const max = comparisonTrendChartMax(points);
+    const max = comparisonTrendDisplayMax(comparisonTrendChartMax(points), metric);
     const xFor = index => plot.left + (points.length === 1 ? plot.width / 2 : (index / (points.length - 1)) * plot.width);
     const yFor = value => plot.top + plot.height - (value / max) * plot.height;
     ctx.strokeStyle = "rgba(7,19,15,.18)";
@@ -4821,7 +5037,7 @@
     ctx.stroke();
     ctx.fillStyle = "#5b6b64";
     ctx.font = "600 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText(trendComparisonLabel(max, metric.unit), x + 20, plot.top - 8);
+    ctx.fillText(trendYAxisTickLabel(max, metric), x + 20, plot.top - 8);
     ctx.fillText("0", x + 24, plot.top + plot.height - 18);
 
     if (metric.chart === "bar") {
@@ -5023,6 +5239,9 @@
     summaryTarget.innerHTML = `
       ${renderTrendOverview(data)}
       ${renderTrendHabitInsights(data)}
+      ${renderWeekendHabitInsights(data)}
+      ${renderDayTypeHabitInsights(data)}
+      ${renderGapInsights(data)}
       ${targetSection}
       <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
         ${data.cards.map(card => renderTrendComparisonCard(card, data.range)).join("")}

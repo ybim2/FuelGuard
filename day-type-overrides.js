@@ -1,7 +1,8 @@
 // Fuel Guard day type compatibility layer.
 // Keeps older saved day-type entries safe while training session remains separate.
 (() => {
-  const ALLOWED_VALUES = new Set(["competition", "travel", "work", "holiday"]);
+  const ALLOWED_VALUES = new Set(["competition", "work", "holiday"]);
+  const DEPRECATED_VALUES = new Set(["travel"]);
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "competition day": "competition",
@@ -25,7 +26,6 @@
   };
   const LABELS = {
     competition: "Competition Day",
-    travel: "Travelling Day",
     work: "Working Day",
     holiday: "Holiday"
   };
@@ -34,7 +34,8 @@
   function isRemovedDayTypeValue(value) {
     const raw = String(value || "").trim();
     if (!raw) return false;
-    return normalizeDayTypeValue(raw) !== raw;
+    const next = normalizeDayTypeValue(raw);
+    return next !== raw || DEPRECATED_VALUES.has(next);
   }
 
   function normalizeDayTypeValue(value) {
@@ -71,7 +72,7 @@
           entry.dayType = next;
           changed = true;
         }
-        const nextLabel = next ? LABELS[next] : "Not set";
+        const nextLabel = next && !DEPRECATED_VALUES.has(next) ? LABELS[next] : "Not set";
         if (entry.dayTypeLabel !== nextLabel) {
           entry.dayTypeLabel = nextLabel;
           changed = true;
@@ -97,7 +98,7 @@
     document.querySelectorAll("#fuelDayType option").forEach(option => {
       if (!option.value) return;
       const next = normalizeDayTypeValue(option.value || option.textContent);
-      if (!next || !ALLOWED_VALUES.has(next)) {
+      if (!next || !ALLOWED_VALUES.has(next) || DEPRECATED_VALUES.has(next)) {
         option.remove();
         return;
       }
@@ -106,7 +107,7 @@
     });
 
     const dayType = document.getElementById("fuelDayType");
-    if (dayType && isRemovedDayTypeValue(dayType.value)) dayType.value = normalizeDayTypeValue(dayType.value);
+    if (dayType && isRemovedDayTypeValue(dayType.value)) dayType.value = "";
   }
 
   function replaceDayTypeCopy(root = document.body) {

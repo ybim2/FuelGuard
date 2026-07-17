@@ -802,6 +802,28 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   line-height: 1.2;
 }
 
+.beta-gap-insight-outcome {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(29, 49, 38, .07);
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 900;
+}
+
+.beta-gap-insight-outcome.protected {
+  background: rgba(22, 122, 69, .12);
+  color: #0b6f3e;
+}
+
+.beta-gap-insight-outcome.elevated {
+  background: rgba(255, 176, 32, .18);
+  color: #8a5600;
+}
+
 .beta-account-card,
 .beta-import-card,
 .beta-update-card {
