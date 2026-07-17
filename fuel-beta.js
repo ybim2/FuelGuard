@@ -1972,7 +1972,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v69-target-flow"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v70-log-target-order"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3569,7 +3569,7 @@
       : `No weekly ${label.toLowerCase()} target set.`;
     const differenceNote = hasTarget(target)
       ? `${percent}% complete. ${targetDifferenceText(actual, target)}`
-      : `Set a weekly ${label.toLowerCase()} target in Settings.`;
+      : `Set a daily ${label.toLowerCase()} target in Settings.`;
     const fill = percent === null ? "" : `<i style="width:${stylePercent(width)}"></i>`;
     return `
       <article class="beta-target-progress-card beta-weekly-target-card ${safeText(tone)}">
@@ -3581,29 +3581,6 @@
         <small>${safeText(progressNote)}</small>
         <div class="beta-target-difference">${safeText(differenceNote)}</div>
       </article>
-    `;
-  }
-
-  function renderTargetComparisonChart(items) {
-    const max = Math.max(...items.flatMap(item => [item.actual, hasTarget(item.target) ? item.target : 0]), 1);
-    const bars = items.map(item => {
-      const actualWidth = Math.max(0, Math.min(100, (item.actual / max) * 100));
-      const targetWidth = hasTarget(item.target) ? Math.max(0, Math.min(100, (item.target / max) * 100)) : 0;
-      return `
-        <div class="beta-target-comparison-row">
-          <div class="beta-target-comparison-label"><strong>${safeText(item.label)}</strong><span>${safeText(hasTarget(item.target) ? `${item.actual} actual · ${item.target} target` : `${item.actual} actual · no target set`)}</span></div>
-          <div class="beta-target-comparison-bars" aria-hidden="true">
-            <i class="actual ${safeText(item.tone)}" style="width:${stylePercent(actualWidth)}"></i>
-            ${hasTarget(item.target) ? `<i class="target" style="width:${stylePercent(targetWidth)}"></i>` : ""}
-          </div>
-        </div>
-      `;
-    }).join("");
-    return `
-      <div class="beta-target-comparison-chart" role="img" aria-label="Weekly actual logs compared with target logs">
-        <div class="beta-target-legend" aria-hidden="true"><span><i class="actual"></i>Actual</span><span><i class="target"></i>Target</span></div>
-        ${bars}
-      </div>
     `;
   }
 
@@ -3630,10 +3607,6 @@
           ${renderWeeklyTargetMetric("Fuel", fuelActual, currentTargets.weeklyFuelLogs, "fuel")}
           ${renderWeeklyTargetMetric("Hydration", hydrationActual, currentTargets.weeklyHydrationLogs, "hydration")}
         </div>
-        ${renderTargetComparisonChart([
-          { label: "Fuel", actual: fuelActual, target: currentTargets.weeklyFuelLogs, tone: "fuel" },
-          { label: "Hydration", actual: hydrationActual, target: currentTargets.weeklyHydrationLogs, tone: "hydration" }
-        ])}
       </section>
     `;
   }

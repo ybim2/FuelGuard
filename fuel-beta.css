@@ -4171,13 +4171,11 @@ body.beta-mvp .mobile-nav-item.active {
   transition: width .2s ease;
 }
 
-.beta-target-progress-card.fuel .beta-target-progress-bar i,
-.beta-target-comparison-bars .actual.fuel {
+.beta-target-progress-card.fuel .beta-target-progress-bar i {
   background: linear-gradient(90deg, #16a65d, #3ad884);
 }
 
-.beta-target-progress-card.hydration .beta-target-progress-bar i,
-.beta-target-comparison-bars .actual.hydration {
+.beta-target-progress-card.hydration .beta-target-progress-bar i {
   background: linear-gradient(90deg, #2367d5, #4fa3ff);
 }
 
@@ -4279,90 +4277,9 @@ body.beta-mvp .mobile-nav-item.active {
   margin-bottom: 12px;
 }
 
-.beta-target-comparison-chart {
-  display: grid;
-  gap: 12px;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid rgba(7,19,15,.08);
-  border-radius: 16px;
-  background: rgba(255,255,255,.72);
-}
-
-.beta-target-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  color: var(--muted);
-  font-size: .78rem;
-  font-weight: 800;
-}
-
-.beta-target-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.beta-target-legend i {
-  width: 18px;
-  height: 8px;
-  border-radius: 999px;
-  background: #18ad64;
-}
-
-.beta-target-legend i.target {
-  background: repeating-linear-gradient(90deg, rgba(7,19,15,.5) 0 6px, rgba(7,19,15,.18) 6px 10px);
-}
-
-.beta-target-comparison-row {
-  display: grid;
-  gap: 7px;
-}
-
-.beta-target-comparison-label {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--muted);
-  font-size: .8rem;
-}
-
-.beta-target-comparison-label strong {
-  color: var(--text);
-}
-
-.beta-target-comparison-bars {
-  position: relative;
-  height: 28px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(7,19,15,.08);
-}
-
-.beta-target-comparison-bars i {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  border-radius: inherit;
-}
-
-.beta-target-comparison-bars .target {
-  top: 6px;
-  height: 16px;
-  border: 2px solid rgba(7,19,15,.5);
-  background: transparent;
-}
-
 @media (max-width: 420px) {
   .beta-target-progress-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .beta-target-comparison-label {
-    display: grid;
-    gap: 2px;
   }
 }
 
