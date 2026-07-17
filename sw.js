@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v72-log-weekly-targets";
-const BUILD_VERSION = "2026-07-17T22:45:00Z";
+const APP_VERSION = "mobile-pwa-v73-trends-boot-log-habits";
+const BUILD_VERSION = "2026-07-17T23:10:20Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v72-log-weekly-targets-20260717T224500Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v73-trends-boot-log-habits-20260717T231020Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -22,7 +22,11 @@ const APP_SHELL = [
 ];
 
 function appShellRequests() {
-  return APP_SHELL.map(url => new Request(new URL(url, self.location.href), { cache: "reload" }));
+  const urls = APP_SHELL.flatMap(url => {
+    if (/\.(?:css|js)$/.test(url)) return [url, `${url}?v=${APP_VERSION}`];
+    return [url];
+  });
+  return urls.map(url => new Request(new URL(url, self.location.href), { cache: "reload" }));
 }
 
 self.addEventListener("install", event => {
@@ -90,6 +94,6 @@ self.addEventListener("fetch", event => {
         caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
         return response;
       })
-      .catch(() => caches.match(request, { ignoreSearch: true }))
+      .catch(() => caches.match(request))
   );
 });

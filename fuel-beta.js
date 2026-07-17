@@ -24,6 +24,7 @@
   const DEPRECATED_DAY_TYPES = new Set(["travel"]);
   const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
   const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
+  const LOG_HABIT_METRIC_IDS = new Set(["logs"]);
   const TRAINING_SESSION_OPTIONS = [
     { value: "", label: "Not set" },
     { value: "run", label: "Run" },
@@ -1986,7 +1987,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v72-log-weekly-targets"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v73-trends-boot-log-habits"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -4680,42 +4681,117 @@
     return insights;
   }
 
-  function renderTrendHabitSection(data, { title = "Habit insights", description = "", emptyMessage = "Not enough data yet.", includeDayType = true } = {}) {
-    const insights = trendHabitInsightDefinitions(data, { includeDayType });
-    const hasData = entriesWithHabitData(data.currentEntries) || entriesWithHabitData(data.previousEntries);
+  function trendHabitInsightMap(data) {
+    return Object.fromEntries(trendHabitInsightDefinitions(data).map(insight => [insight.id, insight]));
+  }
+
+  function renderTrendHabitMetricCard(insight, data) {
+    if (!insight) return "";
     return `
-      <section class="beta-trend-habit-section" aria-label="${safeText(title)}">
-        <div class="beta-weekly-section-head">
-          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
-          <div>
-            <h3>${safeText(title)}</h3>
-            <p>${safeText(description || `${data.range.label} compared with ${data.range.previousLabelText}.`)}</p>
+      <article class="beta-trend-habit-card ${safeText(insight.id)}">
+        <span class="beta-icon-disc ${insight.id.includes("hydration") ? "shield" : insight.id.includes("fuel") ? "amber" : ""}">${dailyIcon(insight.icon)}</span>
+        <div>
+          <h4>${safeText(insight.title)}</h4>
+          <div class="beta-trend-habit-values">
+            <span><b>${safeText(data.range.currentLabel)}</b><strong>${safeText(insight.current.value)}</strong><small>${safeText(insight.current.detail)}</small></span>
+            <span><b>${safeText(data.range.previousLabel)}</b><strong>${safeText(insight.previous.value)}</strong><small>${safeText(insight.previous.detail)}</small></span>
           </div>
         </div>
-        ${hasData ? "" : `<p class="muted beta-history-empty">${safeText(emptyMessage)}</p>`}
-        <div class="beta-trend-habit-grid">
-          ${hasData ? insights.map(insight => `
-            <article class="beta-trend-habit-card ${safeText(insight.id)}">
-              <span class="beta-icon-disc ${insight.id.includes("hydration") ? "shield" : insight.id.includes("fuel") ? "amber" : ""}">${dailyIcon(insight.icon)}</span>
-              <div>
-                <h4>${safeText(insight.title)}</h4>
-                <div class="beta-trend-habit-values">
-                  <span><b>${safeText(data.range.currentLabel)}</b><strong>${safeText(insight.current.value)}</strong><small>${safeText(insight.current.detail)}</small></span>
-                  <span><b>${safeText(data.range.previousLabel)}</b><strong>${safeText(insight.previous.value)}</strong><small>${safeText(insight.previous.detail)}</small></span>
-                </div>
-              </div>
-            </article>
-          `).join("") : ""}
-        </div>
-      </section>
+      </article>
+    `;
+  }
+
+  function renderTrendHabitGroup(title, insights, data) {
+    const cards = insights.filter(Boolean).map(insight => renderTrendHabitMetricCard(insight, data)).join("");
+    if (!cards) return "";
+    return `
+      <div class="beta-trend-habit-group">
+        <h4>${safeText(title)}</h4>
+        <div class="beta-trend-habit-grid">${cards}</div>
+      </div>
     `;
   }
 
   function renderTrendHabitInsights(data) {
-    return renderTrendHabitSection(data, {
-      title: "Habit insights",
-      description: `${data.range.label} compared with ${data.range.previousLabelText}.`
-    });
+    const insights = trendHabitInsightMap(data);
+    const hasData = entriesWithHabitData(data.currentEntries) || entriesWithHabitData(data.previousEntries);
+    return `
+      <section class="beta-trend-habit-section" aria-label="Habit insights">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
+          <div>
+            <h3>Habit insights</h3>
+            <p>${safeText(data.range.label)} compared with ${safeText(data.range.previousLabelText)}.</p>
+          </div>
+        </div>
+        ${hasData ? `
+          <div class="beta-trend-habit-groups">
+            ${renderTrendHabitGroup("Daily logging window", [insights["first-log"], insights["final-log"]], data)}
+            ${renderTrendHabitGroup("Common gap windows", [insights["fuel-gap-window"], insights["hydration-gap-window"]], data)}
+            ${renderTrendHabitGroup("Common logging hours", [insights["fuel-hour"], insights["hydration-hour"]], data)}
+          </div>
+        ` : `<p class="muted beta-history-empty">Not enough data yet.</p>`}
+      </section>
+    `;
+  }
+
+  function logsPerDayText(value) {
+    return Number.isFinite(value) ? `${value.toFixed(1)} logs/day` : "Not enough data";
+  }
+
+  function logFrequencyDifference(currentAverage, previousAverage) {
+    if (!Number.isFinite(currentAverage) || !Number.isFinite(previousAverage)) return { tone: "neutral", label: "Needs more comparison data" };
+    const diff = currentAverage - previousAverage;
+    if (Math.abs(diff) < 0.05) return { tone: "neutral", label: "Staying similar" };
+    const amount = Math.abs(diff).toFixed(1);
+    return diff > 0
+      ? { tone: "neutral", label: `Increase of ${amount} logs per day` }
+      : { tone: "protected", label: `Decrease of ${amount} logs per day` };
+  }
+
+  function renderLogHabits(data) {
+    const insights = trendHabitInsightMap(data);
+    const logsCard = data.cards.find(card => card.metric.id === "logs");
+    const currentTotal = Number(logsCard?.currentValue);
+    const previousTotal = Number(logsCard?.previousValue);
+    const currentDays = Math.max(1, data.range.days.length);
+    const previousDays = Math.max(1, data.range.days.filter(day => day.previousDate).length || currentDays);
+    const currentAverage = Number.isFinite(currentTotal) ? currentTotal / currentDays : null;
+    const previousAverage = Number.isFinite(previousTotal) ? previousTotal / previousDays : null;
+    const outcome = logFrequencyDifference(currentAverage, previousAverage);
+    const hasData = entriesWithHabitData(data.currentEntries) || entriesWithHabitData(data.previousEntries) || Number.isFinite(currentAverage) || Number.isFinite(previousAverage);
+    return `
+      <section class="beta-trend-habit-section beta-log-habits-section" aria-label="Log Habits">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("score")}</span>
+          <div>
+            <h3>Log Habits</h3>
+            <p>Context and logging frequency for the selected period.</p>
+          </div>
+        </div>
+        ${hasData ? `
+          <div class="beta-trend-habit-groups">
+            ${renderTrendHabitGroup("Log context", [insights["session-type"], insights["day-type"]], data)}
+            <div class="beta-trend-habit-group">
+              <h4>Logging frequency</h4>
+              <div class="beta-trend-habit-grid">
+                <article class="beta-trend-habit-card beta-log-frequency-card">
+                  <span class="beta-icon-disc">${dailyIcon("chart")}</span>
+                  <div>
+                    <h4>Logs by day</h4>
+                    <div class="beta-trend-habit-values">
+                      <span><b>${safeText(data.range.currentLabel)}</b><strong>${safeText(logsPerDayText(currentAverage))}</strong><small>${Number.isFinite(currentTotal) ? `${Math.round(currentTotal)} total logs` : "Needs matching logs"}</small></span>
+                      <span><b>${safeText(data.range.previousLabel)}</b><strong>${safeText(logsPerDayText(previousAverage))}</strong><small>${Number.isFinite(previousTotal) ? `${Math.round(previousTotal)} total logs` : "Needs matching logs"}</small></span>
+                    </div>
+                    <small class="beta-gap-insight-outcome ${safeText(outcome.tone)}">${safeText(outcome.label)}</small>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        ` : `<p class="muted beta-history-empty">Not enough log habit data yet.</p>`}
+      </section>
+    `;
   }
 
   function gapInsightTitle(metricId) {
@@ -4901,7 +4977,7 @@
 
   function renderTrendComparisonCard(card, range) {
     const { metric, currentValue, previousValue, summary } = card;
-    const usesGapInsightCard = GAP_INSIGHT_METRIC_IDS.has(metric.id);
+    const usesExternalInsightCard = GAP_INSIGHT_METRIC_IDS.has(metric.id) || LOG_HABIT_METRIC_IDS.has(metric.id);
     return `
       <article class="beta-trend-comparison-card ${safeText(summary.tone)}" data-trend-card="${safeText(metric.id)}">
         <div class="beta-weekly-section-head beta-trend-card-head">
@@ -4910,14 +4986,14 @@
             <h3>${safeText(metric.title)}</h3>
             <p>${safeText(metric.description)}</p>
           </div>
-          <span class="beta-trend-result-chip ${safeText(summary.tone)}">${safeText(summary.label)}</span>
+          ${usesExternalInsightCard ? "" : `<span class="beta-trend-result-chip ${safeText(summary.tone)}">${safeText(summary.label)}</span>`}
         </div>
-        ${usesGapInsightCard ? "" : `<div class="beta-trend-value-row">
+        ${usesExternalInsightCard ? "" : `<div class="beta-trend-value-row">
           <span><b>${safeText(range.currentLabel)}</b>${safeText(trendComparisonLabel(currentValue, metric.unit))}</span>
           <span><b>${safeText(range.previousLabel)}</b>${safeText(trendComparisonLabel(previousValue, metric.unit))}</span>
         </div>`}
         ${renderTrendComparisonChart(card, range)}
-        ${usesGapInsightCard ? "" : `<p class="beta-weekly-insight">${safeText(summary.copy)}</p>`}
+        ${usesExternalInsightCard ? "" : `<p class="beta-weekly-insight">${safeText(summary.copy)}</p>`}
         <div class="button-row beta-trend-card-actions">
           <button class="secondary" type="button" data-share-trend-card="${safeText(metric.id)}">Share</button>
           <button class="secondary" type="button" data-download-trend-card="${safeText(metric.id)}">Download</button>
@@ -5197,6 +5273,7 @@
     summaryTarget.innerHTML = `
       ${renderGapInsights(data)}
       ${renderTrendHabitInsights(data)}
+      ${renderLogHabits(data)}
       <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
         ${orderedCards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
       </section>
@@ -6008,7 +6085,13 @@
     }, delay);
   }
 
+  function markFuelGuardAppReady() {
+    document.body?.classList.remove("app-booting");
+    document.body?.classList.add("app-ready");
+  }
+
   lastAutoFuelWindowDateKey = dateKey();
   renderAll();
+  requestAnimationFrame(markFuelGuardAppReady);
   scheduleFuelGuardTick();
 })();

@@ -747,6 +747,26 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   gap: 10px;
 }
 
+.beta-trend-habit-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.beta-trend-habit-group {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.beta-trend-habit-group > h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: .82rem;
+  font-weight: 950;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .beta-trend-habit-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -2863,6 +2883,42 @@ body.beta-mvp .sidebar {
   box-shadow: 12px 0 34px rgba(38, 61, 46, .06);
 }
 
+body.beta-mvp.app-booting {
+  overflow: hidden;
+}
+
+body.beta-mvp.app-booting .layout,
+body.beta-mvp.app-booting .mobile-bottom-nav {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-boot-splash {
+  display: none;
+}
+
+body.beta-mvp.app-booting .app-boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  min-height: 100dvh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(45, 181, 106, .18), transparent 34%),
+    linear-gradient(180deg, #fbfdf9, #f3f6ef);
+  color: var(--text);
+}
+
+body.beta-mvp.app-booting .app-boot-splash span {
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 900;
+}
+
 body.beta-mvp .beta-brand-marker {
   justify-content: center;
   margin-bottom: 22px;
@@ -3425,6 +3481,11 @@ body.beta-mvp .beta-impact-trend-grid {
   width: 100%;
   max-width: none;
   min-width: 0;
+}
+
+body.beta-mvp .beta-averages-summary {
+  display: grid;
+  gap: 18px;
 }
 
 body.beta-mvp .beta-week-selector {
@@ -4340,7 +4401,7 @@ body.beta-mvp .mobile-nav-item.active {
 .beta-trend-comparison-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 18px;
   width: 100%;
   min-width: 0;
 }
