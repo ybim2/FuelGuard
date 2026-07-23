@@ -67,11 +67,23 @@ function loadFuelGuardCsvImporter() {
     },
     fuelGapState() { return appState; },
     fuelLogDate(log) {
+      if (log instanceof Date) return Number.isNaN(log.getTime()) ? null : log;
       const value = typeof log === "string"
         ? log
         : log?.timestamp || log?.eventTime || log?.logged_at || log?.date || log?.createdAt;
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? null : date;
+    },
+    duration(minutes) {
+      const safeMinutes = Math.max(0, Math.round(Number(minutes) || 0));
+      return `${Math.floor(safeMinutes / 60)}h ${String(safeMinutes % 60).padStart(2, "0")}m`;
+    },
+    formatClock(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "--";
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${hours % 12 || 12}:${minutes}${hours >= 12 ? "PM" : "AM"}`;
     },
     renderAll() {},
     switchScreen() {},
@@ -187,4 +199,67 @@ test("creates and scores demand-aware training fuel opportunities", () => {
   });
   assert.ok(Number.isInteger(score.finalScore));
   assert.ok(score.components.some(component => component.id === "training_adherence"));
+});
+
+function testDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function recentWeekdayKeys(weekday, count) {
+  const cursor = new Date();
+  cursor.setUTCHours(12, 0, 0, 0);
+  while (cursor.getUTCDay() !== weekday) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(cursor);
+    date.setUTCDate(cursor.getUTCDate() - index * 7);
+    return testDateKey(date);
+  }).reverse();
+}
+
+function addFuelLogsForDay(appState, key, times) {
+  times.forEach((time, index) => {
+    appState.logs.push({
+      id: `${key}-${index}`,
+      timestamp: `${key}T${time}:00`,
+      type: "fuel"
+    });
+  });
+}
+
+test("personalised insights wait for repeated evidence", () => {
+  const { planner, appState } = loadFuelGuardCsvImporter();
+  const [key] = recentWeekdayKeys(2, 4);
+  addFuelLogsForDay(appState, key, ["08:00", "14:00"]);
+
+  assert.equal(planner.personalisedInsights().length, 0);
+});
+
+test("personalised insights identify a repeated low-scoring weekday", () => {
+  const { planner, appState } = loadFuelGuardCsvImporter();
+  recentWeekdayKeys(2, 4).slice(0, 3).forEach(key => addFuelLogsForDay(appState, key, ["08:00", "14:30"]));
+  recentWeekdayKeys(3, 4).slice(0, 3).forEach(key => addFuelLogsForDay(appState, key, ["08:00", "10:00", "12:00", "14:00"]));
+
+  const insights = planner.personalisedInsights();
+
+  assert.ok(insights.length <= 3);
+  assert.ok(insights.some(insight => /Tuesday/.test(insight.text)));
+});
+
+test("personalised context marks fuel gaps that overlap work blocks", () => {
+  const { planner, appState } = loadFuelGuardCsvImporter();
+  const [key] = recentWeekdayKeys(1, 4);
+  appState.demandBlocks.push({
+    id: "work-test",
+    date: key,
+    type: "work",
+    startTime: `${key}T09:00:00`,
+    endTime: `${key}T17:00:00`
+  });
+  addFuelLogsForDay(appState, key, ["08:00", "12:00"]);
+
+  const { context } = planner.personalisedInsightCandidates();
+  const day = context.days.find(item => item.key === key);
+
+  assert.equal(day.fuelGaps.length, 1);
+  assert.equal(day.fuelGaps[0].overlapsWork, true);
 });

@@ -11,7 +11,7 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v75-demand-fuel-plan
+Canonical app: mobile-pwa-v76-personalised-insights
 Build version: shown from `build-info.js`
 
 The shared top header contains only the Fuel Guard logo and remains sticky across the active screens.
@@ -19,7 +19,7 @@ The shared top header contains only the Fuel Guard logo and remains sticky acros
 Current card ownership:
 
 - Log: day/session setup, quick logging, selected-day date/metrics, demand planner, Today’s Fuel Plan, target progress, share/download summary, and latest log.
-- Trends: Fuel Score, seven-day Fuel Debt, demand adherence, weekly trend review, and actual-versus-target weekly progress.
+- Trends: Fuel Score, Personalised Insights, seven-day Fuel Debt, demand adherence, weekly trend review, and actual-versus-target weekly progress.
 - Settings: preferences, normal fuelling period, risk thresholds, fuelling targets, account sync, import, update, and app metadata.
 
 ## Removed legacy features
@@ -108,7 +108,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v75-demand-fuel-plan`.
+The current canonical version is `mobile-pwa-v76-personalised-insights`.
 
 ## Future frontend changes
 

@@ -2134,7 +2134,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v75-demand-fuel-plan"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v76-personalised-insights"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -5669,6 +5669,600 @@
     `;
   }
 
+  function relevantEntriesForPersonalisedInsights(data, lookbackDays = 84) {
+    const end = startOfDay(data?.range?.end || new Date());
+    const start = addDays(end, -lookbackDays);
+    return entriesForRange(archiveEntries(), start, end)
+      .filter(entry => {
+        const hasLogs = (entry.logs || []).length > 0 || Number(entry.fuelLogCount || 0) > 0 || Number(entry.hydrationLogCount || 0) > 0;
+        const hasDemand = demandBlocksForDay(entry.date).length > 0;
+        return hasLogs || hasDemand;
+      })
+      .sort((a, b) => dateFromKey(a.date) - dateFromKey(b.date));
+  }
+
+  function distinctWeekCountForSignals(signals) {
+    return new Set(signals.map(signal => dateKey(startOfCalendarWeek(signal.date)))).size;
+  }
+
+  function weekdayLabel(date) {
+    return date.toLocaleDateString(undefined, { weekday: "long" });
+  }
+
+  function isTrainingSessionSet(value) {
+    const next = String(value || "").trim();
+    return Boolean(next && next !== "rest");
+  }
+
+  function isOvernightBlock(block) {
+    const range = blockRange(block);
+    if (!range) return false;
+    return dateKey(range.start) !== dateKey(range.end)
+      || range.end.getHours() < range.start.getHours();
+  }
+
+  function rangesOverlapMinutes(aStart, aEnd, bStart, bEnd) {
+    if (!aStart || !aEnd || !bStart || !bEnd) return 0;
+    return Math.max(0, (Math.min(aEnd, bEnd) - Math.max(aStart, bStart)) / 60000);
+  }
+
+  function opportunityIsScored(opportunity) {
+    return ["completed_on_time", "completed_late", "overdue", "missed"].includes(opportunity?.status)
+      && Number.isFinite(Number(opportunity.timingScore));
+  }
+
+  function opportunityDelayMinutes(opportunity) {
+    const completed = logDate(opportunity?.completedAt);
+    const start = logDate(opportunity?.plannedStart);
+    const end = logDate(opportunity?.plannedEnd);
+    if (completed && start && end) return minutesOutsideWindow(completed, start, end);
+    if (opportunity?.status === "overdue" || opportunity?.status === "missed") return OPPORTUNITY_RULES.missedAfterMinutes;
+    return 0;
+  }
+
+  function scoreForOpportunityGroup(opportunities) {
+    const scored = opportunities.filter(opportunityIsScored);
+    return scored.length ? weightedOpportunityAverage(scored) : null;
+  }
+
+  function workShiftSignalsForDay(day) {
+    return day.workBlocks.map(block => {
+      const range = blockRange(block);
+      const opportunities = day.opportunities.filter(item => item.demandBlockId === block.id && opportunityTypeGroup(item.type) === "work");
+      return {
+        day,
+        block,
+        range,
+        date: day.date,
+        isOvernight: isOvernightBlock(block),
+        score: scoreForOpportunityGroup(opportunities),
+        opportunities
+      };
+    }).filter(signal => signal.range);
+  }
+
+  function workBreakSignalsForDay(day) {
+    return day.workBlocks.flatMap(block => {
+      const breaks = workBreaksForBlock(block.id)
+        .map(item => ({ item, range: workBreakRange(item, block) }))
+        .filter(item => item.range)
+        .sort((a, b) => a.range.start - b.range.start);
+      const opportunities = day.opportunities
+        .filter(item => item.type === "work_break" && item.demandBlockId === block.id)
+        .sort((a, b) => logDate(a.plannedStart) - logDate(b.plannedStart));
+      return breaks.map((item, index) => {
+        const opportunity = opportunities.find(candidate => {
+          const start = logDate(candidate.plannedStart);
+          const end = logDate(candidate.plannedEnd);
+          return start && end
+            && Math.abs(start - item.range.start) < 60000
+            && Math.abs(end - item.range.end) < 60000;
+        }) || opportunities[index] || null;
+        return {
+          day,
+          block,
+          break: item.item,
+          breakOrder: index + 1,
+          isFirstBreak: index === 0,
+          isOvernight: isOvernightBlock(block),
+          opportunity,
+          delayMinutes: opportunity ? opportunityDelayMinutes(opportunity) : 0,
+          delayedOrMissed: opportunity ? ["completed_late", "overdue", "missed"].includes(opportunity.status) : false,
+          score: opportunity && Number.isFinite(Number(opportunity.timingScore)) ? Number(opportunity.timingScore) : null,
+          date: day.date
+        };
+      });
+    });
+  }
+
+  function trainingOpportunitySignalsForDay(day) {
+    return day.opportunities
+      .filter(item => opportunityTypeGroup(item.type) === "training")
+      .filter(opportunityIsScored)
+      .map(opportunity => ({
+        day,
+        opportunity,
+        category: opportunity.type,
+        score: Number(opportunity.timingScore),
+        delayMinutes: opportunityDelayMinutes(opportunity),
+        isWorkday: day.hasWork,
+        date: day.date
+      }));
+  }
+
+  function fuelGapSignalsForDay(day) {
+    return gapsFromFuelLogs(day.fuelLogs)
+      .map(gap => ({
+        day,
+        date: day.date,
+        start: gap.start instanceof Date ? gap.start : logDate(gap.start),
+        end: gap.end instanceof Date ? gap.end : logDate(gap.end),
+        minutes: Number(gap.minutes || 0)
+      }))
+      .filter(gap => gap.start && gap.end && Number.isFinite(gap.minutes) && gap.minutes > 0)
+      .map(gap => {
+        const overlapsWork = day.workBlocks.some(block => {
+          const range = blockRange(block);
+          return range && rangesOverlapMinutes(gap.start, gap.end, range.start, range.end) > 0;
+        });
+        const phase = trainingGapPhase(gap, day.trainingBlocks);
+        return { ...gap, overlapsWork, trainingPhase: phase };
+      });
+  }
+
+  function trainingGapPhase(gap, blocks) {
+    const candidates = blocks
+      .map(block => blockRange(block))
+      .filter(Boolean)
+      .map(range => {
+        if (rangesOverlapMinutes(gap.start, gap.end, range.start, range.end) > 0) return { phase: "during", distance: 0 };
+        if (gap.end <= range.start) return { phase: "before", distance: (range.start - gap.end) / 60000 };
+        if (gap.start >= range.end) return { phase: "after", distance: (gap.start - range.end) / 60000 };
+        return null;
+      })
+      .filter(candidate => candidate && candidate.distance <= 360)
+      .sort((a, b) => a.distance - b.distance);
+    return candidates[0]?.phase || "";
+  }
+
+  function buildPersonalisedDaySignal(entry) {
+    const date = dateFromKey(entry.date);
+    const blocks = demandBlocksForDay(entry.date);
+    const workBlocks = blocks.filter(block => block.type === "work");
+    const trainingBlocks = blocks.filter(block => block.type === "training");
+    const score = calculateDailyFuelScore(entry.date);
+    const logs = entryLogsWithDates(entry);
+    const hasWork = workBlocks.length > 0 || trendDayTypeValue(entry.dayType || dayTypeForKey(entry.date)) === "work";
+    const hasTraining = trainingBlocks.length > 0 || isTrainingSessionSet(entry.trainingSession || trainingSessionForKey(entry.date));
+    const signal = {
+      entry,
+      key: entry.date,
+      date,
+      weekday: date.getDay(),
+      weekdayLabel: weekdayLabel(date),
+      blocks,
+      workBlocks,
+      trainingBlocks,
+      hasWork,
+      hasTraining,
+      hasBoth: hasWork && hasTraining,
+      score: score.finalScore,
+      scoreData: score,
+      opportunities: score.opportunities,
+      logs,
+      fuelLogs: logs.filter(isFuelLog)
+    };
+    signal.workShifts = workShiftSignalsForDay(signal);
+    signal.workBreaks = workBreakSignalsForDay(signal);
+    signal.trainingOpportunities = trainingOpportunitySignalsForDay(signal);
+    signal.fuelGaps = fuelGapSignalsForDay(signal);
+    return signal;
+  }
+
+  function personalisedInsightContext(data = trendComparisonData()) {
+    const entries = relevantEntriesForPersonalisedInsights(data);
+    const days = entries.map(buildPersonalisedDaySignal)
+      .filter(day => day.date && Number.isFinite(day.score));
+    return {
+      data,
+      entries,
+      days,
+      workShifts: days.flatMap(day => day.workShifts),
+      workBreaks: days.flatMap(day => day.workBreaks),
+      trainingOpportunities: days.flatMap(day => day.trainingOpportunities),
+      fuelGaps: days.flatMap(day => day.fuelGaps)
+    };
+  }
+
+  function averageSignalValue(signals, selector) {
+    return averageValue(signals.map(selector).filter(Number.isFinite));
+  }
+
+  function recentSignalBoost(signals) {
+    const latest = signals
+      .map(signal => signal.date)
+      .filter(Boolean)
+      .sort((a, b) => b - a)[0];
+    if (!latest) return 0;
+    const daysAgo = Math.max(0, (new Date() - latest) / 86400000);
+    if (daysAgo <= 14) return 8;
+    if (daysAgo <= 35) return 4;
+    return 0;
+  }
+
+  function personalisedInsightRank({ frequency = 0, magnitude = 0, signals = [], relevance = 0, actionable = 0 } = {}) {
+    return frequency * 4 + Math.min(40, magnitude) + recentSignalBoost(signals) + relevance + actionable;
+  }
+
+  function insightCandidate({ id, category, text, detail = "", icon = "chart", tone = "neutral", frequency = 0, magnitude = 0, signals = [], relevance = 0, actionable = 8 }) {
+    return {
+      id,
+      category,
+      text,
+      detail,
+      icon,
+      tone,
+      frequency,
+      magnitude,
+      rank: personalisedInsightRank({ frequency, magnitude, signals, relevance, actionable })
+    };
+  }
+
+  function lowerScoreCopy(labelA, averageA, labelB, averageB) {
+    const diff = Math.round(Math.abs(averageA - averageB));
+    return `${labelA} average ${diff} Fuel Score point${diff === 1 ? "" : "s"} lower than ${labelB}.`;
+  }
+
+  function scoreComparisonInsight({ id, category, labelA, labelB, groupA, groupB, icon = "score", tone = "elevated", relevance = 0 }) {
+    if (groupA.length < 2 || groupB.length < 2) return null;
+    const averageA = averageSignalValue(groupA, signal => signal.score);
+    const averageB = averageSignalValue(groupB, signal => signal.score);
+    if (!Number.isFinite(averageA) || !Number.isFinite(averageB)) return null;
+    const diff = averageA - averageB;
+    if (Math.abs(diff) < 10) return null;
+    const lowerLabel = diff < 0 ? labelA : labelB;
+    const higherLabel = diff < 0 ? labelB : labelA;
+    const lowerAverage = diff < 0 ? averageA : averageB;
+    const higherAverage = diff < 0 ? averageB : averageA;
+    return insightCandidate({
+      id,
+      category,
+      text: lowerScoreCopy(lowerLabel, lowerAverage, higherLabel, higherAverage),
+      detail: `${Math.round(lowerAverage)}/100 vs ${Math.round(higherAverage)}/100 across repeated days.`,
+      icon,
+      tone,
+      frequency: Math.min(groupA.length, groupB.length),
+      magnitude: Math.abs(diff),
+      signals: [...groupA, ...groupB],
+      relevance
+    });
+  }
+
+  function weekdayFuelScoreInsight(context) {
+    const groups = new Map();
+    context.days.forEach(day => {
+      if (!groups.has(day.weekday)) groups.set(day.weekday, []);
+      groups.get(day.weekday).push(day);
+    });
+    const eligible = Array.from(groups.entries())
+      .map(([weekday, days]) => ({
+        weekday,
+        days,
+        weeks: distinctWeekCountForSignals(days),
+        average: averageSignalValue(days, day => day.score),
+        label: days[0]?.weekdayLabel || ""
+      }))
+      .filter(group => group.days.length >= 3 && group.weeks >= 3 && Number.isFinite(group.average));
+    if (eligible.length < 2) return null;
+    const sorted = eligible.sort((a, b) => a.average - b.average);
+    const lowest = sorted[0];
+    const others = sorted.slice(1);
+    const comparisonAverage = averageValue(others.map(group => group.average).filter(Number.isFinite));
+    if (!Number.isFinite(comparisonAverage)) return null;
+    const diff = comparisonAverage - lowest.average;
+    if (diff < 10) return null;
+    const copy = lowest.weeks >= 3
+      ? `${lowest.label} has been your lowest-scoring day over the last ${lowest.weeks} weeks.`
+      : `Your Fuel Score has been lower on recent ${lowest.label}s.`;
+    return insightCandidate({
+      id: "weekday-fuel-score",
+      category: "weekday",
+      text: copy,
+      detail: `${Math.round(lowest.average)}/100 average, ${Math.round(diff)} points below your other repeated weekdays.`,
+      icon: "clock",
+      tone: "elevated",
+      frequency: lowest.days.length,
+      magnitude: diff,
+      signals: lowest.days,
+      relevance: 4
+    });
+  }
+
+  function dayTypeFuelScoreInsights(context) {
+    const workdays = context.days.filter(day => day.hasWork);
+    const nonWorkdays = context.days.filter(day => !day.hasWork);
+    const trainingDays = context.days.filter(day => day.hasTraining);
+    const nonTrainingDays = context.days.filter(day => !day.hasTraining);
+    const bothDays = context.days.filter(day => day.hasBoth);
+    const notBothDays = context.days.filter(day => !day.hasBoth);
+    return [
+      scoreComparisonInsight({
+        id: "workday-score",
+        category: "day-score",
+        labelA: "Workdays",
+        labelB: "Non-workdays",
+        groupA: workdays,
+        groupB: nonWorkdays,
+        icon: "route",
+        relevance: 6
+      }),
+      scoreComparisonInsight({
+        id: "training-day-score",
+        category: "day-score",
+        labelA: "Training days",
+        labelB: "Non-training days",
+        groupA: trainingDays,
+        groupB: nonTrainingDays,
+        icon: "score",
+        relevance: 5
+      }),
+      scoreComparisonInsight({
+        id: "work-training-score",
+        category: "combined-day-score",
+        labelA: "Work-and-training days",
+        labelB: "Other days",
+        groupA: bothDays,
+        groupB: notBothDays,
+        icon: "warning",
+        relevance: 9
+      })
+    ].filter(Boolean);
+  }
+
+  function shiftTimingInsight(context) {
+    const dayShifts = context.workShifts.filter(shift => !shift.isOvernight && Number.isFinite(shift.score));
+    const overnightShifts = context.workShifts.filter(shift => shift.isOvernight && Number.isFinite(shift.score));
+    const candidate = scoreComparisonInsight({
+      id: "overnight-shift-score",
+      category: "shift",
+      labelA: "Overnight shifts",
+      labelB: "Day shifts",
+      groupA: overnightShifts,
+      groupB: dayShifts,
+      icon: "clock",
+      relevance: 8
+    });
+    if (candidate) return candidate;
+
+    const overnightBreaks = context.workBreaks.filter(item => item.isOvernight);
+    const dayBreaks = context.workBreaks.filter(item => !item.isOvernight);
+    if (overnightBreaks.length < 2 || dayBreaks.length < 2) return null;
+    const overnightDelay = averageSignalValue(overnightBreaks, item => item.delayMinutes);
+    const dayDelay = averageSignalValue(dayBreaks, item => item.delayMinutes);
+    if (!Number.isFinite(overnightDelay) || !Number.isFinite(dayDelay) || Math.abs(overnightDelay - dayDelay) < 30) return null;
+    const delayedLabel = overnightDelay > dayDelay ? "night shifts" : "day shifts";
+    const diff = Math.round(Math.abs(overnightDelay - dayDelay));
+    return insightCandidate({
+      id: "shift-break-delay",
+      category: "shift",
+      text: `Work-break fuelling is delayed by about ${diff} minutes more on ${delayedLabel}.`,
+      detail: "Break timing is inferred from your saved work shifts and scheduled breaks.",
+      icon: "clock",
+      tone: "elevated",
+      frequency: Math.min(overnightBreaks.length, dayBreaks.length),
+      magnitude: diff / 3,
+      signals: [...overnightBreaks, ...dayBreaks],
+      relevance: 8
+    });
+  }
+
+  function workBreakOrderInsight(context) {
+    const first = context.workBreaks.filter(item => item.isFirstBreak);
+    const later = context.workBreaks.filter(item => !item.isFirstBreak);
+    if (first.length < 2 || later.length < 2) return null;
+    const firstDelay = averageSignalValue(first, item => item.delayMinutes);
+    const laterDelay = averageSignalValue(later, item => item.delayMinutes);
+    const firstMissRate = first.filter(item => item.delayedOrMissed).length / first.length;
+    const laterMissRate = later.filter(item => item.delayedOrMissed).length / later.length;
+    const delayDiff = firstDelay - laterDelay;
+    const missDiff = firstMissRate - laterMissRate;
+    if (Number.isFinite(delayDiff) && Math.abs(delayDiff) >= 30) {
+      const label = delayDiff > 0 ? "first work break" : "later work breaks";
+      return insightCandidate({
+        id: "work-break-order-delay",
+        category: "break-order",
+        text: `You tend to delay your ${label} by about ${Math.round(Math.abs(delayDiff))} minutes more.`,
+        detail: "Break order is based on chronological order inside each shift.",
+        icon: "route",
+        tone: "elevated",
+        frequency: Math.min(first.length, later.length),
+        magnitude: Math.abs(delayDiff) / 3,
+        signals: [...first, ...later],
+        relevance: 9
+      });
+    }
+    if (Math.abs(missDiff) >= 0.25) {
+      const label = missDiff > 0 ? "first work break" : "later work breaks";
+      return insightCandidate({
+        id: "work-break-order-missed",
+        category: "break-order",
+        text: `${label[0].toUpperCase()}${label.slice(1)} are delayed or missed more often.`,
+        detail: `${Math.round(Math.max(firstMissRate, laterMissRate) * 100)}% of matching break opportunities were delayed or missed.`,
+        icon: "route",
+        tone: "elevated",
+        frequency: Math.min(first.length, later.length),
+        magnitude: Math.abs(missDiff) * 40,
+        signals: [...first, ...later],
+        relevance: 9
+      });
+    }
+    return null;
+  }
+
+  function trainingOpportunityCategoryInsight(context) {
+    const pre = context.trainingOpportunities.filter(item => item.category === "pre_training");
+    const post = context.trainingOpportunities.filter(item => item.category === "post_training");
+    if (pre.length < 2 || post.length < 2) return null;
+    const preAverage = averageSignalValue(pre, item => item.score);
+    const postAverage = averageSignalValue(post, item => item.score);
+    if (!Number.isFinite(preAverage) || !Number.isFinite(postAverage)) return null;
+    const diff = postAverage - preAverage;
+    if (Math.abs(diff) < 10) return null;
+    const stronger = diff > 0 ? "post-training" : "pre-training";
+    const softer = diff > 0 ? "pre-training" : "post-training";
+    return insightCandidate({
+      id: "pre-post-training-adherence",
+      category: "training-adherence",
+      text: `Your ${stronger} fuel adherence is ${Math.round(Math.abs(diff))} points stronger than ${softer}.`,
+      detail: "Training timing uses matched planned fuel opportunities.",
+      icon: "score",
+      tone: "protected",
+      frequency: Math.min(pre.length, post.length),
+      magnitude: Math.abs(diff),
+      signals: [...pre, ...post],
+      relevance: 8
+    });
+  }
+
+  function trainingAdherenceWorkdayInsight(context) {
+    const workdayTraining = context.trainingOpportunities.filter(item => item.isWorkday);
+    const nonWorkdayTraining = context.trainingOpportunities.filter(item => !item.isWorkday);
+    if (workdayTraining.length < 2 || nonWorkdayTraining.length < 2) return null;
+    const workAverage = averageSignalValue(workdayTraining, item => item.score);
+    const nonWorkAverage = averageSignalValue(nonWorkdayTraining, item => item.score);
+    if (!Number.isFinite(workAverage) || !Number.isFinite(nonWorkAverage)) return null;
+    const diff = workAverage - nonWorkAverage;
+    if (Math.abs(diff) < 10) return null;
+    const stronger = diff > 0 ? "workdays" : "non-workdays";
+    const lower = diff > 0 ? "non-workdays" : "workdays";
+    return insightCandidate({
+      id: "training-workday-adherence",
+      category: "training-adherence",
+      text: `Training fuel adherence is ${Math.round(Math.abs(diff))} points stronger on ${stronger}.`,
+      detail: `${lower[0].toUpperCase()}${lower.slice(1)} may need a simpler fuel cue around training.`,
+      icon: "score",
+      tone: diff < 0 ? "elevated" : "protected",
+      frequency: Math.min(workdayTraining.length, nonWorkdayTraining.length),
+      magnitude: Math.abs(diff),
+      signals: [...workdayTraining, ...nonWorkdayTraining],
+      relevance: 10
+    });
+  }
+
+  function workGapInsight(context) {
+    const duringWork = context.fuelGaps.filter(gap => gap.overlapsWork);
+    const outsideWork = context.fuelGaps.filter(gap => !gap.overlapsWork);
+    if (duringWork.length < 3 || outsideWork.length < 3) return null;
+    const workAverage = averageSignalValue(duringWork, gap => gap.minutes);
+    const outsideAverage = averageSignalValue(outsideWork, gap => gap.minutes);
+    if (!Number.isFinite(workAverage) || !Number.isFinite(outsideAverage) || Math.abs(workAverage - outsideAverage) < 30) return null;
+    const longerLabel = workAverage > outsideAverage ? "during work shifts" : "outside work shifts";
+    const diff = Math.round(Math.abs(workAverage - outsideAverage));
+    return insightCandidate({
+      id: "work-fuel-gaps",
+      category: "fuel-gap-context",
+      text: `Your fuel gaps are about ${diff} minutes longer ${longerLabel}.`,
+      detail: "This compares gaps that overlap saved work blocks with gaps outside work blocks.",
+      icon: "gap",
+      tone: workAverage > outsideAverage ? "elevated" : "neutral",
+      frequency: Math.min(duringWork.length, outsideWork.length),
+      magnitude: diff / 3,
+      signals: [...duringWork, ...outsideWork],
+      relevance: 8
+    });
+  }
+
+  function trainingGapInsight(context) {
+    const groups = ["before", "during", "after"].map(phase => {
+      const gaps = context.fuelGaps.filter(gap => gap.trainingPhase === phase);
+      return { phase, gaps, average: averageSignalValue(gaps, gap => gap.minutes) };
+    }).filter(group => group.gaps.length >= 3 && Number.isFinite(group.average));
+    if (groups.length < 2) return null;
+    const sorted = groups.sort((a, b) => b.average - a.average);
+    const longest = sorted[0];
+    const comparison = averageValue(sorted.slice(1).map(group => group.average));
+    if (!Number.isFinite(comparison) || longest.average - comparison < 30) return null;
+    const phaseLabel = {
+      before: "before training",
+      during: "during training",
+      after: "after training"
+    }[longest.phase] || "around training";
+    return insightCandidate({
+      id: "training-fuel-gap-phase",
+      category: "fuel-gap-context",
+      text: `Your longest fuel gaps tend to happen ${phaseLabel}.`,
+      detail: `${duration(longest.average)} average gap in that window.`,
+      icon: "gap",
+      tone: "elevated",
+      frequency: longest.gaps.length,
+      magnitude: (longest.average - comparison) / 3,
+      signals: longest.gaps,
+      relevance: 7
+    });
+  }
+
+  function personalisedInsightCandidates(data = trendComparisonData()) {
+    const context = personalisedInsightContext(data);
+    const candidates = [
+      weekdayFuelScoreInsight(context),
+      ...dayTypeFuelScoreInsights(context),
+      shiftTimingInsight(context),
+      workBreakOrderInsight(context),
+      trainingOpportunityCategoryInsight(context),
+      trainingAdherenceWorkdayInsight(context),
+      workGapInsight(context),
+      trainingGapInsight(context)
+    ].filter(Boolean);
+    return { context, candidates };
+  }
+
+  function selectPersonalisedInsights(candidates, limit = 3) {
+    const seen = new Set();
+    return [...candidates]
+      .sort((a, b) => b.rank - a.rank || b.magnitude - a.magnitude || b.frequency - a.frequency)
+      .filter(candidate => {
+        if (seen.has(candidate.category)) return false;
+        seen.add(candidate.category);
+        return true;
+      })
+      .slice(0, limit);
+  }
+
+  function personalisedInsights(data = trendComparisonData()) {
+    return selectPersonalisedInsights(personalisedInsightCandidates(data).candidates);
+  }
+
+  function renderPersonalisedInsights(data) {
+    const { context, candidates } = personalisedInsightCandidates(data);
+    const insights = selectPersonalisedInsights(candidates);
+    const enoughSignals = context.days.length >= 3;
+    return `
+      <section class="beta-trend-habit-section beta-personalised-insights-section" aria-label="Personalised Insights">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
+          <div>
+            <h3>Personalised Insights</h3>
+            <p>Repeated patterns from your logs, demand blocks and planned fuel opportunities.</p>
+          </div>
+        </div>
+        ${insights.length ? `
+          <div class="beta-personalised-insight-list">
+            ${insights.map(insight => `
+              <article class="beta-personalised-insight-card ${safeText(insight.tone)}">
+                <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : insight.tone === "protected" ? "shield" : ""}">${dailyIcon(insight.icon)}</span>
+                <div>
+                  <p>${safeText(insight.text)}</p>
+                  ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
+                </div>
+              </article>
+            `).join("")}
+          </div>
+        ` : `<p class="muted beta-history-empty">${enoughSignals ? "No repeated personalised pattern is strong enough yet." : "Add a few repeated training, work or fuel-log days before Fuel Guard draws personalised conclusions."}</p>`}
+        <p class="row-note">Insights need repeated evidence and use behavioural wording only. They are not medical or nutrition assessments.</p>
+      </section>
+    `;
+  }
+
   function averageFuelScoreForEntries(entries) {
     const scores = entries.map(entry => calculateDailyFuelScore(entry.date).finalScore).filter(Number.isFinite);
     return scores.length ? averageValue(scores) : null;
@@ -6346,6 +6940,7 @@
     const orderedCards = [...primaryCards, ...remainingCards];
     summaryTarget.innerHTML = `
       ${renderFuelScoreTrends(data)}
+      ${renderPersonalisedInsights(data)}
       ${renderFuelDebtSevenDay(data)}
       ${renderDemandAdherenceInsights(data)}
       ${renderGapInsights(data)}
@@ -7184,6 +7779,9 @@
     generateFuelOpportunitiesForDay,
     calculateOpportunityTimingScore,
     calculateDailyFuelScore,
+    personalisedInsightContext,
+    personalisedInsightCandidates,
+    personalisedInsights,
     applyOpportunityMatchesForDay,
     applyOpportunityMatchesForVisibleDays() {
       const keys = new Set([dateKey(), selectedDataDateKey()]);
