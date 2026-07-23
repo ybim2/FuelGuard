@@ -4793,7 +4793,7 @@ body.beta-mvp .mobile-nav-item.active {
   }
 }
 
-/* v77 IA refresh: Today -> Plan -> Trends */
+/* v78 IA refresh: Log -> Plan -> History -> Trends */
 body.beta-mvp {
   --fg-page-bg: #f4f6f2;
   --fg-card-bg: #ffffff;
@@ -4824,26 +4824,32 @@ body.beta-mvp .beta-topbar {
   z-index: 60;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   min-height: 60px;
   margin: 0 -2px;
-  padding: 10px 2px 12px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 56px 10px;
   background: rgba(244, 246, 242, .96);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid rgba(29, 49, 38, .08);
 }
 
 body.beta-mvp .beta-header-settings-button {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: calc(8px + env(safe-area-inset-right, 0px));
+  z-index: 2;
   display: inline-grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  min-height: 46px;
   padding: 0;
   border: 1px solid rgba(29, 49, 38, .13);
   border-radius: 999px;
-  background: #ffffff;
-  color: #07130f;
-  box-shadow: 0 6px 18px rgba(23, 35, 29, .07);
+  background: #07130f;
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(23, 35, 29, .16);
 }
 
 body.beta-mvp .beta-header-settings-button svg {
@@ -4859,6 +4865,7 @@ body.beta-mvp .beta-header-settings-button svg {
 body.beta-mvp .fuel-gap-card,
 body.beta-mvp .beta-today-shell,
 body.beta-mvp .beta-plan-shell,
+body.beta-mvp .beta-history-shell,
 body.beta-mvp .beta-trends-card {
   display: grid;
   gap: var(--fg-space-card);
@@ -4871,6 +4878,8 @@ body.beta-mvp .beta-trends-card {
 
 body.beta-mvp .beta-rhythm-section-card,
 body.beta-mvp .beta-today-status-card,
+body.beta-mvp .beta-fuelling-window-card,
+body.beta-mvp .beta-daily-targets-card,
 body.beta-mvp .beta-weekly-section,
 body.beta-mvp .beta-trend-comparison-card,
 body.beta-mvp .beta-trend-habit-section,
@@ -4884,6 +4893,41 @@ body.beta-mvp #checklist > .card {
   border-radius: var(--fg-radius-card);
   background: var(--fg-card-bg);
   box-shadow: var(--fg-card-shadow);
+}
+
+body.beta-mvp *,
+body.beta-mvp *::before,
+body.beta-mvp *::after {
+  box-sizing: border-box;
+}
+
+body.beta-mvp input,
+body.beta-mvp select,
+body.beta-mvp textarea,
+body.beta-mvp button {
+  max-width: 100%;
+}
+
+body.beta-mvp .form-grid,
+body.beta-mvp .beta-settings-grid,
+body.beta-mvp .beta-responsive-form-grid {
+  min-width: 0;
+}
+
+body.beta-mvp .form-grid label,
+body.beta-mvp .beta-settings-grid label,
+body.beta-mvp .beta-responsive-form-grid label {
+  min-width: 0;
+}
+
+body.beta-mvp .form-grid input,
+body.beta-mvp .form-grid select,
+body.beta-mvp .form-grid textarea,
+body.beta-mvp .beta-settings-grid input,
+body.beta-mvp .beta-settings-grid select,
+body.beta-mvp .beta-settings-grid textarea {
+  width: 100%;
+  min-width: 0;
 }
 
 body.beta-mvp .beta-primary-card {
@@ -4957,11 +5001,230 @@ body.beta-mvp .beta-log-entry-card {
   gap: 12px;
 }
 
+body.beta-mvp .beta-plan-subtabs {
+  position: sticky;
+  top: calc(62px + env(safe-area-inset-top, 0px));
+  z-index: 45;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--fg-card-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 8px 20px rgba(23, 35, 29, .06);
+}
+
+body.beta-mvp .beta-plan-subtabs button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: #34423c;
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-plan-subtabs button.active {
+  border-color: rgba(22, 122, 69, .22);
+  background: rgba(22, 122, 69, .1);
+  color: #07130f;
+}
+
+body.beta-mvp .beta-plan-subtab-panel {
+  display: grid;
+  gap: var(--fg-space-card);
+  min-width: 0;
+}
+
+body.beta-mvp .beta-plan-subtab-panel[hidden] {
+  display: none;
+}
+
+body.beta-mvp .beta-plan-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
+  gap: 10px;
+}
+
+body.beta-mvp .beta-demand-form,
+body.beta-mvp .beta-demand-existing {
+  min-width: 0;
+}
+
+body.beta-mvp .beta-demand-form {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-demand-form h4 {
+  margin: 0;
+  color: #07130f;
+  font-size: .98rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-breaks-vary {
+  align-self: end;
+}
+
+body.beta-mvp .beta-history-heading {
+  padding-inline: 2px;
+}
+
+body.beta-mvp .beta-history-list-card,
+body.beta-mvp .beta-history-detail-card,
+body.beta-mvp .beta-history-empty-card {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-history-day-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.beta-mvp .beta-history-day-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px;
+  border: 1px solid rgba(29, 49, 38, .1);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #07130f;
+  text-align: left;
+}
+
+body.beta-mvp .beta-history-day-card.active {
+  border-color: rgba(22, 122, 69, .32);
+  background: rgba(22, 122, 69, .06);
+}
+
+body.beta-mvp .beta-history-day-card-head {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-history-day-card-head div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-history-day-card strong {
+  color: #07130f;
+  font-size: .96rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-history-day-card span,
+body.beta-mvp .beta-history-day-card small {
+  color: #5b6b64;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+body.beta-mvp .beta-history-day-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-history-day-card-grid span {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(244, 246, 242, .8);
+  line-height: 1.25;
+}
+
+body.beta-mvp .beta-history-day-card-grid b {
+  display: block;
+  color: #07130f;
+  font-size: .9rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-history-day-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+body.beta-mvp .beta-history-day-indicators span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(22, 122, 69, .09);
+  color: #167a45;
+  font-size: .74rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-history-day-indicators svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+body.beta-mvp .beta-history-log-groups,
+body.beta-mvp .beta-history-log-group,
+body.beta-mvp .beta-history-demand-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-history-log-group h4 {
+  margin: 0;
+  color: #07130f;
+  font-size: .92rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-history-demand-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(29, 49, 38, .08);
+}
+
+body.beta-mvp .beta-history-demand-row:first-child {
+  border-top: 0;
+}
+
+body.beta-mvp .beta-history-demand-row strong {
+  color: #07130f;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-history-demand-row span,
+body.beta-mvp .beta-history-demand-row small {
+  color: #5b6b64;
+  font-size: .82rem;
+  font-weight: 780;
+}
+
 body.beta-mvp .beta-log-actions {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   align-items: stretch;
+  width: 100%;
+  max-width: none;
+  justify-self: stretch;
 }
 
 body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
@@ -5158,8 +5421,20 @@ body.beta-mvp .beta-weekly-single-chart svg {
 }
 
 body.beta-mvp .mobile-bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   background: rgba(255, 255, 255, .96);
   border-top: 1px solid rgba(29, 49, 38, .1);
+}
+
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item {
+  min-width: 0;
+  min-height: calc(58px + env(safe-area-inset-bottom, 0px));
+  padding-inline: 4px;
+}
+
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item span {
+  font-size: .72rem;
 }
 
 @media (min-width: 840px) {
@@ -5186,8 +5461,42 @@ body.beta-mvp .mobile-bottom-nav {
     padding-top: 8px;
   }
 
+  body.beta-mvp .beta-topbar {
+    min-height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-inline: 54px;
+  }
+
+  body.beta-mvp .beta-topbar-logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  body.beta-mvp .beta-header-settings-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  body.beta-mvp .beta-plan-subtabs {
+    top: calc(58px + env(safe-area-inset-top, 0px));
+    gap: 4px;
+    padding: 6px;
+  }
+
+  body.beta-mvp .beta-plan-subtabs button {
+    font-size: .78rem;
+    min-height: 38px;
+  }
+
+  body.beta-mvp .beta-responsive-form-grid {
+    grid-template-columns: 1fr;
+  }
+
   body.beta-mvp .beta-rhythm-section-card,
   body.beta-mvp .beta-today-status-card,
+  body.beta-mvp .beta-fuelling-window-card,
+  body.beta-mvp .beta-daily-targets-card,
   body.beta-mvp .beta-weekly-section,
   body.beta-mvp .beta-trend-comparison-card,
   body.beta-mvp .beta-trend-habit-section,
@@ -5199,8 +5508,18 @@ body.beta-mvp .mobile-bottom-nav {
   }
 
   body.beta-mvp .beta-log-actions {
-    grid-template-columns: 1.15fr 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+    grid-column: 1 / -1;
+  }
+
+  body.beta-mvp .beta-today-status-grid,
+  body.beta-mvp .beta-today-progress-grid,
+  body.beta-mvp .beta-plan-overview-grid {
+    grid-template-columns: 1fr;
   }
 
   body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
@@ -5222,5 +5541,79 @@ body.beta-mvp .mobile-bottom-nav {
 
   body.beta-mvp .beta-unified-timeline-item time {
     font-size: .72rem;
+  }
+}
+
+/* v78 viewport safety: keep canonical mobile navigation and logging controls fully visible. */
+body.beta-mvp {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body.beta-mvp .layout,
+body.beta-mvp .app,
+body.beta-mvp .topbar,
+body.beta-mvp .screen,
+body.beta-mvp .screen > .card {
+  min-width: 0;
+  max-width: 100vw;
+}
+
+body.beta-mvp .beta-topbar {
+  overflow: visible;
+}
+
+body.beta-mvp .beta-header-settings-button {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: calc(10px + env(safe-area-inset-right, 0px));
+  z-index: 180;
+  display: inline-grid !important;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.beta-mvp .mobile-bottom-nav {
+  left: 0;
+  right: 0;
+  width: 100vw;
+  max-width: 100vw;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  overflow: hidden;
+}
+
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item {
+  width: auto;
+  min-width: 0;
+  padding-inline: 2px;
+}
+
+body.beta-mvp .beta-log-entry-card,
+body.beta-mvp .beta-log-actions,
+body.beta-mvp .beta-log-entry-card button {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.beta-mvp .beta-log-entry-card button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  body.beta-mvp .beta-log-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+    grid-column: 1 / -1;
   }
 }

@@ -13,9 +13,93 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v77-today-plan-trends" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v77-today-plan-trends" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v77-today-plan-trends" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v78-log-plan-history-trends" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v78-log-plan-history-trends" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v78-log-plan-history-trends" />
+  <style>
+    body.beta-mvp {
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
+
+    body.beta-mvp .layout,
+    body.beta-mvp .app,
+    body.beta-mvp .screen,
+    body.beta-mvp .screen > .card {
+      min-width: 0;
+      max-width: 100vw;
+    }
+
+    body.beta-mvp .beta-topbar {
+      overflow: visible;
+    }
+
+    body.beta-mvp .beta-header-settings-button {
+      position: fixed;
+      top: calc(8px + env(safe-area-inset-top, 0px));
+      right: calc(10px + env(safe-area-inset-right, 0px));
+      z-index: 180;
+      display: inline-grid !important;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    body.beta-mvp .mobile-bottom-nav {
+      left: 0;
+      right: 0;
+      width: 100vw;
+      max-width: 100vw;
+      display: grid !important;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      overflow: hidden;
+    }
+
+    body.beta-mvp .mobile-bottom-nav .mobile-nav-item {
+      min-width: 0;
+      padding-inline: 2px;
+    }
+
+    body.beta-mvp .beta-log-entry-card,
+    body.beta-mvp .beta-log-actions,
+    body.beta-mvp .beta-log-entry-card button {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    body.beta-mvp .beta-log-entry-card button {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 720px) {
+      body.beta-mvp .layout {
+        display: block !important;
+        width: 100vw;
+      }
+
+      body.beta-mvp .app,
+      body.beta-mvp .topbar,
+      body.beta-mvp .screen {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 560px) {
+      body.beta-mvp .beta-log-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+        grid-column: 1 / -1;
+      }
+    }
+  </style>
 </head>
 <body class="beta-mvp app-booting">
   <div class="app-boot-splash" role="status" aria-live="polite">
@@ -26,11 +110,12 @@
     <aside class="sidebar">
       <div class="brand beta-brand-marker" aria-label="Fuel Guard"><div class="logo">FG</div></div>
       <nav class="side-nav beta-nav">
-        <button class="nav-item active" data-screen="dashboard">Today</button>
+        <button class="nav-item active" data-screen="dashboard">Log</button>
         <button class="nav-item" data-screen="plan">Plan</button>
+        <button class="nav-item" data-screen="history">History</button>
         <button class="nav-item" data-screen="trends">Trends</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Daily flow</span><strong>Plan -> fuel -> review</strong><p>Plan the day, log quickly, and review patterns later.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Daily flow</span><strong>Plan -> log -> review</strong><p>Set the day up, log quickly, and review patterns later.</p></div>
     </aside>
 
     <main class="app">
@@ -57,10 +142,6 @@
             </div>
             <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
           </section>
-
-          <section id="fuelTodayTimeline"></section>
-          <section id="fuelTodayProgress"></section>
-          <section id="fuelTodaySummary"></section>
 
           <section class="beta-rhythm-section-card beta-today-log" aria-label="Today’s logs">
             <div class="section-heading-row">
@@ -107,85 +188,119 @@
 
       <section id="plan" class="screen">
         <article class="card beta-plan-shell">
-          <section class="beta-rhythm-section-card beta-selected-day-card beta-plan-day-card" aria-label="Plan day">
-            <div class="section-heading-row beta-data-date-row">
-              <div>
-                <h2 class="beta-panel-title">Plan</h2>
-                <p class="muted">Set today’s work, training and fuelling targets so Fuel Guard can protect the useful moments.</p>
+          <nav class="beta-plan-subtabs" aria-label="Plan sections">
+            <button class="active" type="button" data-plan-subtab="today" aria-pressed="true">Today</button>
+            <button type="button" data-plan-subtab="work" aria-pressed="false">Work</button>
+            <button type="button" data-plan-subtab="training" aria-pressed="false">Training</button>
+            <button type="button" data-plan-subtab="targets" aria-pressed="false">Targets</button>
+          </nav>
+
+          <section id="planSubtabToday" class="beta-plan-subtab-panel active" data-plan-panel="today">
+            <section class="beta-rhythm-section-card beta-selected-day-card beta-plan-day-card" aria-label="Plan day">
+              <div class="section-heading-row beta-data-date-row">
+                <div>
+                  <h2 class="beta-panel-title">Plan</h2>
+                  <p class="muted">Enter the shape of your day, then Fuel Guard turns it into practical fuel suggestions.</p>
+                </div>
+                <label class="day-type-field beta-history-date">
+                  <span>Plan day</span>
+                  <input id="fuelDataDate" type="date">
+                </label>
               </div>
-              <label class="day-type-field beta-history-date">
-                <span>Plan day</span>
-                <input id="fuelDataDate" type="date">
-              </label>
-            </div>
-            <div class="fuel-day-type-row beta-day-type-row">
-              <label class="day-type-field">
-                <span>Day type</span>
-                <select id="fuelDayType">
-                  <option value="">Select day type</option>
-                  <option value="work">Working Day</option>
-                  <option value="travel">Travel</option>
-                  <option value="holiday">Holiday</option>
-                  <option value="competition">Competition Day</option>
-                </select>
-              </label>
-              <label class="day-type-field" id="trainingSessionField">
-                <span>Training session</span>
-                <select id="fuelTrainingSession">
-                  <option value="">Select session</option>
-                  <option value="run">Run</option>
-                  <option value="bike">Bike</option>
-                  <option value="swim">Swim</option>
-                  <option value="strength">Strength</option>
-                  <option value="brick">Brick</option>
-                  <option value="rest">No training</option>
-                </select>
-              </label>
-              <span id="fuelDayTypeSaved" class="row-note"></span>
-            </div>
-          </section>
-
-          <div id="fuelDemandPlanner"></div>
-          <section id="fuelProtectedMoments"></section>
-
-          <section class="beta-rhythm-section-card beta-plan-fuelling-card" aria-label="Fuelling window">
-            <div class="section-heading-row">
-              <div>
-                <h3>Fuelling</h3>
-                <p class="muted">Choose the normal fuelling period Fuel Guard should use for planning and scores.</p>
+              <div class="fuel-day-type-row beta-day-type-row">
+                <label class="day-type-field">
+                  <span>Day type</span>
+                  <select id="fuelDayType">
+                    <option value="">Select day type</option>
+                    <option value="work">Working Day</option>
+                    <option value="holiday">Holiday</option>
+                    <option value="competition">Competition Day</option>
+                  </select>
+                </label>
+                <label class="day-type-field" id="trainingSessionField">
+                  <span>Training session</span>
+                  <select id="fuelTrainingSession">
+                    <option value="">Select session</option>
+                    <option value="run">Run</option>
+                    <option value="bike">Bike</option>
+                    <option value="swim">Swim</option>
+                    <option value="strength">Strength</option>
+                    <option value="brick">Brick</option>
+                    <option value="rest">No training</option>
+                  </select>
+                </label>
+                <span id="fuelDayTypeSaved" class="row-note"></span>
               </div>
-            </div>
-            <div class="form-grid beta-settings-grid">
-              <label>Normal fuelling period
-                <select id="fuelWindowPreset">
-                  <option value="480">8 hours</option>
-                  <option value="600">10 hours</option>
-                  <option value="720">12 hours</option>
-                  <option value="840">14 hours</option>
-                  <option value="custom">Custom duration</option>
-                </select>
-              </label>
-              <label>Custom period length (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
-            </div>
+            </section>
+
+            <section id="fuelPlanTodayOverview"></section>
+            <section id="fuelTodayTimeline"></section>
+            <section id="fuelProtectedMoments"></section>
+            <section id="fuelTodayProgress"></section>
+            <section id="fuelTodaySummary"></section>
           </section>
 
-          <section class="beta-rhythm-section-card beta-targets-card">
-            <h3>Daily targets</h3>
-            <p class="muted">Set optional daily fuel and hydration log targets. Weekly targets are calculated automatically.</p>
-            <div class="form-grid beta-settings-grid">
-              <label>Fuel logs per day<input id="dailyFuelTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
-              <label>Hydration logs per day<input id="dailyHydrationTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
-            </div>
-            <div class="beta-calculated-targets" aria-label="Calculated weekly targets">
-              <div><span>Weekly fuel target</span><strong id="weeklyFuelTargetDisplay">No daily fuel target set.</strong></div>
-              <div><span>Weekly hydration target</span><strong id="weeklyHydrationTargetDisplay">No daily hydration target set.</strong></div>
-            </div>
-            <div class="button-row beta-settings-actions">
-              <button id="saveFuelTargets" class="primary" type="button">Save targets</button>
-              <button id="clearFuelTargets" class="secondary" type="button">Clear targets</button>
-            </div>
-            <p id="fuelTargetsStatus" class="row-note" aria-live="polite"></p>
+          <section id="planSubtabWork" class="beta-plan-subtab-panel" data-plan-panel="work" hidden>
+            <div id="fuelWorkPlanner"></div>
           </section>
+
+          <section id="planSubtabTraining" class="beta-plan-subtab-panel" data-plan-panel="training" hidden>
+            <div id="fuelTrainingPlanner"></div>
+          </section>
+
+          <section id="planSubtabTargets" class="beta-plan-subtab-panel" data-plan-panel="targets" hidden>
+            <section class="beta-rhythm-section-card beta-plan-fuelling-card" aria-label="Fuelling window">
+              <div class="section-heading-row">
+                <div>
+                  <h3>Fuelling window</h3>
+                  <p class="muted">Choose the fuelling window Fuel Guard should use for planning and scores.</p>
+                </div>
+              </div>
+              <div class="form-grid beta-settings-grid">
+                <label>Fuelling window
+                  <select id="fuelWindowPreset">
+                    <option value="480">8 hours</option>
+                    <option value="600">10 hours</option>
+                    <option value="720">12 hours</option>
+                    <option value="840">14 hours</option>
+                    <option value="custom">Custom duration</option>
+                  </select>
+                </label>
+                <label>Custom window length (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
+              </div>
+            </section>
+
+            <section class="beta-rhythm-section-card beta-targets-card">
+              <h3>Daily targets</h3>
+              <p class="muted">Set optional daily fuel and hydration log targets. Weekly targets are calculated automatically.</p>
+              <div class="form-grid beta-settings-grid">
+                <label>Fuel logs per day<input id="dailyFuelTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+                <label>Hydration logs per day<input id="dailyHydrationTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+              </div>
+              <div class="beta-calculated-targets" aria-label="Calculated weekly targets">
+                <div><span>Weekly fuel target</span><strong id="weeklyFuelTargetDisplay">No daily fuel target set.</strong></div>
+                <div><span>Weekly hydration target</span><strong id="weeklyHydrationTargetDisplay">No daily hydration target set.</strong></div>
+              </div>
+              <div class="button-row beta-settings-actions">
+                <button id="saveFuelTargets" class="primary" type="button">Save targets</button>
+                <button id="clearFuelTargets" class="secondary" type="button">Clear targets</button>
+              </div>
+              <p id="fuelTargetsStatus" class="row-note" aria-live="polite"></p>
+            </section>
+          </section>
+        </article>
+      </section>
+
+      <section id="history" class="screen">
+        <article class="card beta-history-shell">
+          <div class="section-heading-row beta-history-heading">
+            <div>
+              <h2 class="beta-panel-title">History</h2>
+              <p class="muted">Compact daily summaries for the days you logged data.</p>
+            </div>
+          </div>
+          <section id="fuelHistoryList"></section>
+          <section id="fuelHistoryDetail"></section>
         </article>
       </section>
 
@@ -320,7 +435,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v77-today-plan-trends</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v78-log-plan-history-trends</span>
           <span id="buildVersionMarker">Build version: loading...</span>
         </div>
       </section>
@@ -329,13 +444,17 @@
   </div>
 
   <nav class="mobile-bottom-nav beta-mobile-nav" aria-label="Mobile primary navigation">
-    <button class="mobile-nav-item active" type="button" data-mobile-screen="dashboard" data-mobile-tab="today">
+    <button class="mobile-nav-item active" type="button" data-mobile-screen="dashboard" data-mobile-tab="log">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 3-4 3 3 5-7 1 2"/></svg>
-      <span>Today</span>
+      <span>Log</span>
     </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="plan" data-mobile-tab="plan">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8 8h8"/><path d="M8 12h5"/><path d="M8 16h7"/></svg>
       <span>Plan</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="history" data-mobile-tab="history">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14"/><path d="M5 12h14"/><path d="M5 19h14"/><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/></svg>
+      <span>History</span>
     </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="trends" data-mobile-tab="trends">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 4-5 3 3 5-7"/></svg>
@@ -343,15 +462,15 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v77-today-plan-trends"></script>
+  <script src="build-info.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="app-ui.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v77-today-plan-trends"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v77-today-plan-trends"></script>
+  <script src="app-state.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="app-ui.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v78-log-plan-history-trends"></script>
 </body>
 </html>

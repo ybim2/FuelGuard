@@ -23,11 +23,10 @@
   const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
     { value: "work", label: "Working Day" },
-    { value: "travel", label: "Travel" },
     { value: "holiday", label: "Holiday" },
     { value: "competition", label: "Competition Day" }
   ];
-  const DEPRECATED_DAY_TYPES = new Set([]);
+  const DEPRECATED_DAY_TYPES = new Set(["travel"]);
   const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
   const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
   const LOG_HABIT_METRIC_IDS = new Set(["logs"]);
@@ -83,6 +82,12 @@
     postShift: { afterStartMinutes: 0, afterEndMinutes: 75 },
     normalWindowMinutes: 45
   };
+  const WORK_BREAK_INTERVAL_OPTIONS = [
+    { value: "120", label: "2 hours" },
+    { value: "150", label: "2-3 hours" },
+    { value: "180", label: "3 hours" },
+    { value: "240", label: "4 hours" }
+  ];
   const TRAINING_SESSION_OPTIONS = [
     { value: "", label: "Not set" },
     { value: "run", label: "Run" },
@@ -143,6 +148,8 @@
   let selectedTrendWeekStartKey = "";
   let selectedTrendMonthKey = "";
   let selectedTrendPeriod = "week";
+  let selectedPlanSubtab = "today";
+  let selectedHistoryDetailKey = "";
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let csvImportBusy = false;
@@ -2135,7 +2142,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v77-today-plan-trends"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v78-log-plan-history-trends"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2691,7 +2698,7 @@
     `;
   }
 
-  function renderDailyTargetProgress(fuelActual, hydrationActual, currentTargets = targets()) {
+  function renderDailyTargetProgress(fuelActual, hydrationActual, currentTargets = targets(), key = selectedDataDateKey()) {
     const dailyCard = (label, actual, target, tone) => {
       const lower = label.toLowerCase();
       const percent = targetPercent(actual, target);
@@ -2718,7 +2725,7 @@
       <section class="beta-daily-targets-card" aria-label="Daily Targets">
         <div class="section-heading-row">
           <h3>Daily Targets</h3>
-          <span class="row-note">${safeText(formatDateKey(selectedDataDateKey()))}</span>
+          <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
         <div class="beta-target-progress-grid" aria-label="Daily target progress">
           ${dailyCard("Fuel", fuelActual, currentTargets.dailyFuelLogs, "fuel")}
@@ -2826,7 +2833,7 @@
   }
 
   function demandBlockTitle(block) {
-    if (!block) return "Demand block";
+    if (!block) return "Plan item";
     if (block.title) return block.title;
     if (block.type === "training") return trainingDemandLabel(block);
     return block.shiftName || "Work shift";
@@ -2871,7 +2878,7 @@
         type: "normal",
         plannedStart: addMinutes(cursor, -OPPORTUNITY_RULES.normalWindowMinutes / 2).toISOString(),
         plannedEnd: addMinutes(cursor, OPPORTUNITY_RULES.normalWindowMinutes / 2).toISOString(),
-        label: "Normal fuel moment",
+        label: "Suggested fuel time",
         priority: 1
       });
     }
@@ -2902,7 +2909,7 @@
         demandBlockId: block.id,
         plannedStart: addMinutes(midpoint, -25).toISOString(),
         plannedEnd: addMinutes(midpoint, 25).toISOString(),
-        label: "During-training fuel opportunity",
+        label: "During-training fuel",
         priority: block.isKeySession ? 8 : 7
       });
     }
@@ -2950,7 +2957,7 @@
         demandBlockId: block.id,
         plannedStart: breakRange.start.toISOString(),
         plannedEnd: breakRange.end.toISOString(),
-        label: item.label ? `Protected break: ${item.label}` : "Protected work break",
+        label: item.label || "Suggested break and fuel window",
         priority: 8
       });
     });
@@ -3171,13 +3178,13 @@
   }
 
   function opportunityPlanCopy(opportunity) {
-    if (!opportunity) return "No more planned fuel opportunities today.";
+    if (!opportunity) return "No more fuel suggestions today.";
     if (opportunity.type === "work_break") return "Fuel, hydrate and step away from work if you can.";
     if (opportunity.type === "post_training") return "Supporting recovery from your training session.";
     if (opportunity.type === "pre_training") return "A small fuel moment before training can help the session feel steadier.";
     if (opportunity.type === "post_shift") return "Support your post-shift recovery window.";
     if (opportunity.type === "pre_shift") return "Support your shift before the long block starts.";
-    return "Normal maximum-gap reminder.";
+    return "Suggested fuel time based on your fuelling window.";
   }
 
   function fuelPlanTimelineItems(key, opportunities) {
@@ -3209,25 +3216,25 @@
       ? next.status === "overdue"
         ? `${next.label} overdue`
         : `${next.label} by ${displayTime(next.plannedEnd)}`
-      : "No more planned fuel opportunities today";
+      : "No more fuel suggestions today";
     return `
       <article class="beta-fuelling-window-card beta-fuel-plan-card ${next ? safeText(opportunityTone(next.status)) : "stable"}">
         <div class="section-heading-row">
           <div>
-            <h3>Today’s Fuel Plan</h3>
-            <p class="muted">Demand-aware fuel opportunities from your normal period, training, work shifts and breaks.</p>
+            <h3>Fuel plan</h3>
+            <p class="muted">Fuel suggestions built from your fuelling window, training, work shifts and break estimates.</p>
           </div>
           <span class="row-note">${safeText(score.finalScore === null ? "Score building" : `${score.finalScore}/100`)}</span>
         </div>
         <div class="beta-fuel-plan-next">
           <strong>${safeText(headline)}</strong>
-          <span>${safeText(next ? opportunityCountdown(next, now) : "Plan complete or waiting for demand blocks.")}</span>
+          <span>${safeText(next ? opportunityCountdown(next, now) : "Plan complete or waiting for work/training details.")}</span>
           <p>${safeText(opportunityPlanCopy(next))}</p>
         </div>
         <div class="beta-fuelling-window-grid">
-          ${dailyMetricCard("Normal period", timeRangeText(period.start, period.end), `${fuelDebtDurationText(fuelWindowMinutes())} window`, "fuel")}
+          ${dailyMetricCard("Fuelling window", timeRangeText(period.start, period.end), `${fuelDebtDurationText(fuelWindowMinutes())} window`, "fuel")}
           ${dailyMetricCard("Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel")}
-          ${dailyMetricCard("Planned opportunities", String(opportunities.length), "Completed and missed opportunities shape the score.", "fuel")}
+          ${dailyMetricCard("Fuel suggestions", String(opportunities.length), "Completed and missed suggestions shape the score.", "fuel")}
         </div>
         <div class="beta-fuel-plan-timeline" aria-label="Today’s fuel plan timeline">
           ${timeline.length ? timeline.map(item => `
@@ -3305,38 +3312,100 @@
     };
   }
 
-  function breakInput(index, field) {
-    return document.getElementById(`workBreak${field}${index}`)?.value || "";
+  function hoursFieldValue(id, fallback, { min = 0.5, max = 12 } = {}) {
+    const value = Number(document.getElementById(id)?.value);
+    if (!Number.isFinite(value)) return fallback;
+    return clamp(value, min, max);
   }
 
-  function readWorkBreakRows(blockId, shiftStart, key) {
-    const rows = [];
-    [1, 2, 3].forEach(index => {
-      const startValue = breakInput(index, "Start");
-      const endValue = breakInput(index, "End");
-      const label = String(breakInput(index, "Label")).trim();
-      if (!startValue && !endValue && !label) return;
-      const start = dateTimeForDemand(key, startValue);
-      const end = dateTimeForDemand(key, endValue, start || shiftStart);
-      if (!start || !end) throw new Error(`Break ${index} needs a valid start and finish time.`);
-      let normalizedStart = start;
-      let normalizedEnd = end;
-      if (normalizedStart < shiftStart) {
-        normalizedStart = addDays(normalizedStart, 1);
-        normalizedEnd = addDays(normalizedEnd, 1);
-      }
-      rows.push({
-        id: uid(),
-        demandBlockId: blockId,
-        startTime: normalizedStart.toISOString(),
-        endTime: ensureEndAfterStart(normalizedStart, normalizedEnd).toISOString(),
-        label,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        syncStatus: "pending"
-      });
+  function intervalFieldValue(id, fallback) {
+    const value = Number(document.getElementById(id)?.value);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  function workBreakPreferencesFromBlock(block) {
+    const range = blockRange(block);
+    const existing = block?.type === "work" ? workBreaksForBlock(block.id) : [];
+    const firstRange = existing.length ? workBreakRange(existing[0], block) : null;
+    const secondRange = existing.length > 1 ? workBreakRange(existing[1], block) : null;
+    const firstAfterMinutes = Number.isFinite(Number(block?.firstBreakAfterMinutes))
+      ? Number(block.firstBreakAfterMinutes)
+      : firstRange && range
+        ? clamp(Math.round((firstRange.start - range.start) / 60000), 30, 720)
+        : 120;
+    const intervalMinutes = Number.isFinite(Number(block?.breakIntervalMinutes))
+      ? Number(block.breakIntervalMinutes)
+      : firstRange && secondRange
+        ? clamp(Math.round((secondRange.start - firstRange.start) / 60000), 60, 480)
+        : 150;
+    const breaksVary = Boolean(block?.breaksVary || existing.some(item => /vary|flexible/i.test(item.label || "")));
+    return { firstAfterMinutes, intervalMinutes, breaksVary };
+  }
+
+  function windowOverlaps(start, end, range) {
+    return Boolean(start && end && range?.start && range?.end && start < range.end && end > range.start);
+  }
+
+  function trainingRangesForDay(key) {
+    return demandBlocksForDay(key)
+      .filter(block => block.type === "training")
+      .map(block => blockRange(block))
+      .filter(Boolean);
+  }
+
+  function avoidTrainingOverlap(start, end, shiftEnd, trainingRanges) {
+    let nextStart = start;
+    let nextEnd = end;
+    trainingRanges.forEach(range => {
+      if (!windowOverlaps(nextStart, nextEnd, range)) return;
+      nextStart = addMinutes(range.end, 15);
+      nextEnd = addMinutes(nextStart, 30);
     });
+    return nextEnd <= shiftEnd ? { start: nextStart, end: nextEnd } : null;
+  }
+
+  function generateFlexibleWorkBreakRows(blockId, shiftStart, shiftEnd, key, preferences) {
+    const rows = [];
+    const trainingRanges = trainingRangesForDay(key);
+    const shiftMinutes = Math.max(0, (shiftEnd - shiftStart) / 60000);
+    if (shiftMinutes < 210) return rows;
+    const firstAfter = clamp(Number(preferences.firstAfterMinutes || 120), 60, Math.max(90, shiftMinutes - 60));
+    const interval = clamp(Number(preferences.breakIntervalMinutes || 150), 90, 360);
+    const labelPrefix = preferences.breaksVary ? "Flexible break and fuel window" : "Suggested break and fuel window";
+    let cursor = addMinutes(shiftStart, firstAfter);
+    let index = 1;
+    while (cursor < addMinutes(shiftEnd, -30) && index <= 6) {
+      const candidate = avoidTrainingOverlap(cursor, addMinutes(cursor, 30), shiftEnd, trainingRanges);
+      if (candidate) {
+        const label = rows.length ? `${labelPrefix} ${rows.length + 1}` : labelPrefix;
+        const detail = preferences.breaksVary ? "Breaks vary" : "Estimate";
+        rows.push({
+          id: uid(),
+          demandBlockId: blockId,
+          startTime: candidate.start.toISOString(),
+          endTime: candidate.end.toISOString(),
+          label: `${label} (${detail})`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          syncStatus: "pending"
+        });
+      }
+      cursor = addMinutes(cursor, interval);
+      index += 1;
+    }
     return rows;
+  }
+
+  function readWorkBreakRows(blockId, shiftStart, shiftEnd, key) {
+    const firstAfterHours = hoursFieldValue("workFirstBreakAfterHours", 2, { min: 0.5, max: 8 });
+    const intervalMinutes = intervalFieldValue("workBreakIntervalMinutes", 150);
+    const breaksVary = Boolean(document.getElementById("workBreaksVary")?.checked);
+    const preferences = {
+      firstBreakAfterMinutes: Math.round(firstAfterHours * 60),
+      breakIntervalMinutes: Math.round(intervalMinutes),
+      breaksVary
+    };
+    return generateFlexibleWorkBreakRows(blockId, shiftStart, shiftEnd, key, preferences);
   }
 
   function readWorkDemandForm(blockId) {
@@ -3344,6 +3413,9 @@
     const start = dateTimeForDemand(key, document.getElementById("workShiftStartTime")?.value || "");
     const end = dateTimeForDemand(key, document.getElementById("workShiftEndTime")?.value || "", start);
     if (!start || !end) throw new Error("Choose a valid shift start and finish time.");
+    const firstAfterHours = hoursFieldValue("workFirstBreakAfterHours", 2, { min: 0.5, max: 8 });
+    const intervalMinutes = intervalFieldValue("workBreakIntervalMinutes", 150);
+    const breaksVary = Boolean(document.getElementById("workBreaksVary")?.checked);
     return {
       block: {
         type: "work",
@@ -3352,9 +3424,12 @@
         endTime: end.toISOString(),
         title: String(document.getElementById("workShiftName")?.value || "").trim(),
         shiftName: String(document.getElementById("workShiftName")?.value || "").trim(),
-        notes: String(document.getElementById("workDemandNotes")?.value || "").trim()
+        notes: String(document.getElementById("workDemandNotes")?.value || "").trim(),
+        firstBreakAfterMinutes: Math.round(firstAfterHours * 60),
+        breakIntervalMinutes: Math.round(intervalMinutes),
+        breaksVary
       },
-      breaks: readWorkBreakRows(blockId, start, key)
+      breaks: readWorkBreakRows(blockId, start, end, key)
     };
   }
 
@@ -3376,7 +3451,7 @@
       gap.workBreaks = gap.workBreaks.filter(item => item.demandBlockId !== next.id);
       syncDayTypeFromDemand(next);
       demandPlannerEditingId = "";
-      await persistDemandPlanning("Training session saved. Fuel opportunities updated.");
+      await persistDemandPlanning("Training session saved. Fuel suggestions updated.");
     } catch (error) {
       demandPlannerStatus = error?.message || "Training session could not be saved.";
       renderDemandPlanner();
@@ -3407,7 +3482,7 @@
       gap.workBreaks = gap.workBreaks.filter(item => item.demandBlockId !== blockId).concat(form.breaks);
       syncDayTypeFromDemand(next);
       demandPlannerEditingId = "";
-      await persistDemandPlanning("Work shift saved. Break opportunities updated.");
+      await persistDemandPlanning("Work shift saved. Break and fuel windows updated.");
     } catch (error) {
       demandPlannerStatus = error?.message || "Work shift could not be saved.";
       renderDemandPlanner();
@@ -3418,7 +3493,7 @@
     const gap = betaState();
     const block = gap.demandBlocks.find(item => item.id === id || item.cloudId === id);
     if (!block) return;
-    if (!window.confirm("Delete this demand block?")) return;
+    if (!window.confirm("Delete this plan item?")) return;
     gap.demandBlocks = gap.demandBlocks.filter(item => item !== block);
     if (block.cloudId || block.id) gap.cloud.pendingDemandDeleteIds.push(block.cloudId || block.id);
     const removedBreaks = gap.workBreaks.filter(item => item.demandBlockId === block.id);
@@ -3427,7 +3502,7 @@
     });
     gap.workBreaks = gap.workBreaks.filter(item => item.demandBlockId !== block.id);
     if (demandPlannerEditingId === block.id) demandPlannerEditingId = "";
-    await persistDemandPlanning("Demand block deleted. Fuel opportunities updated.");
+    await persistDemandPlanning("Plan item deleted. Fuel suggestions updated.");
   }
 
   function renderDemandBlockCard(block) {
@@ -3439,7 +3514,7 @@
           <strong>${safeText(demandBlockTitle(block))}</strong>
           <span>${safeText(range ? timeRangeText(range.start, range.end) : "Time not set")}</span>
           ${block.type === "training" ? `<small>${safeText(`${SESSION_INTENSITY_LABELS[block.intensity] || "Easy"}${block.isKeySession ? " · Key session" : ""}`)}</small>` : ""}
-          ${block.type === "work" && breaks.length ? `<small>${safeText(`${breaks.length} scheduled break${breaks.length === 1 ? "" : "s"}`)}</small>` : ""}
+          ${block.type === "work" && breaks.length ? `<small>${safeText(`${breaks.length} suggested fuel window${breaks.length === 1 ? "" : "s"}`)}</small>` : ""}
         </div>
         <div class="button-row beta-demand-actions">
           <button class="secondary" type="button" data-edit-demand="${safeText(block.id)}">Edit</button>
@@ -3449,73 +3524,74 @@
     `;
   }
 
-  function renderBreakInputs(editingBlock) {
-    const existing = editingBlock?.type === "work" ? workBreaksForBlock(editingBlock.id) : [];
-    return [1, 2, 3].map(index => {
-      const item = existing[index - 1] || null;
-      const range = workBreakRange(item, editingBlock);
-      return `
-        <div class="beta-break-row">
-          <label>Break ${index} start<input id="workBreakStart${index}" type="time" value="${safeText(range ? timeInputValue(range.start) : "")}"></label>
-          <label>Break ${index} finish<input id="workBreakEnd${index}" type="time" value="${safeText(range ? timeInputValue(range.end) : "")}"></label>
-          <label>Label<input id="workBreakLabel${index}" type="text" value="${safeText(item?.label || "")}" placeholder="${index === 1 ? "Lunch" : "Optional"}"></label>
-        </div>
-      `;
-    }).join("");
+  function renderDemandBlockList(blocks, emptyCopy) {
+    return blocks.length
+      ? blocks.map(renderDemandBlockCard).join("")
+      : `<p class="muted beta-history-empty">${safeText(emptyCopy)}</p>`;
   }
 
-  function renderDemandPlanner() {
-    const target = document.getElementById("fuelDemandPlanner");
-    if (!target) return;
-    const key = selectedDataDateKey();
-    const blocks = demandBlocksForDay(key);
-    const editing = selectedDemandEditBlock();
-    const editingRange = blockRange(editing);
-    const trainingEditing = editing?.type === "training" ? editing : null;
-    const workEditing = editing?.type === "work" ? editing : null;
-    target.innerHTML = `
-      <section class="beta-rhythm-section-card beta-demand-planner-card" aria-label="Demand planner">
+  function renderTrainingPlanner(key, blocks, trainingEditing, editingRange) {
+    return `
+      <section class="beta-rhythm-section-card beta-demand-planner-card" aria-label="Training planner">
         <div class="section-heading-row">
           <div>
-            <h3>Demand planner</h3>
-            <p class="muted">Add training, work shifts and scheduled breaks so Fuel Guard can build today’s fuel plan.</p>
+            <h3>Training</h3>
+            <p class="muted">Add sessions so Fuel Guard can suggest fuel before, during and after training.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
         <div class="beta-demand-existing">
-          ${blocks.length ? blocks.map(renderDemandBlockCard).join("") : `<p class="muted beta-history-empty">No training or work blocks added for this day yet.</p>`}
+          ${renderDemandBlockList(blocks.filter(block => block.type === "training"), "No training sessions added for this day yet.")}
         </div>
-        <div class="beta-demand-form-grid">
-          <div class="beta-demand-form">
-            <h4>${trainingEditing ? "Edit training session" : "Add training session"}</h4>
-            <div class="form-grid beta-settings-grid">
-              <label>Start<input id="trainingStartTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
-              <label>Finish<input id="trainingEndTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
-              <label>Session type<select id="trainingSessionType">${TRAINING_DEMAND_TYPES.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "sessionType", "run") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
-              <label>Intensity<select id="trainingIntensity">${SESSION_INTENSITY_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "intensity", "easy") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
-              <label class="beta-checkbox-label"><input id="trainingKeySession" type="checkbox" ${trainingEditing?.isKeySession ? "checked" : ""}> Key session</label>
-              <label>Notes<input id="trainingDemandNotes" type="text" value="${safeText(trainingEditing?.notes || "")}" placeholder="Optional"></label>
-            </div>
-            <div class="button-row beta-settings-actions">
-              <button id="saveTrainingDemandButton" class="primary" type="button">${trainingEditing ? "Save training" : "Add training"}</button>
-            </div>
+        <div class="beta-demand-form">
+          <h4>${trainingEditing ? "Edit training session" : "Add training session"}</h4>
+          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>Start<input id="trainingStartTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
+            <label>Finish<input id="trainingEndTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
+            <label>Session type<select id="trainingSessionType">${TRAINING_DEMAND_TYPES.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "sessionType", "run") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+            <label>Intensity<select id="trainingIntensity">${SESSION_INTENSITY_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "intensity", "easy") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+            <label class="beta-checkbox-label"><input id="trainingKeySession" type="checkbox" ${trainingEditing?.isKeySession ? "checked" : ""}> Key session</label>
+            <label>Notes<input id="trainingDemandNotes" type="text" value="${safeText(trainingEditing?.notes || "")}" placeholder="Optional"></label>
           </div>
-          <div class="beta-demand-form">
-            <h4>${workEditing ? "Edit work shift" : "Add work shift"}</h4>
-            <div class="form-grid beta-settings-grid">
-              <label>Shift start<input id="workShiftStartTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
-              <label>Shift finish<input id="workShiftEndTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
-              <label>Shift name<input id="workShiftName" type="text" value="${safeText(workEditing?.title || workEditing?.shiftName || "")}" placeholder="Optional"></label>
-              <label>Notes<input id="workDemandNotes" type="text" value="${safeText(workEditing?.notes || "")}" placeholder="Optional"></label>
-            </div>
-            <div class="beta-break-list">
-              <h5>Scheduled breaks</h5>
-              ${renderBreakInputs(workEditing)}
-            </div>
-            <div class="button-row beta-settings-actions">
-              <button id="saveWorkDemandButton" class="primary" type="button">${workEditing ? "Save work shift" : "Add work shift"}</button>
-              ${editing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
-            </div>
+          <div class="button-row beta-settings-actions">
+            <button id="saveTrainingDemandButton" class="primary" type="button">${trainingEditing ? "Save training" : "Add training"}</button>
+            ${trainingEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
+          </div>
+        </div>
+        <p id="fuelTrainingPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
+      </section>
+    `;
+  }
+
+  function renderWorkPlanner(key, blocks, workEditing, editingRange) {
+    const prefs = workBreakPreferencesFromBlock(workEditing);
+    return `
+      <section class="beta-rhythm-section-card beta-demand-planner-card" aria-label="Work planner">
+        <div class="section-heading-row">
+          <div>
+            <h3>Work</h3>
+            <p class="muted">Add shifts and rough break preferences. Fuel Guard will suggest flexible fuel windows, not fixed workplace breaks.</p>
+          </div>
+          <span class="row-note">${safeText(formatDateKey(key))}</span>
+        </div>
+        <div class="beta-demand-existing">
+          ${renderDemandBlockList(blocks.filter(block => block.type === "work"), "No work shifts added for this day yet.")}
+        </div>
+        <div class="beta-demand-form">
+          <h4>${workEditing ? "Edit work shift" : "Add work shift"}</h4>
+          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>Shift starts<input id="workShiftStartTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
+            <label>Shift ends<input id="workShiftEndTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
+            <label>First break usually after<input id="workFirstBreakAfterHours" type="number" min="0.5" max="8" step="0.5" inputmode="decimal" value="${safeText(hoursValue(prefs.firstAfterMinutes || 120))}"></label>
+            <label>Aim for a break every<select id="workBreakIntervalMinutes">${WORK_BREAK_INTERVAL_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${String(prefs.breakIntervalMinutes || 150) === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+            <label>Shift name<input id="workShiftName" type="text" value="${safeText(workEditing?.title || workEditing?.shiftName || "")}" placeholder="Optional"></label>
+            <label>Notes<input id="workDemandNotes" type="text" value="${safeText(workEditing?.notes || "")}" placeholder="Optional"></label>
+            <label class="beta-checkbox-label beta-breaks-vary"><input id="workBreaksVary" type="checkbox" ${prefs.breaksVary ? "checked" : ""}> Breaks vary</label>
+          </div>
+          <p class="row-note">These are estimates. Fuel Guard uses them to create flexible suggested break and fuel windows inside your shift.</p>
+          <div class="button-row beta-settings-actions">
+            <button id="saveWorkDemandButton" class="primary" type="button">${workEditing ? "Save work shift" : "Add work shift"}</button>
+            ${workEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
           </div>
         </div>
         <p id="fuelDemandPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
@@ -3523,8 +3599,82 @@
     `;
   }
 
+  function renderDemandPlanner() {
+    const workTarget = document.getElementById("fuelWorkPlanner");
+    const trainingTarget = document.getElementById("fuelTrainingPlanner");
+    const legacyTarget = document.getElementById("fuelDemandPlanner");
+    if (!workTarget && !trainingTarget && !legacyTarget) return;
+    const key = selectedDataDateKey();
+    const blocks = demandBlocksForDay(key);
+    const editing = selectedDemandEditBlock();
+    const editingRange = blockRange(editing);
+    const trainingEditing = editing?.type === "training" ? editing : null;
+    const workEditing = editing?.type === "work" ? editing : null;
+    const workMarkup = renderWorkPlanner(key, blocks, workEditing, editingRange);
+    const trainingMarkup = renderTrainingPlanner(key, blocks, trainingEditing, editingRange);
+    if (workTarget) workTarget.innerHTML = workMarkup;
+    if (trainingTarget) trainingTarget.innerHTML = trainingMarkup;
+    if (legacyTarget) legacyTarget.innerHTML = `${workMarkup}${trainingMarkup}`;
+  }
+
   function todayViewKey() {
     return dateKey();
+  }
+
+  function demandBlocksByTypeForDay(key, type) {
+    return demandBlocksForDay(key).filter(block => block.type === type);
+  }
+
+  function compactBlockRangeText(block) {
+    const range = blockRange(block);
+    return range ? timeRangeText(range.start, range.end) : "Time not set";
+  }
+
+  function blockSummaryText(blocks, type) {
+    if (!blocks.length) return type === "work" ? "No work shift planned." : "No training planned.";
+    const labels = blocks.slice(0, 2).map(block => `${demandBlockTitle(block)} ${compactBlockRangeText(block)}`);
+    const extra = blocks.length > 2 ? ` +${blocks.length - 2} more` : "";
+    return `${labels.join(" · ")}${extra}`;
+  }
+
+  function opportunityCountSummary(opportunities) {
+    const upcoming = opportunities.filter(item => ["upcoming", "due_soon", "overdue"].includes(item.status) && !item.completedAt).length;
+    const missed = opportunities.filter(item => item.status === "missed").length;
+    const completed = opportunities.filter(item => item.completedAt).length;
+    return { upcoming, missed, completed };
+  }
+
+  function renderPlanTodayOverview(key = selectedDataDateKey(), now = new Date()) {
+    const entry = buildArchiveEntry(key);
+    const fuelLogs = logsForDay(key).filter(isFuelLog);
+    const hydrationLogs = logsForDay(key).filter(isHydrationLog);
+    const lowEnergyLogs = logsForDay(key).filter(isCrashLog);
+    const workBlocks = demandBlocksByTypeForDay(key, "work");
+    const trainingBlocks = demandBlocksByTypeForDay(key, "training");
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const counts = opportunityCountSummary(opportunities);
+    const window = fuellingWindowStatusForDay(key, fuelLogs, now);
+    return `
+      <section class="beta-rhythm-section-card beta-plan-today-card" aria-label="Today plan overview">
+        <div class="section-heading-row">
+          <div>
+            <h3>Today plan</h3>
+            <p class="muted">You enter work, training and targets. Fuel Guard turns that into practical fuel suggestions.</p>
+          </div>
+          <span class="row-note">${safeText(formatDateKey(key))}</span>
+        </div>
+        <div class="beta-plan-overview-grid">
+          ${dailyMetricCard("Work", workBlocks.length ? `${workBlocks.length} shift${workBlocks.length === 1 ? "" : "s"}` : "Not planned", blockSummaryText(workBlocks, "work"), "fuel")}
+          ${dailyMetricCard("Training", trainingBlocks.length ? `${trainingBlocks.length} session${trainingBlocks.length === 1 ? "" : "s"}` : "Not planned", blockSummaryText(trainingBlocks, "training"), "hydration")}
+          ${dailyMetricCard("Fuelling window", window.started ? `${window.firstFuel}-${window.closesAt}` : window.remaining, window.message, "fuel")}
+          ${dailyMetricCard("Targets", `${fuelLogs.length}${hasTarget(targets().dailyFuelLogs) ? `/${targets().dailyFuelLogs}` : ""} fuel · ${hydrationLogs.length}${hasTarget(targets().dailyHydrationLogs) ? `/${targets().dailyHydrationLogs}` : ""} hydration`, "Progress updates as logs are added.", "target")}
+          ${dailyMetricCard("Suggested fuel", String(opportunities.length), `${counts.upcoming} upcoming · ${counts.completed} logged · ${counts.missed} missed`, "fuel")}
+          ${dailyMetricCard("Low energy", String(lowEnergyLogs.length), lowEnergyLogs.length ? "Shown in the timeline below." : "No low-energy logs for this day.", "neutral")}
+        </div>
+        <p class="row-note">${safeText(entry.plainSummary || "Add logs or planning details to build the day summary.")}</p>
+      </section>
+      ${renderTodaysFuelPlan(fuelLogs, key, now)}
+    `;
   }
 
   function lastLogForDay(key, predicate) {
@@ -3567,8 +3717,8 @@
           : "Window ended"
         : "Selected day complete",
       message: isToday && remainingMinutes <= 0
-        ? "Your normal fuelling window has ended for today."
-        : `Normal fuelling window closes at ${formatClock(end)}.`
+        ? "Your fuelling window has ended for today."
+        : `Fuelling window closes at ${formatClock(end)}.`
     };
   }
 
@@ -3672,7 +3822,7 @@
             time: breakRange.start,
             end: breakRange.end,
             title: item.label || "Work break",
-            detail: "Protected fuelling opportunity"
+            detail: "Protected fuel time"
           } : null;
         }).filter(Boolean)
         : [];
@@ -3714,12 +3864,13 @@
 
   function renderTodayTimeline(key = todayViewKey(), now = new Date()) {
     const items = todayTimelineItems(key, now);
+    const title = key === dateKey(now) ? "Today’s timeline" : "Daily timeline";
     return `
       <section class="beta-rhythm-section-card beta-today-timeline-card" aria-label="Today’s timeline">
         <div class="section-heading-row">
           <div>
-            <h3>Today’s timeline</h3>
-            <p class="muted">Work, training, protected fuel moments and actual logs in one place.</p>
+            <h3>${safeText(title)}</h3>
+            <p class="muted">Work, training, fuel suggestions, hydration suggestions and actual logs in one place.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
@@ -3733,7 +3884,7 @@
                 <small>${safeText(timelineTypeLabel(item.type))}${item.detail ? ` · ${safeText(item.detail)}` : ""}</small>
               </div>
             </article>
-          `).join("") : `<p class="muted beta-history-empty">No plan or logs for today yet. Add work, training, or a fuel log to build the timeline.</p>`}
+          `).join("") : `<p class="muted beta-history-empty">No plan or logs for this day yet. Add work, training, or a fuel log to build the timeline.</p>`}
         </div>
         <div class="beta-timeline-legend" aria-hidden="true">
           <span><i class="planned"></i>Planned</span>
@@ -3765,7 +3916,7 @@
         <div class="beta-target-progress-grid beta-today-progress-grid">
           ${renderTargetProgressCard("Fuel", fuelLogs.length, targets().dailyFuelLogs, "fuel", "daily")}
           ${renderTargetProgressCard("Hydration", hydrationLogs.length, targets().dailyHydrationLogs, "hydration", "daily")}
-          ${dailyMetricCard("Fuelling adherence", adherence === null ? "Building" : `${adherence}%`, scored.length ? `${scored.length} fuel opportunities scored.` : "Add planned moments and logs.", "fuel")}
+          ${dailyMetricCard("Fuelling adherence", adherence === null ? "Building" : `${adherence}%`, scored.length ? `${scored.length} fuel suggestion${scored.length === 1 ? "" : "s"} checked.` : "Add fuel suggestions and logs.", "fuel")}
           ${dailyMetricCard("Window remaining", window.remaining, window.message, "fuel")}
           ${dailyMetricCard("Daily Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel")}
         </div>
@@ -3813,11 +3964,11 @@
       .sort((a, b) => (priorityOrder[a.status] ?? 9) - (priorityOrder[b.status] ?? 9) || logDate(a.plannedStart) - logDate(b.plannedStart))
       .slice(0, 8);
     return `
-      <section class="beta-rhythm-section-card beta-protected-moments-card" aria-label="Protected fuelling moments">
+      <section class="beta-rhythm-section-card beta-protected-moments-card" aria-label="Protected fuel times">
         <div class="section-heading-row">
           <div>
-            <h3>Protected fuelling moments</h3>
-            <p class="muted">Generated from your work schedule, breaks, training and fuelling window.</p>
+            <h3>Protected fuel times</h3>
+            <p class="muted">Generated from your work schedule, flexible break estimates, training and fuelling window.</p>
           </div>
         </div>
         <div class="beta-protected-moment-list">
@@ -4188,6 +4339,27 @@
     if (dateInput.value !== selectedKey) dateInput.value = selectedKey;
   }
 
+  function renderPlanSubtabs() {
+    const valid = new Set(["today", "work", "training", "targets"]);
+    if (!valid.has(selectedPlanSubtab)) selectedPlanSubtab = "today";
+    document.querySelectorAll("[data-plan-subtab]").forEach(button => {
+      const active = button.dataset.planSubtab === selectedPlanSubtab;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-plan-panel]").forEach(panel => {
+      const active = panel.dataset.planPanel === selectedPlanSubtab;
+      panel.classList.toggle("active", active);
+      panel.hidden = !active;
+    });
+  }
+
+  function setPlanSubtab(value) {
+    selectedPlanSubtab = ["today", "work", "training", "targets"].includes(value) ? value : "today";
+    renderPlanSubtabs();
+    renderDemandPlanner();
+  }
+
   function renderSelectedDayCard() {
     syncSelectedDataDateInput();
     const entry = selectedDataEntry();
@@ -4206,13 +4378,16 @@
     const todayProgressTarget = document.getElementById("fuelTodayProgress");
     const todaySummaryTarget = document.getElementById("fuelTodaySummary");
     const protectedMomentsTarget = document.getElementById("fuelProtectedMoments");
+    const planTodayOverviewTarget = document.getElementById("fuelPlanTodayOverview");
+    renderPlanSubtabs();
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
     renderDemandPlanner();
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
-    if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(todayKey);
-    if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(todayKey);
-    if (todaySummaryTarget) todaySummaryTarget.innerHTML = renderCompactDailySummary(todayKey);
+    if (planTodayOverviewTarget) planTodayOverviewTarget.innerHTML = renderPlanTodayOverview(key);
+    if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
+    if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(key);
+    if (todaySummaryTarget) todaySummaryTarget.innerHTML = renderCompactDailySummary(key);
     if (protectedMomentsTarget) protectedMomentsTarget.innerHTML = renderProtectedFuelMoments(key);
     if (windowTarget) windowTarget.innerHTML = renderTodaysFuelPlan(fuelLogs, key);
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
@@ -4242,6 +4417,179 @@
         </div>
       </article>
     `;
+  }
+
+  function historyEntriesWithLogs() {
+    return archiveEntries()
+      .filter(entry => Array.isArray(entry.logs) && entry.logs.length > 0)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+
+  function historyTargetSummary(entry) {
+    const score = calculateDailyFuelScore(entry.date).finalScore;
+    if (Number.isFinite(score)) return `${score}/100`;
+    const currentTargets = targets();
+    const fuelPercent = targetPercent(entry.fuelLogCount || 0, currentTargets.dailyFuelLogs);
+    const hydrationPercent = targetPercent(entry.hydrationLogCount || 0, currentTargets.dailyHydrationLogs);
+    if (fuelPercent !== null || hydrationPercent !== null) {
+      return [
+        fuelPercent !== null ? `${fuelPercent}% fuel` : "",
+        hydrationPercent !== null ? `${hydrationPercent}% hydration` : ""
+      ].filter(Boolean).join(" · ");
+    }
+    return "Score building";
+  }
+
+  function historyDemandIndicators(key) {
+    const workCount = demandBlocksByTypeForDay(key, "work").length;
+    const trainingCount = demandBlocksByTypeForDay(key, "training").length;
+    const items = [];
+    if (workCount) items.push(`<span>${dailyIcon("clock")} Work</span>`);
+    if (trainingCount) items.push(`<span>${dailyIcon("route")} Training</span>`);
+    return items.length ? `<div class="beta-history-day-indicators">${items.join("")}</div>` : "";
+  }
+
+  function renderHistoryDayCard(entry) {
+    const active = selectedHistoryDetailKey === entry.date ? "active" : "";
+    return `
+      <button class="beta-history-day-card ${active}" type="button" data-history-date="${safeText(entry.date)}">
+        <div class="beta-history-day-card-head">
+          <div>
+            <strong>${safeText(entry.dateLabel || formatDateKey(entry.date))}</strong>
+            <span>${safeText(entry.dayTypeLabel || "Day type not set")}</span>
+          </div>
+          <small>${safeText(historyTargetSummary(entry))}</small>
+        </div>
+        <div class="beta-history-day-card-grid">
+          <span><b>${safeText(String(entry.fuelLogCount || 0))}</b> fuel logs</span>
+          <span><b>${safeText(entry.firstFuelTime || "Not logged")}</b> first fuel</span>
+          <span><b>${safeText(entry.lastFuelTime || "Not logged")}</b> final fuel</span>
+          <span><b>${safeText(entry.longestGap || durationText(entry.longestGapMinutes || 0))}</b> longest gap</span>
+        </div>
+        ${historyDemandIndicators(entry.date)}
+      </button>
+    `;
+  }
+
+  function renderHistoryList() {
+    const target = document.getElementById("fuelHistoryList");
+    if (!target) return;
+    const entries = historyEntriesWithLogs();
+    if (!entries.length) {
+      target.innerHTML = `
+        <section class="beta-rhythm-section-card beta-history-empty-card">
+          <h3>Logged days</h3>
+          <p class="muted">History will appear after you log fuel, hydration, or low energy.</p>
+        </section>
+      `;
+      selectedHistoryDetailKey = "";
+      renderHistoryDetail();
+      return;
+    }
+    if (!selectedHistoryDetailKey || !entries.some(entry => entry.date === selectedHistoryDetailKey)) {
+      selectedHistoryDetailKey = entries[0].date;
+    }
+    target.innerHTML = `
+      <section class="beta-rhythm-section-card beta-history-list-card" aria-label="Logged days">
+        <div class="section-heading-row">
+          <div>
+            <h3>Logged days</h3>
+            <p class="muted">Tap a day to see the full detail.</p>
+          </div>
+          <span class="row-note">${safeText(String(entries.length))} day${entries.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="beta-history-day-list">
+          ${entries.map(renderHistoryDayCard).join("")}
+        </div>
+      </section>
+    `;
+    renderHistoryDetail();
+  }
+
+  function renderHistoryLogGroup(title, logs, emptyCopy) {
+    return `
+      <section class="beta-history-log-group">
+        <h4>${safeText(title)}</h4>
+        ${logs.length ? `<div class="beta-history-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>` : `<p class="muted beta-history-empty">${safeText(emptyCopy)}</p>`}
+      </section>
+    `;
+  }
+
+  function renderHistoryDemandDetail(key) {
+    const workBlocks = demandBlocksByTypeForDay(key, "work");
+    const trainingBlocks = demandBlocksByTypeForDay(key, "training");
+    const blockRows = [...workBlocks, ...trainingBlocks].map(block => {
+      const range = blockRange(block);
+      const breaks = block.type === "work" ? workBreaksForBlock(block.id) : [];
+      return `
+        <article class="beta-history-demand-row ${safeText(block.type)}">
+          <strong>${safeText(demandBlockTitle(block))}</strong>
+          <span>${safeText(range ? timeRangeText(range.start, range.end) : "Time not set")}</span>
+          ${block.type === "training" ? `<small>${safeText(`${SESSION_INTENSITY_LABELS[block.intensity] || "Easy"}${block.isKeySession ? " · Key session" : ""}`)}</small>` : ""}
+          ${block.type === "work" && breaks.length ? `<small>${safeText(`${breaks.length} suggested fuel window${breaks.length === 1 ? "" : "s"}`)}</small>` : ""}
+        </article>
+      `;
+    });
+    return `
+      <section class="beta-rhythm-section-card beta-history-demand-detail-card">
+        <div class="section-heading-row">
+          <h3>Work and training</h3>
+        </div>
+        ${blockRows.length ? `<div class="beta-history-demand-list">${blockRows.join("")}</div>` : `<p class="muted beta-history-empty">No work shift or training session was planned for this day.</p>`}
+      </section>
+    `;
+  }
+
+  function renderHistoryDetail() {
+    const target = document.getElementById("fuelHistoryDetail");
+    if (!target) return;
+    const key = selectedHistoryDetailKey;
+    if (!key) {
+      target.innerHTML = "";
+      return;
+    }
+    const entry = buildArchiveEntry(key);
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const lowEnergyLogs = logs.filter(isCrashLog);
+    target.innerHTML = `
+      <section class="beta-rhythm-section-card beta-history-detail-card" aria-label="History day detail">
+        <div class="section-heading-row">
+          <div>
+            <h3>${safeText(entry.dateLabel || formatDateKey(key))}</h3>
+            <p class="muted">${safeText(entry.plainSummary || "Detailed day review.")}</p>
+          </div>
+          <span class="row-note">${safeText(entry.dayTypeLabel || "Day type not set")}</span>
+        </div>
+        <div class="beta-daily-status-groups">
+          ${renderDailyMetricGroup("At a glance", [
+            dailyMetricCard("Fuel logs", String(fuelLogs.length), "Total fuel logs.", "fuel"),
+            dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Total hydration logs.", "hydration"),
+            dailyMetricCard("Longest fuel gap", entry.longestGap || durationText(entry.longestGapMinutes || 0), "Longest time between fuel logs.", "fuel"),
+            dailyMetricCard("Longest hydration gap", entry.longestHydrationGap || durationText(entry.longestHydrationGapMinutes || 0), "Longest time between hydration logs.", "hydration")
+          ])}
+        </div>
+      </section>
+      ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length, targets(), key)}
+      ${renderTodaysFuelPlan(fuelLogs, key)}
+      ${renderHistoryDemandDetail(key)}
+      ${renderTodayTimeline(key)}
+      <section class="beta-rhythm-section-card beta-history-log-detail-card">
+        <div class="section-heading-row">
+          <h3>Logs</h3>
+        </div>
+        <div class="beta-history-log-groups">
+          ${renderHistoryLogGroup("Fuel logs", fuelLogs, "No fuel logs for this day.")}
+          ${renderHistoryLogGroup("Hydration logs", hydrationLogs, "No hydration logs for this day.")}
+          ${renderHistoryLogGroup("Low-energy logs", lowEnergyLogs, "No low-energy logs for this day.")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderHistoryScreen() {
+    renderHistoryList();
   }
 
   function impactDayPhrase(entry) {
@@ -6367,7 +6715,7 @@
       id: "shift-break-delay",
       category: "shift",
       text: `Work-break fuelling is delayed by about ${diff} minutes more on ${delayedLabel}.`,
-      detail: "Break timing is inferred from your saved work shifts and scheduled breaks.",
+      detail: "Break timing is inferred from your saved work shifts and flexible break windows.",
       icon: "clock",
       tone: "elevated",
       frequency: Math.min(overnightBreaks.length, dayBreaks.length),
@@ -6408,7 +6756,7 @@
         id: "work-break-order-missed",
         category: "break-order",
         text: `${label[0].toUpperCase()}${label.slice(1)} are delayed or missed more often.`,
-        detail: `${Math.round(Math.max(firstMissRate, laterMissRate) * 100)}% of matching break opportunities were delayed or missed.`,
+        detail: `${Math.round(Math.max(firstMissRate, laterMissRate) * 100)}% of matching break windows were delayed or missed.`,
         icon: "route",
         tone: "elevated",
         frequency: Math.min(first.length, later.length),
@@ -6435,7 +6783,7 @@
       id: "pre-post-training-adherence",
       category: "training-adherence",
       text: `Your ${stronger} fuel adherence is ${Math.round(Math.abs(diff))} points stronger than ${softer}.`,
-      detail: "Training timing uses matched planned fuel opportunities.",
+      detail: "Training timing uses matched fuel suggestions.",
       icon: "score",
       tone: "protected",
       frequency: Math.min(pre.length, post.length),
@@ -6563,7 +6911,7 @@
           <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
           <div>
             <h3>Personalised Insights</h3>
-            <p>Repeated patterns from your logs, demand blocks and planned fuel opportunities.</p>
+            <p>Repeated patterns from your logs, work/training plans and fuel suggestions.</p>
           </div>
         </div>
         ${insights.length ? `
@@ -6609,7 +6957,7 @@
       const score = calculateDailyFuelScore(key).finalScore;
       return { label: day.shortLabel, dateLabel: day.dateLabel, score };
     });
-    if (!points.some(point => Number.isFinite(point.score))) return `<div class="beta-trend-chart-empty">Add fuel logs and demand blocks to build Fuel Score history.</div>`;
+    if (!points.some(point => Number.isFinite(point.score))) return `<div class="beta-trend-chart-empty">Add fuel logs and work/training plans to build Fuel Score history.</div>`;
     const width = 760;
     const height = 300;
     const padding = { top: 34, right: 28, bottom: 60, left: 64 };
@@ -6664,7 +7012,7 @@
           <span class="beta-trend-result-chip ${Number(currentScore || 0) >= 75 ? "protected" : Number(currentScore || 0) >= 60 ? "neutral" : "elevated"}">${safeText(currentLabel)}</span>
         </div>
         <div class="beta-fuel-score-summary">
-          <strong>${safeText(Number.isFinite(currentScore) ? fuelScoreLabel(currentScore) : "Add planned fuel opportunities to build a score.")}</strong>
+          <strong>${safeText(Number.isFinite(currentScore) ? fuelScoreLabel(currentScore) : "Add fuel suggestions to build a score.")}</strong>
           <span>${safeText(scoreDifferenceLabel(currentScore, previousScore))}</span>
         </div>
         ${componentRows ? `<div class="beta-fuel-score-components">${componentRows}</div>` : `<p class="muted beta-history-empty">Components appear when training, work, gap or target data exists for this period.</p>`}
@@ -6686,7 +7034,7 @@
     const missed = opportunities.filter(item => item.status === "missed" || item.status === "overdue");
     const counts = new Map();
     missed.forEach(item => counts.set(item.type, (counts.get(item.type) || 0) + 1));
-    if (!counts.size) return "No repeated missed opportunity yet";
+    if (!counts.size) return "No repeated missed fuel time yet";
     const [type, count] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
     const label = type.replace(/_/g, " ");
     return `${label} · ${count} time${count === 1 ? "" : "s"}`;
@@ -6715,9 +7063,9 @@
           </div>
         </div>
         <div class="beta-trend-habit-grid">
-          ${renderWeeklyMetricCard("Training opportunities completed", `${training.completed.length} of ${training.opportunities.length}`, Number.isFinite(training.average) ? `Average timing score ${Math.round(training.average)}.` : "Needs completed training opportunities.")}
-          ${renderWeeklyMetricCard("Work-break opportunities completed", `${work.completed.length} of ${work.opportunities.length}`, Number.isFinite(work.average) ? `Average timing score ${Math.round(work.average)}.` : "Needs completed work opportunities.")}
-          ${renderWeeklyMetricCard("Most commonly missed opportunity", mostMissedOpportunityLabel([...training.opportunities, ...work.opportunities]), "Only shown when there is enough repeated signal.")}
+          ${renderWeeklyMetricCard("Training fuel times completed", `${training.completed.length} of ${training.opportunities.length}`, Number.isFinite(training.average) ? `Average timing score ${Math.round(training.average)}.` : "Needs completed training fuel times.")}
+          ${renderWeeklyMetricCard("Work-break fuel times completed", `${work.completed.length} of ${work.opportunities.length}`, Number.isFinite(work.average) ? `Average timing score ${Math.round(work.average)}.` : "Needs completed work fuel times.")}
+          ${renderWeeklyMetricCard("Most commonly missed fuel time", mostMissedOpportunityLabel([...training.opportunities, ...work.opportunities]), "Only shown when there is enough repeated signal.")}
         </div>
       </section>
     `;
@@ -6768,13 +7116,13 @@
           <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
           <div>
             <h3>Fuel Debt</h3>
-            <p>Seven-day behavioural summary of repeated missed or delayed fuelling opportunities.</p>
+            <p>Seven-day behavioural summary of repeated missed or delayed fuel times.</p>
           </div>
           <span class="beta-trend-result-chip ${debt.severity === "Clear" ? "protected" : debt.severity === "High" ? "elevated" : "neutral"}">${safeText(debt.severity)}</span>
         </div>
         <div class="beta-trend-habit-grid">
-          ${renderWeeklyMetricCard("Missed key opportunities", String(debt.missedKeyOpportunities), "Key-session fuel opportunities only.")}
-          ${renderWeeklyMetricCard("Delayed opportunities", String(debt.delayedOpportunities), "Completed late or still overdue.")}
+          ${renderWeeklyMetricCard("Missed key fuel times", String(debt.missedKeyOpportunities), "Key-session fuel times only.")}
+          ${renderWeeklyMetricCard("Delayed fuel times", String(debt.delayedOpportunities), "Completed late or still overdue.")}
           ${renderWeeklyMetricCard("Beyond planned gaps", fuelDebtDurationText(debt.excessGapMinutes), `Pattern direction: ${debt.direction}.`)}
           ${renderWeeklyMetricCard("Consecutive off-plan days", String(debt.consecutiveOffPlanDays), "Days below mostly-on-track adherence.")}
         </div>
@@ -7542,6 +7890,7 @@
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
     const planActive = document.getElementById("plan")?.classList.contains("active");
+    const historyActive = document.getElementById("history")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
@@ -7568,13 +7917,14 @@
       renderSelectedDayCard();
       if (dashboardActive) renderDailyLog();
     }
+    if (historyActive) renderHistoryScreen();
     if (settingsActive) renderSettings();
     if (trendsActive) renderTrends();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "plan", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "plan", "history", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -7590,6 +7940,7 @@
       renderDayTypeControls();
       renderSelectedDayCard();
     }
+    if (target === "history") renderHistoryScreen();
     if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
   };
@@ -7756,6 +8107,17 @@
   document.getElementById("cancelMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(false));
   document.getElementById("saveMissedLogButton")?.addEventListener("click", saveMissedLog);
   document.addEventListener("click", event => {
+    const planSubtab = event.target.closest("[data-plan-subtab]");
+    if (planSubtab) {
+      setPlanSubtab(planSubtab.dataset.planSubtab || "today");
+      return;
+    }
+    const historyDate = event.target.closest("[data-history-date]");
+    if (historyDate) {
+      selectedHistoryDetailKey = historyDate.dataset.historyDate || "";
+      renderHistoryScreen();
+      return;
+    }
     if (event.target.closest("#saveTrainingDemandButton")) {
       saveTrainingDemand();
       return;
@@ -7768,13 +8130,16 @@
       demandPlannerEditingId = "";
       demandPlannerStatus = "";
       renderDemandPlanner();
+      renderSelectedDayCard();
       return;
     }
     const editDemand = event.target.closest("[data-edit-demand]");
     if (editDemand) {
       demandPlannerEditingId = editDemand.dataset.editDemand || "";
-      demandPlannerStatus = "Editing demand block.";
-      renderDemandPlanner();
+      demandPlannerStatus = "Editing plan item.";
+      const block = selectedDemandEditBlock();
+      if (block?.type) selectedPlanSubtab = block.type === "work" ? "work" : "training";
+      renderSelectedDayCard();
       return;
     }
     const deleteDemand = event.target.closest("[data-delete-demand]");
