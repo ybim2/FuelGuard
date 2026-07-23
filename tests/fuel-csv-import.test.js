@@ -10,11 +10,18 @@ function loadFuelGuardCsvImporter() {
     archive: {},
     dayTypes: {},
     trainingSessions: {},
+    demandBlocks: [],
+    workBreaks: [],
     ridePlans: [],
     rideTemplates: [],
     foodRunway: [],
     targets: {},
-    thresholds: {}
+    thresholds: {},
+    cloud: {
+      pendingDeleteIds: [],
+      pendingDemandDeleteIds: [],
+      pendingWorkBreakDeleteIds: []
+    }
   };
   const classList = {
     add() {},
@@ -80,7 +87,11 @@ function loadFuelGuardCsvImporter() {
   vm.createContext(context);
   const source = fs.readFileSync(path.join(__dirname, "..", "fuel-beta.js"), "utf8");
   vm.runInContext(source, context, { filename: "fuel-beta.js" });
-  return { importer: context.window.fuelGuardCsvImport, appState };
+  return {
+    importer: context.window.fuelGuardCsvImport,
+    planner: context.window.fuelGuardDemandPlanning,
+    appState
+  };
 }
 
 test("imports ESP32 CSV rows with event_millis", () => {
@@ -138,4 +149,42 @@ test("reports a specific CSV header validation error", () => {
 
   assert.equal(preview.recognized, false);
   assert.match(preview.validationMessage, /Missing required header: event_millis/);
+});
+
+test("creates and scores demand-aware training fuel opportunities", () => {
+  const { planner, appState } = loadFuelGuardCsvImporter();
+  appState.targets.dailyFuelLogs = 2;
+  appState.demandBlocks.push({
+    id: "11111111-1111-4111-8111-111111111111",
+    date: "2026-07-18",
+    type: "training",
+    startTime: "2026-07-18T08:00:00",
+    endTime: "2026-07-18T09:45:00",
+    sessionType: "run",
+    intensity: "hard",
+    isKeySession: true
+  });
+  appState.logs.push(
+    { id: "fuel-1", timestamp: "2026-07-18T06:55:00", type: "fuel" },
+    { id: "fuel-2", timestamp: "2026-07-18T10:05:00", type: "fuel" }
+  );
+
+  const opportunities = planner.generateFuelOpportunitiesForDay("2026-07-18", {
+    now: new Date("2026-07-18T10:30:00")
+  });
+
+  assert.equal(planner.calculateOpportunityTimingScore(
+    "2026-07-18T06:55:00",
+    "2026-07-18T06:45:00",
+    "2026-07-18T07:45:00"
+  ), 100);
+  assert.ok(opportunities.some(item => item.type === "pre_training"));
+  assert.ok(opportunities.some(item => item.type === "during_training"));
+  assert.ok(opportunities.some(item => item.type === "post_training"));
+  assert.equal(opportunities.filter(item => item.matchedFuelLogId).length, 2);
+  const score = planner.calculateDailyFuelScore("2026-07-18", {
+    now: new Date("2026-07-18T10:30:00")
+  });
+  assert.ok(Number.isInteger(score.finalScore));
+  assert.ok(score.components.some(component => component.id === "training_adherence"));
 });

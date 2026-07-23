@@ -2,6 +2,8 @@
 (() => {
   const TABLE = "fuel_logs";
   const TARGETS_TABLE = "fuel_targets";
+  const DEMAND_BLOCKS_TABLE = "fuel_demand_blocks";
+  const WORK_BREAKS_TABLE = "fuel_work_breaks";
   const STATUS_EVENT = "fuelguard:cloud-status";
   const SYNCED = "synced";
   const PENDING = "pending";
@@ -64,11 +66,17 @@
     if (!gap.cloud || typeof gap.cloud !== "object" || Array.isArray(gap.cloud)) {
       gap.cloud = {
         pendingDeleteIds: [],
+        pendingDemandDeleteIds: [],
+        pendingWorkBreakDeleteIds: [],
         lastSyncedAt: "",
         lastError: ""
       };
     }
     if (!Array.isArray(gap.cloud.pendingDeleteIds)) gap.cloud.pendingDeleteIds = [];
+    if (!Array.isArray(gap.cloud.pendingDemandDeleteIds)) gap.cloud.pendingDemandDeleteIds = [];
+    if (!Array.isArray(gap.cloud.pendingWorkBreakDeleteIds)) gap.cloud.pendingWorkBreakDeleteIds = [];
+    if (!Array.isArray(gap.demandBlocks)) gap.demandBlocks = [];
+    if (!Array.isArray(gap.workBreaks)) gap.workBreaks = [];
     return gap;
   }
 
@@ -221,6 +229,338 @@
     });
     gap.targets.updatedAt = String(gap.targets.updatedAt || "");
     return gap.targets;
+  }
+
+  function planningState() {
+    const gap = gapState();
+    if (!gap) return null;
+    if (!Array.isArray(gap.demandBlocks)) gap.demandBlocks = [];
+    if (!Array.isArray(gap.workBreaks)) gap.workBreaks = [];
+    if (!Array.isArray(gap.cloud.pendingDemandDeleteIds)) gap.cloud.pendingDemandDeleteIds = [];
+    if (!Array.isArray(gap.cloud.pendingWorkBreakDeleteIds)) gap.cloud.pendingWorkBreakDeleteIds = [];
+    return gap;
+  }
+
+  function parsePlanningDate(value) {
+    const date = value instanceof Date ? value : new Date(value || "");
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+  }
+
+  function planningDateKey(value) {
+    if (typeof todayKey !== "function") return "";
+    const date = parsePlanningDate(value);
+    return date ? todayKey(date) : "";
+  }
+
+  function isoForPlanning(value) {
+    const date = parsePlanningDate(value);
+    return date ? date.toISOString() : "";
+  }
+
+  function demandBlockRowFromState(block, currentUser) {
+    if (!block || !currentUser?.id) return null;
+    const start = isoForPlanning(block.startTime);
+    const end = isoForPlanning(block.endTime);
+    const type = String(block.type || "");
+    if (!start || !end || !["training", "work"].includes(type)) return null;
+    const id = isUuid(block.cloudId || block.id) ? String(block.cloudId || block.id) : "";
+    const row = {
+      user_id: currentUser.id,
+      date: block.date || planningDateKey(start),
+      type,
+      start_time: start,
+      end_time: end,
+      title: block.title || null,
+      session_type: type === "training" ? block.sessionType || null : null,
+      intensity: type === "training" ? block.intensity || null : null,
+      is_key_session: Boolean(type === "training" && block.isKeySession),
+      shift_name: type === "work" ? block.shiftName || block.title || null : null,
+      notes: block.notes || null,
+      updated_at: block.updatedAt || new Date().toISOString()
+    };
+    if (id) row.id = id;
+    return row;
+  }
+
+  function workBreakRowFromState(item, currentUser) {
+    const gap = planningState();
+    if (!item || !currentUser?.id || !gap) return null;
+    const parent = gap.demandBlocks.find(block => {
+      const ids = [block.id, block.cloudId].filter(Boolean).map(String);
+      return ids.includes(String(item.demandBlockId || ""));
+    });
+    const demandBlockId = parent?.cloudId || parent?.id || item.demandBlockId || "";
+    const start = isoForPlanning(item.startTime);
+    const end = isoForPlanning(item.endTime);
+    if (!start || !end || !isUuid(demandBlockId)) return null;
+    const id = isUuid(item.cloudId || item.id) ? String(item.cloudId || item.id) : "";
+    const row = {
+      user_id: currentUser.id,
+      demand_block_id: demandBlockId,
+      start_time: start,
+      end_time: end,
+      label: item.label || null,
+      updated_at: item.updatedAt || new Date().toISOString()
+    };
+    if (id) row.id = id;
+    return row;
+  }
+
+  function rowToDemandBlock(row) {
+    if (!row?.id) return null;
+    return {
+      id: row.id,
+      cloudId: row.id,
+      userId: row.user_id || "",
+      date: row.date || planningDateKey(row.start_time),
+      type: row.type,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      title: row.title || "",
+      sessionType: row.session_type || "",
+      intensity: row.intensity || "",
+      isKeySession: Boolean(row.is_key_session),
+      shiftName: row.shift_name || "",
+      notes: row.notes || "",
+      createdAt: row.created_at || "",
+      updatedAt: row.updated_at || row.created_at || "",
+      syncStatus: SYNCED
+    };
+  }
+
+  function rowToWorkBreak(row) {
+    if (!row?.id || !row?.demand_block_id) return null;
+    return {
+      id: row.id,
+      cloudId: row.id,
+      userId: row.user_id || "",
+      demandBlockId: row.demand_block_id,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      label: row.label || "",
+      createdAt: row.created_at || "",
+      updatedAt: row.updated_at || row.created_at || "",
+      syncStatus: SYNCED
+    };
+  }
+
+  function updateLocalDemandBlockFromRow(block, row) {
+    const gap = planningState();
+    if (!block || !row || !gap) return;
+    const previousIds = [block.id, block.cloudId].filter(Boolean).map(String);
+    Object.assign(block, rowToDemandBlock(row));
+    gap.workBreaks.forEach(item => {
+      if (previousIds.includes(String(item.demandBlockId || ""))) item.demandBlockId = row.id;
+    });
+  }
+
+  function updateLocalWorkBreakFromRow(item, row) {
+    if (!item || !row) return;
+    Object.assign(item, rowToWorkBreak(row));
+  }
+
+  function planningRowsMatchTimes(row, item) {
+    return isoForPlanning(row.start_time) === isoForPlanning(item.startTime)
+      && isoForPlanning(row.end_time) === isoForPlanning(item.endTime);
+  }
+
+  function findMatchingDemandBlock(row, fallbackBlock) {
+    const gap = planningState();
+    if (!gap) return null;
+    const ids = [row?.id, fallbackBlock?.id, fallbackBlock?.cloudId].filter(Boolean).map(String);
+    return gap.demandBlocks.find(block => ids.includes(String(block.id || "")) || ids.includes(String(block.cloudId || "")))
+      || gap.demandBlocks.find(block => block.type === row.type && block.date === row.date && planningRowsMatchTimes(row, block));
+  }
+
+  function findMatchingWorkBreak(row, fallbackItem) {
+    const gap = planningState();
+    if (!gap) return null;
+    const ids = [row?.id, fallbackItem?.id, fallbackItem?.cloudId].filter(Boolean).map(String);
+    return gap.workBreaks.find(item => ids.includes(String(item.id || "")) || ids.includes(String(item.cloudId || "")))
+      || gap.workBreaks.find(item => String(item.demandBlockId || "") === String(row.demand_block_id || "") && planningRowsMatchTimes(row, item));
+  }
+
+  function demandPlanningTableMissing(error) {
+    const text = `${error?.code || ""} ${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+    return text.includes("42p01")
+      || text.includes("pgrst205")
+      || text.includes("schema cache")
+      || text.includes("does not exist");
+  }
+
+  async function flushDemandPlanningDeletes() {
+    const gap = planningState();
+    const currentUser = user();
+    if (!client || !currentUser || !gap) return;
+    const breakIds = [...new Set(gap.cloud.pendingWorkBreakDeleteIds.filter(isUuid))];
+    if (breakIds.length) {
+      const { error } = await client
+        .from(WORK_BREAKS_TABLE)
+        .delete()
+        .eq("user_id", currentUser.id)
+        .in("id", breakIds);
+      if (error) throw error;
+      gap.cloud.pendingWorkBreakDeleteIds = gap.cloud.pendingWorkBreakDeleteIds.filter(id => !breakIds.includes(id));
+    }
+
+    const blockIds = [...new Set(gap.cloud.pendingDemandDeleteIds.filter(isUuid))];
+    if (blockIds.length) {
+      const { error } = await client
+        .from(DEMAND_BLOCKS_TABLE)
+        .delete()
+        .eq("user_id", currentUser.id)
+        .in("id", blockIds);
+      if (error) throw error;
+      gap.cloud.pendingDemandDeleteIds = gap.cloud.pendingDemandDeleteIds.filter(id => !blockIds.includes(id));
+    }
+  }
+
+  async function upsertDemandBlocks() {
+    const gap = planningState();
+    const currentUser = user();
+    if (!client || !currentUser || !gap) return [];
+    const rows = gap.demandBlocks
+      .map(block => ({ block, row: demandBlockRowFromState(block, currentUser) }))
+      .filter(item => item.row);
+    if (!rows.length) return [];
+
+    const withId = rows.filter(item => item.row.id);
+    const withoutId = rows.filter(item => !item.row.id);
+    const savedRows = [];
+    const selectColumns = "id,user_id,date,type,start_time,end_time,title,session_type,intensity,is_key_session,shift_name,notes,created_at,updated_at";
+
+    if (withId.length) {
+      const { data, error } = await client
+        .from(DEMAND_BLOCKS_TABLE)
+        .upsert(withId.map(item => item.row), { onConflict: "id" })
+        .select(selectColumns);
+      if (error) throw error;
+      (data || []).forEach((row, index) => {
+        updateLocalDemandBlockFromRow(withId[index]?.block || findMatchingDemandBlock(row), row);
+        savedRows.push(row);
+      });
+    }
+
+    if (withoutId.length) {
+      const { data, error } = await client
+        .from(DEMAND_BLOCKS_TABLE)
+        .insert(withoutId.map(item => item.row))
+        .select(selectColumns);
+      if (error) throw error;
+      (data || []).forEach((row, index) => {
+        updateLocalDemandBlockFromRow(withoutId[index]?.block || findMatchingDemandBlock(row), row);
+        savedRows.push(row);
+      });
+    }
+
+    return savedRows;
+  }
+
+  async function upsertWorkBreaks() {
+    const gap = planningState();
+    const currentUser = user();
+    if (!client || !currentUser || !gap) return [];
+    const rows = gap.workBreaks
+      .map(item => ({ item, row: workBreakRowFromState(item, currentUser) }))
+      .filter(item => item.row);
+    if (!rows.length) return [];
+
+    const withId = rows.filter(item => item.row.id);
+    const withoutId = rows.filter(item => !item.row.id);
+    const savedRows = [];
+    const selectColumns = "id,user_id,demand_block_id,start_time,end_time,label,created_at,updated_at";
+
+    if (withId.length) {
+      const { data, error } = await client
+        .from(WORK_BREAKS_TABLE)
+        .upsert(withId.map(item => item.row), { onConflict: "id" })
+        .select(selectColumns);
+      if (error) throw error;
+      (data || []).forEach((row, index) => {
+        updateLocalWorkBreakFromRow(withId[index]?.item || findMatchingWorkBreak(row), row);
+        savedRows.push(row);
+      });
+    }
+
+    if (withoutId.length) {
+      const { data, error } = await client
+        .from(WORK_BREAKS_TABLE)
+        .insert(withoutId.map(item => item.row))
+        .select(selectColumns);
+      if (error) throw error;
+      (data || []).forEach((row, index) => {
+        updateLocalWorkBreakFromRow(withoutId[index]?.item || findMatchingWorkBreak(row), row);
+        savedRows.push(row);
+      });
+    }
+
+    return savedRows;
+  }
+
+  async function fetchDemandPlanningRows() {
+    const currentUser = user();
+    if (!client || !currentUser) return { blocks: [], breaks: [] };
+    const blockColumns = "id,user_id,date,type,start_time,end_time,title,session_type,intensity,is_key_session,shift_name,notes,created_at,updated_at";
+    const breakColumns = "id,user_id,demand_block_id,start_time,end_time,label,created_at,updated_at";
+    const [blockResult, breakResult] = await Promise.all([
+      client.from(DEMAND_BLOCKS_TABLE).select(blockColumns).eq("user_id", currentUser.id).order("start_time", { ascending: true }),
+      client.from(WORK_BREAKS_TABLE).select(breakColumns).eq("user_id", currentUser.id).order("start_time", { ascending: true })
+    ]);
+    if (blockResult.error) throw blockResult.error;
+    if (breakResult.error) throw breakResult.error;
+    return { blocks: blockResult.data || [], breaks: breakResult.data || [] };
+  }
+
+  function mergeDemandPlanningRows(blockRows, breakRows) {
+    const gap = planningState();
+    if (!gap) return;
+    const cloudBlocks = blockRows.map(rowToDemandBlock).filter(Boolean);
+    const cloudBreaks = breakRows.map(rowToWorkBreak).filter(Boolean);
+    const cloudBlockIds = new Set(cloudBlocks.flatMap(block => [block.id, block.cloudId].filter(Boolean).map(String)));
+    const cloudBreakIds = new Set(cloudBreaks.flatMap(item => [item.id, item.cloudId].filter(Boolean).map(String)));
+    const pendingBlocks = gap.demandBlocks.filter(block => {
+      const ids = [block.id, block.cloudId].filter(Boolean).map(String);
+      return !ids.some(id => cloudBlockIds.has(id)) && block.syncStatus !== SYNCED;
+    });
+    const pendingBreaks = gap.workBreaks.filter(item => {
+      const ids = [item.id, item.cloudId].filter(Boolean).map(String);
+      return !ids.some(id => cloudBreakIds.has(id)) && item.syncStatus !== SYNCED;
+    });
+    gap.demandBlocks = [...cloudBlocks, ...pendingBlocks].sort((a, b) => {
+      const aDate = parsePlanningDate(a.startTime);
+      const bDate = parsePlanningDate(b.startTime);
+      return (aDate?.getTime() || 0) - (bDate?.getTime() || 0);
+    });
+    gap.workBreaks = [...cloudBreaks, ...pendingBreaks].sort((a, b) => {
+      const aDate = parsePlanningDate(a.startTime);
+      const bDate = parsePlanningDate(b.startTime);
+      return (aDate?.getTime() || 0) - (bDate?.getTime() || 0);
+    });
+  }
+
+  function markDemandPlanningPending() {
+    const gap = planningState();
+    if (!gap) return;
+    gap.demandBlocks.forEach(block => {
+      if (block.syncStatus !== SYNCED) block.syncStatus = PENDING;
+    });
+    gap.workBreaks.forEach(item => {
+      if (item.syncStatus !== SYNCED) item.syncStatus = PENDING;
+    });
+  }
+
+  async function syncDemandPlanning() {
+    if (!client || !user()) return;
+    const gap = planningState();
+    if (!gap) return;
+    await flushDemandPlanningDeletes();
+    await upsertDemandBlocks();
+    await upsertWorkBreaks();
+    const rows = await fetchDemandPlanningRows();
+    mergeDemandPlanningRows(rows.blocks, rows.breaks);
+    if (typeof window.fuelGuardDemandPlanning?.applyOpportunityMatchesForVisibleDays === "function") {
+      window.fuelGuardDemandPlanning.applyOpportunityMatchesForVisibleDays();
+    }
   }
 
   function hasAnyTarget(targets) {
@@ -494,11 +834,19 @@
       } catch (targetError) {
         targetWarning = ` Targets stayed cached locally: ${targetError?.message || "target sync failed"}.`;
       }
+      let planningWarning = "";
+      try {
+        await syncDemandPlanning();
+      } catch (planningError) {
+        planningWarning = demandPlanningTableMissing(planningError)
+          ? " Demand planning stayed cached locally until the Supabase demand-planning SQL is applied."
+          : ` Demand planning stayed cached locally: ${planningError?.message || "planning sync failed"}.`;
+      }
       if (gap) {
         gap.cloud.lastSyncedAt = new Date().toISOString();
         gap.cloud.lastError = "";
       }
-      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.${targetWarning}`);
+      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.${targetWarning}${planningWarning}`);
       persistAndRender();
     } catch (error) {
       if (gap) gap.cloud.lastError = error?.message || "Sync failed.";
@@ -665,6 +1013,29 @@
     persistAndRender();
   }
 
+  async function saveDemandPlanning() {
+    markDemandPlanningPending();
+    if (typeof save === "function") save();
+    if (!configured()) {
+      status("Demand plan saved locally. Cloud sync needs Supabase public URL/key configuration.");
+      return;
+    }
+    if (!user() || !isOnline()) {
+      status(user() ? "Offline. Demand plan cached for later sync." : "Demand plan saved locally. Sign in to sync across devices.");
+      return;
+    }
+    try {
+      await syncDemandPlanning();
+      status("Demand plan synced to Supabase.");
+      persistAndRender();
+    } catch (error) {
+      status(demandPlanningTableMissing(error)
+        ? "Demand plan saved locally. Apply the Supabase demand-planning SQL to sync it."
+        : `Demand plan saved locally. Supabase planning sync failed: ${error?.message || "unknown error"}`);
+      if (typeof save === "function") save();
+    }
+  }
+
   function accountView() {
     const gap = gapState();
     const pending = allLogs().filter(log => log.syncStatus !== SYNCED).length;
@@ -730,6 +1101,8 @@
     saveLog,
     syncNow,
     syncLogsForDay,
+    saveDemandPlanning,
+    syncDemandPlanning,
     deleteLog,
     clearCloudLogs,
     saveTargets,

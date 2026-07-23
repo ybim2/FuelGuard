@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v74-esp32-csv-millis-import";
-const BUILD_VERSION = "2026-07-17T23:34:11Z";
+const APP_VERSION = "mobile-pwa-v75-demand-fuel-plan";
+const BUILD_VERSION = "2026-07-23T07:17:33Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v74-esp32-csv-millis-import-20260717T233411Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v75-demand-fuel-plan-20260723T071733Z";
 const APP_SHELL = [
   "./",
   "./index.html",

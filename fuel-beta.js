@@ -30,6 +30,58 @@
   const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
   const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
   const LOG_HABIT_METRIC_IDS = new Set(["logs"]);
+  const DEMAND_BLOCK_TYPES = new Set(["training", "work"]);
+  const TRAINING_DEMAND_TYPES = [
+    { value: "run", label: "Run" },
+    { value: "bike", label: "Bike" },
+    { value: "swim", label: "Swim" },
+    { value: "strength", label: "Strength" },
+    { value: "triathlon", label: "Triathlon" },
+    { value: "sport", label: "Sport" },
+    { value: "other", label: "Other" }
+  ];
+  const TRAINING_DEMAND_LABELS = TRAINING_DEMAND_TYPES.reduce((labels, option) => {
+    labels[option.value] = option.label;
+    return labels;
+  }, {});
+  const SESSION_INTENSITY_OPTIONS = [
+    { value: "easy", label: "Easy" },
+    { value: "moderate", label: "Moderate" },
+    { value: "hard", label: "Hard" },
+    { value: "long", label: "Long" }
+  ];
+  const SESSION_INTENSITY_LABELS = SESSION_INTENSITY_OPTIONS.reduce((labels, option) => {
+    labels[option.value] = option.label;
+    return labels;
+  }, {});
+  const FUEL_OPPORTUNITY_WEIGHTS = {
+    normal: 0.5,
+    pre_training: 1,
+    during_training: 1,
+    post_training: 1.25,
+    follow_up_recovery: 1,
+    pre_shift: 0.75,
+    work_break: 1,
+    post_shift: 0.75
+  };
+  const FUEL_SCORE_WEIGHTS = {
+    training_adherence: 40,
+    work_adherence: 25,
+    gap_adherence: 20,
+    target_completion: 15
+  };
+  const OPPORTUNITY_RULES = {
+    dueSoonMinutes: 45,
+    missedAfterMinutes: 180,
+    nearestMatchToleranceMinutes: 90,
+    preTraining: { beforeStartMinutes: 75, closeBeforeStartMinutes: 15 },
+    duringTrainingMinimumMinutes: 90,
+    postTraining: { afterStartMinutes: 0, afterEndMinutes: 75 },
+    followUpRecovery: { afterStartMinutes: 120, afterEndMinutes: 210 },
+    preShift: { beforeStartMinutes: 75, closeBeforeStartMinutes: 15 },
+    postShift: { afterStartMinutes: 0, afterEndMinutes: 75 },
+    normalWindowMinutes: 45
+  };
   const TRAINING_SESSION_OPTIONS = [
     { value: "", label: "Not set" },
     { value: "run", label: "Run" },
@@ -98,6 +150,8 @@
   let missedLogEditingId = "";
   let missedLogStatus = "";
   let missedLogBusy = false;
+  let demandPlannerStatus = "";
+  let demandPlannerEditingId = "";
 
   const TARGET_FIELDS = [
     "dailyFuelLogs",
@@ -548,6 +602,8 @@
     if (!gap.dayTypes || Array.isArray(gap.dayTypes)) gap.dayTypes = {};
     if (!gap.trainingSessions || Array.isArray(gap.trainingSessions)) gap.trainingSessions = {};
     if (!gap.archive || Array.isArray(gap.archive)) gap.archive = {};
+    if (!Array.isArray(gap.demandBlocks)) gap.demandBlocks = [];
+    if (!Array.isArray(gap.workBreaks)) gap.workBreaks = [];
     if (!Array.isArray(gap.ridePlans)) gap.ridePlans = [];
     if (!Array.isArray(gap.rideTemplates)) gap.rideTemplates = [];
     if (!gap.activeRide || typeof gap.activeRide !== "object" || Array.isArray(gap.activeRide)) gap.activeRide = null;
@@ -1652,9 +1708,9 @@
   function timeWindowBucket(minutes) {
     if (!Number.isFinite(minutes)) return "Needs more data";
     if (minutes < 660) return "morning";
-    if (minutes < 840) return "11:00-14:00";
-    if (minutes < 960) return "14:00-16:00";
-    if (minutes < 1080) return "16:00-18:00";
+    if (minutes < 840) return `${minuteLabel(660)}-${minuteLabel(840)}`;
+    if (minutes < 960) return `${minuteLabel(840)}-${minuteLabel(960)}`;
+    if (minutes < 1080) return `${minuteLabel(960)}-${minuteLabel(1080)}`;
     if (minutes < 1320) return "evening";
     return "late/overnight";
   }
@@ -1737,6 +1793,7 @@
     };
     betaState().logs.push(log);
     if (includesFuel && !options.bypassCooldown) setCooldown();
+    if (includesFuel) applyOpportunityMatchesForDay(key);
     storeArchive(key);
     state.completed.liveFuelStatus = true;
     if (typeof recordFuelMomentum === "function") {
@@ -1872,6 +1929,7 @@
       syncStatus: "pending"
     });
     if (!existing) betaState().logs.push(log);
+    if (type === "fuel") applyOpportunityMatchesForDay(key);
     refreshLogDatesAfterChange(oldDate, eventDate);
     state.completed.liveFuelStatus = true;
     save();
@@ -1887,6 +1945,8 @@
     if (index < 0) return;
     if (!window.confirm("Delete this log?")) return;
     const removed = betaState().logs.splice(index, 1)[0];
+    const removedDate = logDate(removed);
+    if (removedDate && isFuelLog(removed)) applyOpportunityMatchesForDay(dateKey(removedDate));
     refreshLogDatesAfterChange(logDate(removed), null);
     save();
     renderAll();
@@ -1945,6 +2005,7 @@
     if (latestIndex < 0) return;
     const removed = betaState().logs.splice(latestIndex, 1)[0];
     if (latestType === "fuel" || latestType === "fuel_hydration") clearCooldown();
+    if (latestType === "fuel" || latestType === "fuel_hydration") applyOpportunityMatchesForDay(key);
     storeArchive(key);
     addActivityEntry("fuelLogUndo", "Latest rhythm log undone.", { dedupeDaily: false });
     save();
@@ -2073,7 +2134,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v74-esp32-csv-millis-import"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v75-demand-fuel-plan"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2543,7 +2604,7 @@
     return `
       <div class="beta-fuel-log-timeline" aria-label="Fuel log times across the selected day">
         <div class="beta-fuel-log-track">${markers}</div>
-        <div class="beta-timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+        <div class="beta-timeline-axis"><span>${safeText(minuteLabel(0))}</span><span>${safeText(minuteLabel(360))}</span><span>${safeText(minuteLabel(720))}</span><span>${safeText(minuteLabel(1080))}</span><span>${safeText(minuteLabel(1440))}</span></div>
         <div class="beta-fuel-log-times" aria-label="Exact fuel log times">${times}</div>
       </div>
     `;
@@ -2672,55 +2733,792 @@
     return next;
   }
 
-  function renderFuellingWindowSummary(fuelLogs, key, now = new Date()) {
-    const windowMinutes = fuelWindowMinutes();
-    const lengthText = fuelDebtDurationText(windowMinutes);
-    const firstFuel = fuelLogs[0]?.date || null;
-    if (!firstFuel) {
-      return `
-        <article class="beta-fuelling-window-card waiting">
-          <div class="section-heading-row">
-            <h3>Fuelling window</h3>
-            <span class="row-note">${safeText(lengthText)}</span>
-          </div>
-          <p>Your fuelling window will begin when you record your first fuel log.</p>
-          <div class="beta-fuelling-window-grid">
-            ${dailyMetricCard("First fuel", "Not started")}
-            ${dailyMetricCard("Window length", lengthText)}
-            ${dailyMetricCard("Closes", "Not started")}
-            ${dailyMetricCard("Time remaining", "Waiting for first fuel")}
-          </div>
-        </article>
-      `;
-    }
+  function displayTime(value) {
+    return typeof formatTimeAmPm === "function" ? formatTimeAmPm(value) : formatClock(value);
+  }
 
-    const closesAt = addMinutesToDate(firstFuel, windowMinutes);
-    const isToday = key === dateKey(now);
-    const remainingMinutes = (closesAt - now) / 60000;
-    const remainingText = isToday
-      ? remainingMinutes > 0
-        ? `${fuelDebtDurationText(remainingMinutes)} remaining`
-        : "Fuelling window ended"
-      : "Selected day complete";
-    const message = isToday
-      ? remainingMinutes > 0
-        ? `Your fuelling window closes at ${formatClock(closesAt)}.`
-        : `Your fuelling window ended at ${formatClock(closesAt)}.`
-      : `This day's fuelling window closed at ${formatClock(closesAt)}.`;
+  function timeRangeText(start, end) {
+    return `${displayTime(start)}-${displayTime(end)}`;
+  }
+
+  function minuteLabel(minutes) {
+    const date = startOfDay();
+    date.setMinutes(Math.round(clamp(Number(minutes || 0), 0, 1440)));
+    return displayTime(date);
+  }
+
+  function hourRangeLabel(hour) {
+    const start = clamp(Number(hour) || 0, 0, 23);
+    return `${minuteLabel(start * 60)}-${minuteLabel((start + 1) * 60)}`;
+  }
+
+  function hourClockLabel(hour) {
+    return minuteLabel(clamp(Number(hour) || 0, 0, 24) * 60);
+  }
+
+  function demandBlocks() {
+    return betaState().demandBlocks;
+  }
+
+  function workBreaks() {
+    return betaState().workBreaks;
+  }
+
+  function ensureEndAfterStart(start, end) {
+    if (!start || !end) return end;
+    const next = new Date(end);
+    while (next <= start) next.setDate(next.getDate() + 1);
+    return next;
+  }
+
+  function blockRange(block) {
+    const start = logDate(block?.startTime);
+    const rawEnd = logDate(block?.endTime);
+    if (!start || !rawEnd) return null;
+    return { start, end: ensureEndAfterStart(start, rawEnd) };
+  }
+
+  function dayBounds(key) {
+    const start = startOfDay(dateFromKey(key));
+    return { start, end: addDays(start, 1) };
+  }
+
+  function rangeOverlapsDay(range, key) {
+    if (!range?.start || !range?.end) return false;
+    const bounds = dayBounds(key);
+    return range.start < bounds.end && range.end > bounds.start;
+  }
+
+  function demandBlocksForDay(key) {
+    return demandBlocks()
+      .filter(block => DEMAND_BLOCK_TYPES.has(String(block?.type || "")))
+      .filter(block => block.date === key || rangeOverlapsDay(blockRange(block), key))
+      .sort((a, b) => (blockRange(a)?.start?.getTime() || 0) - (blockRange(b)?.start?.getTime() || 0));
+  }
+
+  function workBreakRange(item, block = null) {
+    const parent = block || demandBlocks().find(candidate => candidate.id === item?.demandBlockId);
+    const parentRange = blockRange(parent);
+    const start = logDate(item?.startTime);
+    const rawEnd = logDate(item?.endTime);
+    if (!start || !rawEnd) return null;
+    let end = ensureEndAfterStart(start, rawEnd);
+    if (parentRange && start < parentRange.start) {
+      const shiftedStart = addDays(start, 1);
+      const shiftedEnd = addDays(end, 1);
+      if (shiftedStart <= parentRange.end) return { start: shiftedStart, end: ensureEndAfterStart(shiftedStart, shiftedEnd) };
+    }
+    if (parentRange && end < parentRange.start) end = addDays(end, 1);
+    return { start, end };
+  }
+
+  function workBreaksForBlock(blockId) {
+    return workBreaks()
+      .filter(item => item.demandBlockId === blockId)
+      .sort((a, b) => (workBreakRange(a)?.start?.getTime() || 0) - (workBreakRange(b)?.start?.getTime() || 0));
+  }
+
+  function trainingDemandLabel(block) {
+    const type = TRAINING_DEMAND_LABELS[block?.sessionType] || "Training";
+    const intensity = SESSION_INTENSITY_LABELS[block?.intensity] || "";
+    return [block?.isKeySession ? "Key" : "", intensity, type].filter(Boolean).join(" ");
+  }
+
+  function demandBlockTitle(block) {
+    if (!block) return "Demand block";
+    if (block.title) return block.title;
+    if (block.type === "training") return trainingDemandLabel(block);
+    return block.shiftName || "Work shift";
+  }
+
+  function opportunityId(parts) {
+    return deterministicImportUuid(`opportunity:${parts.filter(Boolean).join("|")}`);
+  }
+
+  function addOpportunity(list, opportunity) {
+    if (!opportunity?.plannedStart || !opportunity?.plannedEnd) return;
+    const start = logDate(opportunity.plannedStart);
+    const end = logDate(opportunity.plannedEnd);
+    if (!start || !end || end <= start) return;
+    const id = opportunity.id || opportunityId([opportunity.date, opportunity.type, opportunity.demandBlockId || "normal", start.toISOString(), end.toISOString()]);
+    list.push({
+      ...opportunity,
+      id,
+      plannedStart: start.toISOString(),
+      plannedEnd: end.toISOString(),
+      completedAt: "",
+      matchedFuelLogId: "",
+      timingScore: null,
+      status: "upcoming",
+      priority: Number(opportunity.priority || 1)
+    });
+  }
+
+  function normalFuelPeriodForDay(key, fuelLogs = logsForDay(key).filter(isFuelLog)) {
+    const firstFuel = fuelLogs[0]?.date || dateTimeFromInputs(key, "08:00") || startOfDay(dateFromKey(key));
+    const start = new Date(firstFuel);
+    const end = addMinutes(start, fuelWindowMinutes());
+    return { start, end };
+  }
+
+  function generateNormalOpportunities(list, key, fuelLogs) {
+    const period = normalFuelPeriodForDay(key, fuelLogs);
+    const step = Math.max(60, mediumRiskLimit());
+    for (let cursor = addMinutes(period.start, step); cursor < period.end; cursor = addMinutes(cursor, step)) {
+      addOpportunity(list, {
+        date: key,
+        type: "normal",
+        plannedStart: addMinutes(cursor, -OPPORTUNITY_RULES.normalWindowMinutes / 2).toISOString(),
+        plannedEnd: addMinutes(cursor, OPPORTUNITY_RULES.normalWindowMinutes / 2).toISOString(),
+        label: "Normal fuel moment",
+        priority: 1
+      });
+    }
+  }
+
+  function generateTrainingOpportunities(list, block) {
+    const range = blockRange(block);
+    if (!range) return;
+    const key = block.date || dateKey(range.start);
+    const durationMinutes = (range.end - range.start) / 60000;
+    const intensity = block.intensity || "easy";
+    const isModerate = intensity === "moderate";
+    const isDemanding = ["hard", "long"].includes(intensity) || block.isKeySession;
+    addOpportunity(list, {
+      date: key,
+      type: "pre_training",
+      demandBlockId: block.id,
+      plannedStart: addMinutes(range.start, -OPPORTUNITY_RULES.preTraining.beforeStartMinutes).toISOString(),
+      plannedEnd: addMinutes(range.start, -OPPORTUNITY_RULES.preTraining.closeBeforeStartMinutes).toISOString(),
+      label: `Pre-training fuel for ${trainingDemandLabel(block).toLowerCase()}`,
+      priority: block.isKeySession ? 8 : 6
+    });
+    if (isDemanding && durationMinutes >= OPPORTUNITY_RULES.duringTrainingMinimumMinutes) {
+      const midpoint = addMinutes(range.start, durationMinutes / 2);
+      addOpportunity(list, {
+        date: key,
+        type: "during_training",
+        demandBlockId: block.id,
+        plannedStart: addMinutes(midpoint, -25).toISOString(),
+        plannedEnd: addMinutes(midpoint, 25).toISOString(),
+        label: "During-training fuel opportunity",
+        priority: block.isKeySession ? 8 : 7
+      });
+    }
+    addOpportunity(list, {
+      date: key,
+      type: "post_training",
+      demandBlockId: block.id,
+      plannedStart: addMinutes(range.end, OPPORTUNITY_RULES.postTraining.afterStartMinutes).toISOString(),
+      plannedEnd: addMinutes(range.end, OPPORTUNITY_RULES.postTraining.afterEndMinutes).toISOString(),
+      label: "Post-training recovery fuel",
+      priority: isDemanding || block.isKeySession ? 10 : 7
+    });
+    if (isModerate || isDemanding) {
+      addOpportunity(list, {
+        date: key,
+        type: "follow_up_recovery",
+        demandBlockId: block.id,
+        plannedStart: addMinutes(range.end, OPPORTUNITY_RULES.followUpRecovery.afterStartMinutes).toISOString(),
+        plannedEnd: addMinutes(range.end, OPPORTUNITY_RULES.followUpRecovery.afterEndMinutes).toISOString(),
+        label: "Follow-up recovery fuel",
+        priority: block.isKeySession ? 7 : 5
+      });
+    }
+  }
+
+  function generateWorkOpportunities(list, block) {
+    const range = blockRange(block);
+    if (!range) return;
+    const key = block.date || dateKey(range.start);
+    addOpportunity(list, {
+      date: key,
+      type: "pre_shift",
+      demandBlockId: block.id,
+      plannedStart: addMinutes(range.start, -OPPORTUNITY_RULES.preShift.beforeStartMinutes).toISOString(),
+      plannedEnd: addMinutes(range.start, -OPPORTUNITY_RULES.preShift.closeBeforeStartMinutes).toISOString(),
+      label: "Pre-shift fuel",
+      priority: 5
+    });
+    workBreaksForBlock(block.id).forEach(item => {
+      const breakRange = workBreakRange(item, block);
+      if (!breakRange) return;
+      addOpportunity(list, {
+        date: key,
+        type: "work_break",
+        demandBlockId: block.id,
+        plannedStart: breakRange.start.toISOString(),
+        plannedEnd: breakRange.end.toISOString(),
+        label: item.label ? `Protected break: ${item.label}` : "Protected work break",
+        priority: 8
+      });
+    });
+    addOpportunity(list, {
+      date: key,
+      type: "post_shift",
+      demandBlockId: block.id,
+      plannedStart: addMinutes(range.end, OPPORTUNITY_RULES.postShift.afterStartMinutes).toISOString(),
+      plannedEnd: addMinutes(range.end, OPPORTUNITY_RULES.postShift.afterEndMinutes).toISOString(),
+      label: "Post-shift recovery fuel",
+      priority: 5
+    });
+  }
+
+  function generateFuelOpportunitiesForDay(key, { now = new Date(), includeNormal = true } = {}) {
+    const list = [];
+    const fuelLogs = logsForDay(key).filter(isFuelLog);
+    if (includeNormal) generateNormalOpportunities(list, key, fuelLogs);
+    demandBlocksForDay(key).forEach(block => {
+      if (block.type === "training") generateTrainingOpportunities(list, block);
+      if (block.type === "work") generateWorkOpportunities(list, block);
+    });
+    return matchFuelLogsToOpportunities(list, fuelLogs, now).sort((a, b) => {
+      const startDiff = logDate(a.plannedStart) - logDate(b.plannedStart);
+      return startDiff || b.priority - a.priority;
+    });
+  }
+
+  function minutesOutsideWindow(date, start, end) {
+    if (!date || !start || !end) return Infinity;
+    if (date >= start && date <= end) return 0;
+    return Math.min(Math.abs((date - start) / 60000), Math.abs((date - end) / 60000));
+  }
+
+  function calculateOpportunityTimingScore(completedAt, plannedStart, plannedEnd) {
+    const completed = logDate(completedAt);
+    const start = logDate(plannedStart);
+    const end = logDate(plannedEnd);
+    if (!completed || !start || !end) return 0;
+    const distance = minutesOutsideWindow(completed, start, end);
+    if (distance <= 0) return 100;
+    if (distance <= 30) return 75;
+    if (distance <= 60) return 50;
+    if (distance <= 120) return 25;
+    return 0;
+  }
+
+  function opportunityStatus(opportunity, now = new Date()) {
+    const completed = logDate(opportunity.completedAt);
+    const start = logDate(opportunity.plannedStart);
+    const end = logDate(opportunity.plannedEnd);
+    if (completed) return completed >= start && completed <= end ? "completed_on_time" : "completed_late";
+    if (!start || !end) return "upcoming";
+    if (now > addMinutes(end, OPPORTUNITY_RULES.missedAfterMinutes)) return "missed";
+    if (now > end) return "overdue";
+    if ((start - now) / 60000 <= OPPORTUNITY_RULES.dueSoonMinutes) return "due_soon";
+    return "upcoming";
+  }
+
+  function matchFuelLogsToOpportunities(opportunities, fuelLogs, now = new Date()) {
+    const matches = new Map();
+    const usedLogs = new Set();
+    const sortedOpps = [...opportunities].sort((a, b) => b.priority - a.priority || (logDate(a.plannedStart) - logDate(b.plannedStart)));
+    sortedOpps.forEach(opportunity => {
+      const start = logDate(opportunity.plannedStart);
+      const end = logDate(opportunity.plannedEnd);
+      const candidates = fuelLogs
+        .filter(log => log.date && !usedLogs.has(log.id || log.localId || log.cloudId))
+        .map(log => ({
+          log,
+          distance: minutesOutsideWindow(log.date, start, end),
+          inside: log.date >= start && log.date <= end
+        }))
+        .filter(candidate => candidate.inside || candidate.distance <= OPPORTUNITY_RULES.nearestMatchToleranceMinutes)
+        .sort((a, b) => Number(b.inside) - Number(a.inside) || a.distance - b.distance);
+      const match = candidates[0]?.log;
+      if (!match) return;
+      const logId = match.id || match.localId || match.cloudId;
+      usedLogs.add(logId);
+      matches.set(opportunity.id, match);
+    });
+    return opportunities.map(opportunity => {
+      const match = matches.get(opportunity.id);
+      const completedAt = match?.date?.toISOString() || "";
+      const next = {
+        ...opportunity,
+        completedAt,
+        matchedFuelLogId: match ? String(match.id || match.localId || match.cloudId || "") : "",
+        timingScore: completedAt ? calculateOpportunityTimingScore(completedAt, opportunity.plannedStart, opportunity.plannedEnd) : 0
+      };
+      next.status = opportunityStatus(next, now);
+      return next;
+    });
+  }
+
+  function applyOpportunityMatchesForDay(key) {
+    const opportunities = generateFuelOpportunitiesForDay(key);
+    const matchByLogId = new Map(opportunities.filter(item => item.matchedFuelLogId).map(item => [item.matchedFuelLogId, item.id]));
+    betaState().logs.forEach(log => {
+      const logId = String(log.id || log.localId || log.cloudId || "");
+      const date = logDate(log);
+      if (!date || dateKey(date) !== key || !isFuelLog(log)) return;
+      const matchedId = matchByLogId.get(logId) || "";
+      if (matchedId) log.matchedOpportunityId = matchedId;
+      else delete log.matchedOpportunityId;
+    });
+    return opportunities;
+  }
+
+  function opportunityTypeGroup(type) {
+    if (["pre_training", "during_training", "post_training", "follow_up_recovery"].includes(type)) return "training";
+    if (["pre_shift", "work_break", "post_shift"].includes(type)) return "work";
+    return "normal";
+  }
+
+  function activeOpportunities(opportunities) {
+    return opportunities.filter(item => item.status !== "upcoming" || logDate(item.plannedStart) <= new Date());
+  }
+
+  function weightedOpportunityAverage(opportunities) {
+    const scored = opportunities.filter(item => ["completed_on_time", "completed_late", "missed", "overdue"].includes(item.status));
+    const totalWeight = scored.reduce((sum, item) => sum + Number(FUEL_OPPORTUNITY_WEIGHTS[item.type] || 1), 0);
+    if (!scored.length || totalWeight <= 0) return null;
+    return scored.reduce((sum, item) => sum + Number(item.timingScore || 0) * Number(FUEL_OPPORTUNITY_WEIGHTS[item.type] || 1), 0) / totalWeight;
+  }
+
+  function calculateGapScore(actualGapMinutes, targetGapMinutes) {
+    if (!Number.isFinite(actualGapMinutes) || !Number.isFinite(targetGapMinutes) || targetGapMinutes <= 0) return null;
+    if (actualGapMinutes <= targetGapMinutes) return 100;
+    if (actualGapMinutes >= targetGapMinutes * 2) return 0;
+    const excess = (actualGapMinutes - targetGapMinutes) / targetGapMinutes;
+    return Math.round(100 * (1 - excess));
+  }
+
+  function fuelScoreLabel(score) {
+    if (!Number.isFinite(score)) return "Not enough data";
+    if (score >= 90) return "Strong adherence";
+    if (score >= 75) return "Mostly on track";
+    if (score >= 60) return "Inconsistent";
+    if (score >= 40) return "Frequently off-plan";
+    return "Significant fuelling drift";
+  }
+
+  function calculateDailyFuelScore(key, { now = new Date() } = {}) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const trainingScore = weightedOpportunityAverage(opportunities.filter(item => opportunityTypeGroup(item.type) === "training"));
+    const workScore = weightedOpportunityAverage(opportunities.filter(item => opportunityTypeGroup(item.type) === "work"));
+    const fuelLogs = logsForDay(key).filter(isFuelLog);
+    const period = normalFuelPeriodForDay(key, fuelLogs);
+    const eligibleGaps = gapsFromFuelLogs(fuelLogs)
+      .filter(gap => gap.end >= period.start && gap.start <= period.end)
+      .map(gap => calculateGapScore(awakeGapMinutes(gap), mediumRiskLimit()))
+      .filter(Number.isFinite);
+    const gapScore = eligibleGaps.length ? averageValue(eligibleGaps) : null;
+    const target = targets().dailyFuelLogs;
+    const targetScore = hasTarget(target) ? Math.min(100, (fuelLogs.length / target) * 100) : null;
+    const components = [
+      { id: "training_adherence", label: "Training timing", score: trainingScore, weight: FUEL_SCORE_WEIGHTS.training_adherence },
+      { id: "work_adherence", label: "Work-shift timing", score: workScore, weight: FUEL_SCORE_WEIGHTS.work_adherence },
+      { id: "gap_adherence", label: "Fuel-gap adherence", score: gapScore, weight: FUEL_SCORE_WEIGHTS.gap_adherence },
+      { id: "target_completion", label: "Daily target completion", score: targetScore, weight: FUEL_SCORE_WEIGHTS.target_completion }
+    ].filter(component => Number.isFinite(component.score));
+    const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
+    const finalScore = totalWeight > 0
+      ? Math.round(components.reduce((sum, component) => sum + component.score * (component.weight / totalWeight), 0))
+      : null;
+    return {
+      date: key,
+      finalScore,
+      label: fuelScoreLabel(finalScore),
+      components: components.map(component => ({ ...component, score: Math.round(component.score), normalizedWeight: Math.round((component.weight / totalWeight) * 100) || 0 })),
+      opportunities
+    };
+  }
+
+  function fuelScoreForEntry(entry) {
+    return calculateDailyFuelScore(entry?.date || selectedDataDateKey()).finalScore;
+  }
+
+  function opportunityStatusLabel(status) {
+    return {
+      upcoming: "Upcoming",
+      due_soon: "Due soon",
+      completed_on_time: "Completed on time",
+      completed_late: "Completed late",
+      overdue: "Overdue",
+      missed: "Missed"
+    }[status] || "Upcoming";
+  }
+
+  function opportunityTone(status) {
+    if (status === "completed_on_time") return "protected";
+    if (status === "completed_late" || status === "due_soon") return "neutral";
+    if (status === "overdue" || status === "missed") return "elevated";
+    return "stable";
+  }
+
+  function nextFuelOpportunity(opportunities, now = new Date()) {
+    const candidates = opportunities.filter(item => !item.completedAt && item.status !== "missed");
+    if (!candidates.length) return null;
+    return candidates.sort((a, b) => {
+      const aOverdue = a.status === "overdue" ? 1 : 0;
+      const bOverdue = b.status === "overdue" ? 1 : 0;
+      return bOverdue - aOverdue
+        || b.priority - a.priority
+        || Math.abs(logDate(a.plannedStart) - now) - Math.abs(logDate(b.plannedStart) - now);
+    })[0] || null;
+  }
+
+  function opportunityCountdown(opportunity, now = new Date()) {
+    const start = logDate(opportunity?.plannedStart);
+    const end = logDate(opportunity?.plannedEnd);
+    if (!start || !end) return "";
+    if (opportunity.status === "overdue") return `${fuelDebtDurationText((now - end) / 60000)} overdue`;
+    if (opportunity.status === "due_soon") return `${fuelDebtDurationText((start - now) / 60000)} until window opens`;
+    if (opportunity.status === "upcoming") return `${fuelDebtDurationText((start - now) / 60000)} away`;
+    return opportunityStatusLabel(opportunity.status);
+  }
+
+  function opportunityPlanCopy(opportunity) {
+    if (!opportunity) return "No more planned fuel opportunities today.";
+    if (opportunity.type === "work_break") return "Fuel, hydrate and step away from work if you can.";
+    if (opportunity.type === "post_training") return "Supporting recovery from your training session.";
+    if (opportunity.type === "pre_training") return "A small fuel moment before training can help the session feel steadier.";
+    if (opportunity.type === "post_shift") return "Support your post-shift recovery window.";
+    if (opportunity.type === "pre_shift") return "Support your shift before the long block starts.";
+    return "Normal maximum-gap reminder.";
+  }
+
+  function fuelPlanTimelineItems(key, opportunities) {
+    const blocks = demandBlocksForDay(key).flatMap(block => {
+      const range = blockRange(block);
+      if (!range) return [];
+      const title = block.type === "training" ? demandBlockTitle(block) : demandBlockTitle(block);
+      return [{ type: "demand", time: range.start, end: range.end, title, detail: block.type === "training" ? "Training session" : "Work shift" }];
+    });
+    const oppItems = opportunities.map(item => ({
+      type: "opportunity",
+      time: logDate(item.plannedStart),
+      end: logDate(item.plannedEnd),
+      title: item.label,
+      detail: item.completedAt
+        ? `Completed at ${displayTime(item.completedAt)}`
+        : opportunityStatusLabel(item.status)
+    }));
+    return [...blocks, ...oppItems].filter(item => item.time).sort((a, b) => a.time - b.time);
+  }
+
+  function renderTodaysFuelPlan(fuelLogs, key, now = new Date()) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const next = nextFuelOpportunity(opportunities, now);
+    const score = calculateDailyFuelScore(key, { now });
+    const period = normalFuelPeriodForDay(key, fuelLogs);
+    const timeline = fuelPlanTimelineItems(key, opportunities).slice(0, 10);
+    const headline = next
+      ? next.status === "overdue"
+        ? `${next.label} overdue`
+        : `${next.label} by ${displayTime(next.plannedEnd)}`
+      : "No more planned fuel opportunities today";
     return `
-      <article class="beta-fuelling-window-card ${remainingMinutes > 0 || !isToday ? "active" : "ended"}">
+      <article class="beta-fuelling-window-card beta-fuel-plan-card ${next ? safeText(opportunityTone(next.status)) : "stable"}">
         <div class="section-heading-row">
-          <h3>Fuelling window</h3>
-          <span class="row-note">${safeText(lengthText)}</span>
+          <div>
+            <h3>Today’s Fuel Plan</h3>
+            <p class="muted">Demand-aware fuel opportunities from your normal period, training, work shifts and breaks.</p>
+          </div>
+          <span class="row-note">${safeText(score.finalScore === null ? "Score building" : `${score.finalScore}/100`)}</span>
         </div>
-        <p>${safeText(message)}</p>
+        <div class="beta-fuel-plan-next">
+          <strong>${safeText(headline)}</strong>
+          <span>${safeText(next ? opportunityCountdown(next, now) : "Plan complete or waiting for demand blocks.")}</span>
+          <p>${safeText(opportunityPlanCopy(next))}</p>
+        </div>
         <div class="beta-fuelling-window-grid">
-          ${dailyMetricCard("First fuel", formatClock(firstFuel))}
-          ${dailyMetricCard("Window length", lengthText)}
-          ${dailyMetricCard("Closes", formatClock(closesAt))}
-          ${dailyMetricCard("Time remaining", remainingText)}
+          ${dailyMetricCard("Normal period", timeRangeText(period.start, period.end), `${fuelDebtDurationText(fuelWindowMinutes())} window`, "fuel")}
+          ${dailyMetricCard("Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel")}
+          ${dailyMetricCard("Planned opportunities", String(opportunities.length), "Completed and missed opportunities shape the score.", "fuel")}
+        </div>
+        <div class="beta-fuel-plan-timeline" aria-label="Today’s fuel plan timeline">
+          ${timeline.length ? timeline.map(item => `
+            <div class="beta-fuel-plan-row ${safeText(item.type)}">
+              <time>${safeText(item.end ? timeRangeText(item.time, item.end) : displayTime(item.time))}</time>
+              <div><strong>${safeText(item.title)}</strong><span>${safeText(item.detail)}</span></div>
+            </div>
+          `).join("") : `<p class="muted beta-history-empty">Add a training session or work shift to make today’s plan more specific.</p>`}
+        </div>
+        <p class="row-note">Fuel Guard tracks fuelling timing and adherence. It does not measure calorie intake, energy availability or medical conditions.</p>
+      </article>
+    `;
+  }
+
+  function selectedDemandEditBlock() {
+    return demandPlannerEditingId ? demandBlocks().find(block => block.id === demandPlannerEditingId) || null : null;
+  }
+
+  function dateTimeForDemand(dateValue, timeValue, previous = null) {
+    const date = dateTimeFromInputs(dateValue, timeValue);
+    if (!date) return null;
+    return previous ? ensureEndAfterStart(previous, date) : date;
+  }
+
+  function demandInputValue(block, key, fallback = "") {
+    return block && Object.prototype.hasOwnProperty.call(block, key) ? block[key] : fallback;
+  }
+
+  function syncDayTypeFromDemand(block) {
+    if (!block?.date) return;
+    if (block.type === "work" && !dayTypeForKey(block.date)) setDayType(block.date, "work");
+    if (block.type === "training" && block.sessionType && !trainingSessionForKey(block.date)) setTrainingSession(block.date, block.sessionType === "triathlon" || block.sessionType === "sport" || block.sessionType === "other" ? "" : block.sessionType);
+  }
+
+  function markDemandPlanningDirty() {
+    const gap = betaState();
+    gap.demandBlocks.forEach(block => {
+      if (!block.syncStatus) block.syncStatus = "pending";
+    });
+    gap.workBreaks.forEach(item => {
+      if (!item.syncStatus) item.syncStatus = "pending";
+    });
+  }
+
+  async function persistDemandPlanning(message = "Demand plan saved.") {
+    const key = selectedDataDateKey();
+    applyOpportunityMatchesForDay(key);
+    storeArchive(key);
+    demandPlannerStatus = message;
+    save();
+    renderAll();
+    try {
+      await window.fuelGuardCloud?.saveDemandPlanning?.();
+    } catch (error) {
+      demandPlannerStatus = `Saved locally. Cloud demand planning sync will retry: ${error?.message || "unknown error"}`;
+      renderDemandPlanner();
+    }
+  }
+
+  function readTrainingDemandForm() {
+    const key = selectedDataDateKey();
+    const start = dateTimeForDemand(key, document.getElementById("trainingStartTime")?.value || "");
+    const end = dateTimeForDemand(key, document.getElementById("trainingEndTime")?.value || "", start);
+    if (!start || !end) throw new Error("Choose a valid training start and finish time.");
+    return {
+      type: "training",
+      date: key,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      sessionType: document.getElementById("trainingSessionType")?.value || "run",
+      intensity: document.getElementById("trainingIntensity")?.value || "easy",
+      isKeySession: Boolean(document.getElementById("trainingKeySession")?.checked),
+      title: "",
+      notes: String(document.getElementById("trainingDemandNotes")?.value || "").trim()
+    };
+  }
+
+  function breakInput(index, field) {
+    return document.getElementById(`workBreak${field}${index}`)?.value || "";
+  }
+
+  function readWorkBreakRows(blockId, shiftStart, key) {
+    const rows = [];
+    [1, 2, 3].forEach(index => {
+      const startValue = breakInput(index, "Start");
+      const endValue = breakInput(index, "End");
+      const label = String(breakInput(index, "Label")).trim();
+      if (!startValue && !endValue && !label) return;
+      const start = dateTimeForDemand(key, startValue);
+      const end = dateTimeForDemand(key, endValue, start || shiftStart);
+      if (!start || !end) throw new Error(`Break ${index} needs a valid start and finish time.`);
+      let normalizedStart = start;
+      let normalizedEnd = end;
+      if (normalizedStart < shiftStart) {
+        normalizedStart = addDays(normalizedStart, 1);
+        normalizedEnd = addDays(normalizedEnd, 1);
+      }
+      rows.push({
+        id: uid(),
+        demandBlockId: blockId,
+        startTime: normalizedStart.toISOString(),
+        endTime: ensureEndAfterStart(normalizedStart, normalizedEnd).toISOString(),
+        label,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        syncStatus: "pending"
+      });
+    });
+    return rows;
+  }
+
+  function readWorkDemandForm(blockId) {
+    const key = selectedDataDateKey();
+    const start = dateTimeForDemand(key, document.getElementById("workShiftStartTime")?.value || "");
+    const end = dateTimeForDemand(key, document.getElementById("workShiftEndTime")?.value || "", start);
+    if (!start || !end) throw new Error("Choose a valid shift start and finish time.");
+    return {
+      block: {
+        type: "work",
+        date: key,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        title: String(document.getElementById("workShiftName")?.value || "").trim(),
+        shiftName: String(document.getElementById("workShiftName")?.value || "").trim(),
+        notes: String(document.getElementById("workDemandNotes")?.value || "").trim()
+      },
+      breaks: readWorkBreakRows(blockId, start, key)
+    };
+  }
+
+  async function saveTrainingDemand() {
+    try {
+      const gap = betaState();
+      const existing = selectedDemandEditBlock()?.type === "training" ? selectedDemandEditBlock() : null;
+      const now = new Date().toISOString();
+      const next = {
+        ...(existing || {}),
+        ...readTrainingDemandForm(),
+        id: existing?.id || uid(),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+        syncStatus: "pending"
+      };
+      if (existing) Object.assign(existing, next);
+      else gap.demandBlocks.push(next);
+      gap.workBreaks = gap.workBreaks.filter(item => item.demandBlockId !== next.id);
+      syncDayTypeFromDemand(next);
+      demandPlannerEditingId = "";
+      await persistDemandPlanning("Training session saved. Fuel opportunities updated.");
+    } catch (error) {
+      demandPlannerStatus = error?.message || "Training session could not be saved.";
+      renderDemandPlanner();
+    }
+  }
+
+  async function saveWorkDemand() {
+    try {
+      const gap = betaState();
+      const existing = selectedDemandEditBlock()?.type === "work" ? selectedDemandEditBlock() : null;
+      const blockId = existing?.id || uid();
+      const form = readWorkDemandForm(blockId);
+      const now = new Date().toISOString();
+      const next = {
+        ...(existing || {}),
+        ...form.block,
+        id: blockId,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+        syncStatus: "pending"
+      };
+      if (existing) Object.assign(existing, next);
+      else gap.demandBlocks.push(next);
+      const oldBreaks = gap.workBreaks.filter(item => item.demandBlockId === blockId);
+      oldBreaks.forEach(item => {
+        if (item.cloudId || item.id) gap.cloud.pendingWorkBreakDeleteIds.push(item.cloudId || item.id);
+      });
+      gap.workBreaks = gap.workBreaks.filter(item => item.demandBlockId !== blockId).concat(form.breaks);
+      syncDayTypeFromDemand(next);
+      demandPlannerEditingId = "";
+      await persistDemandPlanning("Work shift saved. Break opportunities updated.");
+    } catch (error) {
+      demandPlannerStatus = error?.message || "Work shift could not be saved.";
+      renderDemandPlanner();
+    }
+  }
+
+  async function deleteDemandBlock(id) {
+    const gap = betaState();
+    const block = gap.demandBlocks.find(item => item.id === id || item.cloudId === id);
+    if (!block) return;
+    if (!window.confirm("Delete this demand block?")) return;
+    gap.demandBlocks = gap.demandBlocks.filter(item => item !== block);
+    if (block.cloudId || block.id) gap.cloud.pendingDemandDeleteIds.push(block.cloudId || block.id);
+    const removedBreaks = gap.workBreaks.filter(item => item.demandBlockId === block.id);
+    removedBreaks.forEach(item => {
+      if (item.cloudId || item.id) gap.cloud.pendingWorkBreakDeleteIds.push(item.cloudId || item.id);
+    });
+    gap.workBreaks = gap.workBreaks.filter(item => item.demandBlockId !== block.id);
+    if (demandPlannerEditingId === block.id) demandPlannerEditingId = "";
+    await persistDemandPlanning("Demand block deleted. Fuel opportunities updated.");
+  }
+
+  function renderDemandBlockCard(block) {
+    const range = blockRange(block);
+    const breaks = block.type === "work" ? workBreaksForBlock(block.id) : [];
+    return `
+      <article class="beta-demand-block-card ${safeText(block.type)}">
+        <div>
+          <strong>${safeText(demandBlockTitle(block))}</strong>
+          <span>${safeText(range ? timeRangeText(range.start, range.end) : "Time not set")}</span>
+          ${block.type === "training" ? `<small>${safeText(`${SESSION_INTENSITY_LABELS[block.intensity] || "Easy"}${block.isKeySession ? " · Key session" : ""}`)}</small>` : ""}
+          ${block.type === "work" && breaks.length ? `<small>${safeText(`${breaks.length} scheduled break${breaks.length === 1 ? "" : "s"}`)}</small>` : ""}
+        </div>
+        <div class="button-row beta-demand-actions">
+          <button class="secondary" type="button" data-edit-demand="${safeText(block.id)}">Edit</button>
+          <button class="secondary danger-secondary" type="button" data-delete-demand="${safeText(block.id)}">Delete</button>
         </div>
       </article>
+    `;
+  }
+
+  function renderBreakInputs(editingBlock) {
+    const existing = editingBlock?.type === "work" ? workBreaksForBlock(editingBlock.id) : [];
+    return [1, 2, 3].map(index => {
+      const item = existing[index - 1] || null;
+      const range = workBreakRange(item, editingBlock);
+      return `
+        <div class="beta-break-row">
+          <label>Break ${index} start<input id="workBreakStart${index}" type="time" value="${safeText(range ? timeInputValue(range.start) : "")}"></label>
+          <label>Break ${index} finish<input id="workBreakEnd${index}" type="time" value="${safeText(range ? timeInputValue(range.end) : "")}"></label>
+          <label>Label<input id="workBreakLabel${index}" type="text" value="${safeText(item?.label || "")}" placeholder="${index === 1 ? "Lunch" : "Optional"}"></label>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderDemandPlanner() {
+    const target = document.getElementById("fuelDemandPlanner");
+    if (!target) return;
+    const key = selectedDataDateKey();
+    const blocks = demandBlocksForDay(key);
+    const editing = selectedDemandEditBlock();
+    const editingRange = blockRange(editing);
+    const trainingEditing = editing?.type === "training" ? editing : null;
+    const workEditing = editing?.type === "work" ? editing : null;
+    target.innerHTML = `
+      <section class="beta-rhythm-section-card beta-demand-planner-card" aria-label="Demand planner">
+        <div class="section-heading-row">
+          <div>
+            <h3>Demand planner</h3>
+            <p class="muted">Add training, work shifts and scheduled breaks so Fuel Guard can build today’s fuel plan.</p>
+          </div>
+          <span class="row-note">${safeText(formatDateKey(key))}</span>
+        </div>
+        <div class="beta-demand-existing">
+          ${blocks.length ? blocks.map(renderDemandBlockCard).join("") : `<p class="muted beta-history-empty">No training or work blocks added for this day yet.</p>`}
+        </div>
+        <div class="beta-demand-form-grid">
+          <div class="beta-demand-form">
+            <h4>${trainingEditing ? "Edit training session" : "Add training session"}</h4>
+            <div class="form-grid beta-settings-grid">
+              <label>Start<input id="trainingStartTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
+              <label>Finish<input id="trainingEndTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
+              <label>Session type<select id="trainingSessionType">${TRAINING_DEMAND_TYPES.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "sessionType", "run") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+              <label>Intensity<select id="trainingIntensity">${SESSION_INTENSITY_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "intensity", "easy") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+              <label class="beta-checkbox-label"><input id="trainingKeySession" type="checkbox" ${trainingEditing?.isKeySession ? "checked" : ""}> Key session</label>
+              <label>Notes<input id="trainingDemandNotes" type="text" value="${safeText(trainingEditing?.notes || "")}" placeholder="Optional"></label>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="saveTrainingDemandButton" class="primary" type="button">${trainingEditing ? "Save training" : "Add training"}</button>
+            </div>
+          </div>
+          <div class="beta-demand-form">
+            <h4>${workEditing ? "Edit work shift" : "Add work shift"}</h4>
+            <div class="form-grid beta-settings-grid">
+              <label>Shift start<input id="workShiftStartTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
+              <label>Shift finish<input id="workShiftEndTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
+              <label>Shift name<input id="workShiftName" type="text" value="${safeText(workEditing?.title || workEditing?.shiftName || "")}" placeholder="Optional"></label>
+              <label>Notes<input id="workDemandNotes" type="text" value="${safeText(workEditing?.notes || "")}" placeholder="Optional"></label>
+            </div>
+            <div class="beta-break-list">
+              <h5>Scheduled breaks</h5>
+              ${renderBreakInputs(workEditing)}
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="saveWorkDemandButton" class="primary" type="button">${workEditing ? "Save work shift" : "Add work shift"}</button>
+              ${editing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
+            </div>
+          </div>
+        </div>
+        <p id="fuelDemandPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
+      </section>
     `;
   }
 
@@ -2808,7 +3606,7 @@
           </div>
         ` : ""}
         ${renderDailyStatusCard(entry)}
-        ${renderFuellingWindowSummary(fuelLogs, key)}
+        ${renderTodaysFuelPlan(fuelLogs, key)}
         ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length)}
       </section>
     `;
@@ -3094,7 +3892,8 @@
     const weeklyTargetsTarget = document.getElementById("fuelWeeklyTargetsSummary");
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
-    if (windowTarget) windowTarget.innerHTML = renderFuellingWindowSummary(fuelLogs, key);
+    renderDemandPlanner();
+    if (windowTarget) windowTarget.innerHTML = renderTodaysFuelPlan(fuelLogs, key);
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
       const weekStart = startOfCalendarWeek(dateFromKey(key));
@@ -3600,7 +4399,7 @@
         </div>
         <div class="beta-weekly-fuel-timeline" aria-label="Weekly fuel log timing">
           ${rows}
-          <div class="beta-weekly-fuel-axis" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+          <div class="beta-weekly-fuel-axis" aria-hidden="true"><span>${safeText(minuteLabel(0))}</span><span>${safeText(minuteLabel(360))}</span><span>${safeText(minuteLabel(720))}</span><span>${safeText(minuteLabel(1080))}</span><span>${safeText(minuteLabel(1440))}</span></div>
         </div>
         <small>Each marker is one fuel log at its recorded time. Hover or focus a marker for the exact time.</small>
       </article>
@@ -4617,12 +5416,6 @@
     }));
   }
 
-  function hourRangeLabel(hour) {
-    const start = clamp(Number(hour) || 0, 0, 23);
-    const end = start + 1;
-    return `${String(start).padStart(2, "0")}:00-${String(end).padStart(2, "0")}:00`;
-  }
-
   function mostCommonLogHourInsight(entries, predicate) {
     const hours = entries.flatMap(entry => logEventsForInsight(entry, predicate))
       .map(log => log.date?.getHours())
@@ -4632,10 +5425,6 @@
     if (!counts.size) return { value: "Not enough data yet", detail: "Needs matching logs" };
     const [hour, count] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
     return { value: hourRangeLabel(hour), detail: `${count} log${count === 1 ? "" : "s"}` };
-  }
-
-  function hourClockLabel(hour) {
-    return `${String(clamp(Number(hour) || 0, 0, 24)).padStart(2, "0")}:00`;
   }
 
   function gapHourBins(gap) {
@@ -4876,6 +5665,205 @@
             </div>
           </div>
         ` : `<p class="muted beta-history-empty">Not enough log habit data yet.</p>`}
+      </section>
+    `;
+  }
+
+  function averageFuelScoreForEntries(entries) {
+    const scores = entries.map(entry => calculateDailyFuelScore(entry.date).finalScore).filter(Number.isFinite);
+    return scores.length ? averageValue(scores) : null;
+  }
+
+  function scoreDifferenceLabel(current, previous) {
+    if (!Number.isFinite(current) || !Number.isFinite(previous)) return "Comparison building";
+    const diff = Math.round(current - previous);
+    if (diff === 0) return "No change from previous period";
+    return `${diff > 0 ? "↑" : "↓"} ${Math.abs(diff)} point${Math.abs(diff) === 1 ? "" : "s"} from previous period`;
+  }
+
+  function scoreComponentPeriodAverage(entries, componentId) {
+    const values = entries
+      .map(entry => calculateDailyFuelScore(entry.date).components.find(component => component.id === componentId)?.score)
+      .filter(Number.isFinite);
+    return values.length ? Math.round(averageValue(values)) : null;
+  }
+
+  function renderFuelScoreGraph(range) {
+    const points = range.days.map(day => {
+      const key = dateKey(day.currentDate);
+      const score = calculateDailyFuelScore(key).finalScore;
+      return { label: day.shortLabel, dateLabel: day.dateLabel, score };
+    });
+    if (!points.some(point => Number.isFinite(point.score))) return `<div class="beta-trend-chart-empty">Add fuel logs and demand blocks to build Fuel Score history.</div>`;
+    const width = 760;
+    const height = 300;
+    const padding = { top: 34, right: 28, bottom: 60, left: 64 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+    const yFor = score => padding.top + plotHeight - (score / 100) * plotHeight;
+    const path = renderTrendLinePath(points.map(point => ({ current: point.score })), "current", xFor, yFor);
+    const yTicks = [0, 50, 100].map(tick => {
+      const y = yFor(tick);
+      return `
+        <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
+        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${tick}</text>
+      `;
+    }).join("");
+    return `
+      <div class="beta-trend-chart beta-fuel-score-chart" role="img" aria-label="Daily Fuel Score graph">
+        ${renderTrendAxisCopy("day/date", "Fuel Score")}
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
+          ${yTicks}
+          ${path}
+          ${points.map((point, index) => Number.isFinite(point.score) ? `<circle class="point current" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.score).toFixed(1)}" r="4"><title>${safeText(`${point.dateLabel}: ${point.score}/100 · ${fuelScoreLabel(point.score)}`)}</title></circle>` : "").join("")}
+          ${points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 24}">${safeText(point.label)}</text>`).join("")}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderFuelScoreTrends(data) {
+    const currentScore = averageFuelScoreForEntries(data.currentEntries);
+    const previousScore = averageFuelScoreForEntries(data.previousEntries);
+    const currentLabel = Number.isFinite(currentScore) ? `${Math.round(currentScore)}/100` : "Building";
+    const componentRows = [
+      ["training_adherence", "Training timing"],
+      ["work_adherence", "Work-shift timing"],
+      ["gap_adherence", "Fuel-gap adherence"],
+      ["target_completion", "Daily target completion"]
+    ].map(([id, label]) => {
+      const value = scoreComponentPeriodAverage(data.currentEntries, id);
+      return Number.isFinite(value) ? `<span><b>${safeText(label)}</b><strong>${value}</strong></span>` : "";
+    }).join("");
+    return `
+      <section class="beta-trend-habit-section beta-fuel-score-section" aria-label="Fuel Score">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("score")}</span>
+          <div>
+            <h3>Fuel Score</h3>
+            <p>Based on adherence to your planned fuelling times.</p>
+          </div>
+          <span class="beta-trend-result-chip ${Number(currentScore || 0) >= 75 ? "protected" : Number(currentScore || 0) >= 60 ? "neutral" : "elevated"}">${safeText(currentLabel)}</span>
+        </div>
+        <div class="beta-fuel-score-summary">
+          <strong>${safeText(Number.isFinite(currentScore) ? fuelScoreLabel(currentScore) : "Add planned fuel opportunities to build a score.")}</strong>
+          <span>${safeText(scoreDifferenceLabel(currentScore, previousScore))}</span>
+        </div>
+        ${componentRows ? `<div class="beta-fuel-score-components">${componentRows}</div>` : `<p class="muted beta-history-empty">Components appear when training, work, gap or target data exists for this period.</p>`}
+        ${renderFuelScoreGraph(data.range)}
+      </section>
+    `;
+  }
+
+  function trainingOrWorkOpportunityStats(entries, group) {
+    const opportunities = entries.flatMap(entry => calculateDailyFuelScore(entry.date).opportunities)
+      .filter(item => opportunityTypeGroup(item.type) === group);
+    const completed = opportunities.filter(item => item.completedAt);
+    const missed = opportunities.filter(item => item.status === "missed" || item.status === "overdue");
+    const average = weightedOpportunityAverage(opportunities);
+    return { opportunities, completed, missed, average };
+  }
+
+  function mostMissedOpportunityLabel(opportunities) {
+    const missed = opportunities.filter(item => item.status === "missed" || item.status === "overdue");
+    const counts = new Map();
+    missed.forEach(item => counts.set(item.type, (counts.get(item.type) || 0) + 1));
+    if (!counts.size) return "No repeated missed opportunity yet";
+    const [type, count] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+    const label = type.replace(/_/g, " ");
+    return `${label} · ${count} time${count === 1 ? "" : "s"}`;
+  }
+
+  function renderDemandAdherenceInsights(data) {
+    const training = trainingOrWorkOpportunityStats(data.currentEntries, "training");
+    const work = trainingOrWorkOpportunityStats(data.currentEntries, "work");
+    if (training.opportunities.length + work.opportunities.length < 2) {
+      return `
+        <section class="beta-trend-habit-section beta-demand-adherence-section">
+          <div class="beta-weekly-section-head">
+            <span class="beta-icon-disc amber">${dailyIcon("route")}</span>
+            <div><h3>Demand adherence</h3><p>Add a few training or work blocks before Fuel Guard draws demand conclusions.</p></div>
+          </div>
+        </section>
+      `;
+    }
+    return `
+      <section class="beta-trend-habit-section beta-demand-adherence-section">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc amber">${dailyIcon("route")}</span>
+          <div>
+            <h3>Demand adherence</h3>
+            <p>Training and work timing signals for this selected period.</p>
+          </div>
+        </div>
+        <div class="beta-trend-habit-grid">
+          ${renderWeeklyMetricCard("Training opportunities completed", `${training.completed.length} of ${training.opportunities.length}`, Number.isFinite(training.average) ? `Average timing score ${Math.round(training.average)}.` : "Needs completed training opportunities.")}
+          ${renderWeeklyMetricCard("Work-break opportunities completed", `${work.completed.length} of ${work.opportunities.length}`, Number.isFinite(work.average) ? `Average timing score ${Math.round(work.average)}.` : "Needs completed work opportunities.")}
+          ${renderWeeklyMetricCard("Most commonly missed opportunity", mostMissedOpportunityLabel([...training.opportunities, ...work.opportunities]), "Only shown when there is enough repeated signal.")}
+        </div>
+      </section>
+    `;
+  }
+
+  function sevenDayFuelDebtSummary(referenceDate = new Date()) {
+    const end = addDays(startOfDay(referenceDate), 1);
+    const start = addDays(end, -7);
+    const entries = entriesForRange(archiveEntries(), start, end);
+    const opportunities = entries.flatMap(entry => calculateDailyFuelScore(entry.date).opportunities);
+    const missedKeyOpportunities = opportunities.filter(item => {
+      const block = demandBlocks().find(candidate => candidate.id === item.demandBlockId);
+      return block?.isKeySession && (item.status === "missed" || item.status === "overdue");
+    }).length;
+    const delayedOpportunities = opportunities.filter(item => item.status === "completed_late" || item.status === "overdue").length;
+    const excessGapMinutes = entries.reduce((sum, entry) => sum + Number(entry.fuelDebtMinutes || 0), 0);
+    let consecutiveOffPlanDays = 0;
+    [...entries].sort((a, b) => dateFromKey(b.date) - dateFromKey(a.date)).some(entry => {
+      const score = calculateDailyFuelScore(entry.date).finalScore;
+      if (Number.isFinite(score) && score < 75) {
+        consecutiveOffPlanDays += 1;
+        return false;
+      }
+      return consecutiveOffPlanDays > 0;
+    });
+    const firstHalf = entries.slice(0, Math.floor(entries.length / 2));
+    const secondHalf = entries.slice(Math.floor(entries.length / 2));
+    const firstAverage = averageFuelScoreForEntries(firstHalf);
+    const secondAverage = averageFuelScoreForEntries(secondHalf);
+    const direction = !Number.isFinite(firstAverage) || !Number.isFinite(secondAverage)
+      ? "stable"
+      : secondAverage + 5 < firstAverage ? "worsening" : secondAverage > firstAverage + 5 ? "improving" : "stable";
+    const severity = missedKeyOpportunities >= 2 || excessGapMinutes >= 360 || consecutiveOffPlanDays >= 4
+      ? "High"
+      : delayedOpportunities >= 2 || excessGapMinutes >= 120 || consecutiveOffPlanDays >= 2
+        ? "Building"
+        : excessGapMinutes > 0 || delayedOpportunities > 0
+          ? "Low"
+          : "Clear";
+    return { missedKeyOpportunities, delayedOpportunities, excessGapMinutes, consecutiveOffPlanDays, direction, severity };
+  }
+
+  function renderFuelDebtSevenDay(data) {
+    const debt = sevenDayFuelDebtSummary(data.range.end);
+    return `
+      <section class="beta-trend-habit-section beta-fuel-debt-section" aria-label="Fuel Debt">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc amber">${dailyIcon("gap")}</span>
+          <div>
+            <h3>Fuel Debt</h3>
+            <p>Seven-day behavioural summary of repeated missed or delayed fuelling opportunities.</p>
+          </div>
+          <span class="beta-trend-result-chip ${debt.severity === "Clear" ? "protected" : debt.severity === "High" ? "elevated" : "neutral"}">${safeText(debt.severity)}</span>
+        </div>
+        <div class="beta-trend-habit-grid">
+          ${renderWeeklyMetricCard("Missed key opportunities", String(debt.missedKeyOpportunities), "Key-session fuel opportunities only.")}
+          ${renderWeeklyMetricCard("Delayed opportunities", String(debt.delayedOpportunities), "Completed late or still overdue.")}
+          ${renderWeeklyMetricCard("Beyond planned gaps", fuelDebtDurationText(debt.excessGapMinutes), `Pattern direction: ${debt.direction}.`)}
+          ${renderWeeklyMetricCard("Consecutive off-plan days", String(debt.consecutiveOffPlanDays), "Days below mostly-on-track adherence.")}
+        </div>
+        <p class="row-note">Fuel Debt is a timing-pattern summary, not a calorie or medical calculation.</p>
       </section>
     `;
   }
@@ -5357,6 +6345,9 @@
     const remainingCards = data.cards.filter(card => !primaryTrendIds.includes(card.metric.id));
     const orderedCards = [...primaryCards, ...remainingCards];
     summaryTarget.innerHTML = `
+      ${renderFuelScoreTrends(data)}
+      ${renderFuelDebtSevenDay(data)}
+      ${renderDemandAdherenceInsights(data)}
       ${renderGapInsights(data)}
       ${renderTrendHabitInsights(data)}
       ${renderLogHabits(data)}
@@ -5425,11 +6416,11 @@
     ctx.fillStyle = "rgba(23,35,29,.58)";
     ctx.textAlign = "center";
     [
-      [0, "00:00"],
-      [360, "06:00"],
-      [720, "12:00"],
-      [1080, "18:00"],
-      [1440, "24:00"]
+      [0, minuteLabel(0)],
+      [360, minuteLabel(360)],
+      [720, minuteLabel(720)],
+      [1080, minuteLabel(1080)],
+      [1440, minuteLabel(1440)]
     ].forEach(([minute, label]) => {
       ctx.fillText(label, clamp(xForMinute(minute), padding.left + 10, cssWidth - padding.right - 10), cssHeight - 12);
     });
@@ -5614,11 +6605,11 @@
     ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "center";
     [
-      [0, "00:00"],
-      [360, "06:00"],
-      [720, "12:00"],
-      [1080, "18:00"],
-      [1440, "24:00"]
+      [0, minuteLabel(0)],
+      [360, minuteLabel(360)],
+      [720, minuteLabel(720)],
+      [1080, minuteLabel(1080)],
+      [1440, minuteLabel(1440)]
     ].forEach(([minute, label]) => {
       ctx.fillText(label, clamp(xForMinute(minute), padding.left + 10, cssWidth - padding.right - 10), cssHeight - 10);
     });
@@ -5799,6 +6790,10 @@
         const date = logDate(log);
         if (date) storeArchive(dateKey(date));
       });
+      [...new Set(csvImportPreview.logs.map(log => {
+        const date = logDate(log);
+        return date ? dateKey(date) : "";
+      }).filter(Boolean))].forEach(key => applyOpportunityMatchesForDay(key));
       state.completed.liveFuelStatus = true;
       save();
       renderAll();
@@ -5835,6 +6830,33 @@
   document.getElementById("showMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(true));
   document.getElementById("cancelMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(false));
   document.getElementById("saveMissedLogButton")?.addEventListener("click", saveMissedLog);
+  document.addEventListener("click", event => {
+    if (event.target.closest("#saveTrainingDemandButton")) {
+      saveTrainingDemand();
+      return;
+    }
+    if (event.target.closest("#saveWorkDemandButton")) {
+      saveWorkDemand();
+      return;
+    }
+    if (event.target.closest("#cancelDemandEditButton")) {
+      demandPlannerEditingId = "";
+      demandPlannerStatus = "";
+      renderDemandPlanner();
+      return;
+    }
+    const editDemand = event.target.closest("[data-edit-demand]");
+    if (editDemand) {
+      demandPlannerEditingId = editDemand.dataset.editDemand || "";
+      demandPlannerStatus = "Editing demand block.";
+      renderDemandPlanner();
+      return;
+    }
+    const deleteDemand = event.target.closest("[data-delete-demand]");
+    if (deleteDemand) {
+      deleteDemandBlock(deleteDemand.dataset.deleteDemand);
+    }
+  });
   document.addEventListener("click", event => {
     const editLog = event.target.closest("[data-edit-log]");
     if (editLog) {
@@ -6157,6 +7179,28 @@
   if (urlRequestsPasswordRecovery()) {
     requestAnimationFrame(() => switchScreen("checklist"));
   }
+
+  window.fuelGuardDemandPlanning = {
+    generateFuelOpportunitiesForDay,
+    calculateOpportunityTimingScore,
+    calculateDailyFuelScore,
+    applyOpportunityMatchesForDay,
+    applyOpportunityMatchesForVisibleDays() {
+      const keys = new Set([dateKey(), selectedDataDateKey()]);
+      betaState().logs.forEach(log => {
+        const date = logDate(log);
+        if (date) keys.add(dateKey(date));
+      });
+      demandBlocks().forEach(block => {
+        if (block?.date) keys.add(block.date);
+      });
+      keys.forEach(key => {
+        applyOpportunityMatchesForDay(key);
+        storeArchive(key);
+      });
+      save();
+    }
+  };
 
   function scheduleFuelGuardTick() {
     const delay = cooldownRemainingSeconds() > 0 ? 1000 : 30000;

@@ -15,6 +15,8 @@ const DEFAULT_STATE = {
     archive: {},
     dayTypes: {},
     trainingSessions: {},
+    demandBlocks: [],
+    workBreaks: [],
     graphMode: "fuel",
     fuelWindowMinutes: 720,
     thresholds: {
@@ -38,6 +40,8 @@ const DEFAULT_STATE = {
     cooldownUntil: 0,
     cloud: {
       pendingDeleteIds: [],
+      pendingDemandDeleteIds: [],
+      pendingWorkBreakDeleteIds: [],
       lastSyncedAt: "",
       lastError: ""
     }
@@ -85,6 +89,8 @@ function load() {
         archive: isPlainObject(parsedFuelGap.archive) ? parsedFuelGap.archive : {},
         dayTypes: isPlainObject(parsedFuelGap.dayTypes) ? parsedFuelGap.dayTypes : {},
         trainingSessions: isPlainObject(parsedFuelGap.trainingSessions) ? parsedFuelGap.trainingSessions : {},
+        demandBlocks: Array.isArray(parsedFuelGap.demandBlocks) ? parsedFuelGap.demandBlocks : [],
+        workBreaks: Array.isArray(parsedFuelGap.workBreaks) ? parsedFuelGap.workBreaks : [],
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)
           : defaults.fuelGap.fuelWindowMinutes,
@@ -101,6 +107,12 @@ function load() {
           ...(isPlainObject(parsedFuelGap.cloud) ? parsedFuelGap.cloud : {}),
           pendingDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingDeleteIds)
             ? parsedFuelGap.cloud.pendingDeleteIds
+            : [],
+          pendingDemandDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingDemandDeleteIds)
+            ? parsedFuelGap.cloud.pendingDemandDeleteIds
+            : [],
+          pendingWorkBreakDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingWorkBreakDeleteIds)
+            ? parsedFuelGap.cloud.pendingWorkBreakDeleteIds
             : []
         }
       },
@@ -185,6 +197,8 @@ function fuelGapState() {
   if (!isPlainObject(state.fuelGap.archive)) state.fuelGap.archive = {};
   if (!isPlainObject(state.fuelGap.dayTypes)) state.fuelGap.dayTypes = {};
   if (!isPlainObject(state.fuelGap.trainingSessions)) state.fuelGap.trainingSessions = {};
+  if (!Array.isArray(state.fuelGap.demandBlocks)) state.fuelGap.demandBlocks = [];
+  if (!Array.isArray(state.fuelGap.workBreaks)) state.fuelGap.workBreaks = [];
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
     state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
   }
@@ -204,6 +218,12 @@ function fuelGapState() {
     ...state.fuelGap.cloud,
     pendingDeleteIds: Array.isArray(state.fuelGap.cloud.pendingDeleteIds)
       ? state.fuelGap.cloud.pendingDeleteIds
+      : [],
+    pendingDemandDeleteIds: Array.isArray(state.fuelGap.cloud.pendingDemandDeleteIds)
+      ? state.fuelGap.cloud.pendingDemandDeleteIds
+      : [],
+    pendingWorkBreakDeleteIds: Array.isArray(state.fuelGap.cloud.pendingWorkBreakDeleteIds)
+      ? state.fuelGap.cloud.pendingWorkBreakDeleteIds
       : []
   };
   return state.fuelGap;
@@ -252,9 +272,18 @@ function fuelLogDate(log) {
   return parseFuelLogDateValue(log);
 }
 
-function formatClock(date) {
+function formatTimeAmPm(value) {
+  const date = fuelLogDate(value);
   if (!date) return "--";
-  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+  return `${displayHour}:${minutes}${suffix}`;
+}
+
+function formatClock(date) {
+  return formatTimeAmPm(date);
 }
 
 function fuelOnlyLogs(logs) {

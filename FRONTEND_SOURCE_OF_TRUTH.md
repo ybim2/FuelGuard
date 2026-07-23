@@ -11,16 +11,16 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v74-esp32-csv-millis-import
+Canonical app: mobile-pwa-v75-demand-fuel-plan
 Build version: shown from `build-info.js`
 
 The shared top header contains only the Fuel Guard logo and remains sticky across the active screens.
 
 Current card ownership:
 
-- Log: day/session setup, quick logging, selected-day date/metrics, target progress, share/download summary, and latest log.
-- Trends: weekly trend review plus actual-versus-target weekly progress.
-- Settings: preferences, fuelling targets, account sync, import, update, and app metadata.
+- Log: day/session setup, quick logging, selected-day date/metrics, demand planner, Today’s Fuel Plan, target progress, share/download summary, and latest log.
+- Trends: Fuel Score, seven-day Fuel Debt, demand adherence, weekly trend review, and actual-versus-target weekly progress.
+- Settings: preferences, normal fuelling period, risk thresholds, fuelling targets, account sync, import, update, and app metadata.
 
 ## Removed legacy features
 
@@ -43,7 +43,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `build-info.js`: visible build metadata used by Settings and PWA update checks
 - `styles.css`, `mobile-pwa.css`, `mobile-ux-overrides.css`, `fuel-beta.css`: active styles
 - `app-state.js`: local app state and persistence helpers
-- `fuel-supabase.js`: Supabase Auth and cloud log sync layer
+- `fuel-supabase.js`: Supabase Auth plus cloud log, target, and demand-planning sync layer
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
 - `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Log, Trends, and Settings
@@ -108,7 +108,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v74-esp32-csv-millis-import`.
+The current canonical version is `mobile-pwa-v75-demand-fuel-plan`.
 
 ## Future frontend changes
 

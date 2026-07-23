@@ -12,7 +12,7 @@ The current app no longer ships the old parked sections. Historical MVP notes li
 
 ## Supabase setup
 
-Run `supabase/fuel_logs.sql` and `supabase/fuel_targets.sql` in the Supabase project to create the cloud log and target tables, grants, RLS, and owner-only policies.
+Run `supabase/fuel_logs.sql`, `supabase/fuel_targets.sql`, and `supabase/fuel_demand_planning.sql` in the Supabase project to create the cloud log, target, and demand-planning tables, grants, RLS, and owner-only policies.
 
 For Vercel, set only public client values:
 
