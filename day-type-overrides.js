@@ -1,8 +1,8 @@
 // Fuel Guard day type compatibility layer.
 // Keeps older saved day-type entries safe while training session remains separate.
 (() => {
-  const ALLOWED_VALUES = new Set(["competition", "work", "holiday"]);
-  const DEPRECATED_VALUES = new Set(["travel"]);
+  const ALLOWED_VALUES = new Set(["competition", "work", "travel", "holiday"]);
+  const DEPRECATED_VALUES = new Set([]);
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "competition day": "competition",
@@ -27,6 +27,7 @@
   const LABELS = {
     competition: "Competition Day",
     work: "Working Day",
+    travel: "Travel",
     holiday: "Holiday"
   };
   let applying = false;

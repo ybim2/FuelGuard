@@ -279,7 +279,7 @@ function formatTimeAmPm(value) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
   const suffix = hours >= 12 ? "PM" : "AM";
   const displayHour = hours % 12 || 12;
-  return `${displayHour}:${minutes}${suffix}`;
+  return `${displayHour}:${minutes} ${suffix}`;
 }
 
 function formatClock(date) {

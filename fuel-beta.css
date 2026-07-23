@@ -4792,3 +4792,435 @@ body.beta-mvp .mobile-nav-item.active {
     flex: 1 1 0;
   }
 }
+
+/* v77 IA refresh: Today -> Plan -> Trends */
+body.beta-mvp {
+  --fg-page-bg: #f4f6f2;
+  --fg-card-bg: #ffffff;
+  --fg-card-border: rgba(29, 49, 38, .12);
+  --fg-card-shadow: 0 10px 28px rgba(23, 35, 29, .06);
+  --fg-radius-card: 18px;
+  --fg-space-card: 16px;
+  background: var(--fg-page-bg);
+}
+
+body.beta-mvp .app {
+  background: var(--fg-page-bg);
+}
+
+body.beta-mvp .screen {
+  display: none;
+  gap: var(--fg-space-card);
+  padding-top: 14px;
+}
+
+body.beta-mvp .screen.active {
+  display: grid;
+}
+
+body.beta-mvp .beta-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  margin: 0 -2px;
+  padding: 10px 2px 12px;
+  background: rgba(244, 246, 242, .96);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(29, 49, 38, .08);
+}
+
+body.beta-mvp .beta-header-settings-button {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgba(29, 49, 38, .13);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #07130f;
+  box-shadow: 0 6px 18px rgba(23, 35, 29, .07);
+}
+
+body.beta-mvp .beta-header-settings-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.beta-mvp .fuel-gap-card,
+body.beta-mvp .beta-today-shell,
+body.beta-mvp .beta-plan-shell,
+body.beta-mvp .beta-trends-card {
+  display: grid;
+  gap: var(--fg-space-card);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-rhythm-section-card,
+body.beta-mvp .beta-today-status-card,
+body.beta-mvp .beta-weekly-section,
+body.beta-mvp .beta-trend-comparison-card,
+body.beta-mvp .beta-trend-habit-section,
+body.beta-mvp .beta-impact-trend-card,
+body.beta-mvp .beta-weekly-fuel-card,
+body.beta-mvp #checklist > .card {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--fg-card-border);
+  border-radius: var(--fg-radius-card);
+  background: var(--fg-card-bg);
+  box-shadow: var(--fg-card-shadow);
+}
+
+body.beta-mvp .beta-primary-card {
+  border-color: rgba(22, 122, 69, .2);
+  background:
+    linear-gradient(135deg, rgba(22, 122, 69, .08), rgba(255, 255, 255, .98) 42%),
+    #ffffff;
+}
+
+body.beta-mvp .section-heading-row h2,
+body.beta-mvp .section-heading-row h3,
+body.beta-mvp .beta-panel-title,
+body.beta-mvp .beta-trends-filter-title {
+  margin: 0;
+  color: #07130f;
+  font-size: 1.08rem;
+  font-weight: 950;
+  line-height: 1.16;
+  letter-spacing: 0;
+}
+
+body.beta-mvp .section-heading-row .muted,
+body.beta-mvp .beta-log-heading p,
+body.beta-mvp .row-note,
+body.beta-mvp .muted {
+  color: #5b6b64;
+}
+
+body.beta-mvp .beta-today-status-card {
+  display: grid;
+  gap: 14px;
+}
+
+body.beta-mvp .beta-today-status-main {
+  display: grid;
+  gap: 8px;
+}
+
+body.beta-mvp .beta-status-eyebrow {
+  color: #5b6b64;
+  font-size: .74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+body.beta-mvp .beta-today-status-main strong {
+  color: #07130f;
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 1000;
+  line-height: .98;
+}
+
+body.beta-mvp .beta-today-status-main p {
+  max-width: 58ch;
+  margin: 0;
+  color: #23342c;
+  font-size: .98rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+body.beta-mvp .beta-today-status-grid,
+body.beta-mvp .beta-today-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 10px;
+}
+
+body.beta-mvp .beta-log-entry-card {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-log-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
+body.beta-mvp .beta-log-entry-card #graphLogHydrationButton,
+body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+  min-height: 58px;
+  border-radius: 16px;
+  font-size: .94rem;
+  line-height: 1.05;
+}
+
+body.beta-mvp .beta-unified-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin-top: 8px;
+}
+
+body.beta-mvp .beta-unified-timeline::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 92px;
+  width: 2px;
+  background: rgba(29, 49, 38, .11);
+}
+
+body.beta-mvp .beta-unified-timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 76px 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+}
+
+body.beta-mvp .beta-unified-timeline-item time {
+  color: #34423c;
+  font-size: .78rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+body.beta-mvp .beta-timeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #167a45;
+  box-shadow: 0 0 0 2px rgba(22, 122, 69, .18);
+}
+
+body.beta-mvp .beta-unified-timeline-item strong {
+  display: block;
+  color: #07130f;
+  font-size: .92rem;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+body.beta-mvp .beta-unified-timeline-item small {
+  display: block;
+  margin-top: 3px;
+  color: #5b6b64;
+  font-size: .8rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+body.beta-mvp .beta-unified-timeline-item.planned-work .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.planned-training .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.planned-break .beta-timeline-dot {
+  background: #6b7280;
+  box-shadow: 0 0 0 2px rgba(107, 114, 128, .18);
+}
+
+body.beta-mvp .beta-unified-timeline-item.suggested-fuel .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.suggested-hydration .beta-timeline-dot {
+  background: #ffb020;
+  box-shadow: 0 0 0 2px rgba(255, 176, 32, .22);
+}
+
+body.beta-mvp .beta-unified-timeline-item.actual-hydration .beta-timeline-dot {
+  background: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .18);
+}
+
+body.beta-mvp .beta-unified-timeline-item.actual-low-energy .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.missed-opportunity .beta-timeline-dot {
+  background: #b56200;
+  box-shadow: 0 0 0 2px rgba(181, 98, 0, .2);
+}
+
+body.beta-mvp .beta-timeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  color: #5b6b64;
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-timeline-legend span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+body.beta-mvp .beta-timeline-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #6b7280;
+}
+
+body.beta-mvp .beta-timeline-legend .suggested {
+  background: #ffb020;
+}
+
+body.beta-mvp .beta-timeline-legend .completed {
+  background: #167a45;
+}
+
+body.beta-mvp .beta-timeline-legend .missed {
+  background: #b56200;
+}
+
+body.beta-mvp .beta-compact-summary-grid {
+  gap: 12px;
+}
+
+body.beta-mvp .beta-protected-moment-list {
+  display: grid;
+  gap: 8px;
+}
+
+body.beta-mvp .beta-protected-moment {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid rgba(29, 49, 38, .08);
+}
+
+body.beta-mvp .beta-protected-moment:first-child {
+  border-top: 0;
+}
+
+body.beta-mvp .beta-protected-moment time {
+  color: #167a45;
+  font-size: .82rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-protected-moment strong {
+  display: block;
+  color: #07130f;
+  font-size: .92rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-protected-moment small {
+  color: #5b6b64;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+body.beta-mvp .beta-trends-week-row {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+body.beta-mvp .beta-trend-controls {
+  width: 100%;
+}
+
+body.beta-mvp .beta-trend-comparison-grid,
+body.beta-mvp .beta-impact-trend-grid,
+body.beta-mvp .beta-averages-summary {
+  gap: 20px;
+}
+
+body.beta-mvp .beta-trend-chart svg,
+body.beta-mvp .beta-weekly-count-chart svg,
+body.beta-mvp .beta-weekly-single-chart svg {
+  width: 100%;
+}
+
+body.beta-mvp .mobile-bottom-nav {
+  background: rgba(255, 255, 255, .96);
+  border-top: 1px solid rgba(29, 49, 38, .1);
+}
+
+@media (min-width: 840px) {
+  body.beta-mvp .screen {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+
+  body.beta-mvp .beta-topbar {
+    margin-inline: 0;
+  }
+
+  body.beta-mvp .beta-unified-timeline::before {
+    left: 118px;
+  }
+
+  body.beta-mvp .beta-unified-timeline-item {
+    grid-template-columns: 102px 18px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  body.beta-mvp .screen {
+    padding-top: 8px;
+  }
+
+  body.beta-mvp .beta-rhythm-section-card,
+  body.beta-mvp .beta-today-status-card,
+  body.beta-mvp .beta-weekly-section,
+  body.beta-mvp .beta-trend-comparison-card,
+  body.beta-mvp .beta-trend-habit-section,
+  body.beta-mvp .beta-impact-trend-card,
+  body.beta-mvp .beta-weekly-fuel-card,
+  body.beta-mvp #checklist > .card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  body.beta-mvp .beta-log-actions {
+    grid-template-columns: 1.15fr 1fr 1fr;
+    gap: 8px;
+  }
+
+  body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
+  body.beta-mvp .beta-log-entry-card #graphLogHydrationButton,
+  body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+    min-height: 54px;
+    padding-inline: 8px;
+    font-size: .86rem;
+  }
+
+  body.beta-mvp .beta-unified-timeline::before {
+    left: 82px;
+  }
+
+  body.beta-mvp .beta-unified-timeline-item {
+    grid-template-columns: 66px 16px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  body.beta-mvp .beta-unified-timeline-item time {
+    font-size: .72rem;
+  }
+}

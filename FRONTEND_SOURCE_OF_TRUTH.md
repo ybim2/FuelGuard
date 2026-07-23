@@ -2,25 +2,28 @@
 
 ## Canonical app
 
-The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the three main tabs:
+The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the three main bottom-navigation tabs:
 
-- Log
+- Today
+- Plan
 - Trends
-- Settings
+
+Settings is still part of the canonical app, but it opens from the sticky header settings icon instead of the bottom navigation.
 
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v76-personalised-insights
+Canonical app: mobile-pwa-v77-today-plan-trends
 Build version: shown from `build-info.js`
 
-The shared top header contains only the Fuel Guard logo and remains sticky across the active screens.
+The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 Current card ownership:
 
-- Log: day/session setup, quick logging, selected-day date/metrics, demand planner, Today’s Fuel Plan, target progress, share/download summary, and latest log.
-- Trends: Fuel Score, Personalised Insights, seven-day Fuel Debt, demand adherence, weekly trend review, and actual-versus-target weekly progress.
-- Settings: preferences, normal fuelling period, risk thresholds, fuelling targets, account sync, import, update, and app metadata.
+- Today: current fuelling status, quick fuel/hydration/low-energy logging, the combined daily timeline, compact target progress, a short daily summary, and today's logs.
+- Plan: selected day setup, day type, training session, demand planner, protected fuelling moments, fuelling window length, and daily targets with calculated weekly targets.
+- Trends: Fuel Score, Personalised Insights, seven-day Fuel Debt, demand adherence, weekly trend review, graph comparisons, and actual-versus-target weekly progress.
+- Settings: risk thresholds, account sync, import, update, app metadata, and support copy.
 
 ## Removed legacy features
 
@@ -46,7 +49,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-supabase.js`: Supabase Auth plus cloud log, target, and demand-planning sync layer
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
-- `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Log, Trends, and Settings
+- `fuel-beta.js`: canonical 3-tab mobile PWA behavior for Today, Plan, Trends, and header-accessible Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `day-type-overrides.js`: day type and training session support
 - `manifest.webmanifest`: PWA manifest
@@ -87,7 +90,7 @@ No `package.json`, Vite, Next, Netlify, or Firebase config is present in this re
 
 ## Mobile PWA update rules
 
-1. The canonical app is the 3-tab mobile PWA with Log, Trends, and Settings.
+1. The canonical app is the 3-tab mobile PWA with Today, Plan, and Trends in the bottom navigation.
 2. The deployed Vercel URL is the source for the installed mobile PWA.
 3. Settings must show the canonical marker and build version from `build-info.js`.
 4. Service worker caches must be versioned for each app-shell deployment.
@@ -108,8 +111,8 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v76-personalised-insights`.
+The current canonical version is `mobile-pwa-v77-today-plan-trends`.
 
 ## Future frontend changes
 
-Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main tabs Log, Trends, and Settings.
+Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main bottom tabs Today, Plan, and Trends, with Settings reachable from the sticky header icon.

@@ -1,5 +1,5 @@
 // Fuel Guard canonical mobile PWA layer.
-// Focuses the app on real fuel and hydration logging, history, and settings.
+// Focuses the app on planning today, logging quickly, and reviewing patterns.
 (() => {
   const DEFAULT_THRESHOLDS = {
     greenMinutes: 150,
@@ -23,10 +23,11 @@
   const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
     { value: "work", label: "Working Day" },
+    { value: "travel", label: "Travel" },
     { value: "holiday", label: "Holiday" },
     { value: "competition", label: "Competition Day" }
   ];
-  const DEPRECATED_DAY_TYPES = new Set(["travel"]);
+  const DEPRECATED_DAY_TYPES = new Set([]);
   const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
   const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
   const LOG_HABIT_METRIC_IDS = new Set(["logs"]);
@@ -1989,7 +1990,7 @@
   window.recordCrashEvent = recordCrashEvent;
 
   function undoLatestRhythmLog() {
-    const key = selectedDataDateKey();
+    const key = todayViewKey();
     let latestIndex = -1;
     let latestDate = null;
     let latestType = "fuel";
@@ -2052,7 +2053,7 @@
   }
 
   function renderDayTypeControls() {
-    const key = dateKey();
+    const key = selectedDataDateKey();
     const dayTypeSelect = document.getElementById("fuelDayType");
     const sessionSelect = document.getElementById("fuelTrainingSession");
     const dayType = dayTypeForKey(key);
@@ -2134,7 +2135,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v76-personalised-insights"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v77-today-plan-trends"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2218,7 +2219,7 @@
     const dateEl = document.getElementById("fuelDailyLogDate");
     const target = document.getElementById("fuelDailyLog");
     if (!target) return;
-    const key = selectedDataDateKey();
+    const key = todayViewKey();
     const logs = logsForDay(key);
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
     target.innerHTML = logs.length
@@ -3522,6 +3523,315 @@
     `;
   }
 
+  function todayViewKey() {
+    return dateKey();
+  }
+
+  function lastLogForDay(key, predicate) {
+    const logs = logsForDay(key).filter(predicate).sort((a, b) => a.date - b.date);
+    return logs[logs.length - 1] || null;
+  }
+
+  function timeSinceLogForDay(key, predicate, now = new Date()) {
+    if (key !== dateKey(now)) return "Selected day complete";
+    const log = lastLogForDay(key, predicate);
+    if (!log) return "Not logged yet";
+    return duration(Math.max(0, (now - log.date) / 60000));
+  }
+
+  function fuellingWindowStatusForDay(key, fuelLogs, now = new Date()) {
+    const sorted = [...fuelLogs].sort((a, b) => a.date - b.date);
+    const first = sorted[0] || null;
+    if (!first) {
+      return {
+        started: false,
+        firstFuel: "",
+        length: fuelDebtDurationText(fuelWindowMinutes()),
+        closesAt: "",
+        remaining: "Not started",
+        message: "Your fuelling window will begin when you record your first fuel log."
+      };
+    }
+    const start = first.date;
+    const end = addMinutes(start, fuelWindowMinutes());
+    const isToday = key === dateKey(now);
+    const remainingMinutes = (end - now) / 60000;
+    return {
+      started: true,
+      firstFuel: formatClock(start),
+      length: fuelDebtDurationText(fuelWindowMinutes()),
+      closesAt: formatClock(end),
+      remaining: isToday
+        ? remainingMinutes > 0
+          ? `${fuelDebtDurationText(remainingMinutes)} remaining`
+          : "Window ended"
+        : "Selected day complete",
+      message: isToday && remainingMinutes <= 0
+        ? "Your normal fuelling window has ended for today."
+        : `Normal fuelling window closes at ${formatClock(end)}.`
+    };
+  }
+
+  function nextRelevantPlanEvent(key, now = new Date()) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const nextOpportunity = nextFuelOpportunity(opportunities, now);
+    if (nextOpportunity) {
+      return {
+        label: nextOpportunity.label,
+        time: logDate(nextOpportunity.plannedStart),
+        end: logDate(nextOpportunity.plannedEnd),
+        status: nextOpportunity.status,
+        detail: opportunityPlanCopy(nextOpportunity)
+      };
+    }
+    const nextDemand = demandBlocksForDay(key)
+      .map(block => ({ block, range: blockRange(block) }))
+      .filter(item => item.range && item.range.end >= now)
+      .sort((a, b) => a.range.start - b.range.start)[0];
+    if (!nextDemand) return null;
+    return {
+      label: demandBlockTitle(nextDemand.block),
+      time: nextDemand.range.start,
+      end: nextDemand.range.end,
+      status: "upcoming",
+      detail: nextDemand.block.type === "training" ? "Upcoming training session." : "Upcoming work shift."
+    };
+  }
+
+  function todayRecommendation(status, event) {
+    if (event) {
+      const windowCopy = event.end ? `${formatClock(event.time)}-${formatClock(event.end)}` : formatClock(event.time);
+      if (status === "green") return `${event.label} is at ${windowCopy}. Keep that fuel moment visible.`;
+      if (status === "amber") return `${event.label} is at ${windowCopy}. Fuel during that window if you can.`;
+      if (status === "red") return `${event.label} is at ${windowCopy}. Eat now, then use the next window to stay steadier.`;
+      return `${event.label} is at ${windowCopy}. Add a gentle fuel moment and support the next window.`;
+    }
+    if (status === "green") return "You look steady. Keep the next easy fuel or hydration moment visible.";
+    if (status === "amber") return "Eat soon. A small regular fuel moment may help you feel steadier later.";
+    if (status === "red") return "Eat now if you can. This is a useful point to interrupt the gap.";
+    return "Recovery needed. Add fuel when you can and use the next hour as a support window.";
+  }
+
+  function renderCurrentFuellingStatus(key = todayViewKey(), now = new Date()) {
+    const snapshot = fuelGapSnapshot(now);
+    const hydrationSince = timeSinceLogForDay(key, isHydrationLog, now);
+    const event = nextRelevantPlanEvent(key, now);
+    const tone = snapshot.status === "green" ? "steady" : snapshot.status === "amber" ? "warning" : snapshot.status === "red" ? "urgent" : "recovery";
+    return `
+      <section class="beta-today-status-card beta-primary-card ${safeText(tone)}" aria-label="Current fuelling status">
+        <div class="beta-today-status-main">
+          <span class="beta-status-eyebrow">Current status</span>
+          <strong>${safeText(riskStatusLabel(snapshot.status))}</strong>
+          <p>${safeText(todayRecommendation(snapshot.status, event))}</p>
+        </div>
+        <div class="beta-today-status-grid">
+          ${dailyMetricCard("Last fuel", snapshot.timeSinceFuel, snapshot.lastFuelled === "No fuel logged" ? "No fuel logged yet" : `Logged at ${snapshot.lastFuelled}`, "fuel")}
+          ${dailyMetricCard("Last hydration", hydrationSince, lastLogForDay(key, isHydrationLog) ? `Logged at ${formatClock(lastLogForDay(key, isHydrationLog).date)}` : "No hydration logged yet", "hydration")}
+          ${dailyMetricCard("Next useful window", event ? (event.end ? `${formatClock(event.time)}-${formatClock(event.end)}` : formatClock(event.time)) : "No planned event", event ? event.label : "Add work or training in Plan.", event ? "fuel" : "neutral")}
+        </div>
+      </section>
+    `;
+  }
+
+  function hydrationSuggestionForDay(key, logs, now = new Date()) {
+    if (key !== dateKey(now)) return [];
+    const hydrationLogs = logs.filter(isHydrationLog).sort((a, b) => a.date - b.date);
+    const last = hydrationLogs[hydrationLogs.length - 1] || null;
+    const time = last ? addMinutes(last.date, hydrationGreenLimit()) : now;
+    if (dateKey(time) !== key) return [];
+    const status = last
+      ? now > time ? "overdue" : (time - now) / 60000 <= OPPORTUNITY_RULES.dueSoonMinutes ? "due_soon" : "upcoming"
+      : "due_soon";
+    return [{
+      type: "suggested-hydration",
+      time,
+      end: addMinutes(time, 30),
+      title: "Suggested hydration",
+      detail: last ? opportunityStatusLabel(status) : "Start hydration rhythm when convenient.",
+      status
+    }];
+  }
+
+  function todayTimelineItems(key, now = new Date()) {
+    const logs = logsForDay(key);
+    const demandItems = demandBlocksForDay(key).flatMap(block => {
+      const range = blockRange(block);
+      if (!range) return [];
+      const blockItem = {
+        type: block.type === "training" ? "planned-training" : "planned-work",
+        time: range.start,
+        end: range.end,
+        title: demandBlockTitle(block),
+        detail: block.type === "training" ? "Training session" : "Work shift"
+      };
+      const breakItems = block.type === "work"
+        ? workBreaksForBlock(block.id).map(item => {
+          const breakRange = workBreakRange(item, block);
+          return breakRange ? {
+            type: "planned-break",
+            time: breakRange.start,
+            end: breakRange.end,
+            title: item.label || "Work break",
+            detail: "Protected fuelling opportunity"
+          } : null;
+        }).filter(Boolean)
+        : [];
+      return [blockItem, ...breakItems];
+    });
+    const opportunityItems = generateFuelOpportunitiesForDay(key, { now }).map(item => ({
+      type: item.completedAt ? "completed-opportunity" : item.status === "missed" || item.status === "overdue" ? "missed-opportunity" : "suggested-fuel",
+      time: logDate(item.plannedStart),
+      end: logDate(item.plannedEnd),
+      title: item.label,
+      detail: item.completedAt ? `Completed at ${formatClock(item.completedAt)}` : opportunityStatusLabel(item.status),
+      status: item.status
+    })).filter(item => item.time);
+    const hydrationItems = hydrationSuggestionForDay(key, logs, now);
+    const logItems = logs.map(log => ({
+      type: isFuelLog(log) ? "actual-fuel" : isHydrationLog(log) ? "actual-hydration" : "actual-low-energy",
+      time: log.date,
+      end: null,
+      title: logTypeLabel(log),
+      detail: isCrashLog(log) ? "Low energy logged" : "Completed log"
+    }));
+    return [...demandItems, ...opportunityItems, ...hydrationItems, ...logItems]
+      .filter(item => item.time)
+      .sort((a, b) => a.time - b.time || String(a.type).localeCompare(String(b.type)));
+  }
+
+  function timelineTypeLabel(type) {
+    if (type === "planned-work") return "Work";
+    if (type === "planned-break") return "Break";
+    if (type === "planned-training") return "Training";
+    if (type === "suggested-fuel") return "Fuel moment";
+    if (type === "suggested-hydration") return "Hydration";
+    if (type === "completed-opportunity") return "Completed";
+    if (type === "missed-opportunity") return "Overdue";
+    if (type === "actual-hydration") return "Hydration log";
+    if (type === "actual-low-energy") return "Low Energy";
+    return "Fuel log";
+  }
+
+  function renderTodayTimeline(key = todayViewKey(), now = new Date()) {
+    const items = todayTimelineItems(key, now);
+    return `
+      <section class="beta-rhythm-section-card beta-today-timeline-card" aria-label="Today’s timeline">
+        <div class="section-heading-row">
+          <div>
+            <h3>Today’s timeline</h3>
+            <p class="muted">Work, training, protected fuel moments and actual logs in one place.</p>
+          </div>
+          <span class="row-note">${safeText(formatDateKey(key))}</span>
+        </div>
+        <div class="beta-unified-timeline">
+          ${items.length ? items.map(item => `
+            <article class="beta-unified-timeline-item ${safeText(item.type)}">
+              <time>${safeText(item.end ? `${formatClock(item.time)}-${formatClock(item.end)}` : formatClock(item.time))}</time>
+              <span class="beta-timeline-dot" aria-hidden="true"></span>
+              <div>
+                <strong>${safeText(item.title)}</strong>
+                <small>${safeText(timelineTypeLabel(item.type))}${item.detail ? ` · ${safeText(item.detail)}` : ""}</small>
+              </div>
+            </article>
+          `).join("") : `<p class="muted beta-history-empty">No plan or logs for today yet. Add work, training, or a fuel log to build the timeline.</p>`}
+        </div>
+        <div class="beta-timeline-legend" aria-hidden="true">
+          <span><i class="planned"></i>Planned</span>
+          <span><i class="suggested"></i>Suggested</span>
+          <span><i class="completed"></i>Logged</span>
+          <span><i class="missed"></i>Overdue</span>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTodayProgress(key = todayViewKey(), now = new Date()) {
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const score = calculateDailyFuelScore(key, { now });
+    const opportunities = activeOpportunities(score.opportunities);
+    const scored = opportunities.filter(opportunityIsScored);
+    const adherence = scored.length ? Math.round(averageValue(scored.map(item => Number(item.timingScore || 0)))) : null;
+    const window = fuellingWindowStatusForDay(key, fuelLogs, now);
+    return `
+      <section class="beta-rhythm-section-card beta-today-progress-card" aria-label="Today’s progress">
+        <div class="section-heading-row">
+          <div>
+            <h3>Today’s progress</h3>
+            <p class="muted">Compact targets, adherence, fuelling window and daily Fuel Score.</p>
+          </div>
+        </div>
+        <div class="beta-target-progress-grid beta-today-progress-grid">
+          ${renderTargetProgressCard("Fuel", fuelLogs.length, targets().dailyFuelLogs, "fuel", "daily")}
+          ${renderTargetProgressCard("Hydration", hydrationLogs.length, targets().dailyHydrationLogs, "hydration", "daily")}
+          ${dailyMetricCard("Fuelling adherence", adherence === null ? "Building" : `${adherence}%`, scored.length ? `${scored.length} fuel opportunities scored.` : "Add planned moments and logs.", "fuel")}
+          ${dailyMetricCard("Window remaining", window.remaining, window.message, "fuel")}
+          ${dailyMetricCard("Daily Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel")}
+        </div>
+        <p class="row-note">Fuel Score reflects timing and targets only. It is not a calorie or medical score.</p>
+      </section>
+    `;
+  }
+
+  function renderCompactDailySummary(key = todayViewKey()) {
+    const entry = archiveEntries().find(item => item.date === key) || buildArchiveEntry(key);
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const fuelCards = [
+      dailyMetricCard("First fuel", firstEventTime(fuelLogs), "", "fuel"),
+      dailyMetricCard("Most recent fuel", lastEventTime(fuelLogs), "", "fuel")
+    ];
+    if (fuelLogs.length >= 2) fuelCards.push(dailyMetricCard("Longest fuel gap", longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs), "", "fuel"));
+    const hydrationCards = [
+      dailyMetricCard("First hydration", firstEventTime(hydrationLogs), "", "hydration"),
+      dailyMetricCard("Most recent hydration", lastEventTime(hydrationLogs), "", "hydration")
+    ];
+    if (hydrationLogs.length >= 2) hydrationCards.push(dailyMetricCard("Longest hydration gap", longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs), "", "hydration"));
+    return `
+      <section class="beta-rhythm-section-card beta-today-summary-card" aria-label="Daily summary">
+        <div class="section-heading-row">
+          <div>
+            <h3>Daily summary</h3>
+            <p class="muted">${safeText(entry.plainSummary || "Today’s summary will build as you log.")}</p>
+          </div>
+        </div>
+        <div class="beta-daily-status-groups beta-compact-summary-grid">
+          ${renderDailyMetricGroup("Fuel timing", fuelCards)}
+          ${renderDailyMetricGroup("Hydration timing", hydrationCards)}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderProtectedFuelMoments(key = selectedDataDateKey(), now = new Date()) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const priorityOrder = { overdue: 0, due_soon: 1, upcoming: 2, completed_late: 3, completed_on_time: 4, missed: 5 };
+    const moments = opportunities
+      .filter(item => item.type !== "normal" || item.priority >= 1)
+      .sort((a, b) => (priorityOrder[a.status] ?? 9) - (priorityOrder[b.status] ?? 9) || logDate(a.plannedStart) - logDate(b.plannedStart))
+      .slice(0, 8);
+    return `
+      <section class="beta-rhythm-section-card beta-protected-moments-card" aria-label="Protected fuelling moments">
+        <div class="section-heading-row">
+          <div>
+            <h3>Protected fuelling moments</h3>
+            <p class="muted">Generated from your work schedule, breaks, training and fuelling window.</p>
+          </div>
+        </div>
+        <div class="beta-protected-moment-list">
+          ${moments.length ? moments.map(item => `
+            <article class="beta-protected-moment ${safeText(opportunityTone(item.status))}">
+              <time>${safeText(formatClock(item.plannedStart))}</time>
+              <div><strong>${safeText(item.label)}</strong><small>${safeText(opportunityStatusLabel(item.status))}</small></div>
+            </article>
+          `).join("") : `<p class="muted beta-history-empty">Add work, breaks or training to generate protected fuelling moments.</p>`}
+        </div>
+      </section>
+    `;
+  }
+
   function firstEventTime(logs) {
     return logs.length ? formatClock(logs[0].date) : "Not enough data yet";
   }
@@ -3885,18 +4195,29 @@
     const logs = entryLogsWithDates(entry);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
+    const todayKey = todayViewKey();
     const legacyTarget = document.getElementById("fuelSelectedDayMetrics");
     const statusTarget = document.getElementById("fuelDailyStatusMetrics");
     const windowTarget = document.getElementById("fuelFuellingWindowSummary");
     const targetsTarget = document.getElementById("fuelDailyTargetsSummary");
     const weeklyTargetsTarget = document.getElementById("fuelWeeklyTargetsSummary");
+    const todayStatusTarget = document.getElementById("fuelTodayStatus");
+    const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
+    const todayProgressTarget = document.getElementById("fuelTodayProgress");
+    const todaySummaryTarget = document.getElementById("fuelTodaySummary");
+    const protectedMomentsTarget = document.getElementById("fuelProtectedMoments");
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
     renderDemandPlanner();
+    if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
+    if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(todayKey);
+    if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(todayKey);
+    if (todaySummaryTarget) todaySummaryTarget.innerHTML = renderCompactDailySummary(todayKey);
+    if (protectedMomentsTarget) protectedMomentsTarget.innerHTML = renderProtectedFuelMoments(key);
     if (windowTarget) windowTarget.innerHTML = renderTodaysFuelPlan(fuelLogs, key);
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
-      const weekStart = startOfCalendarWeek(dateFromKey(key));
+      const weekStart = startOfCalendarWeek(dateFromKey(todayKey));
       const weekEntries = entriesForRange(archiveEntries(), weekStart, addDays(weekStart, 7));
       weeklyTargetsTarget.innerHTML = renderWeeklyTargetSection(weekEntries);
     }
@@ -7220,6 +7541,7 @@
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
+    const planActive = document.getElementById("plan")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
@@ -7236,15 +7558,15 @@
     if (lowEnergyButton) lowEnergyButton.disabled = false;
 
     const undo = document.getElementById("undoLatestFoodLog");
-    if (undo) undo.disabled = !logsForDay(selectedDataDateKey()).length;
+    if (undo) undo.disabled = !logsForDay(todayViewKey()).length;
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
 
-    if (dashboardActive) {
+    if (dashboardActive || planActive) {
       renderDayTypeControls();
       renderSelectedDayCard();
-      renderDailyLog();
+      if (dashboardActive) renderDailyLog();
     }
     if (settingsActive) renderSettings();
     if (trendsActive) renderTrends();
@@ -7252,7 +7574,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "plan", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -7260,6 +7582,14 @@
     document.querySelectorAll(".mobile-nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
+    if (target === "dashboard") {
+      renderSelectedDayCard();
+      renderDailyLog();
+    }
+    if (target === "plan") {
+      renderDayTypeControls();
+      renderSelectedDayCard();
+    }
     if (target === "trends") renderTrends();
     if (target === "checklist") renderSettings();
   };
@@ -7471,14 +7801,14 @@
     }
   });
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
-    const key = dateKey();
+    const key = selectedDataDateKey();
     setDayType(key, event.target.value);
     save();
     renderAll();
     window.fuelGuardCloud?.syncLogsForDay(key);
   });
   document.getElementById("fuelTrainingSession")?.addEventListener("change", event => {
-    const key = dateKey();
+    const key = selectedDataDateKey();
     setTrainingSession(key, event.target.value);
     save();
     renderAll();
