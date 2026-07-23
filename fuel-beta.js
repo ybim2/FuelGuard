@@ -2142,7 +2142,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v78-log-plan-history-trends"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v79-brand-identity"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2231,7 +2231,7 @@
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
     target.innerHTML = logs.length
       ? `<div class="beta-history-log-list beta-latest-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>`
-      : `<p class="muted fuel-daily-empty">No fuel or hydration logs are stored for this day yet.</p>`;
+      : `<p class="muted fuel-daily-empty">Your first log starts today’s rhythm.</p>`;
     renderMissedLogPanel();
   }
 
@@ -3767,11 +3767,11 @@
     const hydrationSince = timeSinceLogForDay(key, isHydrationLog, now);
     const event = nextRelevantPlanEvent(key, now);
     const tone = snapshot.status === "green" ? "steady" : snapshot.status === "amber" ? "warning" : snapshot.status === "red" ? "urgent" : "recovery";
+    const statusLabel = riskStatusLabel(snapshot.status);
     return `
       <section class="beta-today-status-card beta-primary-card ${safeText(tone)}" aria-label="Current fuelling status">
         <div class="beta-today-status-main">
-          <span class="beta-status-eyebrow">Current status</span>
-          <strong>${safeText(riskStatusLabel(snapshot.status))}</strong>
+          <strong class="beta-status-title">Status: ${safeText(statusLabel)}</strong>
           <p>${safeText(todayRecommendation(snapshot.status, event))}</p>
         </div>
         <div class="beta-today-status-grid">
@@ -3884,7 +3884,7 @@
                 <small>${safeText(timelineTypeLabel(item.type))}${item.detail ? ` · ${safeText(item.detail)}` : ""}</small>
               </div>
             </article>
-          `).join("") : `<p class="muted beta-history-empty">No plan or logs for this day yet. Add work, training, or a fuel log to build the timeline.</p>`}
+          `).join("") : `<p class="muted beta-history-empty">Add your work or training plan to protect your fuel times.</p>`}
         </div>
         <div class="beta-timeline-legend" aria-hidden="true">
           <span><i class="planned"></i>Planned</span>
@@ -4479,7 +4479,7 @@
       target.innerHTML = `
         <section class="beta-rhythm-section-card beta-history-empty-card">
           <h3>Logged days</h3>
-          <p class="muted">History will appear after you log fuel, hydration, or low energy.</p>
+          <p class="muted">Your daily summary will appear after you begin logging.</p>
         </section>
       `;
       selectedHistoryDetailKey = "";

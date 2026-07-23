@@ -14,7 +14,7 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v78-log-plan-history-trends
+Canonical app: mobile-pwa-v79-brand-identity
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
@@ -59,6 +59,26 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `app-pwa.js`: service worker registration/update handling
 - `vercel.json`: Vercel cache headers for the app shell, manifest, service worker, and build marker
 - `icons/icon.svg`: PWA icon
+- `FUEL_GUARD_BRAND_SYSTEM.md`: reusable Fuel Guard colour roles and visual identity rules
+
+## Visual identity
+
+The canonical app uses the Fuel Guard brand tokens documented in `FUEL_GUARD_BRAND_SYSTEM.md` and implemented in `fuel-beta.css`.
+
+Core visual roles:
+
+- Fuel / primary action: warm amber-gold
+- Dark / grounding: deep charcoal
+- App background: warm off-white
+- Surfaces: warm white cards with subtle separation from the app canvas
+- Hydration: teal-blue
+- Protected state: green
+- Suggested fuel times: amber
+- Urgent fuelling: orange
+- Recovery needed / missed critical state: red
+- Inactive / secondary: neutral grey
+
+Use these semantic tokens for navigation, Plan subtabs, selected states, buttons, progress bars, timelines, charts, cards, empty states, focus states, and status badges. Do not add one-off decorative colours where an existing semantic token fits.
 
 ## Deprecated files
 
@@ -113,7 +133,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v78-log-plan-history-trends`.
+The current canonical version is `mobile-pwa-v79-brand-identity`.
 
 ## Future frontend changes
 

@@ -5617,3 +5617,523 @@ body.beta-mvp .beta-log-entry-card button {
     grid-column: 1 / -1;
   }
 }
+
+/* v79 Fuel Guard visual identity: semantic brand tokens and component variants. */
+:root {
+  --fg-brand-fuel: #f5a623;
+  --fg-brand-fuel-rgb: 245, 166, 35;
+  --fg-brand-fuel-deep: #9a5a00;
+  --fg-brand-dark: #101820;
+  --fg-brand-dark-rgb: 16, 24, 32;
+  --fg-brand-bg: #f7f1e5;
+  --fg-brand-surface: #fffaf0;
+  --fg-brand-surface-strong: #ffffff;
+  --fg-brand-hydration: #0f9faa;
+  --fg-brand-hydration-rgb: 15, 159, 170;
+  --fg-brand-protected: #1f8a4c;
+  --fg-brand-protected-rgb: 31, 138, 76;
+  --fg-brand-suggested: #f5a623;
+  --fg-brand-suggested-rgb: 245, 166, 35;
+  --fg-brand-urgent: #e86f19;
+  --fg-brand-urgent-rgb: 232, 111, 25;
+  --fg-brand-critical: #c93d2b;
+  --fg-brand-critical-rgb: 201, 61, 43;
+  --fg-brand-neutral: #687481;
+  --fg-brand-neutral-rgb: 104, 116, 129;
+  --fg-brand-work: #4f46e5;
+  --fg-brand-work-rgb: 79, 70, 229;
+  --fg-brand-training: #8b5cf6;
+  --fg-brand-training-rgb: 139, 92, 246;
+}
+
+body.beta-mvp {
+  --fg-page-bg: var(--fg-brand-bg);
+  --fg-card-bg: var(--fg-brand-surface-strong);
+  --fg-card-border: rgba(var(--fg-brand-dark-rgb), .12);
+  --fg-card-shadow: 0 14px 34px rgba(var(--fg-brand-dark-rgb), .08);
+  --fg-text-strong: var(--fg-brand-dark);
+  --fg-text-muted: #5f675f;
+  --fg-fuel: var(--fg-brand-fuel);
+  --fg-fuel-rgb: var(--fg-brand-fuel-rgb);
+  --fg-hydration: var(--fg-brand-hydration);
+  --fg-hydration-rgb: var(--fg-brand-hydration-rgb);
+  --fg-protected: var(--fg-brand-protected);
+  --fg-protected-rgb: var(--fg-brand-protected-rgb);
+  --fg-suggested: var(--fg-brand-suggested);
+  --fg-suggested-rgb: var(--fg-brand-suggested-rgb);
+  --fg-urgent: var(--fg-brand-urgent);
+  --fg-urgent-rgb: var(--fg-brand-urgent-rgb);
+  --fg-critical: var(--fg-brand-critical);
+  --fg-critical-rgb: var(--fg-brand-critical-rgb);
+  --fg-neutral: var(--fg-brand-neutral);
+  --fg-neutral-rgb: var(--fg-brand-neutral-rgb);
+  --fg-work: var(--fg-brand-work);
+  --fg-work-rgb: var(--fg-brand-work-rgb);
+  --fg-training: var(--fg-brand-training);
+  --fg-training-rgb: var(--fg-brand-training-rgb);
+  background:
+    radial-gradient(circle at 50% -8%, rgba(var(--fg-fuel-rgb), .26), transparent 34%),
+    radial-gradient(circle at 100% 16%, rgba(var(--fg-hydration-rgb), .12), transparent 28%),
+    linear-gradient(180deg, #fbf5e9 0%, var(--fg-page-bg) 48%, #edf4eb 100%);
+  color: var(--fg-text-strong);
+}
+
+body.beta-mvp .app {
+  background: transparent;
+}
+
+body.beta-mvp .beta-topbar {
+  background:
+    linear-gradient(135deg, rgba(255, 250, 240, .96), rgba(var(--fg-fuel-rgb), .18)),
+    rgba(255, 250, 240, .94);
+  border-bottom-color: rgba(var(--fg-brand-dark-rgb), .1);
+  box-shadow: 0 12px 28px rgba(var(--fg-brand-dark-rgb), .08);
+}
+
+body.beta-mvp .beta-topbar::before {
+  content: "";
+  position: absolute;
+  inset: auto 18% -1px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--fg-fuel), rgba(var(--fg-protected-rgb), .72), transparent);
+}
+
+body.beta-mvp .beta-topbar-logo,
+body.beta-mvp .brand .logo,
+body.beta-mvp .app-boot-splash .logo {
+  background:
+    linear-gradient(135deg, var(--fg-fuel) 0%, #f2c14e 48%, var(--fg-protected) 100%);
+  color: var(--fg-brand-dark);
+  box-shadow: 0 12px 26px rgba(var(--fg-fuel-rgb), .28);
+}
+
+body.beta-mvp .beta-header-settings-button {
+  border-color: rgba(var(--fg-brand-dark-rgb), .14);
+  background: var(--fg-brand-dark);
+  color: #fffaf0;
+  box-shadow: 0 10px 24px rgba(var(--fg-brand-dark-rgb), .2);
+}
+
+body.beta-mvp .mobile-bottom-nav {
+  background: rgba(255, 250, 240, .97);
+  border-top-color: rgba(var(--fg-brand-dark-rgb), .11);
+  box-shadow: 0 -16px 34px rgba(var(--fg-brand-dark-rgb), .1);
+}
+
+body.beta-mvp .mobile-nav-item,
+body.beta-mvp .nav-item {
+  color: var(--fg-text-muted);
+}
+
+body.beta-mvp .mobile-nav-item.active,
+body.beta-mvp .nav-item.active {
+  border-color: rgba(var(--fg-fuel-rgb), .32);
+  background:
+    linear-gradient(135deg, rgba(var(--fg-fuel-rgb), .22), rgba(var(--fg-protected-rgb), .1));
+  color: var(--fg-brand-dark);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-fuel-rgb), .18);
+}
+
+body.beta-mvp .beta-plan-subtabs {
+  border-color: rgba(var(--fg-fuel-rgb), .18);
+  background: rgba(255, 250, 240, .96);
+  box-shadow: 0 12px 26px rgba(var(--fg-brand-dark-rgb), .08);
+}
+
+body.beta-mvp .beta-plan-subtabs button {
+  color: var(--fg-text-muted);
+}
+
+body.beta-mvp .beta-plan-subtabs button.active {
+  border-color: rgba(var(--fg-fuel-rgb), .42);
+  background: linear-gradient(135deg, rgba(var(--fg-fuel-rgb), .24), rgba(255, 255, 255, .86));
+  color: var(--fg-brand-dark);
+}
+
+body.beta-mvp button.primary,
+body.beta-mvp .beta-fuelled-button,
+body.beta-mvp #graphLogFoodButton {
+  border: 0;
+  background: linear-gradient(135deg, var(--fg-protected), var(--fg-fuel));
+  color: var(--fg-brand-dark);
+  box-shadow: 0 12px 22px rgba(var(--fg-fuel-rgb), .22);
+}
+
+body.beta-mvp button.secondary,
+body.beta-mvp .secondary {
+  border-color: rgba(var(--fg-brand-dark-rgb), .13);
+  background: rgba(255, 250, 240, .82);
+  color: var(--fg-brand-dark);
+}
+
+body.beta-mvp #graphLogHydrationButton,
+body.beta-mvp .beta-hydration-button {
+  border-color: rgba(var(--fg-hydration-rgb), .26);
+  background: linear-gradient(135deg, rgba(var(--fg-hydration-rgb), .16), #ffffff);
+  color: #063f46;
+}
+
+body.beta-mvp #graphLogLowEnergyButton,
+body.beta-mvp .beta-low-energy-button {
+  border-color: rgba(var(--fg-urgent-rgb), .24);
+  background: linear-gradient(135deg, rgba(var(--fg-urgent-rgb), .13), #ffffff);
+  color: #73330b;
+}
+
+body.beta-mvp button:focus-visible,
+body.beta-mvp input:focus-visible,
+body.beta-mvp select:focus-visible,
+body.beta-mvp textarea:focus-visible {
+  outline: 3px solid rgba(var(--fg-fuel-rgb), .38);
+  outline-offset: 2px;
+  border-color: rgba(var(--fg-fuel-rgb), .58);
+}
+
+body.beta-mvp .beta-rhythm-section-card,
+body.beta-mvp .beta-today-status-card,
+body.beta-mvp .beta-fuelling-window-card,
+body.beta-mvp .beta-daily-targets-card,
+body.beta-mvp .beta-weekly-section,
+body.beta-mvp .beta-trend-comparison-card,
+body.beta-mvp .beta-trend-habit-section,
+body.beta-mvp .beta-impact-trend-card,
+body.beta-mvp .beta-weekly-fuel-card,
+body.beta-mvp #checklist > .card {
+  --fg-card-accent: rgba(var(--fg-fuel-rgb), .5);
+  border-color: rgba(var(--fg-brand-dark-rgb), .11);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(255, 250, 240, .9)),
+    var(--fg-card-bg);
+  box-shadow:
+    inset 0 3px 0 var(--fg-card-accent),
+    var(--fg-card-shadow);
+}
+
+body.beta-mvp .beta-today-status-card {
+  --fg-status: var(--fg-protected);
+  --fg-status-rgb: var(--fg-protected-rgb);
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(var(--fg-status-rgb), .26);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(var(--fg-status-rgb), .18), transparent 28%),
+    linear-gradient(145deg, rgba(var(--fg-status-rgb), .1), rgba(255, 255, 255, .94) 48%),
+    #ffffff;
+  box-shadow:
+    inset 0 4px 0 rgba(var(--fg-status-rgb), .72),
+    0 16px 36px rgba(var(--fg-brand-dark-rgb), .1);
+}
+
+body.beta-mvp .beta-today-status-card.warning {
+  --fg-status: var(--fg-urgent);
+  --fg-status-rgb: var(--fg-urgent-rgb);
+}
+
+body.beta-mvp .beta-today-status-card.urgent {
+  --fg-status: var(--fg-urgent);
+  --fg-status-rgb: var(--fg-urgent-rgb);
+}
+
+body.beta-mvp .beta-today-status-card.recovery {
+  --fg-status: var(--fg-critical);
+  --fg-status-rgb: var(--fg-critical-rgb);
+}
+
+body.beta-mvp .beta-today-status-main {
+  position: relative;
+  padding-left: 52px;
+}
+
+body.beta-mvp .beta-today-status-main::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 38px;
+  height: 42px;
+  border-radius: 18px 18px 20px 20px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.58), transparent),
+    var(--fg-status);
+  clip-path: polygon(50% 0, 88% 12%, 82% 70%, 50% 100%, 18% 70%, 12% 12%);
+  box-shadow: 0 9px 18px rgba(var(--fg-status-rgb), .22);
+}
+
+body.beta-mvp .beta-status-title,
+body.beta-mvp .beta-today-status-main strong {
+  color: var(--fg-brand-dark);
+  font-size: clamp(1.72rem, 7vw, 2.65rem);
+  letter-spacing: 0;
+}
+
+body.beta-mvp .beta-today-status-main p {
+  color: #263329;
+}
+
+body.beta-mvp .beta-log-entry-card {
+  --fg-card-accent: rgba(var(--fg-fuel-rgb), .74);
+  background:
+    linear-gradient(135deg, rgba(var(--fg-fuel-rgb), .1), rgba(255, 255, 255, .96) 44%),
+    #ffffff;
+}
+
+body.beta-mvp .beta-plan-day-card,
+body.beta-mvp .beta-plan-today-card,
+body.beta-mvp .beta-demand-planner-card,
+body.beta-mvp .beta-plan-fuelling-card,
+body.beta-mvp .beta-targets-card {
+  --fg-card-accent: rgba(var(--fg-work-rgb), .45);
+}
+
+body.beta-mvp .beta-history-list-card,
+body.beta-mvp .beta-history-detail-card,
+body.beta-mvp .beta-history-empty-card,
+body.beta-mvp .beta-history-day-card {
+  --fg-card-accent: rgba(var(--fg-protected-rgb), .44);
+}
+
+body.beta-mvp .beta-trend-comparison-card,
+body.beta-mvp .beta-trend-habit-section,
+body.beta-mvp .beta-impact-trend-card,
+body.beta-mvp .beta-personalised-insight-card,
+body.beta-mvp .beta-chart-card,
+body.beta-mvp .beta-weekly-fuel-card {
+  --fg-card-accent: rgba(var(--fg-brand-training-rgb), .42);
+}
+
+body.beta-mvp .beta-history-day-card {
+  border-color: rgba(var(--fg-protected-rgb), .18);
+  background:
+    linear-gradient(90deg, rgba(var(--fg-protected-rgb), .08), transparent 34%),
+    #ffffff;
+  box-shadow: inset 3px 0 0 rgba(var(--fg-protected-rgb), .55);
+}
+
+body.beta-mvp .beta-history-day-card.active {
+  border-color: rgba(var(--fg-fuel-rgb), .46);
+  background:
+    linear-gradient(90deg, rgba(var(--fg-fuel-rgb), .16), rgba(255,255,255,.96) 44%),
+    #ffffff;
+  box-shadow: inset 4px 0 0 var(--fg-fuel);
+}
+
+body.beta-mvp .beta-daily-metric-card,
+body.beta-mvp .beta-weekly-metric-card,
+body.beta-mvp .beta-target-progress-card,
+body.beta-mvp .fuel-gap-insight {
+  border-color: rgba(var(--fg-brand-dark-rgb), .1);
+  background: rgba(255, 250, 240, .74);
+}
+
+body.beta-mvp .beta-daily-metric-card.fuel,
+body.beta-mvp .beta-daily-metric-card.warning,
+body.beta-mvp .beta-target-progress-card.fuel {
+  border-color: rgba(var(--fg-fuel-rgb), .3);
+  background: linear-gradient(180deg, rgba(var(--fg-fuel-rgb), .13), rgba(255,255,255,.95));
+}
+
+body.beta-mvp .beta-daily-metric-card.fuel span,
+body.beta-mvp .beta-daily-metric-card.fuel strong,
+body.beta-mvp .beta-daily-metric-card.warning span,
+body.beta-mvp .beta-daily-metric-card.warning strong {
+  color: var(--fg-brand-fuel-deep);
+}
+
+body.beta-mvp .beta-daily-metric-card.hydration,
+body.beta-mvp .beta-target-progress-card.hydration {
+  border-color: rgba(var(--fg-hydration-rgb), .3);
+  background: linear-gradient(180deg, rgba(var(--fg-hydration-rgb), .13), rgba(255,255,255,.95));
+}
+
+body.beta-mvp .beta-daily-metric-card.hydration span,
+body.beta-mvp .beta-daily-metric-card.hydration strong {
+  color: #07545c;
+}
+
+body.beta-mvp .beta-daily-metric-card.steady {
+  border-color: rgba(var(--fg-protected-rgb), .28);
+  background: linear-gradient(180deg, rgba(var(--fg-protected-rgb), .12), rgba(255,255,255,.96));
+}
+
+body.beta-mvp .beta-daily-metric-card.low-energy,
+body.beta-mvp .beta-daily-metric-card.urgent {
+  border-color: rgba(var(--fg-critical-rgb), .28);
+  background: linear-gradient(180deg, rgba(var(--fg-critical-rgb), .1), rgba(255,255,255,.96));
+}
+
+body.beta-mvp .beta-target-progress-bar {
+  background: rgba(var(--fg-brand-dark-rgb), .09);
+}
+
+body.beta-mvp .beta-target-progress-card.fuel .beta-target-progress-bar i,
+body.beta-mvp .progress-bar span {
+  background: linear-gradient(90deg, var(--fg-protected), var(--fg-fuel));
+}
+
+body.beta-mvp .beta-target-progress-card.hydration .beta-target-progress-bar i {
+  background: linear-gradient(90deg, var(--fg-hydration), #50c6d0);
+}
+
+body.beta-mvp .beta-unified-timeline::before {
+  background: linear-gradient(180deg, rgba(var(--fg-protected-rgb), .18), rgba(var(--fg-fuel-rgb), .28), rgba(var(--fg-critical-rgb), .16));
+}
+
+body.beta-mvp .beta-timeline-dot {
+  border-color: #fffaf0;
+  background: var(--fg-protected);
+  box-shadow: 0 0 0 3px rgba(var(--fg-protected-rgb), .16);
+}
+
+body.beta-mvp .beta-unified-timeline-item.planned-work .beta-timeline-dot {
+  background: var(--fg-brand-work);
+  box-shadow: 0 0 0 3px rgba(var(--fg-work-rgb), .16);
+}
+
+body.beta-mvp .beta-unified-timeline-item.planned-training .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.planned-break .beta-timeline-dot {
+  background: var(--fg-brand-training);
+  box-shadow: 0 0 0 3px rgba(var(--fg-brand-training-rgb), .16);
+}
+
+body.beta-mvp .beta-unified-timeline-item.suggested-fuel .beta-timeline-dot {
+  background: var(--fg-suggested);
+  box-shadow: 0 0 0 3px rgba(var(--fg-suggested-rgb), .2);
+}
+
+body.beta-mvp .beta-unified-timeline-item.suggested-hydration .beta-timeline-dot {
+  background: var(--fg-hydration);
+  box-shadow: 0 0 0 3px rgba(var(--fg-hydration-rgb), .18);
+}
+
+body.beta-mvp .beta-unified-timeline-item.actual-low-energy .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.missed-opportunity .beta-timeline-dot {
+  background: var(--fg-critical);
+  box-shadow: 0 0 0 3px rgba(var(--fg-critical-rgb), .18);
+}
+
+body.beta-mvp .beta-timeline-legend .suggested {
+  background: var(--fg-suggested);
+}
+
+body.beta-mvp .beta-timeline-legend .completed,
+body.beta-mvp .beta-fuel-story-legend .protected {
+  background: var(--fg-protected);
+}
+
+body.beta-mvp .beta-timeline-legend .missed {
+  background: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-chart,
+body.beta-mvp .beta-weekly-fuel-timeline {
+  border-color: rgba(var(--fg-brand-dark-rgb), .1);
+  background:
+    linear-gradient(180deg, rgba(255,250,240,.96), rgba(255,255,255,.98));
+}
+
+body.beta-mvp .beta-trend-chart-legend,
+body.beta-mvp .beta-trend-axis-copy,
+body.beta-mvp .beta-trend-graph-title,
+body.beta-mvp .beta-trend-chart .x-label,
+body.beta-mvp .beta-trend-chart .y-label {
+  color: var(--fg-brand-dark);
+  fill: var(--fg-brand-dark);
+}
+
+body.beta-mvp .beta-trend-chart .line.current,
+body.beta-mvp .beta-trend-chart .line.fuel,
+body.beta-mvp .beta-trend-chart .point.current,
+body.beta-mvp .beta-trend-chart .point.fuel {
+  stroke: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-trend-chart .line.previous,
+body.beta-mvp .beta-trend-chart .point.previous {
+  stroke: var(--fg-brand-training);
+}
+
+body.beta-mvp .beta-trend-chart .line.hydration,
+body.beta-mvp .beta-trend-chart .point.hydration {
+  stroke: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-trend-chart .line.crash,
+body.beta-mvp .beta-trend-chart .point.crash {
+  stroke: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-chart .bar,
+body.beta-mvp .beta-trend-chart .bar.fuel {
+  fill: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-trend-chart .bar.previous {
+  fill: var(--fg-brand-training);
+}
+
+body.beta-mvp .beta-trend-chart .bar.hydration {
+  fill: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-trend-chart .bar.crash {
+  fill: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-chart-legend i,
+body.beta-mvp .beta-trend-chart-legend i.current,
+body.beta-mvp .beta-trend-chart-legend i.fuel {
+  background: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-trend-chart-legend i.previous {
+  background: var(--fg-brand-training);
+}
+
+body.beta-mvp .beta-trend-chart-legend i.hydration,
+body.beta-mvp .beta-trend-chart-legend i.actual {
+  background: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-trend-chart-legend i.crash {
+  background: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-chart-empty,
+body.beta-mvp .beta-history-empty,
+body.beta-mvp .fuel-daily-empty {
+  position: relative;
+  padding: 12px 12px 12px 42px;
+  border: 1px dashed rgba(var(--fg-fuel-rgb), .32);
+  border-radius: 14px;
+  background: rgba(var(--fg-fuel-rgb), .08);
+  color: var(--fg-text-muted);
+  font-weight: 820;
+}
+
+body.beta-mvp .beta-trend-chart-empty::before,
+body.beta-mvp .beta-history-empty::before,
+body.beta-mvp .fuel-daily-empty::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 13px;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 27%, transparent 29%),
+    conic-gradient(var(--fg-fuel), var(--fg-protected), var(--fg-fuel));
+  box-shadow: 0 0 0 3px rgba(var(--fg-fuel-rgb), .12);
+}
+
+@media (max-width: 560px) {
+  body.beta-mvp .beta-today-status-main {
+    padding-left: 46px;
+  }
+
+  body.beta-mvp .beta-today-status-main::before {
+    width: 34px;
+    height: 38px;
+  }
+}
