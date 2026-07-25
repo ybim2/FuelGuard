@@ -14,17 +14,17 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v79-brand-identity
+Canonical app: mobile-pwa-v80-risk-checkins
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 Current card ownership:
 
-- Log: current fuelling status, quick fuel/hydration/low-energy logging, and today's logs.
-- Plan: selected day setup, Today/Work/Training/Targets subtabs, flexible break estimates, protected fuel times, fuelling window length, and daily targets with calculated weekly targets.
+- Log: current fuelling status, quick fuel/hydration logging, and today's logs.
+- Plan: selected day setup, Today/Work/Training/Targets subtabs, contextual energy/concentration check-ins, flexible break estimates, protected fuel times, fuelling window length, and daily targets with calculated weekly targets.
 - History: compact daily summary cards with full day detail for logged days.
-- Trends: Fuel Score, Personalised Insights, seven-day Fuel Debt, demand adherence, weekly trend review, graph comparisons, and actual-versus-target weekly progress.
+- Trends: Fuel Score, Personalised Insights, seven-day Fuel Debt, demand adherence, Risk and Patterns, check-in pattern review, graph comparisons, and actual-versus-target weekly progress.
 - Settings: risk thresholds, account sync, import, update, app metadata, and support copy.
 
 ## Removed legacy features
@@ -133,7 +133,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v79-brand-identity`.
+The current canonical version is `mobile-pwa-v80-risk-checkins`.
 
 ## Future frontend changes
 

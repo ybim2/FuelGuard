@@ -102,6 +102,24 @@
     return labels;
   }, {});
   const CRASH_NOTE = "fuel_guard_event:crash";
+  const CHECKIN_NOTE_PREFIX = "fuel_guard_checkin:";
+  const ENERGY_LEVELS = {
+    high: "High",
+    steady: "Steady",
+    low: "Low",
+    very_low: "Very low"
+  };
+  const CONCENTRATION_LEVELS = {
+    sharp: "Sharp",
+    normal: "Normal",
+    reduced: "Reduced",
+    poor: "Poor"
+  };
+  const YES_NO_LEVELS = {
+    yes: "Yes",
+    no: "No",
+    not_sure: "Not sure"
+  };
   const LEGACY_FOLLOWUP_NOTE_RE = /(?:^|[;\n]\s*)fuel_guard_long_gap_reason:[^;\n]*/g;
   const LEGACY_FOLLOWUP_LINE_RE = /^(most long gaps|sleep was marked for long gaps|your .* block may have worked|.* shift gap logged|forgotten fuel gap logged|no .* available|sleep gap logged|long gap logged\. protect)/i;
   const SLEEP_WINDOW_START_MINUTE = 23 * 60;
@@ -868,8 +886,113 @@
     return fuelLogDate(log);
   }
 
+  function encodeCheckinNote(payload = {}) {
+    return `${CHECKIN_NOTE_PREFIX}${JSON.stringify(payload)}`;
+  }
+
+  function parseCheckinNote(value) {
+    const text = String(value || "");
+    const index = text.indexOf(CHECKIN_NOTE_PREFIX);
+    if (index < 0) return null;
+    const raw = text.slice(index + CHECKIN_NOTE_PREFIX.length).trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function checkinPayload(log) {
+    if (log?.checkin && typeof log.checkin === "object" && !Array.isArray(log.checkin)) return log.checkin;
+    const parsed = parseCheckinNote(log?.note || log?.notes || "");
+    return parsed || null;
+  }
+
+  function isCheckinLog(log) {
+    return String(log?.type || "").toLowerCase() === "checkin" || Boolean(checkinPayload(log));
+  }
+
+  function levelLabel(value, labels) {
+    const key = String(value || "").trim().toLowerCase();
+    return labels[key] || "";
+  }
+
+  function simpleLevelLabel(value) {
+    const key = String(value || "").trim().toLowerCase();
+    if (key === "high") return "High";
+    if (key === "steady") return "Steady";
+    if (key === "low") return "Low";
+    if (key === "very_low") return "Very low";
+    return key ? key.replace(/_/g, " ").replace(/^\w/, (char) => char.toUpperCase()) : "";
+  }
+
+  function checkinTypeLabel(logOrPayload) {
+    const payload = logOrPayload?.checkinType ? logOrPayload : checkinPayload(logOrPayload);
+    const type = String(payload?.checkinType || "").toLowerCase();
+    if (type === "concentration") return "Concentration check-in";
+    if (type === "hunger") return "Hunger check-in";
+    if (type === "fatigue") return "Fatigue check-in";
+    if (type === "work") return "Work check-in";
+    if (type === "training") return "Training check-in";
+    if (type === "daily") return "Daily check-in";
+    return "Energy check-in";
+  }
+
+  function checkinContextLabel(value) {
+    const context = String(value || "").toLowerCase();
+    if (context === "work") return "Work";
+    if (context === "training") return "Training";
+    if (context === "daily_summary") return "Daily summary";
+    if (context === "missed_fuel_moment") return "Missed fuel moment";
+    return "Today";
+  }
+
+  function checkinSummary(logOrPayload) {
+    const payload = logOrPayload?.checkinType ? logOrPayload : checkinPayload(logOrPayload);
+    if (!payload) return "";
+    const parts = [];
+    const energy = levelLabel(payload.energyLevel, ENERGY_LEVELS);
+    const concentration = levelLabel(payload.concentrationLevel, CONCENTRATION_LEVELS);
+    if (energy) parts.push(`Energy: ${energy}`);
+    if (concentration) parts.push(`Concentration: ${concentration}`);
+    const hunger = simpleLevelLabel(payload.hungerLevel);
+    const fatigue = simpleLevelLabel(payload.fatigueLevel);
+    if (hunger) parts.push(`Hunger: ${hunger === "High" ? "Noted" : hunger}`);
+    if (fatigue) parts.push(`Fatigue: ${fatigue}`);
+    const breakTaken = levelLabel(payload.breakTaken, YES_NO_LEVELS);
+    const fuelled = levelLabel(payload.fuelledDuringBreak, YES_NO_LEVELS);
+    const recovery = levelLabel(payload.recoveryFuelCompleted, YES_NO_LEVELS);
+    if (breakTaken) parts.push(`Break taken: ${breakTaken}`);
+    if (fuelled) parts.push(`Fuelled during break: ${fuelled}`);
+    if (recovery) parts.push(`Recovery fuel: ${recovery}`);
+    if (payload.note) parts.push(String(payload.note));
+    return parts.join(" · ");
+  }
+
+  function isLowEnergyCheckinLog(log) {
+    if (isCrashLog(log)) return true;
+    const payload = checkinPayload(log);
+    if (!payload) return false;
+    const level = String(payload.energyLevel || "").toLowerCase();
+    return ["low", "very_low"].includes(level);
+  }
+
+  function isPoorConcentrationCheckinLog(log) {
+    const payload = checkinPayload(log);
+    if (!payload) return false;
+    const level = String(payload.concentrationLevel || "").toLowerCase();
+    return ["reduced", "poor"].includes(level);
+  }
+
+  function isSubjectiveCheckinLog(log) {
+    return isCheckinLog(log) || isCrashLog(log);
+  }
+
   function logType(log) {
     const type = String(log?.type || "fuel").toLowerCase();
+    if (type === "checkin" || checkinPayload(log)) return "checkin";
     if (type === "hydration") return "hydration";
     if (type === "fuel_hydration") return "fuel_hydration";
     if (type === "crash" || String(log?.note || log?.notes || "").includes(CRASH_NOTE)) return "crash";
@@ -887,13 +1010,15 @@
   }
 
   function isCrashLog(log) {
-    return logType(log) === "crash";
+    const type = String(log?.type || "").toLowerCase();
+    return type === "crash" || String(log?.note || log?.notes || "").includes(CRASH_NOTE);
   }
 
   function logTypeLabel(log) {
     const type = logType(log);
     if (type === "hydration") return "Hydration";
     if (type === "fuel_hydration") return "Fuel + Hydration";
+    if (type === "checkin") return checkinTypeLabel(log);
     if (type === "crash") return "Low energy event";
     return "Fuel";
   }
@@ -1072,8 +1197,9 @@
   }
 
   function displayNoteForLog(log) {
+    if (isCheckinLog(log)) return checkinSummary(log);
     const note = scrubLegacyFollowUpNote(log?.note || log?.notes || "");
-    if (!note || note.includes(CRASH_NOTE)) return "";
+    if (!note || note.includes(CRASH_NOTE) || note.includes(CHECKIN_NOTE_PREFIX)) return "";
     return note;
   }
 
@@ -1224,7 +1350,7 @@
     const logs = logsForDay(key).filter(log => log.date);
     const fuelLogs = logs.filter(isFuelLog).sort((a, b) => a.date - b.date);
     const hydrationLogs = logs.filter(isHydrationLog).sort((a, b) => a.date - b.date);
-    const crashLogs = logs.filter(isCrashLog).sort((a, b) => a.date - b.date);
+    const crashLogs = logs.filter(isLowEnergyCheckinLog).sort((a, b) => a.date - b.date);
     const endedDate = endedAt ? logDate(endedAt) : null;
     const isToday = key === dateKey(now);
     const endDate = endedDate || (isToday ? now : logs[logs.length - 1]?.date || dateFromKey(key));
@@ -1272,7 +1398,9 @@
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const crashLogs = logs.filter(isCrashLog);
+    const checkinLogs = logs.filter(isSubjectiveCheckinLog);
+    const crashLogs = logs.filter(isLowEnergyCheckinLog);
+    const poorConcentrationLogs = logs.filter(isPoorConcentrationCheckinLog);
     const endedDate = endedAt ? logDate(endedAt) : null;
     const isToday = key === dateKey(now);
     const reference = endedDate || (isToday ? now : logs[logs.length - 1]?.date || dateFromKey(key));
@@ -1333,8 +1461,8 @@
       ? `Your longest hydration gap was ${duration(longestHydration)}${hydrationCrashZoneGaps.length ? ", reaching Recovery needed" : highRiskHydrationGaps.length ? ", reaching Sip now" : mediumRiskHydrationGaps.length ? ", reaching Sip soon" : ""}.`
       : hydrationLogs.length ? "More hydration logs are needed before Fuel Guard can calculate hydration gaps." : "No hydration logs were recorded.";
     const crashSentence = crashLogs.length
-      ? `${crashLogs.length} low-energy event${crashLogs.length === 1 ? " was" : "s were"} marked.`
-      : "No low-energy event was marked.";
+      ? `${crashLogs.length} low-energy check-in${crashLogs.length === 1 ? " was" : "s were"} marked.`
+      : "No low-energy check-in was marked.";
     const plainSummary = `On ${dayNameForKey(key)}, you logged fuel ${fuelLogs.length} time${fuelLogs.length === 1 ? "" : "s"} and hydration ${hydrationLogs.length} time${hydrationLogs.length === 1 ? "" : "s"}. ${fuelGapSentence} ${fuelDebtCopy} Recovery support: ${recoveryRiskLabel(recoveryWindow.riskLabel)}. ${consistencyCopy(longest || null, longestHydration || null)} ${crashSentence}`;
     summary.push(plainSummary);
     if (mediumRiskGaps.length || mediumRiskHydrationGaps.length) summary.push("Eat soon / sip soon nudges appeared as early support signals.");
@@ -1361,7 +1489,8 @@
       { label: "Act-now gaps", value: String(highRiskGaps.length + highRiskHydrationGaps.length) },
       { label: "Recovery-needed gaps", value: String(crashZoneGaps.length + hydrationCrashZoneGaps.length) },
       { label: "Support window", value: vulnerableWindow },
-      { label: "Low-energy event marked", value: crashLogs.length ? "Yes" : "No" },
+      { label: "Low-energy check-ins", value: String(crashLogs.length) },
+      { label: "Concentration check-ins", value: String(poorConcentrationLogs.length) },
       { label: "Peak status", value: `${maxRiskScore}/100 ${risk.label}` }
     ];
 
@@ -1375,14 +1504,18 @@
       logs,
       fuelLogs,
       hydrationLogs,
+      checkinLogs,
       crashLogs,
+      poorConcentrationLogs,
       firstFuelTime: firstFuel ? formatClock(firstFuel.date) : "Not logged",
       lastFuelTime: lastFuel ? formatClock(lastFuel.date) : "Not logged",
       firstFuelMinute: firstFuel ? minutesIntoDay(firstFuel.date) : null,
       lastFuelMinute: lastFuel ? minutesIntoDay(lastFuel.date) : null,
       fuelLogCount: fuelLogs.length,
       hydrationLogCount: hydrationLogs.length,
+      checkinCount: checkinLogs.length,
       crashLogCount: crashLogs.length,
+      concentrationLogCount: poorConcentrationLogs.length,
       gaps,
       hydrationGaps,
       longestGapMinutes: longest,
@@ -1440,7 +1573,9 @@
       lastFuelTime: analysis.lastFuelTime,
       fuelLogCount: analysis.fuelLogCount,
       hydrationLogCount: analysis.hydrationLogCount,
+      checkinCount: analysis.checkinCount,
       crashLogCount: analysis.crashLogCount,
+      concentrationLogCount: analysis.concentrationLogCount,
       logs: analysis.logs.map(log => ({
         id: log.id || uid(),
         timestamp: log.date.toISOString(),
@@ -1448,7 +1583,8 @@
         typeLabel: logTypeLabel(log),
         dayType: log.dayType || analysis.dayType,
         trainingSession: log.trainingSession || analysis.trainingSession,
-        note: displayNoteForLog(log)
+        note: displayNoteForLog(log),
+        checkin: checkinPayload(log) || null
       })),
       gapMinutes: analysis.gaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
       hydrationGapMinutes: analysis.hydrationGaps.map(gap => Math.max(0, Math.round(gap.minutes))).filter(Number.isFinite),
@@ -1841,7 +1977,7 @@
     const typeInput = document.getElementById("missedLogType");
     const dateInput = document.getElementById("missedLogDate");
     const timeInput = document.getElementById("missedLogTime");
-    if (typeInput) typeInput.value = type === "crash" ? "crash" : type === "hydration" ? "hydration" : "fuel";
+    if (typeInput) typeInput.value = type === "hydration" ? "hydration" : "fuel";
     if (dateInput) dateInput.value = dateInputValue(date);
     if (timeInput) timeInput.value = timeInputValue(date);
   }
@@ -1889,7 +2025,7 @@
   async function saveMissedLog() {
     if (missedLogBusy) return;
     const requestedType = document.getElementById("missedLogType")?.value || "fuel";
-    const type = requestedType === "hydration" ? "hydration" : requestedType === "crash" ? "crash" : "fuel";
+    const type = requestedType === "hydration" ? "hydration" : "fuel";
     const dateValue = document.getElementById("missedLogDate")?.value || "";
     const timeValue = document.getElementById("missedLogTime")?.value || "";
     const eventDate = dateTimeFromInputs(dateValue, timeValue);
@@ -1913,7 +2049,7 @@
     renderMissedLogPanel();
     const existing = missedLogEditingId ? logById(missedLogEditingId) : null;
     const oldDate = existing ? logDate(existing) : null;
-    const label = type === "hydration" ? "Hydration logged" : type === "crash" ? "Low energy event" : "Fuelled";
+    const label = type === "hydration" ? "Hydration logged" : "Fuelled";
     const key = dateKey(eventDate);
     const log = existing || {
       id: uid(),
@@ -1930,7 +2066,7 @@
       logType: type,
       entryMethod: existing?.entryMethod || "retrospective",
       source: existing?.source || "manual",
-      note: type === "crash" ? CRASH_NOTE : displayNoteForLog(existing),
+      note: displayNoteForLog(existing),
       dayType: dayTypeForKey(key),
       trainingSession: trainingSessionForKey(key),
       updatedAt: new Date().toISOString(),
@@ -1961,9 +2097,31 @@
     await window.fuelGuardCloud?.deleteLog(removed);
   }
 
-  function recordCrashEvent() {
-    const loggedAt = new Date();
-    const key = dateKey();
+  function normalizedCheckinPayload(input = {}) {
+    const now = new Date();
+    const checkinType = String(input.checkinType || "energy").toLowerCase();
+    const context = String(input.context || "general_day").toLowerCase();
+    return {
+      version: 1,
+      checkinType,
+      context,
+      contextId: String(input.contextId || ""),
+      energyLevel: String(input.energyLevel || "").toLowerCase(),
+      concentrationLevel: String(input.concentrationLevel || "").toLowerCase(),
+      hungerLevel: String(input.hungerLevel || "").toLowerCase(),
+      fatigueLevel: String(input.fatigueLevel || "").toLowerCase(),
+      breakTaken: String(input.breakTaken || "").toLowerCase(),
+      fuelledDuringBreak: String(input.fuelledDuringBreak || "").toLowerCase(),
+      recoveryFuelCompleted: String(input.recoveryFuelCompleted || "").toLowerCase(),
+      note: String(input.note || "").trim().slice(0, 180),
+      recordedAt: input.recordedAt || now.toISOString()
+    };
+  }
+
+  function recordCheckinEvent(input = {}) {
+    const payload = normalizedCheckinPayload(input);
+    const loggedAt = logDate(payload.recordedAt) || new Date();
+    const key = dateKey(loggedAt);
     const localId = uid();
     const log = {
       id: localId,
@@ -1971,30 +2129,31 @@
       timestamp: loggedAt.toISOString(),
       eventTime: loggedAt.toISOString(),
       logged_at: loggedAt.toISOString(),
-      label: "Low energy event",
-      type: "crash",
-      logType: "crash",
-      entryMethod: "live",
+      label: checkinTypeLabel(payload),
+      type: "checkin",
+      logType: "checkin",
+      entryMethod: "checkin",
       source: "manual",
       dayType: dayTypeForKey(key),
       trainingSession: trainingSessionForKey(key),
-      note: CRASH_NOTE,
-      createdAt: loggedAt.toISOString(),
-      updatedAt: loggedAt.toISOString(),
+      checkin: payload,
+      note: encodeCheckinNote(payload),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       syncStatus: "pending"
     };
     betaState().logs.push(log);
     storeArchive(key);
     state.completed.liveFuelStatus = true;
     if (typeof addActivityEntry === "function") {
-      addActivityEntry("crashEvent", "Low energy event marked.", { dedupeDaily: false });
+      addActivityEntry("checkinLogged", `${checkinTypeLabel(payload)} saved.`, { dedupeDaily: false });
     }
     save();
     renderAll();
     window.fuelGuardCloud?.saveLog(log);
   }
 
-  window.recordCrashEvent = recordCrashEvent;
+  window.recordCheckinEvent = recordCheckinEvent;
 
   function undoLatestRhythmLog() {
     const key = todayViewKey();
@@ -2142,7 +2301,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v79-brand-identity"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v80-risk-checkins"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -2569,6 +2728,7 @@
   function pointStyleForLog(log) {
     const type = logType(log);
     if (type === "hydration") return { className: "hydration", label: "H" };
+    if (type === "checkin") return { className: "checkin", label: "C" };
     if (type === "crash") return { className: "crash", label: "!" };
     if (type === "fuel_hydration") return { className: "combined", label: "F+H" };
     return { className: "fuel", label: "F" };
@@ -3558,6 +3718,7 @@
             ${trainingEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
           </div>
         </div>
+        ${renderTrainingCheckinSection(key, blocks.filter(block => block.type === "training"))}
         <p id="fuelTrainingPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
       </section>
     `;
@@ -3594,6 +3755,7 @@
             ${workEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
           </div>
         </div>
+        ${renderWorkCheckinSection(key, blocks.filter(block => block.type === "work"))}
         <p id="fuelDemandPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
       </section>
     `;
@@ -3648,7 +3810,8 @@
     const entry = buildArchiveEntry(key);
     const fuelLogs = logsForDay(key).filter(isFuelLog);
     const hydrationLogs = logsForDay(key).filter(isHydrationLog);
-    const lowEnergyLogs = logsForDay(key).filter(isCrashLog);
+    const lowEnergyLogs = logsForDay(key).filter(isLowEnergyCheckinLog);
+    const concentrationLogs = logsForDay(key).filter(isPoorConcentrationCheckinLog);
     const workBlocks = demandBlocksByTypeForDay(key, "work");
     const trainingBlocks = demandBlocksByTypeForDay(key, "training");
     const opportunities = generateFuelOpportunitiesForDay(key, { now });
@@ -3669,11 +3832,115 @@
           ${dailyMetricCard("Fuelling window", window.started ? `${window.firstFuel}-${window.closesAt}` : window.remaining, window.message, "fuel")}
           ${dailyMetricCard("Targets", `${fuelLogs.length}${hasTarget(targets().dailyFuelLogs) ? `/${targets().dailyFuelLogs}` : ""} fuel · ${hydrationLogs.length}${hasTarget(targets().dailyHydrationLogs) ? `/${targets().dailyHydrationLogs}` : ""} hydration`, "Progress updates as logs are added.", "target")}
           ${dailyMetricCard("Suggested fuel", String(opportunities.length), `${counts.upcoming} upcoming · ${counts.completed} logged · ${counts.missed} missed`, "fuel")}
-          ${dailyMetricCard("Low energy", String(lowEnergyLogs.length), lowEnergyLogs.length ? "Shown in the timeline below." : "No low-energy logs for this day.", "neutral")}
+          ${dailyMetricCard("Check-ins", String(lowEnergyLogs.length + concentrationLogs.length), lowEnergyLogs.length || concentrationLogs.length ? "Energy and concentration signals appear in the timeline." : "Optional check-ins can add context.", "neutral")}
         </div>
         <p class="row-note">${safeText(entry.plainSummary || "Add logs or planning details to build the day summary.")}</p>
       </section>
       ${renderTodaysFuelPlan(fuelLogs, key, now)}
+    `;
+  }
+
+  function checkinOptionMarkup(options, selected = "") {
+    return Object.entries(options)
+      .map(([value, label]) => `<option value="${safeText(value)}" ${selected === value ? "selected" : ""}>${safeText(label)}</option>`)
+      .join("");
+  }
+
+  function renderTimelineCheckins(key = selectedDataDateKey()) {
+    const checkins = logsForDay(key).filter(isSubjectiveCheckinLog);
+    return `
+      <section class="beta-rhythm-section-card beta-checkin-card beta-timeline-checkin-card" aria-label="Timeline check-ins">
+        <div class="section-heading-row">
+          <div>
+            <h3>Timeline check-ins</h3>
+            <p class="muted">Add energy, concentration, hunger or fatigue context at the current time.</p>
+          </div>
+          <span class="row-note">${safeText(checkins.length ? `${checkins.length} saved` : "Optional")}</span>
+        </div>
+        <div class="beta-checkin-quick-grid">
+          <button class="secondary" type="button" data-checkin-quick="energy" data-energy-level="low">Add low energy</button>
+          <button class="secondary" type="button" data-checkin-quick="concentration" data-concentration-level="poor">Add poor concentration</button>
+          <button class="secondary" type="button" data-checkin-quick="hunger" data-hunger-level="high">Add hunger</button>
+          <button class="secondary" type="button" data-checkin-quick="fatigue" data-fatigue-level="high">Add fatigue</button>
+        </div>
+        <label class="beta-checkin-note">Optional note<input id="timelineCheckinNote" type="text" maxlength="180" placeholder="Optional context"></label>
+        <p class="row-note">These check-ins do not replace fuel or hydration logs. They simply add context to the timeline.</p>
+      </section>
+    `;
+  }
+
+  function renderWorkCheckinSection(key, workBlocks) {
+    const blockOptions = workBlocks.length
+      ? workBlocks.map(block => `<option value="${safeText(block.id || block.cloudId || "")}">${safeText(demandBlockTitle(block))}</option>`).join("")
+      : `<option value="">No saved shift yet</option>`;
+    return `
+      <div class="beta-context-checkin-panel beta-work-checkin-panel">
+        <div>
+          <h4>Work check-in</h4>
+          <p class="muted">Optional context for energy, concentration and breaks during this shift.</p>
+        </div>
+        <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+          <label>Shift<select id="workCheckinBlock">${blockOptions}</select></label>
+          <label>Energy<select id="workCheckinEnergy">${checkinOptionMarkup(ENERGY_LEVELS, "steady")}</select></label>
+          <label>Concentration<select id="workCheckinConcentration">${checkinOptionMarkup(CONCENTRATION_LEVELS, "normal")}</select></label>
+          <label>Break taken<select id="workCheckinBreakTaken">${checkinOptionMarkup(YES_NO_LEVELS, "not_sure")}</select></label>
+          <label>Fuelled during break<select id="workCheckinFuelled">${checkinOptionMarkup(YES_NO_LEVELS, "not_sure")}</select></label>
+          <label>Note<input id="workCheckinNote" type="text" maxlength="180" placeholder="Optional"></label>
+        </div>
+        <div class="button-row beta-settings-actions">
+          <button id="saveWorkCheckinButton" class="secondary" type="button">Save work check-in</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTrainingCheckinSection(key, trainingBlocks) {
+    const blockOptions = trainingBlocks.length
+      ? trainingBlocks.map(block => `<option value="${safeText(block.id || block.cloudId || "")}">${safeText(demandBlockTitle(block))}</option>`).join("")
+      : `<option value="">No saved training yet</option>`;
+    return `
+      <div class="beta-context-checkin-panel beta-training-checkin-panel">
+        <div>
+          <h4>Training check-in</h4>
+          <p class="muted">Optional context for energy, alertness, fatigue and recovery fuel.</p>
+        </div>
+        <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+          <label>Session<select id="trainingCheckinBlock">${blockOptions}</select></label>
+          <label>Energy during session<select id="trainingCheckinEnergy">${checkinOptionMarkup(ENERGY_LEVELS, "steady")}</select></label>
+          <label>Concentration / alertness<select id="trainingCheckinConcentration">${checkinOptionMarkup(CONCENTRATION_LEVELS, "normal")}</select></label>
+          <label>Post-session fatigue<select id="trainingCheckinFatigue">
+            <option value="">Not set</option>
+            <option value="steady">Steady</option>
+            <option value="high">High</option>
+          </select></label>
+          <label>Recovery fuel completed<select id="trainingCheckinRecoveryFuel">${checkinOptionMarkup(YES_NO_LEVELS, "not_sure")}</select></label>
+          <label>Note<input id="trainingCheckinNote" type="text" maxlength="180" placeholder="Optional"></label>
+        </div>
+        <div class="button-row beta-settings-actions">
+          <button id="saveTrainingCheckinButton" class="secondary" type="button">Save training check-in</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDailyCheckinSection(key) {
+    const existing = logsForDay(key).filter(log => isCheckinLog(log) && ["energy", "concentration", "daily"].includes(String(checkinPayload(log)?.checkinType || "")));
+    if (existing.length >= 2 || key !== dateKey()) return "";
+    return `
+      <div class="beta-context-checkin-panel beta-daily-checkin-panel">
+        <div>
+          <h4>End-of-day check-in</h4>
+          <p class="muted">Optional. Add this only if it helps explain the day.</p>
+        </div>
+        <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+          <label>Energy today<select id="dailyCheckinEnergy">${checkinOptionMarkup(ENERGY_LEVELS, "steady")}</select></label>
+          <label>Concentration today<select id="dailyCheckinConcentration">${checkinOptionMarkup(CONCENTRATION_LEVELS, "normal")}</select></label>
+          <label>Note<input id="dailyCheckinNote" type="text" maxlength="180" placeholder="Optional"></label>
+        </div>
+        <div class="button-row beta-settings-actions">
+          <button id="saveDailyCheckinButton" class="secondary" type="button">Save daily check-in</button>
+        </div>
+      </div>
     `;
   }
 
@@ -3838,11 +4105,11 @@
     })).filter(item => item.time);
     const hydrationItems = hydrationSuggestionForDay(key, logs, now);
     const logItems = logs.map(log => ({
-      type: isFuelLog(log) ? "actual-fuel" : isHydrationLog(log) ? "actual-hydration" : "actual-low-energy",
+      type: isFuelLog(log) ? "actual-fuel" : isHydrationLog(log) ? "actual-hydration" : isSubjectiveCheckinLog(log) ? "actual-checkin" : "actual-fuel",
       time: log.date,
       end: null,
       title: logTypeLabel(log),
-      detail: isCrashLog(log) ? "Low energy logged" : "Completed log"
+      detail: isSubjectiveCheckinLog(log) ? (displayNoteForLog(log) || "Check-in saved") : "Completed log"
     }));
     return [...demandItems, ...opportunityItems, ...hydrationItems, ...logItems]
       .filter(item => item.time)
@@ -3858,7 +4125,7 @@
     if (type === "completed-opportunity") return "Completed";
     if (type === "missed-opportunity") return "Overdue";
     if (type === "actual-hydration") return "Hydration log";
-    if (type === "actual-low-energy") return "Low Energy";
+    if (type === "actual-low-energy" || type === "actual-checkin") return "Check-in";
     return "Fuel log";
   }
 
@@ -3870,7 +4137,7 @@
         <div class="section-heading-row">
           <div>
             <h3>${safeText(title)}</h3>
-            <p class="muted">Work, training, fuel suggestions, hydration suggestions and actual logs in one place.</p>
+            <p class="muted">Work, training, fuel suggestions, hydration suggestions, check-ins and actual logs in one place.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
@@ -3952,6 +4219,7 @@
           ${renderDailyMetricGroup("Fuel timing", fuelCards)}
           ${renderDailyMetricGroup("Hydration timing", hydrationCards)}
         </div>
+        ${renderDailyCheckinSection(key)}
       </section>
     `;
   }
@@ -4016,7 +4284,7 @@
     const logs = entryLogsWithDates(entry);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const lowEnergyLogs = logs.filter(isCrashLog);
+    const lowEnergyLogs = logs.filter(isLowEnergyCheckinLog);
     const status = selectedDayStatusText(entry);
     const fuelGapValue = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
     const hydrationGapValue = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
@@ -4036,7 +4304,7 @@
           ${renderDailyMetricGroup("Daily log totals", [
             dailyMetricCard("Fuel logs", String(fuelLogs.length), "", "fuel"),
             dailyMetricCard("Hydration logs", String(hydrationLogs.length), "", "hydration"),
-            dailyMetricCard("Low Energy logs", String(lowEnergyLogs.length), "", lowEnergyLogs.length ? "low-energy" : "neutral")
+            dailyMetricCard("Low-energy check-ins", String(lowEnergyLogs.length), "", lowEnergyLogs.length ? "low-energy" : "neutral")
           ])}
           ${renderDailyMetricGroup("Fuel timing", [
             dailyMetricCard("First fuel", firstEventTime(fuelLogs), "", "fuel"),
@@ -4375,6 +4643,7 @@
     const weeklyTargetsTarget = document.getElementById("fuelWeeklyTargetsSummary");
     const todayStatusTarget = document.getElementById("fuelTodayStatus");
     const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
+    const timelineCheckinsTarget = document.getElementById("fuelTimelineCheckins");
     const todayProgressTarget = document.getElementById("fuelTodayProgress");
     const todaySummaryTarget = document.getElementById("fuelTodaySummary");
     const protectedMomentsTarget = document.getElementById("fuelProtectedMoments");
@@ -4386,6 +4655,7 @@
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
     if (planTodayOverviewTarget) planTodayOverviewTarget.innerHTML = renderPlanTodayOverview(key);
     if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
+    if (timelineCheckinsTarget) timelineCheckinsTarget.innerHTML = renderTimelineCheckins(key);
     if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(key);
     if (todaySummaryTarget) todaySummaryTarget.innerHTML = renderCompactDailySummary(key);
     if (protectedMomentsTarget) protectedMomentsTarget.innerHTML = renderProtectedFuelMoments(key);
@@ -4406,14 +4676,17 @@
     const note = displayNote ? `<small>${safeText(displayNote)}</small>` : "";
     const method = log.entryMethod && log.entryMethod !== "live" ? `<small>${safeText(log.entryMethod)}</small>` : "";
     const source = log.source && log.source !== "manual" ? `<small>${safeText(log.source)}</small>` : "";
+    const canEdit = ["fuel", "hydration", "fuel_hydration"].includes(type);
+    const iconType = type === "hydration" ? "hydration" : type === "checkin" || type === "crash" ? "energy" : "fuel";
+    const iconClass = type === "hydration" ? "shield" : type === "checkin" || type === "crash" ? "amber" : "";
     return `
       <article class="beta-history-log-event ${safeText(type)}">
-        <span class="beta-icon-disc ${type === "fuel" ? "" : type === "hydration" ? "shield" : "amber"}">${dailyIcon(type === "hydration" ? "hydration" : type === "crash" ? "energy" : "fuel")}</span>
+        <span class="beta-icon-disc ${safeText(iconClass)}">${dailyIcon(iconType)}</span>
         <div>
           <strong>${date ? formatClock(date) : "--"}</strong>
           <span>${safeText(log.typeLabel || logTypeLabel(log))}</span>
           ${note || method || source ? `<div class="beta-history-log-meta">${note}${method}${source}</div>` : ""}
-          ${id && type !== "crash" ? `<div class="beta-log-event-actions"><button class="secondary" type="button" data-edit-log="${safeText(id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-log="${safeText(id)}">Delete</button></div>` : ""}
+          ${id ? `<div class="beta-log-event-actions">${canEdit ? `<button class="secondary" type="button" data-edit-log="${safeText(id)}">Edit</button>` : ""}<button class="secondary danger-secondary" type="button" data-delete-log="${safeText(id)}">Delete</button></div>` : ""}
         </div>
       </article>
     `;
@@ -4552,7 +4825,8 @@
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const lowEnergyLogs = logs.filter(isCrashLog);
+    const lowEnergyLogs = logs.filter(isLowEnergyCheckinLog);
+    const checkinLogs = logs.filter(isSubjectiveCheckinLog);
     target.innerHTML = `
       <section class="beta-rhythm-section-card beta-history-detail-card" aria-label="History day detail">
         <div class="section-heading-row">
@@ -4582,7 +4856,7 @@
         <div class="beta-history-log-groups">
           ${renderHistoryLogGroup("Fuel logs", fuelLogs, "No fuel logs for this day.")}
           ${renderHistoryLogGroup("Hydration logs", hydrationLogs, "No hydration logs for this day.")}
-          ${renderHistoryLogGroup("Low-energy logs", lowEnergyLogs, "No low-energy logs for this day.")}
+          ${renderHistoryLogGroup("Check-ins", checkinLogs, "No energy or concentration check-ins for this day.")}
         </div>
       </section>
     `;
@@ -5268,7 +5542,7 @@
   }
 
   function lowEnergyAfterLongGapWeeklyInsight(entries) {
-    const lowEnergyLogs = entries.flatMap(entry => logsForEntryType(entry, isCrashLog));
+    const lowEnergyLogs = entries.flatMap(entry => logsForEntryType(entry, isLowEnergyCheckinLog));
     if (!lowEnergyLogs.length) return "No Low Energy logs this week.";
     let supported = 0;
     lowEnergyLogs.forEach(event => {
@@ -5284,12 +5558,12 @@
   }
 
   function renderWeeklyLowEnergySection(entries) {
-    const active = activeEntriesForType(entries, isCrashLog);
+    const active = activeEntriesForType(entries, isLowEnergyCheckinLog);
     const activeCount = active.length;
-    const total = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isCrashLog).length, 0);
-    const allLogs = entries.flatMap(entry => logsForEntryType(entry, isCrashLog));
+    const total = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isLowEnergyCheckinLog).length, 0);
+    const allLogs = entries.flatMap(entry => logsForEntryType(entry, isLowEnergyCheckinLog));
     const dayWithMost = entries
-      .map(entry => ({ entry, count: logsForEntryType(entry, isCrashLog).length }))
+      .map(entry => ({ entry, count: logsForEntryType(entry, isLowEnergyCheckinLog).length }))
       .sort((a, b) => b.count - a.count || dateFromKey(a.entry.date) - dateFromKey(b.entry.date))[0];
     return `
       <section class="beta-weekly-section beta-weekly-section-low-energy">
@@ -5389,7 +5663,7 @@
         dateLabel: weeklyDateLabel(day),
         fuel: logsForEntryType(entry, isFuelLog).length,
         hydration: logsForEntryType(entry, isHydrationLog).length,
-        lowEnergy: logsForEntryType(entry, isCrashLog).length
+        lowEnergy: logsForEntryType(entry, isLowEnergyCheckinLog).length
       };
     });
     const max = Math.max(...points.flatMap(point => [point.fuel, point.hydration, point.lowEnergy]), 1);
@@ -5445,7 +5719,7 @@
       const gaps = gapsFromHydrationLogs(logs);
       return gaps.length ? Math.max(...gaps.map(gap => Number(gap.minutes || 0))) : null;
     });
-    const lowEnergyPoints = weeklySeriesPoints(entries, weekStart, entry => logsForEntryType(entry, isCrashLog).length);
+    const lowEnergyPoints = weeklySeriesPoints(entries, weekStart, entry => logsForEntryType(entry, isLowEnergyCheckinLog).length);
     return `
       <section class="beta-weekly-section beta-weekly-graphs-section">
         <div class="beta-weekly-section-head">
@@ -5922,8 +6196,21 @@
         yLabel: "Low Energy logs",
         aggregate: "sum",
         lowerIsBetter: true,
-        valueForEntry: entry => logsForEntryType(entry, isCrashLog).length,
+        valueForEntry: entry => logsForEntryType(entry, isLowEnergyCheckinLog).length,
         summaryLabel: "Low Energy logs"
+      },
+      {
+        id: "concentration",
+        title: "Concentration trend",
+        description: "Reduced or poor concentration check-ins per day.",
+        icon: "energy",
+        chart: "bar",
+        unit: "count",
+        yLabel: "Concentration check-ins",
+        aggregate: "sum",
+        lowerIsBetter: true,
+        valueForEntry: entry => logsForEntryType(entry, isPoorConcentrationCheckinLog).length,
+        summaryLabel: "Reduced concentration check-ins"
       }
     ];
   }
@@ -7131,6 +7418,181 @@
     `;
   }
 
+  function longFuelGapsForEntry(entry) {
+    const logs = logsForEntryType(entry, isFuelLog);
+    if (logs.length < 2) return [];
+    return gapsFromFuelLogs(logs)
+      .map(gap => ({ ...gap, minutes: awakeGapMinutes(gap) }))
+      .filter(gap => Number(gap.minutes || 0) >= riskLimit());
+  }
+
+  function checkinFollowsLongFuelGap(entry, checkin) {
+    if (!checkin?.date) return false;
+    return longFuelGapsForEntry(entry).some(gap => {
+      const end = logDate(gap.end);
+      const start = logDate(gap.start);
+      if (!start || !end) return false;
+      const followWindowEnd = addMinutes(end, 120);
+      return checkin.date >= start && checkin.date <= followWindowEnd;
+    });
+  }
+
+  function countCheckinsAfterLongGaps(entries, predicate) {
+    return entries.reduce((count, entry) => {
+      const checkins = logsForEntryType(entry, predicate);
+      return count + checkins.filter(checkin => checkinFollowsLongFuelGap(entry, checkin)).length;
+    }, 0);
+  }
+
+  function workCheckinIssueCount(entries) {
+    return entries.flatMap(entry => logsForEntryType(entry, log => {
+      const payload = checkinPayload(log);
+      return payload?.context === "work" || payload?.checkinType === "work";
+    })).filter(log => {
+      const payload = checkinPayload(log) || {};
+      return payload.breakTaken === "no" || payload.fuelledDuringBreak === "no";
+    }).length;
+  }
+
+  function trainingCheckinIssueCount(entries) {
+    return entries.flatMap(entry => logsForEntryType(entry, log => {
+      const payload = checkinPayload(log);
+      return payload?.context === "training" || payload?.checkinType === "training";
+    })).filter(log => {
+      const payload = checkinPayload(log) || {};
+      return payload.recoveryFuelCompleted === "no" || payload.fatigueLevel === "high";
+    }).length;
+  }
+
+  function riskPatternStatus(signals) {
+    const enough = signals.days >= 3 || signals.checkins >= 3 || signals.longFuelGaps >= 3;
+    if (!enough) {
+      return {
+        label: "Emerging pattern",
+        tone: "neutral",
+        copy: "Fuel Guard needs a few more repeated logs or check-ins before it calls this a reliable pattern."
+      };
+    }
+    if (signals.longFuelGaps >= 5 && (signals.lowEnergyAfterLongGaps >= 2 || signals.poorConcentrationAfterLongGaps >= 2 || signals.trainingIssues >= 2)) {
+      return {
+        label: "High under-fuelling risk",
+        tone: "elevated",
+        copy: "Repeated long fuelling gaps are showing up alongside energy, concentration or recovery check-ins."
+      };
+    }
+    if (signals.longFuelGaps >= 3 || signals.missedFuelMoments >= 3) {
+      return {
+        label: "Repeated fuelling gaps",
+        tone: "elevated",
+        copy: "Longer fuelling gaps are recurring in the selected period."
+      };
+    }
+    if (signals.lowEnergyAfterLongGaps + signals.poorConcentrationAfterLongGaps + signals.workIssues + signals.trainingIssues > 0) {
+      return {
+        label: "Emerging pattern",
+        tone: "neutral",
+        copy: "A few check-ins may be connected with stretched fuel timing, but the evidence is still limited."
+      };
+    }
+    return {
+      label: "Low current risk",
+      tone: "protected",
+      copy: "This period does not show a repeated under-fuelling pattern from the available logs and check-ins."
+    };
+  }
+
+  function riskPatternSignals(entries) {
+    const lowEnergy = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isLowEnergyCheckinLog).length, 0);
+    const poorConcentration = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isPoorConcentrationCheckinLog).length, 0);
+    const checkins = entries.reduce((sum, entry) => sum + logsForEntryType(entry, isSubjectiveCheckinLog).length, 0);
+    const longFuelGaps = entries.reduce((sum, entry) => sum + longFuelGapsForEntry(entry).length, 0);
+    const missedFuelMoments = entries.flatMap(entry => calculateDailyFuelScore(entry.date).opportunities)
+      .filter(item => item.status === "missed" || item.status === "overdue").length;
+    const lowEnergyAfterLongGaps = countCheckinsAfterLongGaps(entries, isLowEnergyCheckinLog);
+    const poorConcentrationAfterLongGaps = countCheckinsAfterLongGaps(entries, isPoorConcentrationCheckinLog);
+    const workIssues = workCheckinIssueCount(entries);
+    const trainingIssues = trainingCheckinIssueCount(entries);
+    return {
+      days: entries.length,
+      checkins,
+      lowEnergy,
+      poorConcentration,
+      longFuelGaps,
+      missedFuelMoments,
+      lowEnergyAfterLongGaps,
+      poorConcentrationAfterLongGaps,
+      workIssues,
+      trainingIssues
+    };
+  }
+
+  function riskPatternFactors(signals) {
+    const factors = [];
+    if (signals.longFuelGaps) factors.push(`${signals.longFuelGaps} longer fuel gap${signals.longFuelGaps === 1 ? "" : "s"}`);
+    if (signals.missedFuelMoments) factors.push(`${signals.missedFuelMoments} missed or overdue fuel moment${signals.missedFuelMoments === 1 ? "" : "s"}`);
+    if (signals.lowEnergyAfterLongGaps) factors.push(`${signals.lowEnergyAfterLongGaps} low-energy check-in${signals.lowEnergyAfterLongGaps === 1 ? "" : "s"} near long gaps`);
+    if (signals.poorConcentrationAfterLongGaps) factors.push(`${signals.poorConcentrationAfterLongGaps} concentration check-in${signals.poorConcentrationAfterLongGaps === 1 ? "" : "s"} near long gaps`);
+    if (signals.workIssues) factors.push(`${signals.workIssues} work check-in${signals.workIssues === 1 ? "" : "s"} with missed break or fuel context`);
+    if (signals.trainingIssues) factors.push(`${signals.trainingIssues} training check-in${signals.trainingIssues === 1 ? "" : "s"} with recovery or fatigue context`);
+    return factors;
+  }
+
+  function riskPatternRecommendation(data, signals) {
+    const gapWindow = mostCommonGapWindowInsight(data.currentEntries, isFuelLog, gapsFromFuelLogs, riskLimit());
+    if (gapWindow.value && !String(gapWindow.value).toLowerCase().includes("not enough")) {
+      return `Your longer fuel gaps most often cluster around ${gapWindow.value}. Try adding a small planned fuel moment before that window.`;
+    }
+    if (signals.workIssues) return "Use the Work check-in after your next shift to notice whether breaks and fuel access are part of the pattern.";
+    if (signals.trainingIssues) return "Use the Training check-in after your next session to see whether recovery fuel is part of the pattern.";
+    if (signals.checkins < 3) return "Add a quick energy or concentration check-in from Plan when something changes, then Fuel Guard can compare it with your gaps.";
+    return "Keep fuel and hydration logging simple, then review whether check-ins continue to cluster around longer gaps.";
+  }
+
+  function renderRiskPatternCard({ title, value, note, icon = "chart", tone = "" }) {
+    return `
+      <article class="beta-trend-habit-card beta-risk-pattern-card ${safeText(tone)}">
+        <span class="beta-icon-disc ${tone === "elevated" ? "amber" : tone === "protected" ? "shield" : ""}">${dailyIcon(icon)}</span>
+        <div>
+          <h4>${safeText(title)}</h4>
+          <strong>${safeText(value)}</strong>
+          <small>${safeText(note)}</small>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderRiskAndPatterns(data) {
+    const signals = riskPatternSignals(data.currentEntries);
+    const status = riskPatternStatus(signals);
+    const factors = riskPatternFactors(signals);
+    const energyCopy = signals.checkins < 3
+      ? "Not enough check-in data yet."
+      : `${signals.lowEnergy} low-energy and ${signals.poorConcentration} reduced-concentration check-in${signals.lowEnergy + signals.poorConcentration === 1 ? "" : "s"} in this period.`;
+    const relationshipCopy = signals.lowEnergyAfterLongGaps || signals.poorConcentrationAfterLongGaps
+      ? `${signals.lowEnergyAfterLongGaps + signals.poorConcentrationAfterLongGaps} check-in${signals.lowEnergyAfterLongGaps + signals.poorConcentrationAfterLongGaps === 1 ? "" : "s"} appeared near longer fuel gaps.`
+      : "No clear check-in and fuel-gap relationship yet.";
+    return `
+      <section class="beta-trend-habit-section beta-risk-pattern-section" aria-label="Risk and Patterns">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc ${status.tone === "elevated" ? "amber" : status.tone === "protected" ? "shield" : ""}">${dailyIcon("shield")}</span>
+          <div>
+            <h3>Risk and Patterns</h3>
+            <p>Fuel, hydration, energy and concentration signals for the selected period.</p>
+          </div>
+          <span class="beta-trend-result-chip ${safeText(status.tone)}">${safeText(status.label)}</span>
+        </div>
+        <div class="beta-trend-habit-grid">
+          ${renderRiskPatternCard({ title: "Current risk status", value: status.label, note: status.copy, icon: "shield", tone: status.tone })}
+          ${renderRiskPatternCard({ title: "Main contributing factors", value: factors.length ? factors.slice(0, 2).join(" · ") : "No repeated factor yet", note: factors.length > 2 ? factors.slice(2).join(" · ") : "Fuel Guard uses repeated signals, not one isolated event.", icon: "warning", tone: factors.length ? "elevated" : "protected" })}
+          ${renderRiskPatternCard({ title: "Gap graphs", value: "Fuel and hydration gap graphs below", note: "Use those charts to see when longer gaps repeat.", icon: "gap", tone: signals.longFuelGaps ? "elevated" : "neutral" })}
+          ${renderRiskPatternCard({ title: "Energy and concentration patterns", value: energyCopy, note: relationshipCopy, icon: "energy", tone: signals.lowEnergyAfterLongGaps || signals.poorConcentrationAfterLongGaps ? "elevated" : "neutral" })}
+          ${renderRiskPatternCard({ title: "One recommendation", value: "Next practical action", note: riskPatternRecommendation(data, signals), icon: "check", tone: "protected" })}
+        </div>
+        <p class="row-note">Risk wording is behavioural and cautious. It is not a medical diagnosis.</p>
+      </section>
+    `;
+  }
+
   function gapInsightTitle(metricId) {
     if (metricId === "fuel-gap") return "Fuel gaps";
     if (metricId === "hydration-gap") return "Hydration gaps";
@@ -7518,7 +7980,10 @@
   function createAllTrendsCanvas(data) {
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
-    canvas.height = 1920;
+    const chartHeight = 350;
+    const chartGap = 34;
+    const chartsTop = 300;
+    canvas.height = Math.max(1920, chartsTop + data.cards.length * (chartHeight + chartGap) + 150);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Image export is not supported in this browser.");
     ctx.fillStyle = "#07130f";
@@ -7536,10 +8001,10 @@
     ctx.fillStyle = "rgba(255,255,255,.78)";
     ctx.font = "600 25px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.fillText(`${data.range.label} compared with ${data.range.previousLabelText}`, 70, 232);
-    data.cards.forEach((card, index) => drawTrendChartOnCanvas(ctx, card, data.range, 70, 300 + index * 365, 940, 350));
+    data.cards.forEach((card, index) => drawTrendChartOnCanvas(ctx, card, data.range, 70, chartsTop + index * (chartHeight + chartGap), 940, chartHeight));
     ctx.fillStyle = "rgba(255,255,255,.62)";
     ctx.font = "600 23px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("Generated by Fuel Guard. No private account information included.", 70, 1844);
+    ctx.fillText("Generated by Fuel Guard. No private account information included.", 70, canvas.height - 76);
     return canvas;
   }
 
@@ -7603,7 +8068,7 @@
     renderSelectedDayCard();
     const data = trendComparisonData();
     updateTrendControls(data.range);
-    const primaryTrendIds = ["fuel-gap", "hydration-gap", "low-energy"];
+    const primaryTrendIds = ["fuel-gap", "hydration-gap", "low-energy", "concentration"];
     const primaryCards = primaryTrendIds.map(id => data.cards.find(card => card.metric.id === id)).filter(Boolean);
     const remainingCards = data.cards.filter(card => !primaryTrendIds.includes(card.metric.id));
     const orderedCards = [...primaryCards, ...remainingCards];
@@ -7612,6 +8077,7 @@
       ${renderPersonalisedInsights(data)}
       ${renderFuelDebtSevenDay(data)}
       ${renderDemandAdherenceInsights(data)}
+      ${renderRiskAndPatterns(data)}
       ${renderGapInsights(data)}
       ${renderTrendHabitInsights(data)}
       ${renderLogHabits(data)}
@@ -7649,7 +8115,7 @@
     const logs = logsForDay(selectedKey).filter(log => !isSelectedToday || log.date <= now);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const crashLogs = logs.filter(isCrashLog);
+    const crashLogs = logs.filter(isLowEnergyCheckinLog);
     const series = [];
     if (selectedMode === "risk") {
       drawRiskGraphCanvas(canvas, selectedKey, { now, endedAt: entry?.endedAt || "" });
@@ -7852,7 +8318,7 @@
       ctx.arc(xForMinute(minutesIntoDay(log.date)), yForScore(20), 3.5, 0, Math.PI * 2);
       ctx.fill();
     });
-    logs.filter(isCrashLog).forEach(log => {
+    logs.filter(isLowEnergyCheckinLog).forEach(log => {
       const x = xForMinute(minutesIntoDay(log.date));
       const y = yForScore(100);
       ctx.fillStyle = "#ff4d6d";
@@ -7902,9 +8368,6 @@
 
     const hydrationButton = document.getElementById("graphLogHydrationButton");
     if (hydrationButton) hydrationButton.disabled = false;
-
-    const lowEnergyButton = document.getElementById("graphLogLowEnergyButton");
-    if (lowEnergyButton) lowEnergyButton.disabled = false;
 
     const undo = document.getElementById("undoLatestFoodLog");
     if (undo) undo.disabled = !logsForDay(todayViewKey()).length;
@@ -8093,6 +8556,56 @@
     }
   }
 
+  function recordQuickTimelineCheckin(button) {
+    if (!button) return;
+    const checkinType = button.dataset.checkinQuick || "energy";
+    recordCheckinEvent({
+      checkinType,
+      context: "general_day",
+      energyLevel: button.dataset.energyLevel || "",
+      concentrationLevel: button.dataset.concentrationLevel || "",
+      hungerLevel: button.dataset.hungerLevel || "",
+      fatigueLevel: button.dataset.fatigueLevel || "",
+      note: document.getElementById("timelineCheckinNote")?.value || ""
+    });
+  }
+
+  function saveWorkCheckin() {
+    recordCheckinEvent({
+      checkinType: "work",
+      context: "work",
+      contextId: document.getElementById("workCheckinBlock")?.value || "",
+      energyLevel: document.getElementById("workCheckinEnergy")?.value || "steady",
+      concentrationLevel: document.getElementById("workCheckinConcentration")?.value || "normal",
+      breakTaken: document.getElementById("workCheckinBreakTaken")?.value || "not_sure",
+      fuelledDuringBreak: document.getElementById("workCheckinFuelled")?.value || "not_sure",
+      note: document.getElementById("workCheckinNote")?.value || ""
+    });
+  }
+
+  function saveTrainingCheckin() {
+    recordCheckinEvent({
+      checkinType: "training",
+      context: "training",
+      contextId: document.getElementById("trainingCheckinBlock")?.value || "",
+      energyLevel: document.getElementById("trainingCheckinEnergy")?.value || "steady",
+      concentrationLevel: document.getElementById("trainingCheckinConcentration")?.value || "normal",
+      fatigueLevel: document.getElementById("trainingCheckinFatigue")?.value || "",
+      recoveryFuelCompleted: document.getElementById("trainingCheckinRecoveryFuel")?.value || "not_sure",
+      note: document.getElementById("trainingCheckinNote")?.value || ""
+    });
+  }
+
+  function saveDailyCheckin() {
+    recordCheckinEvent({
+      checkinType: "daily",
+      context: "daily_summary",
+      energyLevel: document.getElementById("dailyCheckinEnergy")?.value || "steady",
+      concentrationLevel: document.getElementById("dailyCheckinConcentration")?.value || "normal",
+      note: document.getElementById("dailyCheckinNote")?.value || ""
+    });
+  }
+
   document.querySelectorAll(".mobile-nav-item").forEach(button => {
     button.onclick = () => {
       switchScreen(button.dataset.mobileScreen);
@@ -8102,7 +8615,6 @@
 
   document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestRhythmLog);
   document.getElementById("graphLogHydrationButton")?.addEventListener("click", recordHydration);
-  document.getElementById("graphLogLowEnergyButton")?.addEventListener("click", recordCrashEvent);
   document.getElementById("showMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(true));
   document.getElementById("cancelMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(false));
   document.getElementById("saveMissedLogButton")?.addEventListener("click", saveMissedLog);
@@ -8145,6 +8657,23 @@
     const deleteDemand = event.target.closest("[data-delete-demand]");
     if (deleteDemand) {
       deleteDemandBlock(deleteDemand.dataset.deleteDemand);
+      return;
+    }
+    const quickCheckin = event.target.closest("[data-checkin-quick]");
+    if (quickCheckin) {
+      recordQuickTimelineCheckin(quickCheckin);
+      return;
+    }
+    if (event.target.closest("#saveWorkCheckinButton")) {
+      saveWorkCheckin();
+      return;
+    }
+    if (event.target.closest("#saveTrainingCheckinButton")) {
+      saveTrainingCheckin();
+      return;
+    }
+    if (event.target.closest("#saveDailyCheckinButton")) {
+      saveDailyCheckin();
     }
   });
   document.addEventListener("click", event => {

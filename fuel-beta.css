@@ -478,8 +478,7 @@
 }
 
 .beta-log-entry-card #graphLogFoodButton,
-.beta-log-entry-card #graphLogHydrationButton,
-.beta-log-entry-card #graphLogLowEnergyButton {
+.beta-log-entry-card #graphLogHydrationButton {
   min-height: 44px;
   margin-top: 0;
   padding: 8px 7px;
@@ -495,8 +494,7 @@
 }
 
 .beta-log-entry-card #graphLogFoodButton span,
-.beta-log-entry-card #graphLogHydrationButton span,
-.beta-log-entry-card #graphLogLowEnergyButton span {
+.beta-log-entry-card #graphLogHydrationButton span {
   display: block;
 }
 
@@ -5219,21 +5217,62 @@ body.beta-mvp .beta-history-demand-row small {
 
 body.beta-mvp .beta-log-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 150px));
   gap: 10px;
   align-items: stretch;
   width: 100%;
   max-width: none;
+  justify-content: center;
   justify-self: stretch;
 }
 
 body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
-body.beta-mvp .beta-log-entry-card #graphLogHydrationButton,
-body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+body.beta-mvp .beta-log-entry-card #graphLogHydrationButton {
   min-height: 58px;
   border-radius: 16px;
   font-size: .94rem;
   line-height: 1.05;
+}
+
+body.beta-mvp .beta-checkin-card,
+body.beta-mvp .beta-context-checkin-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-context-checkin-panel {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(29, 49, 38, .08);
+}
+
+body.beta-mvp .beta-context-checkin-panel h4 {
+  margin: 0;
+  color: #07130f;
+  font-size: .98rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-checkin-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-checkin-quick-grid button {
+  min-height: 42px;
+  padding: 9px 10px;
+  border-radius: 13px;
+  font-size: .82rem;
+}
+
+body.beta-mvp .beta-checkin-note {
+  display: grid;
+  gap: 6px;
+  color: #34423c;
+  font-size: .78rem;
+  font-weight: 900;
 }
 
 body.beta-mvp .beta-unified-timeline {
@@ -5317,6 +5356,7 @@ body.beta-mvp .beta-unified-timeline-item.actual-hydration .beta-timeline-dot {
 }
 
 body.beta-mvp .beta-unified-timeline-item.actual-low-energy .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.actual-checkin .beta-timeline-dot,
 body.beta-mvp .beta-unified-timeline-item.missed-opportunity .beta-timeline-dot {
   background: #b56200;
   box-shadow: 0 0 0 2px rgba(181, 98, 0, .2);
@@ -5512,10 +5552,6 @@ body.beta-mvp .mobile-bottom-nav .mobile-nav-item span {
     gap: 8px;
   }
 
-  body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
-    grid-column: 1 / -1;
-  }
-
   body.beta-mvp .beta-today-status-grid,
   body.beta-mvp .beta-today-progress-grid,
   body.beta-mvp .beta-plan-overview-grid {
@@ -5523,8 +5559,7 @@ body.beta-mvp .mobile-bottom-nav .mobile-nav-item span {
   }
 
   body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
-  body.beta-mvp .beta-log-entry-card #graphLogHydrationButton,
-  body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
+  body.beta-mvp .beta-log-entry-card #graphLogHydrationButton {
     min-height: 54px;
     padding-inline: 8px;
     font-size: .86rem;
@@ -5613,9 +5648,6 @@ body.beta-mvp .beta-log-entry-card button {
     max-width: 100%;
   }
 
-  body.beta-mvp .beta-log-entry-card #graphLogLowEnergyButton {
-    grid-column: 1 / -1;
-  }
 }
 
 /* v79 Fuel Guard visual identity: semantic brand tokens and component variants. */
@@ -5772,13 +5804,6 @@ body.beta-mvp .beta-hydration-button {
   border-color: rgba(var(--fg-hydration-rgb), .26);
   background: linear-gradient(135deg, rgba(var(--fg-hydration-rgb), .16), #ffffff);
   color: #063f46;
-}
-
-body.beta-mvp #graphLogLowEnergyButton,
-body.beta-mvp .beta-low-energy-button {
-  border-color: rgba(var(--fg-urgent-rgb), .24);
-  background: linear-gradient(135deg, rgba(var(--fg-urgent-rgb), .13), #ffffff);
-  color: #73330b;
 }
 
 body.beta-mvp button:focus-visible,

@@ -12,6 +12,7 @@
   const ALLOWED_SOURCES = new Set(["manual", "csv_import", "hardware", "bluetooth"]);
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const CRASH_NOTE = "fuel_guard_event:crash";
+  const CHECKIN_NOTE_PREFIX = "fuel_guard_checkin:";
 
   let client = null;
   let session = null;
@@ -103,6 +104,44 @@
       || String(log?.note || log?.notes || "").includes(CRASH_NOTE);
   }
 
+  function parseCheckinNote(value) {
+    const text = String(value || "");
+    const index = text.indexOf(CHECKIN_NOTE_PREFIX);
+    if (index < 0) return null;
+    const raw = text.slice(index + CHECKIN_NOTE_PREFIX.length).trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function checkinPayload(log) {
+    if (log?.checkin && typeof log.checkin === "object" && !Array.isArray(log.checkin)) return log.checkin;
+    return parseCheckinNote(log?.note || log?.notes || "") || null;
+  }
+
+  function encodeCheckinNote(payload = {}) {
+    return `${CHECKIN_NOTE_PREFIX}${JSON.stringify(payload)}`;
+  }
+
+  function isCheckinLog(log) {
+    return String(log?.type || "").toLowerCase() === "checkin" || Boolean(checkinPayload(log));
+  }
+
+  function checkinTypeLabel(payload = {}) {
+    const type = String(payload?.checkinType || "").toLowerCase();
+    if (type === "concentration") return "Concentration check-in";
+    if (type === "hunger") return "Hunger check-in";
+    if (type === "fatigue") return "Fatigue check-in";
+    if (type === "work") return "Work check-in";
+    if (type === "training") return "Training check-in";
+    if (type === "daily") return "Daily check-in";
+    return "Energy check-in";
+  }
+
   function normalizeSource(value) {
     const next = String(value || "manual").toLowerCase();
     return ALLOWED_SOURCES.has(next) ? next : "manual";
@@ -156,6 +195,7 @@
   }
 
   function labelForType(type) {
+    if (type === "checkin") return "Check-in";
     if (type === "crash") return "Low energy event";
     if (type === "hydration") return "Hydration logged";
     if (type === "fuel_hydration") return "Fuel + hydration logged";
@@ -166,16 +206,19 @@
     const timestamp = timestampForRow(row);
     if (!timestamp) return null;
     const crash = String(row.notes || "").includes(CRASH_NOTE);
-    const type = crash ? "crash" : normalizeType(row.type);
+    const checkin = parseCheckinNote(row.notes || "");
+    const type = checkin ? "checkin" : crash ? "crash" : normalizeType(row.type);
     return {
       id: row.id,
       cloudId: row.id,
       timestamp,
-      label: labelForType(type),
+      label: type === "checkin" ? checkinTypeLabel(checkin) : labelForType(type),
       type,
+      logType: type,
       source: normalizeSource(row.source),
       dayType: row.day_type || "",
       trainingSession: row.training_session || "",
+      checkin: checkin || null,
       note: row.notes || "",
       syncStatus: SYNCED
     };
@@ -187,14 +230,18 @@
 
     const id = isUuid(log.cloudId || log.id) ? String(log.cloudId || log.id) : "";
     const crash = isCrashLog(log);
+    const checkin = isCheckinLog(log);
+    const checkinNote = checkin
+      ? (String(log.note || log.notes || "").includes(CHECKIN_NOTE_PREFIX) ? log.note || log.notes : encodeCheckinNote(checkinPayload(log) || {}))
+      : null;
     const row = {
       user_id: currentUser.id,
       logged_at: date.toISOString(),
-      type: crash ? "fuel" : normalizeType(log.type),
+      type: crash || checkin ? "fuel" : normalizeType(log.type),
       source: normalizeSource(log.source),
       day_type: log.dayType || null,
       training_session: log.trainingSession || null,
-      notes: crash ? CRASH_NOTE : log.note || log.notes || null
+      notes: crash ? CRASH_NOTE : checkin ? checkinNote : log.note || log.notes || null
     };
     if (id) row.id = id;
     return row;
@@ -687,15 +734,19 @@
 
   function updateLocalLogFromRow(localLog, row) {
     if (!localLog || !row) return;
+    const checkin = parseCheckinNote(row.notes || "");
+    const type = checkin ? "checkin" : String(row.notes || "").includes(CRASH_NOTE) ? "crash" : normalizeType(row.type);
     localLog.id = row.id;
     localLog.cloudId = row.id;
     localLog.timestamp = timestampForRow(row) || localLog.timestamp;
-    localLog.type = String(row.notes || "").includes(CRASH_NOTE) ? "crash" : normalizeType(row.type);
-    localLog.label = labelForType(localLog.type);
+    localLog.type = type;
+    localLog.logType = type;
+    localLog.label = checkin ? checkinTypeLabel(checkin) : labelForType(localLog.type);
     localLog.syncStatus = SYNCED;
     localLog.source = normalizeSource(row.source);
     localLog.dayType = row.day_type || localLog.dayType || "";
     localLog.trainingSession = row.training_session || localLog.trainingSession || "";
+    if (checkin) localLog.checkin = checkin;
     localLog.note = row.notes || localLog.note || "";
   }
 

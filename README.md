@@ -1,6 +1,6 @@
 # Fuel Guard
 
-The canonical frontend is the mobile-first Fuel Guard PWA with the three main tabs: Log, Trends, and Settings.
+The canonical frontend is the mobile-first Fuel Guard PWA with the bottom tabs Log, Plan, History, and Trends. Settings opens from the sticky header icon.
 
 Read `AGENTS.md` and `FRONTEND_SOURCE_OF_TRUTH.md` before making frontend changes.
 
