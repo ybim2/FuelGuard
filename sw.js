@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v81-plan-today-restructure";
-const BUILD_VERSION = "2026-07-25T19:30:00Z";
+const APP_VERSION = "mobile-pwa-v82-analysis-system";
+const BUILD_VERSION = "2026-07-25T20:45:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v81-plan-today-restructure-20260725T193000Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v82-analysis-system-20260725T204500Z";
 const APP_SHELL = [
   "./",
   "./index.html",

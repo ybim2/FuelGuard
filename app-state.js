@@ -17,6 +17,7 @@ const DEFAULT_STATE = {
     trainingSessions: {},
     demandBlocks: [],
     workBreaks: [],
+    planRealism: {},
     graphMode: "fuel",
     fuelWindowMinutes: 720,
     thresholds: {
@@ -91,6 +92,7 @@ function load() {
         trainingSessions: isPlainObject(parsedFuelGap.trainingSessions) ? parsedFuelGap.trainingSessions : {},
         demandBlocks: Array.isArray(parsedFuelGap.demandBlocks) ? parsedFuelGap.demandBlocks : [],
         workBreaks: Array.isArray(parsedFuelGap.workBreaks) ? parsedFuelGap.workBreaks : [],
+        planRealism: isPlainObject(parsedFuelGap.planRealism) ? parsedFuelGap.planRealism : {},
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)
           : defaults.fuelGap.fuelWindowMinutes,
@@ -199,6 +201,7 @@ function fuelGapState() {
   if (!isPlainObject(state.fuelGap.trainingSessions)) state.fuelGap.trainingSessions = {};
   if (!Array.isArray(state.fuelGap.demandBlocks)) state.fuelGap.demandBlocks = [];
   if (!Array.isArray(state.fuelGap.workBreaks)) state.fuelGap.workBreaks = [];
+  if (!isPlainObject(state.fuelGap.planRealism)) state.fuelGap.planRealism = {};
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
     state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
   }
@@ -332,12 +335,12 @@ function fuelGapSnapshot(now = new Date()) {
   const elapsedMinutes = minutesSinceLastFuel(now);
   const status = fuelGapStatus(elapsedMinutes);
   const statusText = status === "green"
-    ? "Fuel rhythm is currently under control."
+    ? "Status: Steady."
     : status === "amber"
-      ? "Medium Risk: maybe have a snack now."
+      ? "Status: Eat soon."
       : status === "red"
-        ? "High Risk: you are likely very hungry and the fuel gap is risky."
-        : "Fuel Crash Zone / Under-fuelled Zone: you may have gone too long. Refuel and recover now.";
+        ? "Status: Eat now."
+        : "Status: Recovery needed.";
 
   return {
     lastFuelled: last ? formatClock(last.date) : "No fuel logged",

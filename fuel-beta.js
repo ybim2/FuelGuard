@@ -166,6 +166,7 @@
   let selectedTrendWeekStartKey = "";
   let selectedTrendMonthKey = "";
   let selectedTrendPeriod = "week";
+  let selectedTrendSegment = "overview";
   let selectedPlanSubtab = "today";
   let selectedHistoryDetailKey = "";
   let lastAutoFuelWindowDateKey = "";
@@ -634,6 +635,7 @@
     if (!Array.isArray(gap.rideTemplates)) gap.rideTemplates = [];
     if (!gap.activeRide || typeof gap.activeRide !== "object" || Array.isArray(gap.activeRide)) gap.activeRide = null;
     if (!Array.isArray(gap.foodRunway)) gap.foodRunway = [];
+    if (!gap.planRealism || typeof gap.planRealism !== "object" || Array.isArray(gap.planRealism)) gap.planRealism = {};
     if (!gap.thresholds || typeof gap.thresholds !== "object") gap.thresholds = { ...DEFAULT_THRESHOLDS };
     const hasCrashThreshold = Number.isFinite(Number(gap.thresholds.crashMinutes));
     if (!hasCrashThreshold && Number(gap.thresholds.greenMinutes) === 180 && Number(gap.thresholds.redMinutes) === 300) {
@@ -2301,7 +2303,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v81-plan-today-restructure"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v82-analysis-system"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3132,6 +3134,101 @@
     });
   }
 
+  function planRealismForKey(key) {
+    const gap = betaState();
+    if (!gap.planRealism || typeof gap.planRealism !== "object" || Array.isArray(gap.planRealism)) gap.planRealism = {};
+    return gap.planRealism[key] || {};
+  }
+
+  function planRealismActionLabel(action) {
+    return {
+      move: "Move protected moment",
+      widen: "Widen acceptable window",
+      faster: "Add faster alternative",
+      limited_access: "Mark food access limited",
+      recalculate: "Recalculate rest of day"
+    }[action] || "Keep plan visible";
+  }
+
+  function planRealismReasonLabel(reason) {
+    return {
+      work: "Work or meeting",
+      commute: "Commute",
+      training: "Training",
+      access: "Limited food access",
+      appetite: "Low appetite",
+      social: "Social commitment",
+      other: "Other"
+    }[reason] || "No reason selected";
+  }
+
+  function setPlanRealismForKey(key, patch = {}) {
+    const gap = betaState();
+    gap.planRealism[key] = {
+      ...planRealismForKey(key),
+      ...patch,
+      updatedAt: new Date().toISOString()
+    };
+    save();
+  }
+
+  function clearPlanRealismForKey(key) {
+    const gap = betaState();
+    delete gap.planRealism[key];
+    save();
+  }
+
+  function shiftedOpportunity(opportunity, minutes) {
+    const start = logDate(opportunity.plannedStart);
+    const end = logDate(opportunity.plannedEnd);
+    if (!start || !end) return opportunity;
+    return {
+      ...opportunity,
+      plannedStart: addMinutes(start, minutes).toISOString(),
+      plannedEnd: addMinutes(end, minutes).toISOString()
+    };
+  }
+
+  function widenedOpportunity(opportunity, minutes) {
+    const end = logDate(opportunity.plannedEnd);
+    if (!end) return opportunity;
+    return {
+      ...opportunity,
+      plannedEnd: addMinutes(end, minutes).toISOString()
+    };
+  }
+
+  function applyPlanRealismAdjustments(key, opportunities) {
+    const realism = planRealismForKey(key);
+    if (!["mostly", "no"].includes(String(realism.response || ""))) return opportunities;
+    const sorted = [...opportunities].sort((a, b) => (logDate(a.plannedStart) || 0) - (logDate(b.plannedStart) || 0));
+    const fallback = sorted.find(item => !item.completedAt) || sorted[0];
+    const targetId = String(realism.opportunityId || fallback?.id || "");
+    const target = opportunities.find(item => String(item.id) === targetId) || fallback;
+    const targetStart = logDate(target?.plannedStart);
+    const action = String(realism.action || "move");
+    const moveMinutes = Number.isFinite(Number(realism.moveMinutes)) ? Number(realism.moveMinutes) : 45;
+
+    return opportunities.map(item => {
+      const isTarget = String(item.id) === targetId;
+      const start = logDate(item.plannedStart);
+      const affectsRest = action === "recalculate" && targetStart && start && start >= targetStart;
+      let next = { ...item };
+      if (isTarget && (action === "move" || action === "recalculate")) next = shiftedOpportunity(next, moveMinutes);
+      if (isTarget && action === "widen") next = widenedOpportunity(next, 30);
+      if (affectsRest && !isTarget) next = shiftedOpportunity(next, Math.round(moveMinutes / 2));
+      if (isTarget) {
+        next.adjustmentNote = action === "faster"
+          ? "Faster fuel option marked for this moment."
+          : action === "limited_access"
+            ? "Food access limited for this moment."
+            : `${planRealismActionLabel(action)} applied.`;
+        next.adjustmentReason = planRealismReasonLabel(realism.reason);
+      }
+      return next;
+    });
+  }
+
   function generateFuelOpportunitiesForDay(key, { now = new Date(), includeNormal = true } = {}) {
     const list = [];
     const fuelLogs = logsForDay(key).filter(isFuelLog);
@@ -3140,7 +3237,8 @@
       if (block.type === "training") generateTrainingOpportunities(list, block);
       if (block.type === "work") generateWorkOpportunities(list, block);
     });
-    return matchFuelLogsToOpportunities(list, fuelLogs, now).sort((a, b) => {
+    const adjustedList = applyPlanRealismAdjustments(key, list);
+    return matchFuelLogsToOpportunities(adjustedList, fuelLogs, now).sort((a, b) => {
       const startDiff = logDate(a.plannedStart) - logDate(b.plannedStart);
       return startDiff || b.priority - a.priority;
     });
@@ -3689,7 +3787,83 @@
         </div>
 
         <p id="fuelDemandPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
+        ${renderPlanRealismPrompt(key)}
       </div>
+    `;
+  }
+
+  function planRealismOpportunityOptions(opportunities, selectedId) {
+    return opportunities.map(item => {
+      const windowText = timeRangeText(item.plannedStart, item.plannedEnd);
+      const selected = String(item.id) === String(selectedId || "") ? "selected" : "";
+      return `<option value="${safeText(item.id)}" ${selected}>${safeText(`${windowText} · ${item.label}`)}</option>`;
+    }).join("");
+  }
+
+  function renderPlanRealismPrompt(key = selectedDataDateKey(), now = new Date()) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now }).filter(item => !item.completedAt);
+    if (!opportunities.length) {
+      return `
+        <section class="beta-plan-realism-panel" aria-label="Plan realism">
+          <div>
+            <h4>Does this fuelling plan feel realistic today?</h4>
+            <p class="row-note">Add work, breaks or training above to create protected fuel moments you can adjust before the day gets difficult.</p>
+          </div>
+        </section>
+      `;
+    }
+    const realism = planRealismForKey(key);
+    const response = String(realism.response || "");
+    const selectedOpportunityId = realism.opportunityId || opportunities[0]?.id || "";
+    return `
+      <section class="beta-plan-realism-panel" aria-label="Plan realism">
+        <div class="beta-plan-realism-head">
+          <div>
+            <h4>Does this fuelling plan feel realistic today?</h4>
+            <p class="row-note">Adjust a protected moment before it becomes difficult to use.</p>
+          </div>
+          ${realism.updatedAt ? `<span class="beta-plan-realism-saved">Saved</span>` : ""}
+        </div>
+        <div class="beta-plan-realism-options" role="group" aria-label="Plan realism options">
+          <button class="secondary ${response === "yes" ? "active" : ""}" type="button" data-plan-realism-response="yes">Yes, this works</button>
+          <button class="secondary ${response === "mostly" ? "active" : ""}" type="button" data-plan-realism-response="mostly">Mostly, one moment may be difficult</button>
+          <button class="secondary ${response === "no" ? "active" : ""}" type="button" data-plan-realism-response="no">No, adjust my plan</button>
+        </div>
+        ${["mostly", "no"].includes(response) ? `
+          <div class="beta-plan-realism-adjust">
+            <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+              <label>Difficult moment<select id="planRealismOpportunity">${planRealismOpportunityOptions(opportunities, selectedOpportunityId)}</select></label>
+              <label>Reason<select id="planRealismReason">
+                <option value="work" ${realism.reason === "work" ? "selected" : ""}>Work or meeting</option>
+                <option value="commute" ${realism.reason === "commute" ? "selected" : ""}>Commute</option>
+                <option value="training" ${realism.reason === "training" ? "selected" : ""}>Training</option>
+                <option value="access" ${realism.reason === "access" ? "selected" : ""}>Limited food access</option>
+                <option value="appetite" ${realism.reason === "appetite" ? "selected" : ""}>Low appetite</option>
+                <option value="social" ${realism.reason === "social" ? "selected" : ""}>Social commitment</option>
+                <option value="other" ${realism.reason === "other" ? "selected" : ""}>Other</option>
+              </select></label>
+              <label>Adjustment<select id="planRealismAction">
+                <option value="move" ${realism.action === "move" || !realism.action ? "selected" : ""}>Move protected moment</option>
+                <option value="widen" ${realism.action === "widen" ? "selected" : ""}>Widen acceptable window</option>
+                <option value="faster" ${realism.action === "faster" ? "selected" : ""}>Add faster alternative</option>
+                <option value="limited_access" ${realism.action === "limited_access" ? "selected" : ""}>Mark food access limited</option>
+                <option value="recalculate" ${realism.action === "recalculate" ? "selected" : ""}>Recalculate rest of day</option>
+              </select></label>
+              <label>Move by<select id="planRealismMoveMinutes">
+                <option value="30" ${Number(realism.moveMinutes || 45) === 30 ? "selected" : ""}>30 minutes</option>
+                <option value="45" ${Number(realism.moveMinutes || 45) === 45 ? "selected" : ""}>45 minutes</option>
+                <option value="60" ${Number(realism.moveMinutes || 45) === 60 ? "selected" : ""}>60 minutes</option>
+                <option value="90" ${Number(realism.moveMinutes || 45) === 90 ? "selected" : ""}>90 minutes</option>
+              </select></label>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="savePlanRealismButton" class="primary" type="button">Apply adjustment</button>
+              <button id="clearPlanRealismButton" class="secondary" type="button">Clear adjustment</button>
+            </div>
+            <p class="row-note">${safeText(realism.action ? `${planRealismActionLabel(realism.action)} · ${planRealismReasonLabel(realism.reason)}` : "Choose the moment that may be difficult, then apply a small adjustment.")}</p>
+          </div>
+        ` : response === "yes" ? `<p class="row-note">Plan marked realistic. Keep logging as the day unfolds.</p>` : ""}
+      </section>
     `;
   }
 
@@ -4097,7 +4271,10 @@
       time: logDate(item.plannedStart),
       end: logDate(item.plannedEnd),
       title: item.label,
-      detail: item.completedAt ? `Completed at ${formatClock(item.completedAt)}` : opportunityStatusLabel(item.status),
+      detail: [
+        item.completedAt ? `Completed at ${formatClock(item.completedAt)}` : opportunityStatusLabel(item.status),
+        item.adjustmentNote || ""
+      ].filter(Boolean).join(" · "),
       status: item.status
     })).filter(item => item.time);
     const hydrationItems = hydrationSuggestionForDay(key, logs, now);
@@ -4165,6 +4342,519 @@
           <span><i class="missed"></i>Overdue</span>
         </div>
       </section>
+    `;
+  }
+
+  function syncAnalysisDateInput() {
+    const input = document.getElementById("fuelAnalysisDate");
+    if (!input) return;
+    const selectedKey = selectedDataDateKey();
+    input.max = dateKey();
+    if (input.value !== selectedKey) input.value = selectedKey;
+  }
+
+  function analysisTimeLabel(hour) {
+    if (hour === 0 || hour === 24) return hour === 0 ? "12 AM" : "12 AM";
+    if (hour === 12) return "12 PM";
+    return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
+  }
+
+  function minutesFromDayStartForKey(key, value) {
+    const date = logDate(value);
+    if (!date) return null;
+    const bounds = dayBounds(key);
+    return clamp((date - bounds.start) / 60000, 0, 1440);
+  }
+
+  function analysisXForMinute(minute, padding, plotWidth) {
+    return padding.left + (clamp(Number(minute || 0), 0, 1440) / 1440) * plotWidth;
+  }
+
+  function renderAnalysisTimeAxis({ width, height, padding, plotWidth, plotHeight }) {
+    const tickHours = [0, 6, 12, 18, 24];
+    return tickHours.map(hour => {
+      const x = analysisXForMinute(hour * 60, padding, plotWidth);
+      return `
+        <line class="grid-line" x1="${x.toFixed(1)}" y1="${padding.top}" x2="${x.toFixed(1)}" y2="${padding.top + plotHeight}"></line>
+        <text class="x-label" x="${x.toFixed(1)}" y="${height - 24}">${safeText(analysisTimeLabel(hour))}</text>
+      `;
+    }).join("");
+  }
+
+  function renderAnalysisGraphCard({ title, subtitle = "", graph = "", interpretation = "", empty = "", className = "" }) {
+    return `
+      <section class="beta-analysis-card ${safeText(className)}">
+        <div class="beta-analysis-card-head">
+          <div>
+            <h3>${safeText(title)}</h3>
+            ${subtitle ? `<p class="muted">${safeText(subtitle)}</p>` : ""}
+          </div>
+        </div>
+        ${empty ? `<p class="muted beta-history-empty">${safeText(empty)}</p>` : graph}
+        ${interpretation ? `<p class="beta-analysis-interpretation">${safeText(interpretation)}</p>` : ""}
+      </section>
+    `;
+  }
+
+  function analysisOpportunityStatusTone(status) {
+    if (status === "completed_on_time") return "fuel";
+    if (status === "completed_late" || status === "due_soon") return "neutral";
+    if (status === "overdue" || status === "missed") return "critical";
+    return "neutral";
+  }
+
+  function analysisDemandBandMarkup(key, padding, plotWidth, plotHeight) {
+    return demandBlocksForDay(key).map(block => {
+      const range = blockRange(block);
+      if (!range) return "";
+      const startMinute = minutesFromDayStartForKey(key, range.start);
+      const endMinute = minutesFromDayStartForKey(key, range.end);
+      const x = analysisXForMinute(startMinute, padding, plotWidth);
+      const w = Math.max(4, analysisXForMinute(endMinute, padding, plotWidth) - x);
+      const type = block.type === "training" ? "training" : "work";
+      return `<rect class="demand-band ${safeText(type)}" x="${x.toFixed(1)}" y="${padding.top}" width="${w.toFixed(1)}" height="${plotHeight}" rx="12"><title>${safeText(`${demandBlockTitle(block)} · ${timeRangeText(range.start, range.end)}`)}</title></rect>`;
+    }).join("");
+  }
+
+  function renderAnalysisTimelineGraph(key = selectedDataDateKey(), now = new Date()) {
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const hydrationItems = hydrationSuggestionForDay(key, logs, now);
+    const hasData = fuelLogs.length || hydrationLogs.length || opportunities.length || demandBlocksForDay(key).length;
+    if (!hasData) {
+      return renderAnalysisGraphCard({
+        title: "Planned vs actual timeline",
+        subtitle: "Protected fuel and hydration moments across the day.",
+        empty: "Add a plan item or log fuel and hydration to unlock the daily timeline."
+      });
+    }
+    const width = 960;
+    const height = 330;
+    const padding = { top: 42, right: 32, bottom: 66, left: 88 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const rowY = { plannedFuel: 96, actualFuel: 140, plannedHydration: 190, actualHydration: 234 };
+    const labelMarkup = [
+      ["Planned fuel", rowY.plannedFuel],
+      ["Actual fuel", rowY.actualFuel],
+      ["Planned hydration", rowY.plannedHydration],
+      ["Actual hydration", rowY.actualHydration]
+    ].map(([label, y]) => `<text class="row-label" x="18" y="${y + 5}">${safeText(label)}</text>`).join("");
+    const opportunityBars = opportunities.map(item => {
+      const startMinute = minutesFromDayStartForKey(key, item.plannedStart);
+      const endMinute = minutesFromDayStartForKey(key, item.plannedEnd);
+      if (startMinute === null || endMinute === null) return "";
+      const x = analysisXForMinute(startMinute, padding, plotWidth);
+      const w = Math.max(8, analysisXForMinute(endMinute, padding, plotWidth) - x);
+      const tone = analysisOpportunityStatusTone(item.status);
+      return `<rect class="planned-window ${safeText(tone)}" x="${x.toFixed(1)}" y="${rowY.plannedFuel - 12}" width="${w.toFixed(1)}" height="24" rx="12"><title>${safeText(`${item.label} · ${timeRangeText(item.plannedStart, item.plannedEnd)} · ${opportunityStatusLabel(item.status)}`)}</title></rect>`;
+    }).join("");
+    const hydrationBars = hydrationItems.map(item => {
+      const startMinute = minutesFromDayStartForKey(key, item.time);
+      const endMinute = minutesFromDayStartForKey(key, item.end);
+      if (startMinute === null || endMinute === null) return "";
+      const x = analysisXForMinute(startMinute, padding, plotWidth);
+      const w = Math.max(8, analysisXForMinute(endMinute, padding, plotWidth) - x);
+      return `<rect class="planned-window hydration" x="${x.toFixed(1)}" y="${rowY.plannedHydration - 12}" width="${w.toFixed(1)}" height="24" rx="12"><title>${safeText(`${item.title} · ${timeRangeText(item.time, item.end)}`)}</title></rect>`;
+    }).join("");
+    const marker = (log, y, className) => {
+      const minute = minutesFromDayStartForKey(key, log.date);
+      if (minute === null) return "";
+      const x = analysisXForMinute(minute, padding, plotWidth);
+      return `<circle class="actual-marker ${safeText(className)}" cx="${x.toFixed(1)}" cy="${y}" r="7"><title>${safeText(`${logTypeLabel(log)} · ${formatClock(log.date)}`)}</title></circle>`;
+    };
+    const completedCount = opportunities.filter(item => item.completedAt).length;
+    const missedCount = opportunities.filter(item => item.status === "missed" || item.status === "overdue").length;
+    const interpretation = missedCount
+      ? `${missedCount} protected fuel moment${missedCount === 1 ? "" : "s"} need attention on this day.`
+      : completedCount
+        ? `${completedCount} planned fuel moment${completedCount === 1 ? "" : "s"} connected with actual logs.`
+        : "Use this to compare the plan with the actual fuel and hydration logs.";
+    const graph = `
+      <div class="beta-analysis-graph" role="img" aria-label="Planned fuel and hydration compared with actual logs over a 24-hour day">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${renderAnalysisTimeAxis({ width, height, padding, plotWidth, plotHeight })}
+          ${analysisDemandBandMarkup(key, padding, plotWidth, plotHeight)}
+          <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+          ${labelMarkup}
+          ${opportunityBars}
+          ${hydrationBars}
+          ${fuelLogs.map(log => marker(log, rowY.actualFuel, "fuel")).join("")}
+          ${hydrationLogs.map(log => marker(log, rowY.actualHydration, "hydration")).join("")}
+        </svg>
+        <div class="beta-analysis-legend">
+          <span><i class="fuel"></i>Fuel</span>
+          <span><i class="hydration"></i>Hydration</span>
+          <span><i class="critical"></i>Delayed or missed</span>
+          <span><i class="neutral"></i>Work/training</span>
+        </div>
+      </div>
+    `;
+    return renderAnalysisGraphCard({
+      title: "Planned vs actual timeline",
+      subtitle: "Where protected moments and actual logs lined up.",
+      graph,
+      interpretation,
+      className: "beta-analysis-timeline-card"
+    });
+  }
+
+  function longestGapForLogs(logs, gapBuilder, key, now = new Date()) {
+    const includeTrailing = key === dateKey(now);
+    const gaps = gapBuilder(logs, now, includeTrailing, includeTrailing)
+      .map(gap => ({ ...gap, minutes: awakeGapMinutes(gap) }))
+      .filter(gap => Number.isFinite(gap.minutes) && gap.minutes >= 0);
+    return gaps.sort((a, b) => Number(b.minutes || 0) - Number(a.minutes || 0))[0] || null;
+  }
+
+  function renderAnalysisGapGraph(key = selectedDataDateKey(), now = new Date()) {
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const fuelGaps = gapsFromFuelLogs(fuelLogs, now, key === dateKey(now), key === dateKey(now));
+    const hydrationGaps = gapsFromHydrationLogs(hydrationLogs, now, key === dateKey(now), key === dateKey(now));
+    const gaps = [
+      ...fuelGaps.map(gap => ({ ...gap, kind: "fuel", threshold: mediumRiskLimit(), row: 108 })),
+      ...hydrationGaps.map(gap => ({ ...gap, kind: "hydration", threshold: hydrationGreenLimit(), row: 184 }))
+    ].map(gap => ({ ...gap, minutes: awakeGapMinutes(gap) }));
+    if (!gaps.length) {
+      return renderAnalysisGraphCard({
+        title: "Fuel and hydration gaps",
+        subtitle: "Longer gaps are highlighted against your preferred windows.",
+        empty: "Add at least two fuel or hydration logs to see gap timing."
+      });
+    }
+    const width = 960;
+    const height = 280;
+    const padding = { top: 42, right: 32, bottom: 62, left: 86 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const labelMarkup = [
+      ["Fuel gaps", 108],
+      ["Hydration gaps", 184]
+    ].map(([label, y]) => `<text class="row-label" x="18" y="${y + 5}">${safeText(label)}</text>`).join("");
+    const bars = gaps.map(gap => {
+      const startMinute = minutesFromDayStartForKey(key, gap.start);
+      const endMinute = minutesFromDayStartForKey(key, gap.end);
+      if (startMinute === null || endMinute === null) return "";
+      const x = analysisXForMinute(startMinute, padding, plotWidth);
+      const w = Math.max(10, analysisXForMinute(endMinute, padding, plotWidth) - x);
+      const tone = gap.minutes >= gap.threshold ? "critical" : gap.kind;
+      return `<rect class="gap-bar ${safeText(tone)}" x="${x.toFixed(1)}" y="${gap.row - 14}" width="${w.toFixed(1)}" height="28" rx="14"><title>${safeText(`${gap.kind === "fuel" ? "Fuel" : "Hydration"} gap · ${duration(gap.minutes)} · ${formatClock(gap.start)} to ${formatClock(gap.end)}`)}</title></rect>`;
+    }).join("");
+    const longestFuel = longestGapForLogs(fuelLogs, gapsFromFuelLogs, key, now);
+    const longestHydration = longestGapForLogs(hydrationLogs, gapsFromHydrationLogs, key, now);
+    const interpretation = [
+      longestFuel ? `Longest fuel gap: ${duration(longestFuel.minutes)}.` : "Fuel gap needs at least two logs.",
+      longestHydration ? `Longest hydration gap: ${duration(longestHydration.minutes)}.` : "Hydration gap needs at least two logs."
+    ].join(" ");
+    const graph = `
+      <div class="beta-analysis-graph" role="img" aria-label="Fuel and hydration gaps across the selected day">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${renderAnalysisTimeAxis({ width, height, padding, plotWidth, plotHeight })}
+          <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+          ${labelMarkup}
+          ${bars}
+        </svg>
+        <div class="beta-analysis-legend">
+          <span><i class="fuel"></i>Within fuel rhythm</span>
+          <span><i class="hydration"></i>Within hydration rhythm</span>
+          <span><i class="critical"></i>Beyond preferred window</span>
+        </div>
+      </div>
+    `;
+    return renderAnalysisGraphCard({
+      title: "Fuel and hydration gaps",
+      subtitle: "When gaps stretched across the selected day.",
+      graph,
+      interpretation,
+      className: "beta-analysis-gap-card"
+    });
+  }
+
+  function analysisOpportunityStats(opportunities) {
+    return opportunities.reduce((stats, item) => {
+      if (item.status === "completed_on_time") stats.onTime += 1;
+      else if (item.status === "completed_late") stats.late += 1;
+      else if (item.status === "missed" || item.status === "overdue") stats.missed += 1;
+      else stats.remaining += 1;
+      stats.total += 1;
+      return stats;
+    }, { total: 0, onTime: 0, late: 0, missed: 0, remaining: 0 });
+  }
+
+  function renderAdherenceSegment(label, count, total, className) {
+    const width = total > 0 ? Math.max(count ? 8 : 0, (count / total) * 100) : 0;
+    return `<span class="${safeText(className)}" style="width:${stylePercent(width)}"><i>${safeText(`${label}: ${count}`)}</i></span>`;
+  }
+
+  function renderAnalysisAdherenceBreakdown(key = selectedDataDateKey(), now = new Date()) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const stats = analysisOpportunityStats(opportunities);
+    if (!stats.total) {
+      return renderAnalysisGraphCard({
+        title: "Planned vs actual adherence",
+        subtitle: "How protected moments resolved.",
+        empty: "Add work, breaks, training or fuel-window details to generate protected moments."
+      });
+    }
+    const graph = `
+      <div class="beta-analysis-segmented" role="img" aria-label="Protected moments completed on time, completed late, missed, or remaining">
+        <div class="beta-analysis-segment-bar">
+          ${renderAdherenceSegment("On time", stats.onTime, stats.total, "fuel")}
+          ${renderAdherenceSegment("Late", stats.late, stats.total, "neutral")}
+          ${renderAdherenceSegment("Missed", stats.missed, stats.total, "critical")}
+          ${renderAdherenceSegment("Remaining", stats.remaining, stats.total, "supporting")}
+        </div>
+        <div class="beta-analysis-stat-grid">
+          ${dailyMetricCard("Planned moments", String(stats.total), "Protected fuel moments generated for this day.", "neutral")}
+          ${dailyMetricCard("Completed on time", String(stats.onTime), "Fuel matched the protected window.", "fuel")}
+          ${dailyMetricCard("Completed late", String(stats.late), "Fuel happened outside the window.", "neutral")}
+          ${dailyMetricCard("Missed or overdue", String(stats.missed), "Use the next window to get steady again.", stats.missed ? "urgent" : "neutral")}
+        </div>
+      </div>
+    `;
+    const interpretation = stats.missed
+      ? `${stats.missed} protected moment${stats.missed === 1 ? "" : "s"} were missed or overdue.`
+      : stats.onTime
+        ? "Protected fuel moments are mostly being connected with actual logs."
+        : "Your plan is ready; keep logging when these windows happen.";
+    return renderAnalysisGraphCard({
+      title: "Planned vs actual adherence",
+      subtitle: "A compact breakdown of protected moment outcomes.",
+      graph,
+      interpretation,
+      className: "beta-analysis-adherence-card"
+    });
+  }
+
+  function renderAnalysisProgression(key = selectedDataDateKey(), now = new Date()) {
+    const scored = generateFuelOpportunitiesForDay(key, { now })
+      .filter(opportunityIsScored)
+      .sort((a, b) => (logDate(a.completedAt || a.plannedEnd) || 0) - (logDate(b.completedAt || b.plannedEnd) || 0));
+    if (scored.length < 2) {
+      return renderAnalysisGraphCard({
+        title: "Daily adherence progression",
+        subtitle: "How your day score moved as protected moments resolved.",
+        empty: "Two completed, missed, or overdue protected moments are needed for a progression graph."
+      });
+    }
+    const width = 920;
+    const height = 300;
+    const padding = { top: 42, right: 30, bottom: 64, left: 70 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const points = scored.map((item, index) => {
+      const running = scored.slice(0, index + 1);
+      return Math.round(averageValue(running.map(opportunity => Number(opportunity.timingScore || 0))));
+    });
+    const xFor = index => padding.left + (index / Math.max(1, points.length - 1)) * plotWidth;
+    const yFor = value => padding.top + plotHeight - (value / 100) * plotHeight;
+    const polyline = points.map((value, index) => `${xFor(index).toFixed(1)},${yFor(value).toFixed(1)}`).join(" ");
+    const ticks = [0, 50, 100].map(value => {
+      const y = yFor(value);
+      return `
+        <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
+        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${value}%</text>
+      `;
+    }).join("");
+    const marks = points.map((value, index) => `<circle class="point fuel" cx="${xFor(index).toFixed(1)}" cy="${yFor(value).toFixed(1)}" r="5"><title>${safeText(`${scored[index].label}: ${value}% after this moment`)}</title></circle>`).join("");
+    const graph = `
+      <div class="beta-analysis-graph" role="img" aria-label="Daily adherence score progression">
+        <div class="beta-analysis-axis-copy"><span>Moment order</span><span>Adherence score</span></div>
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
+          ${ticks}
+          <polyline class="line fuel" points="${polyline}"></polyline>
+          ${marks}
+        </svg>
+      </div>
+    `;
+    return renderAnalysisGraphCard({
+      title: "Daily adherence progression",
+      subtitle: "How the score changed as the day unfolded.",
+      graph,
+      interpretation: points[points.length - 1] >= points[0] ? "Later protected moments helped the day stay steady." : "One or more later moments pulled the day’s adherence down.",
+      className: "beta-analysis-progression-card"
+    });
+  }
+
+  function renderAnalysisScenario(key = selectedDataDateKey(), now = new Date()) {
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const next = nextFuelOpportunity(opportunities, now);
+    if (!next || key !== dateKey(now)) {
+      return renderAnalysisGraphCard({
+        title: "Scenario comparison",
+        subtitle: "A quick estimate for the next useful fuel window.",
+        empty: "When today has an upcoming protected fuel moment, Fuel Guard will compare using it now versus delaying it."
+      });
+    }
+    const fuelLogs = logsForDay(key).filter(isFuelLog).filter(log => log.date <= now);
+    const lastFuel = fuelLogs[fuelLogs.length - 1] || null;
+    const plannedEnd = logDate(next.plannedEnd) || logDate(next.plannedStart);
+    const delayedEnd = plannedEnd ? addMinutes(plannedEnd, 90) : null;
+    const scores = opportunities.filter(opportunityIsScored).map(item => Number(item.timingScore || 0));
+    const adherenceNow = Math.round(averageValue([...scores, 100].filter(Number.isFinite)));
+    const adherenceDelayed = Math.round(averageValue([...scores, 50].filter(Number.isFinite)));
+    const gapNow = lastFuel && plannedEnd ? Math.max(0, (plannedEnd - lastFuel.date) / 60000) : null;
+    const gapDelayed = lastFuel && delayedEnd ? Math.max(0, (delayedEnd - lastFuel.date) / 60000) : null;
+    const gapMax = Math.max(gapNow || 0, gapDelayed || 0, mediumRiskLimit(), 60);
+    const bar = (label, value, max, className) => {
+      const width = Number.isFinite(value) && max > 0 ? (value / max) * 100 : 0;
+      return `
+        <div class="beta-scenario-row ${safeText(className)}">
+          <span>${safeText(label)}</span>
+          <i style="width:${stylePercent(width)}"></i>
+          <strong>${safeText(Number.isFinite(value) ? duration(value) : "Needs a fuel log")}</strong>
+        </div>
+      `;
+    };
+    const graph = `
+      <div class="beta-analysis-scenario" role="img" aria-label="Scenario comparison for the next protected fuel moment">
+        <div class="beta-scenario-bars">
+          ${bar("Fuel within window", gapNow, gapMax, "fuel")}
+          ${bar("Delay 90 minutes", gapDelayed, gapMax, "critical")}
+        </div>
+        <div class="beta-analysis-stat-grid">
+          ${dailyMetricCard("Protected moment", timeRangeText(next.plannedStart, next.plannedEnd), next.label, "fuel")}
+          ${dailyMetricCard("Estimated adherence", `${adherenceNow}% vs ${adherenceDelayed}%`, "Within window compared with delaying 90 minutes.", "neutral")}
+          ${dailyMetricCard("Remaining daily target", hasTarget(targets().dailyFuelLogs) ? `${Math.max(0, targets().dailyFuelLogs - logsForDay(key).filter(isFuelLog).length)} fuel logs` : "No target set", "Based on your daily target.", "fuel")}
+        </div>
+      </div>
+    `;
+    return renderAnalysisGraphCard({
+      title: "Scenario comparison",
+      subtitle: "Estimated from your current plan and logs.",
+      graph,
+      interpretation: `Delaying this moment by 90 minutes would extend the next fuel gap${Number.isFinite(gapDelayed) ? ` to ${duration(gapDelayed)}` : ""}.`,
+      className: "beta-analysis-scenario-card"
+    });
+  }
+
+  function renderAnalysisPriorityCard(key = selectedDataDateKey(), now = new Date()) {
+    const snapshot = key === dateKey(now) ? fuelGapSnapshot(now) : null;
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const next = nextFuelOpportunity(opportunities, now);
+    const score = calculateDailyFuelScore(key, { now });
+    const stats = analysisOpportunityStats(opportunities);
+    const action = key === dateKey(now) && snapshot
+      ? snapshot.nextAction
+      : Number.isFinite(score.finalScore)
+        ? `Fuel Score: ${score.finalScore}/100`
+        : "Build the analysis";
+    const copy = next
+      ? `${next.label} is ${opportunityCountdown(next, now)}. ${opportunityPlanCopy(next)}`
+      : stats.total
+        ? "No remaining protected fuel moment is active for this day."
+        : "Add a plan item and a couple of logs to unlock a more useful analysis.";
+    return `
+      <section class="beta-analysis-hero beta-analysis-card ${safeText(snapshot?.status || "neutral")}">
+        <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
+        <div>
+          <p class="beta-analysis-eyebrow">${safeText(formatDateKey(key))}</p>
+          <h3>${safeText(action)}</h3>
+          <p>${safeText(copy)}</p>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderAnalysisKeyResult(key = selectedDataDateKey(), now = new Date()) {
+    const entry = buildArchiveEntry(key);
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const stats = analysisOpportunityStats(opportunities);
+    const score = calculateDailyFuelScore(key, { now });
+    const fuelDebt = fuelDebtDurationText(Number(entry.fuelDebtMinutes || 0));
+    return `
+      <section class="beta-analysis-card beta-analysis-result-card">
+        <div class="beta-analysis-card-head">
+          <div>
+            <h3>Key daily result</h3>
+            <p class="muted">What mattered most in the selected day.</p>
+          </div>
+        </div>
+        <div class="beta-analysis-stat-grid">
+          ${dailyMetricCard("Fuel logs", String(fuelLogs.length), "Actual fuel logs on this day.", "fuel")}
+          ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Actual hydration logs on this day.", "hydration")}
+          ${dailyMetricCard("Time beyond fuel window", fuelDebt, "A timing signal, not a calorie score.", Number(entry.fuelDebtMinutes || 0) > 0 ? "warning" : "fuel")}
+          ${dailyMetricCard("Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "neutral")}
+          ${dailyMetricCard("Completed on time", String(stats.onTime), "Protected fuel moments.", "fuel")}
+          ${dailyMetricCard("Missed or overdue", String(stats.missed), "Protected fuel moments.", stats.missed ? "urgent" : "neutral")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderAnalysisWrittenInsights(key = selectedDataDateKey(), now = new Date()) {
+    const entry = buildArchiveEntry(key);
+    const fuelLogs = logsForDay(key).filter(isFuelLog);
+    const longestFuel = longestGapForLogs(fuelLogs, gapsFromFuelLogs, key, now);
+    const workBlocks = demandBlocksForDay(key).filter(block => block.type === "work");
+    const overlapsWork = longestFuel && workBlocks.some(block => {
+      const range = blockRange(block);
+      return range && rangesOverlapMinutes(longestFuel.start, longestFuel.end, range.start, range.end) > 0;
+    });
+    const support = [];
+    if (longestFuel) {
+      support.push(`Your longest fuel gap was ${duration(longestFuel.minutes)}${overlapsWork ? " and overlapped with work time" : ""}.`);
+    } else {
+      support.push("Add at least two fuel logs to identify the longest fuel gap.");
+    }
+    if (Number(entry.fuelDebtMinutes || 0) > 0) {
+      support.push(`You spent ${fuelDebtDurationText(entry.fuelDebtMinutes)} beyond your preferred fuelling window.`);
+    } else {
+      support.push("Fuel timing stayed inside the preferred window from the available logs.");
+    }
+    const recommendation = overlapsWork
+      ? "For a similar day, place a small fuel moment near the start of the work window or a reliable break."
+      : Number(entry.fuelDebtMinutes || 0) > 0
+        ? "For a similar day, move one protected fuel moment earlier before the longer gap begins."
+        : "Keep the plan simple: protect the next easy fuel or hydration moment.";
+    return `
+      <section class="beta-analysis-card beta-analysis-support-card">
+        <div class="beta-analysis-card-head">
+          <div>
+            <h3>Supporting insights</h3>
+            <p class="muted">Plain-language notes from today’s data.</p>
+          </div>
+        </div>
+        <ul class="beta-analysis-bullets">
+          ${support.map(item => `<li>${safeText(item)}</li>`).join("")}
+        </ul>
+      </section>
+      <section class="beta-analysis-card beta-analysis-recommendation-card">
+        <div class="beta-analysis-card-head">
+          <span class="beta-icon-disc">${dailyIcon("check")}</span>
+          <div>
+            <h3>Recommended adjustment</h3>
+            <p>${safeText(recommendation)}</p>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderAnalysis() {
+    const target = document.getElementById("fuelAnalysisContent");
+    if (!target) return;
+    syncAnalysisDateInput();
+    const key = selectedDataDateKey();
+    const now = new Date();
+    target.innerHTML = `
+      ${renderAnalysisPriorityCard(key, now)}
+      ${renderAnalysisTimelineGraph(key, now)}
+      ${renderAnalysisKeyResult(key, now)}
+      ${renderAnalysisGapGraph(key, now)}
+      ${renderAnalysisAdherenceBreakdown(key, now)}
+      ${renderAnalysisProgression(key, now)}
+      ${renderAnalysisScenario(key, now)}
+      ${renderAnalysisWrittenInsights(key, now)}
     `;
   }
 
@@ -4504,8 +5194,8 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
     gradient.addColorStop(0, "rgba(45,255,136,0.18)");
-    gradient.addColorStop(0.56, "rgba(255,176,32,0.12)");
-    gradient.addColorStop(1, "rgba(45,127,249,0.16)");
+    gradient.addColorStop(0.56, "rgba(255,255,255,0.08)");
+    gradient.addColorStop(1, "rgba(35,103,213,0.18)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -7482,7 +8172,7 @@
     }
     if (signals.longFuelGaps >= 5 && (signals.lowEnergyAfterLongGaps >= 2 || signals.poorConcentrationAfterLongGaps >= 2 || signals.trainingIssues >= 2)) {
       return {
-        label: "High under-fuelling risk",
+        label: "High timing support signal",
         tone: "elevated",
         copy: "Repeated long fuelling gaps are showing up alongside energy, concentration or recovery check-ins."
       };
@@ -7504,7 +8194,7 @@
     return {
       label: "Low current risk",
       tone: "protected",
-      copy: "This period does not show a repeated under-fuelling pattern from the available logs and check-ins."
+      copy: "This period does not show a repeated long-fuel-gap pattern from the available logs and check-ins."
     };
   }
 
@@ -7997,8 +8687,8 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
     gradient.addColorStop(0, "rgba(45,255,136,.16)");
-    gradient.addColorStop(.5, "rgba(255,176,32,.11)");
-    gradient.addColorStop(1, "rgba(124,58,237,.18)");
+    gradient.addColorStop(.5, "rgba(255,255,255,.08)");
+    gradient.addColorStop(1, "rgba(35,103,213,.18)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawTrendLogo(ctx);
@@ -8069,28 +8759,106 @@
     if (nextButton) nextButton.disabled = Boolean(range.nextDisabled);
   }
 
+  function trendSegmentDefinitions() {
+    return [
+      { id: "overview", label: "Overview" },
+      { id: "fuel", label: "Fuel" },
+      { id: "hydration", label: "Hydration" },
+      { id: "timing", label: "Timing" },
+      { id: "adherence", label: "Adherence" }
+    ];
+  }
+
+  function normalizeTrendSegment(value) {
+    return trendSegmentDefinitions().some(item => item.id === value) ? value : "overview";
+  }
+
+  function renderTrendSegmentTabs() {
+    selectedTrendSegment = normalizeTrendSegment(selectedTrendSegment);
+    return `
+      <nav class="beta-trend-segments" aria-label="Trend sections">
+        ${trendSegmentDefinitions().map(segment => `
+          <button class="${selectedTrendSegment === segment.id ? "active" : ""}" type="button" data-trend-segment="${safeText(segment.id)}" aria-pressed="${selectedTrendSegment === segment.id ? "true" : "false"}">${safeText(segment.label)}</button>
+        `).join("")}
+      </nav>
+    `;
+  }
+
+  function trendCard(data, id) {
+    return data.cards.find(card => card.metric.id === id) || null;
+  }
+
+  function renderTrendCards(data, ids) {
+    const cards = ids.map(id => trendCard(data, id)).filter(Boolean);
+    if (!cards.length) return "";
+    return `
+      <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
+        ${cards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
+      </section>
+    `;
+  }
+
+  function renderTrendPriorityInsight(data) {
+    const attention = data.cards.find(card => card.summary.tone === "elevated")
+      || data.cards.find(card => card.summary.tone === "protected")
+      || data.cards[0];
+    if (!attention) return "";
+    return `
+      <section class="beta-trend-habit-section beta-trend-priority-section" aria-label="Trend priority">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc ${attention.summary.tone === "elevated" ? "danger" : attention.summary.tone === "protected" ? "shield" : ""}">${dailyIcon(attention.metric.icon)}</span>
+          <div>
+            <h3>Most important trend</h3>
+            <p>${safeText(attention.summary.copy)}</p>
+          </div>
+          <span class="beta-trend-result-chip ${safeText(attention.summary.tone)}">${safeText(attention.summary.label)}</span>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTrendSegmentContent(data) {
+    selectedTrendSegment = normalizeTrendSegment(selectedTrendSegment);
+    if (selectedTrendSegment === "fuel") {
+      return `
+        ${renderFuelDebtSevenDay(data)}
+        ${renderTrendCards(data, ["fuel-gap"])}
+      `;
+    }
+    if (selectedTrendSegment === "hydration") {
+      return renderTrendCards(data, ["hydration-gap"]);
+    }
+    if (selectedTrendSegment === "timing") {
+      return `
+        ${renderGapInsights(data)}
+        ${renderTrendHabitInsights(data)}
+        ${renderRiskAndPatterns(data)}
+        ${renderTrendCards(data, ["low-energy", "concentration"])}
+      `;
+    }
+    if (selectedTrendSegment === "adherence") {
+      return `
+        ${renderFuelScoreTrends(data)}
+        ${renderDemandAdherenceInsights(data)}
+        ${renderLogHabits(data)}
+        ${renderTrendCards(data, ["logs"])}
+      `;
+    }
+    return `
+      ${renderTrendPriorityInsight(data)}
+      ${renderPersonalisedInsights(data)}
+    `;
+  }
+
   function renderTrends() {
     const summaryTarget = document.getElementById("fuelAveragesSummary");
     if (!summaryTarget) return;
     renderSelectedDayCard();
     const data = trendComparisonData();
     updateTrendControls(data.range);
-    const primaryTrendIds = ["fuel-gap", "hydration-gap", "low-energy", "concentration"];
-    const primaryCards = primaryTrendIds.map(id => data.cards.find(card => card.metric.id === id)).filter(Boolean);
-    const remainingCards = data.cards.filter(card => !primaryTrendIds.includes(card.metric.id));
-    const orderedCards = [...primaryCards, ...remainingCards];
     summaryTarget.innerHTML = `
-      ${renderFuelScoreTrends(data)}
-      ${renderPersonalisedInsights(data)}
-      ${renderFuelDebtSevenDay(data)}
-      ${renderDemandAdherenceInsights(data)}
-      ${renderRiskAndPatterns(data)}
-      ${renderGapInsights(data)}
-      ${renderTrendHabitInsights(data)}
-      ${renderLogHabits(data)}
-      <section class="beta-trend-comparison-grid" aria-label="Trend comparison cards">
-        ${orderedCards.map(card => renderTrendComparisonCard(card, data.range)).join("")}
-      </section>
+      ${renderTrendSegmentTabs()}
+      ${renderTrendSegmentContent(data)}
     `;
   }
 
@@ -8274,7 +9042,7 @@
     const yForScore = score => bottom - (clamp(score, 0, 100) / 100) * plotHeight;
     const zones = [
       { from: 0, to: 30, color: "rgba(45,255,136,.07)" },
-      { from: 31, to: 60, color: "rgba(255,176,32,.08)" },
+      { from: 31, to: 60, color: "rgba(102,112,133,.08)" },
       { from: 61, to: 80, color: "rgba(255,77,109,.08)" },
       { from: 81, to: 100, color: "rgba(255,77,109,.15)" }
     ];
@@ -8298,7 +9066,7 @@
     ctx.stroke();
 
     if (samples.length) {
-      ctx.strokeStyle = "#ffb020";
+      ctx.strokeStyle = "#b42318";
       ctx.lineWidth = 3;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -8362,6 +9130,7 @@
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
+    const analysisActive = document.getElementById("analysis")?.classList.contains("active");
     const planActive = document.getElementById("plan")?.classList.contains("active");
     const historyActive = document.getElementById("history")?.classList.contains("active");
     const trendsActive = document.getElementById("trends")?.classList.contains("active");
@@ -8382,11 +9151,12 @@
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
     if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
 
-    if (dashboardActive || planActive) {
+    if (dashboardActive || analysisActive || planActive) {
       renderDayTypeControls();
       renderSelectedDayCard();
       if (dashboardActive) renderDailyLog();
     }
+    if (analysisActive) renderAnalysis();
     if (historyActive) renderHistoryScreen();
     if (settingsActive) renderSettings();
     if (trendsActive) renderTrends();
@@ -8394,7 +9164,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "plan", "history", "trends", "checklist"].includes(screen) ? screen : "plan";
+    const target = ["dashboard", "analysis", "plan", "history", "trends", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -8405,6 +9175,10 @@
     if (target === "dashboard") {
       renderSelectedDayCard();
       renderDailyLog();
+    }
+    if (target === "analysis") {
+      renderSelectedDayCard();
+      renderAnalysis();
     }
     if (target === "plan") {
       renderDayTypeControls();
@@ -8700,6 +9474,42 @@
       switchScreen(openScreen.dataset.openScreen);
       return;
     }
+    const realismResponse = event.target.closest("[data-plan-realism-response]");
+    if (realismResponse) {
+      const key = selectedDataDateKey();
+      const response = realismResponse.dataset.planRealismResponse || "yes";
+      if (response === "yes") {
+        setPlanRealismForKey(key, { response: "yes", opportunityId: "", reason: "", action: "", moveMinutes: 45 });
+      } else {
+        const opportunities = generateFuelOpportunitiesForDay(key).filter(item => !item.completedAt);
+        setPlanRealismForKey(key, {
+          response,
+          opportunityId: planRealismForKey(key).opportunityId || opportunities[0]?.id || "",
+          reason: planRealismForKey(key).reason || "work",
+          action: planRealismForKey(key).action || "move",
+          moveMinutes: planRealismForKey(key).moveMinutes || 45
+        });
+      }
+      renderFuelGap();
+      return;
+    }
+    if (event.target.closest("#savePlanRealismButton")) {
+      const key = selectedDataDateKey();
+      setPlanRealismForKey(key, {
+        response: planRealismForKey(key).response || "mostly",
+        opportunityId: document.getElementById("planRealismOpportunity")?.value || "",
+        reason: document.getElementById("planRealismReason")?.value || "work",
+        action: document.getElementById("planRealismAction")?.value || "move",
+        moveMinutes: Number(document.getElementById("planRealismMoveMinutes")?.value || 45)
+      });
+      renderFuelGap();
+      return;
+    }
+    if (event.target.closest("#clearPlanRealismButton")) {
+      clearPlanRealismForKey(selectedDataDateKey());
+      renderFuelGap();
+      return;
+    }
   });
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
     const key = selectedDataDateKey();
@@ -8716,6 +9526,10 @@
     window.fuelGuardCloud?.syncLogsForDay(key);
   });
   document.getElementById("fuelDataDate")?.addEventListener("change", event => {
+    setSelectedDataDate(event.target.value);
+    renderFuelGap();
+  });
+  document.getElementById("fuelAnalysisDate")?.addEventListener("change", event => {
     setSelectedDataDate(event.target.value);
     renderFuelGap();
   });
@@ -8748,6 +9562,12 @@
   document.getElementById("shareTrendsButton")?.addEventListener("click", () => shareAllTrends(false));
   document.getElementById("downloadTrendsButton")?.addEventListener("click", () => shareAllTrends(true));
   document.addEventListener("click", event => {
+    const trendSegment = event.target.closest("[data-trend-segment]");
+    if (trendSegment) {
+      selectedTrendSegment = normalizeTrendSegment(trendSegment.dataset.trendSegment);
+      renderTrends();
+      return;
+    }
     const shareCard = event.target.closest("[data-share-trend-card]");
     if (shareCard) {
       shareTrendCard(shareCard.dataset.shareTrendCard, false);

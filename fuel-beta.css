@@ -104,10 +104,10 @@
   gap: 14px;
   margin: 12px 0;
   padding: 14px;
-  border: 1px solid rgba(255,176,32,.24);
+  border: 1px solid rgba(22,138,70,.24);
   border-radius: 18px;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255,176,32,.18), transparent 32%),
+    radial-gradient(circle at 8% 0%, rgba(22,138,70,.18), transparent 32%),
     linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
 }
@@ -118,9 +118,9 @@
 
 .beta-crash-cost-insight.danger,
 .beta-crash-cost-insight.high {
-  border-color: rgba(255,77,109,.42);
+  border-color: rgba(102,112,133,.42);
   background:
-    radial-gradient(circle at 8% 0%, rgba(255,77,109,.2), transparent 34%),
+    radial-gradient(circle at 8% 0%, rgba(102,112,133,.2), transparent 34%),
     linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
 }
 
@@ -196,7 +196,7 @@
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 18px;
   background:
-    linear-gradient(90deg, rgba(45,255,136,.1), rgba(255,176,32,.08), rgba(255,77,109,.08)),
+    linear-gradient(90deg, rgba(45,255,136,.1), rgba(22,138,70,.08), rgba(102,112,133,.08)),
     repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 1px, transparent 1px 25%);
 }
 
@@ -215,14 +215,14 @@
 }
 
 .beta-crash-debt {
-  background: rgba(255,176,32,.58);
-  box-shadow: 0 0 18px rgba(255,176,32,.16);
+  background: rgba(22,138,70,.58);
+  box-shadow: 0 0 18px rgba(22,138,70,.16);
 }
 
 .beta-crash-recovery {
   background:
-    repeating-linear-gradient(135deg, rgba(255,77,109,.58) 0 8px, rgba(255,176,32,.52) 8px 16px);
-  box-shadow: 0 0 18px rgba(255,77,109,.16);
+    repeating-linear-gradient(135deg, rgba(102,112,133,.58) 0 8px, rgba(22,138,70,.52) 8px 16px);
+  box-shadow: 0 0 18px rgba(102,112,133,.16);
 }
 
 .beta-crash-marker {
@@ -311,20 +311,20 @@
 }
 
 .beta-impact-simple-card.elevated {
-  border-color: rgba(255,176,32,.26);
+  border-color: rgba(22,138,70,.26);
   background:
-    linear-gradient(135deg, rgba(255,176,32,.18), rgba(255,255,255,.02) 44%),
+    linear-gradient(135deg, rgba(22,138,70,.18), rgba(255,255,255,.02) 44%),
     rgba(255,255,255,.05);
 }
 
 .beta-impact-simple-card.elevated::before {
-  background: #ffb020;
+  background: #168a46;
 }
 
 .beta-impact-simple-card.high {
-  border-color: rgba(255,77,109,.3);
+  border-color: rgba(102,112,133,.3);
   background:
-    linear-gradient(135deg, rgba(255,77,109,.18), rgba(255,255,255,.02) 44%),
+    linear-gradient(135deg, rgba(102,112,133,.18), rgba(255,255,255,.02) 44%),
     rgba(255,255,255,.05);
 }
 
@@ -393,7 +393,7 @@
   min-width: 6px;
   max-width: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #2dff88, #ffb020);
+  background: linear-gradient(90deg, #2dff88, #168a46);
 }
 
 .beta-impact-mini-meta {
@@ -722,8 +722,8 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-card.watch {
-  border-color: rgba(255,176,32,.28);
-  background: rgba(255,176,32,.06);
+  border-color: rgba(22,138,70,.28);
+  background: rgba(22,138,70,.06);
 }
 
 .beta-trend-habit-section {
@@ -838,7 +838,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-gap-insight-outcome.elevated {
-  background: rgba(255, 176, 32, .18);
+  background: rgba(22, 138, 70, .18);
   color: #8a5600;
 }
 
@@ -1067,22 +1067,22 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-risk-pill.amber {
-  border: 1px solid rgba(255,176,32,.42);
-  background: rgba(255,176,32,.12);
+  border: 1px solid rgba(22,138,70,.42);
+  background: rgba(22,138,70,.12);
   color: #ffe9bd;
 }
 
 .beta-risk-pill.red {
-  border: 1px solid rgba(255,77,109,.48);
-  background: rgba(255,77,109,.13);
+  border: 1px solid rgba(102,112,133,.48);
+  background: rgba(102,112,133,.13);
   color: #ffdbe2;
 }
 
 .beta-risk-pill.crash,
 .fuel-next-action.crash,
 .status-pill.crash {
-  border: 1px solid rgba(255,77,109,.66);
-  background: rgba(255,77,109,.2);
+  border: 1px solid rgba(102,112,133,.66);
+  background: rgba(102,112,133,.2);
   color: #fff1f4;
 }
 
@@ -1118,9 +1118,9 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-icon-disc.amber {
-  background: rgba(255,176,32,.14);
-  color: #ffb020;
-  box-shadow: inset 0 0 0 1px rgba(255,176,32,.2);
+  background: rgba(22,138,70,.14);
+  color: #168a46;
+  box-shadow: inset 0 0 0 1px rgba(22,138,70,.2);
 }
 
 .beta-icon-disc.shield {
@@ -1250,9 +1250,9 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-longest-gap-card.elevated,
 .beta-longest-gap-card.high {
-  border-color: rgba(255,176,32,.25);
+  border-color: rgba(22,138,70,.25);
   background:
-    radial-gradient(circle at 8% 0%, rgba(255,176,32,.15), transparent 34%),
+    radial-gradient(circle at 8% 0%, rgba(22,138,70,.15), transparent 34%),
     rgba(255,255,255,.04);
 }
 
@@ -1286,8 +1286,8 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   top: 14px;
   height: 18px;
   border-radius: 999px;
-  background: rgba(255,176,32,.65);
-  box-shadow: 0 0 18px rgba(255,176,32,.16);
+  background: rgba(22,138,70,.65);
+  box-shadow: 0 0 18px rgba(22,138,70,.16);
 }
 
 .beta-gap-bubble {
@@ -1297,7 +1297,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   transform: translateX(-50%);
   padding: 3px 7px;
   border-radius: 999px;
-  background: #ffb020;
+  background: #168a46;
   color: #1d1708;
   font-size: .7rem;
   font-weight: 900;
@@ -1384,7 +1384,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 .beta-daily-metric-card.fuel,
 .beta-daily-metric-card.warning {
   border-color: rgba(239, 173, 66, .28);
-  background: linear-gradient(180deg, rgba(255, 247, 231, .98), rgba(255, 255, 255, .96));
+  background: linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(255, 255, 255, .96));
 }
 
 .beta-daily-metric-card.hydration {
@@ -1451,13 +1451,13 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-visual-metric-card.elevated,
 .beta-visual-metric-card.high {
-  border-color: rgba(255,176,32,.24);
-  background: rgba(255,176,32,.07);
+  border-color: rgba(22,138,70,.24);
+  background: rgba(22,138,70,.07);
 }
 
 .beta-visual-metric-card.danger {
-  border-color: rgba(255,77,109,.34);
-  background: rgba(255,77,109,.08);
+  border-color: rgba(102,112,133,.34);
+  background: rgba(102,112,133,.08);
 }
 
 .beta-visual-metric-card.quiet {
@@ -1468,7 +1468,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   justify-self: start;
   padding: 5px 9px;
   border-radius: 999px;
-  background: rgba(255,176,32,.14);
+  background: rgba(22,138,70,.14);
   color: #ffe1a3;
   font-size: .73rem;
   font-weight: 900;
@@ -1524,13 +1524,13 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 .beta-fuel-story.mild,
 .beta-fuel-story.medium {
   background:
-    radial-gradient(circle at 12% 8%, rgba(255,176,32,.15), transparent 34%),
+    radial-gradient(circle at 12% 8%, rgba(22,138,70,.15), transparent 34%),
     linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.028));
 }
 
 .beta-fuel-story.high {
   background:
-    radial-gradient(circle at 12% 8%, rgba(255,77,109,.16), transparent 36%),
+    radial-gradient(circle at 12% 8%, rgba(102,112,133,.16), transparent 36%),
     linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.028));
 }
 
@@ -1581,7 +1581,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 .beta-fuel-story.mild .beta-recovery-orb {
   background:
     radial-gradient(circle, rgba(20,24,22,.96) 58%, transparent 60%),
-    conic-gradient(#ffb020 var(--score-pct), rgba(255,255,255,.12) 0);
+    conic-gradient(#168a46 var(--score-pct), rgba(255,255,255,.12) 0);
 }
 
 .beta-fuel-story.high .beta-recovery-orb {
@@ -1623,14 +1623,14 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-fuel-story-gap {
-  background: rgba(255,176,32,.42);
-  box-shadow: 0 0 18px rgba(255,176,32,.12);
+  background: rgba(22,138,70,.42);
+  box-shadow: 0 0 18px rgba(22,138,70,.12);
 }
 
 .beta-fuel-story-debt {
   background:
-    repeating-linear-gradient(135deg, rgba(255,77,109,.68) 0 8px, rgba(255,77,109,.36) 8px 16px);
-  box-shadow: 0 0 18px rgba(255,77,109,.16);
+    repeating-linear-gradient(135deg, rgba(102,112,133,.68) 0 8px, rgba(102,112,133,.36) 8px 16px);
+  box-shadow: 0 0 18px rgba(102,112,133,.16);
 }
 
 .beta-fuel-story-marker {
@@ -1688,7 +1688,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-fuel-story-legend .gap {
-  background: #ffb020;
+  background: #168a46;
 }
 
 .beta-fuel-story-legend .debt {
@@ -1804,7 +1804,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 18px;
   background:
-    linear-gradient(90deg, rgba(45,255,136,.1), rgba(255,176,32,.07)),
+    linear-gradient(90deg, rgba(45,255,136,.1), rgba(22,138,70,.07)),
     repeating-linear-gradient(90deg, rgba(255,255,255,.1) 0 1px, transparent 1px 25%);
 }
 
@@ -1829,7 +1829,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 .beta-timeline-point:hover,
 .beta-timeline-point:focus-visible {
   z-index: 6;
-  outline: 2px solid rgba(255,176,32,.62);
+  outline: 2px solid rgba(22,138,70,.62);
   outline-offset: 2px;
 }
 
@@ -1888,7 +1888,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   height: 68px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(45,255,136,.08), rgba(32,214,255,.06), rgba(255,176,32,.08));
+  background: linear-gradient(90deg, rgba(45,255,136,.08), rgba(32,214,255,.06), rgba(22,138,70,.08));
 }
 
 .beta-timeline-point {
@@ -2037,16 +2037,16 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-trend-hero-card.elevated,
 .beta-trend-pattern-card.elevated {
-  border-color: rgba(255,176,32,.25);
+  border-color: rgba(22,138,70,.25);
   background:
-    radial-gradient(circle at 10% 0%, rgba(255,176,32,.15), transparent 34%),
+    radial-gradient(circle at 10% 0%, rgba(22,138,70,.15), transparent 34%),
     rgba(255,255,255,.04);
 }
 
 .beta-trend-pattern-card.danger {
-  border-color: rgba(255,77,109,.32);
+  border-color: rgba(102,112,133,.32);
   background:
-    radial-gradient(circle at 10% 0%, rgba(255,77,109,.14), transparent 34%),
+    radial-gradient(circle at 10% 0%, rgba(102,112,133,.14), transparent 34%),
     rgba(255,255,255,.04);
 }
 
@@ -2154,7 +2154,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-chart-legend i.crash {
-  background: #c53d52;
+  background: #b42318;
 }
 
 .beta-trend-chart-legend i.expected {
@@ -2243,7 +2243,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-chart .line.crash {
-  stroke: #c53d52;
+  stroke: #b42318;
 }
 
 .beta-trend-chart .line.expected {
@@ -2283,7 +2283,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-chart .point.crash {
-  stroke: #c53d52;
+  stroke: #b42318;
 }
 
 .beta-trend-chart .point.expected {
@@ -2311,7 +2311,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-trend-chart .bar.crash {
-  fill: #c53d52;
+  fill: #b42318;
 }
 
 .beta-weekly-fuel-card {
@@ -2361,7 +2361,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   border: 1px solid rgba(29, 49, 38, .1);
   border-radius: 999px;
   background:
-    linear-gradient(90deg, rgba(22,122,69,.11), rgba(255,176,32,.08)),
+    linear-gradient(90deg, rgba(22,122,69,.11), rgba(22,138,70,.08)),
     repeating-linear-gradient(90deg, rgba(29,49,38,.08) 0 1px, transparent 1px 25%);
 }
 
@@ -2468,7 +2468,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-weekly-section-low-energy {
-  border-color: rgba(197,61,82,.18);
+  border-color: rgba(102,112,133,.18);
 }
 
 .beta-trend-chart-empty {
@@ -2538,7 +2538,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-risk-stack .medium {
-  background: #ffb020;
+  background: #168a46;
 }
 
 .beta-risk-stack .high {
@@ -2618,7 +2618,7 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 }
 
 .beta-history-bar-track i.amber {
-  background: #ffb020;
+  background: #168a46;
 }
 
 .beta-high-risk-window-list {
@@ -2863,7 +2863,7 @@ body.beta-mvp {
   --green: #167a45;
   --cyan: #2f8eb8;
   --amber: #b56200;
-  --red: #c53d52;
+  --red: #b42318;
   --lime: #5d8f2f;
   background:
     radial-gradient(circle at 50% -12%, rgba(22,122,69,.12), transparent 34%),
@@ -2926,7 +2926,7 @@ body.beta-mvp .logo {
   width: 34px;
   height: 34px;
   border-radius: 11px;
-  background: linear-gradient(135deg, #2db56a, #f3b24d);
+  background: linear-gradient(135deg, #2db56a, #168a46);
   color: #ffffff;
   font-size: .86rem;
   box-shadow: 0 10px 26px rgba(22,122,69,.18);
@@ -3183,7 +3183,7 @@ body.beta-mvp .nav-item {
 
 body.beta-mvp .nav-item.active {
   border-color: rgba(22,122,69,.24);
-  background: linear-gradient(135deg, rgba(22,122,69,.11), rgba(255,176,32,.09));
+  background: linear-gradient(135deg, rgba(22,122,69,.11), rgba(22,138,70,.09));
   color: var(--text);
 }
 
@@ -3206,7 +3206,7 @@ body.beta-mvp .remove-btn {
 }
 
 body.beta-mvp button.primary {
-  background: linear-gradient(135deg, #1d9a58, #efad42);
+  background: linear-gradient(135deg, #1d9a58, #168a46);
   color: #ffffff;
   box-shadow: 0 12px 28px rgba(22,122,69,.18);
 }
@@ -3321,7 +3321,7 @@ body.beta-mvp .beta-risk-pill.amber,
 body.beta-mvp .status-pill.amber,
 body.beta-mvp .amber {
   border-color: rgba(181,98,0,.25);
-  background: rgba(255,176,32,.15);
+  background: rgba(22,138,70,.15);
   color: #8d4f00;
 }
 
@@ -3331,8 +3331,8 @@ body.beta-mvp .fuel-next-action.crash,
 body.beta-mvp .status-pill.red,
 body.beta-mvp .status-pill.crash,
 body.beta-mvp .red {
-  border-color: rgba(197,61,82,.28);
-  background: rgba(197,61,82,.12);
+  border-color: rgba(102,112,133,.28);
+  background: rgba(102,112,133,.12);
   color: #a93446;
 }
 
@@ -3369,7 +3369,7 @@ body.beta-mvp .beta-icon-disc {
 }
 
 body.beta-mvp .beta-icon-disc.amber {
-  background: rgba(255,176,32,.16);
+  background: rgba(22,138,70,.16);
   color: #b56200;
   box-shadow: inset 0 0 0 1px rgba(181,98,0,.16);
 }
@@ -3381,9 +3381,9 @@ body.beta-mvp .beta-icon-disc.shield {
 }
 
 body.beta-mvp .beta-icon-disc.danger {
-  background: rgba(197,61,82,.12);
+  background: rgba(102,112,133,.12);
   color: #a93446;
-  box-shadow: inset 0 0 0 1px rgba(197,61,82,.18);
+  box-shadow: inset 0 0 0 1px rgba(102,112,133,.18);
 }
 
 body.beta-mvp .beta-log-tile,
@@ -3426,7 +3426,7 @@ body.beta-mvp .beta-trend-hero-card.elevated,
 body.beta-mvp .beta-trend-pattern-card.elevated {
   border-color: rgba(181,98,0,.22);
   background:
-    radial-gradient(circle at 12% 0%, rgba(255,176,32,.16), transparent 34%),
+    radial-gradient(circle at 12% 0%, rgba(22,138,70,.16), transparent 34%),
     #ffffff;
 }
 
@@ -3436,9 +3436,9 @@ body.beta-mvp .beta-crash-cost-insight.danger,
 body.beta-mvp .beta-crash-cost-insight.high,
 body.beta-mvp .beta-impact-simple-card.high,
 body.beta-mvp .beta-trend-pattern-card.danger {
-  border-color: rgba(197,61,82,.24);
+  border-color: rgba(102,112,133,.24);
   background:
-    radial-gradient(circle at 12% 0%, rgba(197,61,82,.12), transparent 34%),
+    radial-gradient(circle at 12% 0%, rgba(102,112,133,.12), transparent 34%),
     #ffffff;
 }
 
@@ -3555,7 +3555,7 @@ body.beta-mvp .beta-impact-simple-card.stable::before {
 
 body.beta-mvp .beta-impact-simple-card.elevated {
   background:
-    linear-gradient(135deg, rgba(255,176,32,.18), rgba(255,255,255,.95) 42%),
+    linear-gradient(135deg, rgba(22,138,70,.18), rgba(255,255,255,.95) 42%),
     #ffffff;
 }
 
@@ -3565,7 +3565,7 @@ body.beta-mvp .beta-impact-simple-card.elevated::before {
 
 body.beta-mvp .beta-impact-simple-card.high {
   background:
-    linear-gradient(135deg, rgba(197,61,82,.15), rgba(255,255,255,.95) 42%),
+    linear-gradient(135deg, rgba(102,112,133,.15), rgba(255,255,255,.95) 42%),
     #ffffff;
 }
 
@@ -3630,13 +3630,13 @@ body.beta-mvp .beta-fuel-story.medium .beta-recovery-orb,
 body.beta-mvp .beta-fuel-story.mild .beta-recovery-orb {
   background:
     radial-gradient(circle, #ffffff 58%, transparent 60%),
-    conic-gradient(#b56200 var(--score-pct), rgba(29,49,38,.12) 0);
+    conic-gradient(#667085 var(--score-pct), rgba(29,49,38,.12) 0);
 }
 
 body.beta-mvp .beta-fuel-story.high .beta-recovery-orb {
   background:
     radial-gradient(circle, #ffffff 58%, transparent 60%),
-    conic-gradient(#c53d52 var(--score-pct), rgba(29,49,38,.12) 0);
+    conic-gradient(#667085 var(--score-pct), rgba(29,49,38,.12) 0);
 }
 
 body.beta-mvp .beta-score-arc::before {
@@ -3646,7 +3646,7 @@ body.beta-mvp .beta-score-arc::before {
 }
 
 body.beta-mvp .beta-status-chip {
-  background: rgba(255,176,32,.16);
+  background: rgba(22,138,70,.16);
   color: #8d4f00;
 }
 
@@ -3662,7 +3662,7 @@ body.beta-mvp .beta-crash-timeline,
 body.beta-mvp .beta-timeline-track {
   border-color: rgba(29,49,38,.1);
   background:
-    linear-gradient(90deg, rgba(22,122,69,.12), rgba(255,176,32,.1), rgba(197,61,82,.08)),
+    linear-gradient(90deg, rgba(22,122,69,.12), rgba(22,138,70,.1), rgba(102,112,133,.08)),
     repeating-linear-gradient(90deg, rgba(29,49,38,.08) 0 1px, transparent 1px 25%);
 }
 
@@ -3694,7 +3694,7 @@ body.beta-mvp .beta-mini-gap-segment,
 body.beta-mvp .beta-fuel-story-legend .gap,
 body.beta-mvp .beta-risk-stack .high,
 body.beta-mvp .beta-history-bar-track i.amber {
-  background: #efad42;
+  background: #168a46;
 }
 
 body.beta-mvp .beta-fuel-story-legend .debt,
@@ -3702,7 +3702,7 @@ body.beta-mvp .beta-risk-stack .crash,
 body.beta-mvp .beta-history-bar-track i.red,
 body.beta-mvp .beta-timeline-point.crash,
 body.beta-mvp .beta-timeline-legend .crash::before {
-  background: #c53d52;
+  background: #b42318;
 }
 
 body.beta-mvp .beta-trend-mini-bars i {
@@ -3778,7 +3778,7 @@ body.beta-mvp .beta-history-day-card.high {
 }
 
 body.beta-mvp .beta-history-day-card.danger {
-  border-color: rgba(197,61,82,.28);
+  border-color: rgba(102,112,133,.28);
 }
 
 body.beta-mvp .beta-history-day-card span,
@@ -3970,12 +3970,12 @@ body.beta-mvp .beta-risk-summary-card > span {
 }
 
 body.beta-mvp .beta-risk-summary-card.elevated > span {
-  background: rgba(255,176,32,.16);
+  background: rgba(22,138,70,.16);
   color: #b56200;
 }
 
 body.beta-mvp .beta-risk-summary-card.danger > span {
-  background: rgba(197,61,82,.12);
+  background: rgba(102,112,133,.12);
   color: #a93446;
 }
 
@@ -4078,7 +4078,7 @@ body.beta-mvp .beta-recovery-protection-card.elevated {
 }
 
 body.beta-mvp .beta-recovery-protection-card.watch {
-  border-color: rgba(255,176,32,.22);
+  border-color: rgba(22,138,70,.22);
 }
 
 body.beta-mvp .beta-recovery-protection-track {
@@ -4104,7 +4104,7 @@ body.beta-mvp .beta-recovery-protection-track .protected {
 
 body.beta-mvp .beta-recovery-protection-track .risk {
   left: 9px;
-  background: linear-gradient(90deg, rgba(255,176,32,.66), rgba(197,61,82,.56));
+  background: linear-gradient(90deg, rgba(22,138,70,.66), rgba(102,112,133,.56));
 }
 
 body.beta-mvp .mobile-bottom-nav {
@@ -4280,7 +4280,7 @@ body.beta-mvp .mobile-nav-item.active {
 }
 
 .beta-fuelling-window-card.ended {
-  border-color: rgba(255, 176, 32, .3);
+  border-color: rgba(22, 138, 70, .3);
 }
 
 .beta-fuelling-window-card h3 {
@@ -4422,7 +4422,7 @@ body.beta-mvp .mobile-nav-item.active {
 }
 
 .beta-trend-comparison-card.elevated {
-  border-color: rgba(255,176,32,.28);
+  border-color: rgba(22,138,70,.28);
 }
 
 .beta-trend-card-head {
@@ -4449,7 +4449,7 @@ body.beta-mvp .mobile-nav-item.active {
 }
 
 .beta-trend-result-chip.elevated {
-  background: rgba(255,176,32,.16);
+  background: rgba(22,138,70,.16);
   color: #8a5600;
 }
 
@@ -4637,7 +4637,7 @@ body.beta-mvp .mobile-nav-item.active {
 }
 
 .beta-fuel-plan-card.elevated {
-  border-color: rgba(255,176,32,.32);
+  border-color: rgba(22,138,70,.32);
 }
 
 .beta-fuel-plan-card .beta-fuel-plan-next {
@@ -4681,7 +4681,7 @@ body.beta-mvp .mobile-nav-item.active {
   gap: 4px;
   padding: 12px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(22,122,69,.12), rgba(255,176,32,.1));
+  background: linear-gradient(135deg, rgba(22,122,69,.12), rgba(22,138,70,.1));
 }
 
 .beta-fuel-score-summary strong {
@@ -4719,9 +4719,9 @@ body.beta-mvp .mobile-nav-item.active {
 }
 
 .beta-personalised-insight-card.elevated {
-  border-color: rgba(255,176,32,.34);
+  border-color: rgba(22,138,70,.34);
   background:
-    linear-gradient(135deg, rgba(255,176,32,.14), rgba(255,255,255,.94)),
+    linear-gradient(135deg, rgba(22,138,70,.14), rgba(255,255,255,.94)),
     #ffffff;
 }
 
@@ -5384,8 +5384,8 @@ body.beta-mvp .beta-unified-timeline-item.planned-break .beta-timeline-dot {
 
 body.beta-mvp .beta-unified-timeline-item.suggested-fuel .beta-timeline-dot,
 body.beta-mvp .beta-unified-timeline-item.suggested-hydration .beta-timeline-dot {
-  background: #ffb020;
-  box-shadow: 0 0 0 2px rgba(255, 176, 32, .22);
+  background: #168a46;
+  box-shadow: 0 0 0 2px rgba(22, 138, 70, .22);
 }
 
 body.beta-mvp .beta-unified-timeline-item.actual-hydration .beta-timeline-dot {
@@ -5424,7 +5424,7 @@ body.beta-mvp .beta-timeline-legend i {
 }
 
 body.beta-mvp .beta-timeline-legend .suggested {
-  background: #ffb020;
+  background: #168a46;
 }
 
 body.beta-mvp .beta-timeline-legend .completed {
@@ -5695,23 +5695,23 @@ body.beta-mvp .beta-log-entry-card button {
 
 /* v79 Fuel Guard visual identity: semantic brand tokens and component variants. */
 :root {
-  --fg-brand-fuel: #f5a623;
+  --fg-brand-fuel: #168a46;
   --fg-brand-fuel-rgb: 245, 166, 35;
   --fg-brand-fuel-deep: #9a5a00;
   --fg-brand-dark: #101820;
   --fg-brand-dark-rgb: 16, 24, 32;
-  --fg-brand-bg: #f7f1e5;
-  --fg-brand-surface: #fffaf0;
+  --fg-brand-bg: #f5f6f7;
+  --fg-brand-surface: #ffffff;
   --fg-brand-surface-strong: #ffffff;
   --fg-brand-hydration: #0f9faa;
   --fg-brand-hydration-rgb: 15, 159, 170;
   --fg-brand-protected: #1f8a4c;
   --fg-brand-protected-rgb: 31, 138, 76;
-  --fg-brand-suggested: #f5a623;
+  --fg-brand-suggested: #168a46;
   --fg-brand-suggested-rgb: 245, 166, 35;
-  --fg-brand-urgent: #e86f19;
+  --fg-brand-urgent: #b42318;
   --fg-brand-urgent-rgb: 232, 111, 25;
-  --fg-brand-critical: #c93d2b;
+  --fg-brand-critical: #b42318;
   --fg-brand-critical-rgb: 201, 61, 43;
   --fg-brand-neutral: #687481;
   --fg-brand-neutral-rgb: 104, 116, 129;
@@ -5749,7 +5749,7 @@ body.beta-mvp {
   background:
     radial-gradient(circle at 50% -8%, rgba(var(--fg-fuel-rgb), .26), transparent 34%),
     radial-gradient(circle at 100% 16%, rgba(var(--fg-hydration-rgb), .12), transparent 28%),
-    linear-gradient(180deg, #fbf5e9 0%, var(--fg-page-bg) 48%, #edf4eb 100%);
+    linear-gradient(180deg, #f5f6f7 0%, var(--fg-page-bg) 48%, #edf4eb 100%);
   color: var(--fg-text-strong);
 }
 
@@ -5759,8 +5759,8 @@ body.beta-mvp .app {
 
 body.beta-mvp .beta-topbar {
   background:
-    linear-gradient(135deg, rgba(255, 250, 240, .96), rgba(var(--fg-fuel-rgb), .18)),
-    rgba(255, 250, 240, .94);
+    linear-gradient(135deg, rgba(255, 255, 255, .96), rgba(var(--fg-fuel-rgb), .18)),
+    rgba(255, 255, 255, .94);
   border-bottom-color: rgba(var(--fg-brand-dark-rgb), .1);
   box-shadow: 0 12px 28px rgba(var(--fg-brand-dark-rgb), .08);
 }
@@ -5786,12 +5786,12 @@ body.beta-mvp .app-boot-splash .logo {
 body.beta-mvp .beta-header-settings-button {
   border-color: rgba(var(--fg-brand-dark-rgb), .14);
   background: var(--fg-brand-dark);
-  color: #fffaf0;
+  color: #ffffff;
   box-shadow: 0 10px 24px rgba(var(--fg-brand-dark-rgb), .2);
 }
 
 body.beta-mvp .mobile-bottom-nav {
-  background: rgba(255, 250, 240, .97);
+  background: rgba(255, 255, 255, .97);
   border-top-color: rgba(var(--fg-brand-dark-rgb), .11);
   box-shadow: 0 -16px 34px rgba(var(--fg-brand-dark-rgb), .1);
 }
@@ -5812,7 +5812,7 @@ body.beta-mvp .nav-item.active {
 
 body.beta-mvp .beta-plan-subtabs {
   border-color: rgba(var(--fg-fuel-rgb), .18);
-  background: rgba(255, 250, 240, .96);
+  background: rgba(255, 255, 255, .96);
   box-shadow: 0 12px 26px rgba(var(--fg-brand-dark-rgb), .08);
 }
 
@@ -5838,7 +5838,7 @@ body.beta-mvp #graphLogFoodButton {
 body.beta-mvp button.secondary,
 body.beta-mvp .secondary {
   border-color: rgba(var(--fg-brand-dark-rgb), .13);
-  background: rgba(255, 250, 240, .82);
+  background: rgba(255, 255, 255, .82);
   color: var(--fg-brand-dark);
 }
 
@@ -5871,7 +5871,7 @@ body.beta-mvp #checklist > .card {
   --fg-card-accent: rgba(var(--fg-fuel-rgb), .5);
   border-color: rgba(var(--fg-brand-dark-rgb), .11);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(255, 250, 240, .9)),
+    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .9)),
     var(--fg-card-bg);
   box-shadow:
     inset 0 3px 0 var(--fg-card-accent),
@@ -5991,7 +5991,7 @@ body.beta-mvp .beta-weekly-metric-card,
 body.beta-mvp .beta-target-progress-card,
 body.beta-mvp .fuel-gap-insight {
   border-color: rgba(var(--fg-brand-dark-rgb), .1);
-  background: rgba(255, 250, 240, .74);
+  background: rgba(255, 255, 255, .74);
 }
 
 body.beta-mvp .beta-daily-metric-card.fuel,
@@ -6048,7 +6048,7 @@ body.beta-mvp .beta-unified-timeline::before {
 }
 
 body.beta-mvp .beta-timeline-dot {
-  border-color: #fffaf0;
+  border-color: #ffffff;
   background: var(--fg-protected);
   box-shadow: 0 0 0 3px rgba(var(--fg-protected-rgb), .16);
 }
@@ -6203,5 +6203,702 @@ body.beta-mvp .fuel-daily-empty::before {
   body.beta-mvp .beta-today-status-main::before {
     width: 34px;
     height: 38px;
+  }
+}
+
+/* v82 Analysis system: neutral shell and semantic Fuel Guard colours. */
+:root {
+  --fg-brand-fuel: #168a46;
+  --fg-brand-fuel-rgb: 22, 138, 70;
+  --fg-brand-fuel-deep: #0f5f32;
+  --fg-brand-dark: #101820;
+  --fg-brand-dark-rgb: 16, 24, 32;
+  --fg-brand-bg: #f5f6f7;
+  --fg-brand-surface: #ffffff;
+  --fg-brand-surface-strong: #ffffff;
+  --fg-brand-hydration: #2367d5;
+  --fg-brand-hydration-rgb: 35, 103, 213;
+  --fg-brand-protected: #168a46;
+  --fg-brand-protected-rgb: 22, 138, 70;
+  --fg-brand-suggested: #667085;
+  --fg-brand-suggested-rgb: 102, 112, 133;
+  --fg-brand-urgent: #b42318;
+  --fg-brand-urgent-rgb: 180, 35, 24;
+  --fg-brand-critical: #b42318;
+  --fg-brand-critical-rgb: 180, 35, 24;
+  --fg-brand-neutral: #667085;
+  --fg-brand-neutral-rgb: 102, 112, 133;
+  --fg-brand-work: #475467;
+  --fg-brand-work-rgb: 71, 84, 103;
+  --fg-brand-training: #7a5af8;
+  --fg-brand-training-rgb: 122, 90, 248;
+}
+
+body.beta-mvp {
+  --fg-page-bg: #f5f6f7;
+  --fg-card-bg: #ffffff;
+  --fg-card-border: rgba(16, 24, 32, .12);
+  --fg-card-shadow: 0 12px 30px rgba(16, 24, 32, .07);
+  --fg-text-strong: #101820;
+  --fg-text-muted: #5c6672;
+  --fg-fuel: var(--fg-brand-fuel);
+  --fg-fuel-rgb: var(--fg-brand-fuel-rgb);
+  --fg-hydration: var(--fg-brand-hydration);
+  --fg-hydration-rgb: var(--fg-brand-hydration-rgb);
+  --fg-protected: var(--fg-brand-protected);
+  --fg-protected-rgb: var(--fg-brand-protected-rgb);
+  --fg-suggested: var(--fg-brand-suggested);
+  --fg-suggested-rgb: var(--fg-brand-suggested-rgb);
+  --fg-urgent: var(--fg-brand-urgent);
+  --fg-urgent-rgb: var(--fg-brand-urgent-rgb);
+  --fg-critical: var(--fg-brand-critical);
+  --fg-critical-rgb: var(--fg-brand-critical-rgb);
+  --fg-neutral: var(--fg-brand-neutral);
+  --fg-neutral-rgb: var(--fg-brand-neutral-rgb);
+  background: var(--fg-page-bg) !important;
+}
+
+body.beta-mvp .layout,
+body.beta-mvp .app {
+  background: var(--fg-page-bg) !important;
+}
+
+body.beta-mvp .beta-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 180;
+  background: rgba(245, 246, 247, .96) !important;
+  border-bottom-color: rgba(16, 24, 32, .1);
+  box-shadow: 0 8px 24px rgba(16, 24, 32, .08);
+}
+
+body.beta-mvp .beta-topbar::before {
+  background: var(--fg-fuel) !important;
+}
+
+body.beta-mvp .beta-topbar-logo,
+body.beta-mvp .brand .logo,
+body.beta-mvp .app-boot-splash .logo {
+  background: #101820 !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(16, 24, 32, .16) !important;
+}
+
+body.beta-mvp .screen.active {
+  display: grid;
+}
+
+body.beta-mvp .fuel-gap-card,
+body.beta-mvp .beta-analysis-shell,
+body.beta-mvp .beta-plan-shell,
+body.beta-mvp .beta-history-shell,
+body.beta-mvp .beta-trends-card {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.beta-mvp .beta-rhythm-section-card,
+body.beta-mvp .beta-analysis-card,
+body.beta-mvp .beta-today-status-card,
+body.beta-mvp .beta-fuelling-window-card,
+body.beta-mvp .beta-daily-targets-card,
+body.beta-mvp .beta-weekly-section,
+body.beta-mvp .beta-trend-comparison-card,
+body.beta-mvp .beta-trend-habit-section,
+body.beta-mvp .beta-impact-trend-card,
+body.beta-mvp .beta-weekly-fuel-card,
+body.beta-mvp #checklist > .card {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--fg-card-border);
+  border-radius: 18px;
+  background: var(--fg-card-bg) !important;
+  box-shadow: var(--fg-card-shadow);
+}
+
+body.beta-mvp .beta-primary-card,
+body.beta-mvp .beta-today-status-card,
+body.beta-mvp .beta-daily-metric-card,
+body.beta-mvp .beta-visual-metric-card,
+body.beta-mvp .beta-trend-pattern-card,
+body.beta-mvp .beta-crash-cost-insight {
+  background: #ffffff !important;
+}
+
+body.beta-mvp button.primary,
+body.beta-mvp .beta-fuelled-button,
+body.beta-mvp #graphLogFoodButton {
+  border: 0;
+  background: var(--fg-fuel) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(var(--fg-fuel-rgb), .22);
+}
+
+body.beta-mvp .beta-hydration-button,
+body.beta-mvp #graphLogHydrationButton {
+  border: 0;
+  background: var(--fg-hydration) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(var(--fg-hydration-rgb), .2);
+}
+
+body.beta-mvp .mobile-bottom-nav {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  background: rgba(255, 255, 255, .97) !important;
+}
+
+body.beta-mvp .mobile-nav-item.active,
+body.beta-mvp .nav-item.active,
+body.beta-mvp .beta-plan-subtabs button.active,
+body.beta-mvp .beta-trend-segments button.active {
+  border-color: rgba(var(--fg-fuel-rgb), .24) !important;
+  background: rgba(var(--fg-fuel-rgb), .1) !important;
+  color: var(--fg-text-strong) !important;
+}
+
+body.beta-mvp .beta-icon-disc,
+body.beta-mvp .beta-icon-disc.amber {
+  background: rgba(var(--fg-fuel-rgb), .12) !important;
+  color: var(--fg-fuel) !important;
+}
+
+body.beta-mvp .beta-icon-disc.shield,
+body.beta-mvp .beta-icon-disc.hydration {
+  background: rgba(var(--fg-hydration-rgb), .12) !important;
+  color: var(--fg-hydration) !important;
+}
+
+body.beta-mvp .beta-icon-disc.danger,
+body.beta-mvp .beta-icon-disc.red {
+  background: rgba(var(--fg-critical-rgb), .12) !important;
+  color: var(--fg-critical) !important;
+}
+
+body.beta-mvp .beta-risk-pill.red,
+body.beta-mvp .status-pill.red,
+body.beta-mvp .red,
+body.beta-mvp .danger {
+  color: var(--fg-critical);
+}
+
+body.beta-mvp .beta-unified-timeline-item.suggested-fuel .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.actual-fuel .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.completed-opportunity .beta-timeline-dot {
+  background: var(--fg-fuel);
+  box-shadow: 0 0 0 2px rgba(var(--fg-fuel-rgb), .18);
+}
+
+body.beta-mvp .beta-unified-timeline-item.suggested-hydration .beta-timeline-dot,
+body.beta-mvp .beta-unified-timeline-item.actual-hydration .beta-timeline-dot {
+  background: var(--fg-hydration);
+  box-shadow: 0 0 0 2px rgba(var(--fg-hydration-rgb), .18);
+}
+
+body.beta-mvp .beta-unified-timeline-item.missed-opportunity .beta-timeline-dot {
+  background: var(--fg-critical);
+  box-shadow: 0 0 0 2px rgba(var(--fg-critical-rgb), .2);
+}
+
+body.beta-mvp .beta-timeline-legend .suggested,
+body.beta-mvp .beta-timeline-legend .completed {
+  background: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-timeline-legend .missed {
+  background: var(--fg-critical);
+}
+
+body.beta-mvp .beta-plan-realism-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(16, 24, 32, .1);
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+body.beta-mvp .beta-plan-realism-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+body.beta-mvp .beta-plan-realism-panel h4 {
+  margin: 0 0 4px;
+  color: var(--fg-text-strong);
+  font-size: .98rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-plan-realism-saved {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(var(--fg-fuel-rgb), .1);
+  color: var(--fg-fuel);
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-plan-realism-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-plan-realism-options button {
+  min-height: 42px;
+  padding: 8px 10px;
+  font-size: .8rem;
+  line-height: 1.2;
+}
+
+body.beta-mvp .beta-plan-realism-options button.active {
+  border-color: rgba(var(--fg-fuel-rgb), .24);
+  background: rgba(var(--fg-fuel-rgb), .1);
+  color: var(--fg-text-strong);
+}
+
+body.beta-mvp .beta-plan-realism-adjust {
+  display: grid;
+  gap: 10px;
+}
+
+body.beta-mvp .beta-analysis-content {
+  display: grid;
+  gap: 16px;
+}
+
+body.beta-mvp .beta-analysis-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  border-color: rgba(var(--fg-fuel-rgb), .22);
+}
+
+body.beta-mvp .beta-analysis-eyebrow {
+  margin: 0 0 4px;
+  color: var(--fg-text-muted);
+  font-size: .74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+body.beta-mvp .beta-analysis-hero h3,
+body.beta-mvp .beta-analysis-card h3 {
+  margin: 0;
+  color: var(--fg-text-strong);
+  font-size: 1.08rem;
+  font-weight: 950;
+  line-height: 1.16;
+}
+
+body.beta-mvp .beta-analysis-hero p,
+body.beta-mvp .beta-analysis-card p {
+  margin: 0;
+}
+
+body.beta-mvp .beta-analysis-card {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-analysis-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+body.beta-mvp .beta-analysis-graph {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+body.beta-mvp .beta-analysis-graph svg {
+  width: 100%;
+  min-height: 250px;
+  overflow: visible;
+}
+
+body.beta-mvp .beta-analysis-graph text,
+body.beta-mvp .beta-trend-chart text {
+  fill: #111827;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-analysis-graph .row-label {
+  fill: #344054;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-analysis-graph .axis,
+body.beta-mvp .beta-trend-chart .axis {
+  stroke: rgba(16, 24, 32, .42);
+  stroke-width: 2;
+}
+
+body.beta-mvp .beta-analysis-graph .grid-line,
+body.beta-mvp .beta-trend-chart .grid-line {
+  stroke: rgba(16, 24, 32, .1);
+  stroke-width: 1;
+}
+
+body.beta-mvp .beta-analysis-graph .demand-band {
+  fill: rgba(var(--fg-neutral-rgb), .1);
+}
+
+body.beta-mvp .beta-analysis-graph .demand-band.training {
+  fill: rgba(var(--fg-brand-training-rgb), .1);
+}
+
+body.beta-mvp .beta-analysis-graph .planned-window.fuel,
+body.beta-mvp .beta-analysis-graph .planned-window.neutral {
+  fill: rgba(var(--fg-fuel-rgb), .18);
+  stroke: var(--fg-fuel);
+  stroke-width: 2;
+}
+
+body.beta-mvp .beta-analysis-graph .planned-window.hydration {
+  fill: rgba(var(--fg-hydration-rgb), .18);
+  stroke: var(--fg-hydration);
+  stroke-width: 2;
+}
+
+body.beta-mvp .beta-analysis-graph .planned-window.critical {
+  fill: rgba(var(--fg-critical-rgb), .1);
+  stroke: var(--fg-critical);
+  stroke-width: 2.5;
+}
+
+body.beta-mvp .beta-analysis-graph .actual-marker.fuel,
+body.beta-mvp .beta-analysis-graph .point.fuel,
+body.beta-mvp .beta-analysis-graph .line.fuel {
+  fill: var(--fg-fuel);
+  stroke: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-analysis-graph .actual-marker.hydration {
+  fill: var(--fg-hydration);
+  stroke: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-analysis-graph .gap-bar.fuel {
+  fill: rgba(var(--fg-fuel-rgb), .72);
+}
+
+body.beta-mvp .beta-analysis-graph .gap-bar.hydration {
+  fill: rgba(var(--fg-hydration-rgb), .72);
+}
+
+body.beta-mvp .beta-analysis-graph .gap-bar.critical {
+  fill: rgba(var(--fg-critical-rgb), .78);
+}
+
+body.beta-mvp .beta-analysis-graph .line.fuel {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.beta-mvp .beta-analysis-legend,
+body.beta-mvp .beta-trend-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--fg-text-muted);
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-analysis-legend span,
+body.beta-mvp .beta-trend-chart-legend span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+body.beta-mvp .beta-analysis-legend i,
+body.beta-mvp .beta-trend-chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--fg-neutral);
+}
+
+body.beta-mvp .beta-analysis-legend i.fuel,
+body.beta-mvp .beta-trend-chart-legend i.current,
+body.beta-mvp .beta-trend-chart-legend i.fuel {
+  background: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-analysis-legend i.hydration,
+body.beta-mvp .beta-trend-chart-legend i.hydration {
+  background: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-analysis-legend i.critical,
+body.beta-mvp .beta-trend-chart-legend i.crash {
+  background: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-chart-legend i.previous {
+  background: #475467;
+}
+
+body.beta-mvp .beta-analysis-interpretation {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: .88rem;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+body.beta-mvp .beta-analysis-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 10px;
+}
+
+body.beta-mvp .beta-analysis-segmented {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-analysis-segment-bar {
+  display: flex;
+  min-height: 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eaecf0;
+}
+
+body.beta-mvp .beta-analysis-segment-bar span {
+  display: block;
+  min-width: 0;
+  height: 24px;
+}
+
+body.beta-mvp .beta-analysis-segment-bar span i {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+body.beta-mvp .beta-analysis-segment-bar .fuel {
+  background: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-analysis-segment-bar .neutral,
+body.beta-mvp .beta-analysis-segment-bar .supporting {
+  background: #98a2b3;
+}
+
+body.beta-mvp .beta-analysis-segment-bar .critical {
+  background: var(--fg-critical);
+}
+
+body.beta-mvp .beta-analysis-axis-copy {
+  display: flex;
+  justify-content: space-between;
+  color: #344054;
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-analysis-scenario,
+body.beta-mvp .beta-scenario-bars {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-scenario-row {
+  display: grid;
+  grid-template-columns: 138px minmax(0, 1fr) 98px;
+  gap: 10px;
+  align-items: center;
+  color: #344054;
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-scenario-row i {
+  display: block;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--fg-neutral);
+}
+
+body.beta-mvp .beta-scenario-row.fuel i {
+  background: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-scenario-row.critical i {
+  background: var(--fg-critical);
+}
+
+body.beta-mvp .beta-analysis-bullets {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #344054;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+body.beta-mvp .beta-trend-segments {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--fg-card-border);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: var(--fg-card-shadow);
+}
+
+body.beta-mvp .beta-trend-segments button {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 5px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--fg-text-muted);
+  font-size: .76rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-trend-comparison-grid,
+body.beta-mvp .beta-impact-trend-grid,
+body.beta-mvp .beta-averages-summary {
+  display: grid;
+  gap: 18px;
+}
+
+body.beta-mvp .beta-trend-chart svg,
+body.beta-mvp .beta-weekly-count-chart svg,
+body.beta-mvp .beta-weekly-single-chart svg {
+  width: 100%;
+  min-height: 320px;
+}
+
+body.beta-mvp .beta-trend-chart .line.current,
+body.beta-mvp .beta-trend-chart .point.current {
+  stroke: var(--fg-fuel);
+  fill: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-trend-chart .line.previous,
+body.beta-mvp .beta-trend-chart .point.previous {
+  stroke: #475467;
+  fill: #475467;
+}
+
+body.beta-mvp .beta-trend-chart .line.hydration,
+body.beta-mvp .beta-trend-chart .point.hydration {
+  stroke: var(--fg-hydration);
+  fill: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-trend-chart .bar.current,
+body.beta-mvp .beta-trend-chart .bar.fuel {
+  fill: var(--fg-fuel);
+}
+
+body.beta-mvp .beta-trend-chart .bar.previous {
+  fill: #475467;
+}
+
+body.beta-mvp .beta-trend-chart .bar.hydration {
+  fill: var(--fg-hydration);
+}
+
+body.beta-mvp .beta-trend-chart .bar.crash {
+  fill: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-result-chip.elevated,
+body.beta-mvp .beta-gap-insight-outcome.elevated {
+  background: rgba(var(--fg-critical-rgb), .1);
+  color: var(--fg-critical);
+}
+
+body.beta-mvp .beta-trend-result-chip.protected,
+body.beta-mvp .beta-gap-insight-outcome.protected {
+  background: rgba(var(--fg-fuel-rgb), .1);
+  color: var(--fg-fuel);
+}
+
+@media (max-width: 560px) {
+  body.beta-mvp .beta-rhythm-section-card,
+  body.beta-mvp .beta-analysis-card,
+  body.beta-mvp .beta-today-status-card,
+  body.beta-mvp .beta-fuelling-window-card,
+  body.beta-mvp .beta-daily-targets-card,
+  body.beta-mvp .beta-weekly-section,
+  body.beta-mvp .beta-trend-comparison-card,
+  body.beta-mvp .beta-trend-habit-section,
+  body.beta-mvp .beta-impact-trend-card,
+  body.beta-mvp .beta-weekly-fuel-card,
+  body.beta-mvp #checklist > .card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  body.beta-mvp .mobile-bottom-nav .mobile-nav-item span {
+    font-size: .66rem;
+  }
+
+  body.beta-mvp .beta-analysis-hero {
+    grid-template-columns: 1fr;
+  }
+
+  body.beta-mvp .beta-analysis-graph svg,
+  body.beta-mvp .beta-trend-chart svg,
+  body.beta-mvp .beta-weekly-count-chart svg,
+  body.beta-mvp .beta-weekly-single-chart svg {
+    min-height: 300px;
+  }
+
+  body.beta-mvp .beta-analysis-graph text,
+  body.beta-mvp .beta-trend-chart text {
+    font-size: 13px;
+  }
+
+  body.beta-mvp .beta-scenario-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  body.beta-mvp .beta-trend-segments {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+  }
+
+  body.beta-mvp .beta-trend-segments button {
+    min-height: 36px;
+    padding-inline: 3px;
+    font-size: .68rem;
   }
 }

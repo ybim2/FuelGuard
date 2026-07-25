@@ -2,29 +2,31 @@
 
 ## Canonical app
 
-The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the four main bottom-navigation tabs in this order:
+The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the five main bottom-navigation tabs in this order:
 
-- Plan
 - Log
-- History
+- Analysis
+- Plan
 - Trends
+- History
 
 Settings is still part of the canonical app, but it opens from the sticky header settings icon instead of the bottom navigation.
 
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v81-plan-today-restructure
+Canonical app: mobile-pwa-v82-analysis-system
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 Current card ownership:
 
-- Plan: default opening tab; Today contains the single planning card, Today’s Fuel Plan actual-versus-suggested timeline, Today’s Progress, and Daily Summary.
-- Log: current fuelling status, quick fuel/hydration logging, and today's logs.
+- Log: default opening tab; current fuelling status, quick fuel/hydration logging, and today's logs.
+- Analysis: selected-day plan versus actual graphs, gap analysis, adherence breakdown, scenario comparison, and recommended adjustment.
+- Plan: Today contains the planning card, plan realism check, Today’s Fuel Plan actual-versus-suggested timeline, Today’s Progress, and Daily Summary.
 - History: compact daily summary cards with full day detail for logged days.
-- Trends: Fuel Score, Personalised Insights, seven-day Fuel Debt, demand adherence, Risk and Patterns, check-in pattern review, graph comparisons, and actual-versus-target weekly progress.
+- Trends: segmented Overview, Fuel, Hydration, Timing, and Adherence views for repeated patterns over time.
 - Settings: risk thresholds, account sync, import, update, app metadata, and support copy.
 
 ## Removed legacy features
@@ -133,8 +135,8 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v81-plan-today-restructure`.
+The current canonical version is `mobile-pwa-v82-analysis-system`.
 
 ## Future frontend changes
 
-Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main bottom tabs Plan, Log, History, and Trends, with Settings reachable from the sticky header icon.
+Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main bottom tabs Log, Analysis, Plan, Trends, and History, with Settings reachable from the sticky header icon.
