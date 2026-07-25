@@ -5048,6 +5048,20 @@ body.beta-mvp .beta-plan-overview-grid {
   gap: 10px;
 }
 
+body.beta-mvp .beta-today-planning-fields {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-today-plan-existing h4 {
+  margin: 0 0 8px;
+  color: #07130f;
+  font-size: .98rem;
+  font-weight: 950;
+}
+
 body.beta-mvp .beta-demand-form,
 body.beta-mvp .beta-demand-existing {
   min-width: 0;
@@ -5273,6 +5287,30 @@ body.beta-mvp .beta-checkin-note {
   color: #34423c;
   font-size: .78rem;
   font-weight: 900;
+}
+
+body.beta-mvp .beta-fuel-plan-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+body.beta-mvp .beta-fuel-plan-column {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(29, 49, 38, .09);
+  border-radius: 16px;
+  background: rgba(248, 252, 247, .82);
+}
+
+body.beta-mvp .beta-fuel-plan-column h4 {
+  margin: 0;
+  color: #07130f;
+  font-size: .98rem;
+  font-weight: 950;
 }
 
 body.beta-mvp .beta-unified-timeline {
@@ -5556,6 +5594,11 @@ body.beta-mvp .mobile-bottom-nav .mobile-nav-item span {
   body.beta-mvp .beta-today-progress-grid,
   body.beta-mvp .beta-plan-overview-grid {
     grid-template-columns: 1fr;
+  }
+
+  body.beta-mvp .beta-fuel-plan-comparison {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   body.beta-mvp .beta-log-entry-card #graphLogFoodButton,

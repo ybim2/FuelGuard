@@ -2301,7 +2301,7 @@
     const buildMarker = document.getElementById("buildVersionMarker");
     const currentBuild = document.getElementById("appUpdateCurrentBuild");
     const updateStatus = document.getElementById("appUpdateStatus");
-    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v80-risk-checkins"}`;
+    const canonicalText = `Canonical app: ${buildInfo.canonicalApp || "mobile-pwa-v81-plan-today-restructure"}`;
     const buildText = buildInfo.buildVersion || "unknown build";
     if (canonical) canonical.textContent = canonicalText;
     if (buildMarker) buildMarker.textContent = `Build version: ${buildText}`;
@@ -3347,68 +3347,6 @@
     return "Suggested fuel time based on your fuelling window.";
   }
 
-  function fuelPlanTimelineItems(key, opportunities) {
-    const blocks = demandBlocksForDay(key).flatMap(block => {
-      const range = blockRange(block);
-      if (!range) return [];
-      const title = block.type === "training" ? demandBlockTitle(block) : demandBlockTitle(block);
-      return [{ type: "demand", time: range.start, end: range.end, title, detail: block.type === "training" ? "Training session" : "Work shift" }];
-    });
-    const oppItems = opportunities.map(item => ({
-      type: "opportunity",
-      time: logDate(item.plannedStart),
-      end: logDate(item.plannedEnd),
-      title: item.label,
-      detail: item.completedAt
-        ? `Completed at ${displayTime(item.completedAt)}`
-        : opportunityStatusLabel(item.status)
-    }));
-    return [...blocks, ...oppItems].filter(item => item.time).sort((a, b) => a.time - b.time);
-  }
-
-  function renderTodaysFuelPlan(fuelLogs, key, now = new Date()) {
-    const opportunities = generateFuelOpportunitiesForDay(key, { now });
-    const next = nextFuelOpportunity(opportunities, now);
-    const score = calculateDailyFuelScore(key, { now });
-    const period = normalFuelPeriodForDay(key, fuelLogs);
-    const timeline = fuelPlanTimelineItems(key, opportunities).slice(0, 10);
-    const headline = next
-      ? next.status === "overdue"
-        ? `${next.label} overdue`
-        : `${next.label} by ${displayTime(next.plannedEnd)}`
-      : "No more fuel suggestions today";
-    return `
-      <article class="beta-fuelling-window-card beta-fuel-plan-card ${next ? safeText(opportunityTone(next.status)) : "stable"}">
-        <div class="section-heading-row">
-          <div>
-            <h3>Fuel plan</h3>
-            <p class="muted">Fuel suggestions built from your fuelling window, training, work shifts and break estimates.</p>
-          </div>
-          <span class="row-note">${safeText(score.finalScore === null ? "Score building" : `${score.finalScore}/100`)}</span>
-        </div>
-        <div class="beta-fuel-plan-next">
-          <strong>${safeText(headline)}</strong>
-          <span>${safeText(next ? opportunityCountdown(next, now) : "Plan complete or waiting for work/training details.")}</span>
-          <p>${safeText(opportunityPlanCopy(next))}</p>
-        </div>
-        <div class="beta-fuelling-window-grid">
-          ${dailyMetricCard("Fuelling window", timeRangeText(period.start, period.end), `${fuelDebtDurationText(fuelWindowMinutes())} window`, "fuel")}
-          ${dailyMetricCard("Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel")}
-          ${dailyMetricCard("Fuel suggestions", String(opportunities.length), "Completed and missed suggestions shape the score.", "fuel")}
-        </div>
-        <div class="beta-fuel-plan-timeline" aria-label="Today’s fuel plan timeline">
-          ${timeline.length ? timeline.map(item => `
-            <div class="beta-fuel-plan-row ${safeText(item.type)}">
-              <time>${safeText(item.end ? timeRangeText(item.time, item.end) : displayTime(item.time))}</time>
-              <div><strong>${safeText(item.title)}</strong><span>${safeText(item.detail)}</span></div>
-            </div>
-          `).join("") : `<p class="muted beta-history-empty">Add a training session or work shift to make today’s plan more specific.</p>`}
-        </div>
-        <p class="row-note">Fuel Guard tracks fuelling timing and adherence. It does not measure calorie intake, energy availability or medical conditions.</p>
-      </article>
-    `;
-  }
-
   function selectedDemandEditBlock() {
     return demandPlannerEditingId ? demandBlocks().find(block => block.id === demandPlannerEditingId) || null : null;
   }
@@ -3421,6 +3359,13 @@
 
   function demandInputValue(block, key, fallback = "") {
     return block && Object.prototype.hasOwnProperty.call(block, key) ? block[key] : fallback;
+  }
+
+  function todayTrainingDemandType(key) {
+    const existing = selectedDemandEditBlock()?.type === "training" ? selectedDemandEditBlock() : null;
+    const session = trainingSessionForKey(key) || existing?.sessionType || "";
+    if (!session || session === "rest") return "";
+    return TRAINING_DEMAND_LABELS[session] ? session : "other";
   }
 
   function syncDayTypeFromDemand(block) {
@@ -3459,12 +3404,14 @@
     const start = dateTimeForDemand(key, document.getElementById("trainingStartTime")?.value || "");
     const end = dateTimeForDemand(key, document.getElementById("trainingEndTime")?.value || "", start);
     if (!start || !end) throw new Error("Choose a valid training start and finish time.");
+    const sessionType = todayTrainingDemandType(key);
+    if (!sessionType) throw new Error("Choose a training session before saving training times.");
     return {
       type: "training",
       date: key,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
-      sessionType: document.getElementById("trainingSessionType")?.value || "run",
+      sessionType,
       intensity: document.getElementById("trainingIntensity")?.value || "easy",
       isKeySession: Boolean(document.getElementById("trainingKeySession")?.checked),
       title: "",
@@ -3690,90 +3637,116 @@
       : `<p class="muted beta-history-empty">${safeText(emptyCopy)}</p>`;
   }
 
+  function renderTodayPlanningFields(key, blocks, trainingEditing, workEditing, editingRange) {
+    const trainingRange = trainingEditing ? editingRange : null;
+    const workRange = workEditing ? editingRange : null;
+    const prefs = workBreakPreferencesFromBlock(workEditing);
+    const trainingSession = trainingSessionForKey(key);
+    const trainingCopy = trainingSession && trainingSession !== "rest"
+      ? `${trainingSessionLabel(trainingSession)} uses the session selector above.`
+      : "Choose a training session above before saving training times.";
+    return `
+      <div class="beta-today-planning-fields">
+        <div class="beta-demand-existing beta-today-plan-existing">
+          <div>
+            <h4>Saved plan items</h4>
+            ${renderDemandBlockList(blocks, "No work or training planned for this day yet.")}
+          </div>
+        </div>
+
+        <div class="beta-demand-form beta-today-training-form">
+          <h4>${trainingEditing ? "Edit training details" : "Training details"}</h4>
+          <p class="row-note">${safeText(trainingCopy)}</p>
+          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>Training starts<input id="trainingStartTime" type="time" value="${safeText(trainingEditing && trainingRange ? timeInputValue(trainingRange.start) : "")}"></label>
+            <label>Training finishes<input id="trainingEndTime" type="time" value="${safeText(trainingEditing && trainingRange ? timeInputValue(trainingRange.end) : "")}"></label>
+            <label>Intensity<select id="trainingIntensity">${SESSION_INTENSITY_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "intensity", "easy") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+            <label class="beta-checkbox-label"><input id="trainingKeySession" type="checkbox" ${trainingEditing?.isKeySession ? "checked" : ""}> Key session</label>
+            <label>Training notes<input id="trainingDemandNotes" type="text" value="${safeText(trainingEditing?.notes || "")}" placeholder="Optional"></label>
+          </div>
+          <div class="button-row beta-settings-actions">
+            <button id="saveTrainingDemandButton" class="primary" type="button">${trainingEditing ? "Save training" : "Save training plan"}</button>
+            ${trainingEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
+          </div>
+        </div>
+
+        <div class="beta-demand-form beta-today-work-form">
+          <h4>${workEditing ? "Edit work shift and breaks" : "Work shift and breaks"}</h4>
+          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>Shift starts<input id="workShiftStartTime" type="time" value="${safeText(workEditing && workRange ? timeInputValue(workRange.start) : "")}"></label>
+            <label>Shift finishes<input id="workShiftEndTime" type="time" value="${safeText(workEditing && workRange ? timeInputValue(workRange.end) : "")}"></label>
+            <label>First planned break after<input id="workFirstBreakAfterHours" type="number" min="0.5" max="8" step="0.5" inputmode="decimal" value="${safeText(hoursValue(prefs.firstAfterMinutes || 120))}"></label>
+            <label>Plan a break every<select id="workBreakIntervalMinutes">${WORK_BREAK_INTERVAL_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${String(prefs.breakIntervalMinutes || 150) === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
+            <label>Shift name<input id="workShiftName" type="text" value="${safeText(workEditing?.title || workEditing?.shiftName || "")}" placeholder="Optional"></label>
+            <label>Break notes<input id="workDemandNotes" type="text" value="${safeText(workEditing?.notes || "")}" placeholder="Optional"></label>
+            <label class="beta-checkbox-label beta-breaks-vary"><input id="workBreaksVary" type="checkbox" ${prefs.breaksVary ? "checked" : ""}> Breaks vary</label>
+          </div>
+          <p class="row-note">Fuel Guard turns these break details into flexible suggested fuel windows.</p>
+          <div class="button-row beta-settings-actions">
+            <button id="saveWorkDemandButton" class="primary" type="button">${workEditing ? "Save work shift" : "Save work plan"}</button>
+            ${workEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
+          </div>
+        </div>
+
+        <p id="fuelDemandPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
+      </div>
+    `;
+  }
+
   function renderTrainingPlanner(key, blocks, trainingEditing, editingRange) {
     return `
       <section class="beta-rhythm-section-card beta-demand-planner-card" aria-label="Training planner">
         <div class="section-heading-row">
           <div>
             <h3>Training</h3>
-            <p class="muted">Add sessions so Fuel Guard can suggest fuel before, during and after training.</p>
+            <p class="muted">Training details are entered once in the Today planning card.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
         <div class="beta-demand-existing">
-          ${renderDemandBlockList(blocks.filter(block => block.type === "training"), "No training sessions added for this day yet.")}
+          ${renderDemandBlockList(blocks.filter(block => block.type === "training"), "No training planned for this day yet.")}
         </div>
-        <div class="beta-demand-form">
-          <h4>${trainingEditing ? "Edit training session" : "Add training session"}</h4>
-          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
-            <label>Start<input id="trainingStartTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
-            <label>Finish<input id="trainingEndTime" type="time" value="${safeText(trainingEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
-            <label>Session type<select id="trainingSessionType">${TRAINING_DEMAND_TYPES.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "sessionType", "run") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
-            <label>Intensity<select id="trainingIntensity">${SESSION_INTENSITY_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${demandInputValue(trainingEditing, "intensity", "easy") === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
-            <label class="beta-checkbox-label"><input id="trainingKeySession" type="checkbox" ${trainingEditing?.isKeySession ? "checked" : ""}> Key session</label>
-            <label>Notes<input id="trainingDemandNotes" type="text" value="${safeText(trainingEditing?.notes || "")}" placeholder="Optional"></label>
-          </div>
-          <div class="button-row beta-settings-actions">
-            <button id="saveTrainingDemandButton" class="primary" type="button">${trainingEditing ? "Save training" : "Add training"}</button>
-            ${trainingEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
-          </div>
-        </div>
+        <p class="row-note">Use Edit to update the same training record in Today.</p>
         ${renderTrainingCheckinSection(key, blocks.filter(block => block.type === "training"))}
-        <p id="fuelTrainingPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
       </section>
     `;
   }
 
   function renderWorkPlanner(key, blocks, workEditing, editingRange) {
-    const prefs = workBreakPreferencesFromBlock(workEditing);
     return `
       <section class="beta-rhythm-section-card beta-demand-planner-card" aria-label="Work planner">
         <div class="section-heading-row">
           <div>
             <h3>Work</h3>
-            <p class="muted">Add shifts and rough break preferences. Fuel Guard will suggest flexible fuel windows, not fixed workplace breaks.</p>
+            <p class="muted">Work-shift and break details are entered once in the Today planning card.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
         <div class="beta-demand-existing">
-          ${renderDemandBlockList(blocks.filter(block => block.type === "work"), "No work shifts added for this day yet.")}
+          ${renderDemandBlockList(blocks.filter(block => block.type === "work"), "No work shift planned for this day yet.")}
         </div>
-        <div class="beta-demand-form">
-          <h4>${workEditing ? "Edit work shift" : "Add work shift"}</h4>
-          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
-            <label>Shift starts<input id="workShiftStartTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.start) : "")}"></label>
-            <label>Shift ends<input id="workShiftEndTime" type="time" value="${safeText(workEditing && editingRange ? timeInputValue(editingRange.end) : "")}"></label>
-            <label>First break usually after<input id="workFirstBreakAfterHours" type="number" min="0.5" max="8" step="0.5" inputmode="decimal" value="${safeText(hoursValue(prefs.firstAfterMinutes || 120))}"></label>
-            <label>Aim for a break every<select id="workBreakIntervalMinutes">${WORK_BREAK_INTERVAL_OPTIONS.map(option => `<option value="${safeText(option.value)}" ${String(prefs.breakIntervalMinutes || 150) === option.value ? "selected" : ""}>${safeText(option.label)}</option>`).join("")}</select></label>
-            <label>Shift name<input id="workShiftName" type="text" value="${safeText(workEditing?.title || workEditing?.shiftName || "")}" placeholder="Optional"></label>
-            <label>Notes<input id="workDemandNotes" type="text" value="${safeText(workEditing?.notes || "")}" placeholder="Optional"></label>
-            <label class="beta-checkbox-label beta-breaks-vary"><input id="workBreaksVary" type="checkbox" ${prefs.breaksVary ? "checked" : ""}> Breaks vary</label>
-          </div>
-          <p class="row-note">These are estimates. Fuel Guard uses them to create flexible suggested break and fuel windows inside your shift.</p>
-          <div class="button-row beta-settings-actions">
-            <button id="saveWorkDemandButton" class="primary" type="button">${workEditing ? "Save work shift" : "Add work shift"}</button>
-            ${workEditing ? `<button id="cancelDemandEditButton" class="secondary" type="button">Cancel edit</button>` : ""}
-          </div>
-        </div>
+        <p class="row-note">Use Edit to update the same shift and break record in Today.</p>
         ${renderWorkCheckinSection(key, blocks.filter(block => block.type === "work"))}
-        <p id="fuelDemandPlannerStatus" class="row-note" aria-live="polite">${safeText(demandPlannerStatus)}</p>
       </section>
     `;
   }
 
   function renderDemandPlanner() {
+    const todayTarget = document.getElementById("fuelTodayPlanningFields");
     const workTarget = document.getElementById("fuelWorkPlanner");
     const trainingTarget = document.getElementById("fuelTrainingPlanner");
     const legacyTarget = document.getElementById("fuelDemandPlanner");
-    if (!workTarget && !trainingTarget && !legacyTarget) return;
+    if (!todayTarget && !workTarget && !trainingTarget && !legacyTarget) return;
     const key = selectedDataDateKey();
     const blocks = demandBlocksForDay(key);
     const editing = selectedDemandEditBlock();
     const editingRange = blockRange(editing);
     const trainingEditing = editing?.type === "training" ? editing : null;
     const workEditing = editing?.type === "work" ? editing : null;
+    const todayMarkup = renderTodayPlanningFields(key, blocks, trainingEditing, workEditing, editingRange);
     const workMarkup = renderWorkPlanner(key, blocks, workEditing, editingRange);
     const trainingMarkup = renderTrainingPlanner(key, blocks, trainingEditing, editingRange);
+    if (todayTarget) todayTarget.innerHTML = todayMarkup;
     if (workTarget) workTarget.innerHTML = workMarkup;
     if (trainingTarget) trainingTarget.innerHTML = trainingMarkup;
     if (legacyTarget) legacyTarget.innerHTML = `${workMarkup}${trainingMarkup}`;
@@ -3836,7 +3809,6 @@
         </div>
         <p class="row-note">${safeText(entry.plainSummary || "Add logs or planning details to build the day summary.")}</p>
       </section>
-      ${renderTodaysFuelPlan(fuelLogs, key, now)}
     `;
   }
 
@@ -4069,7 +4041,32 @@
     }];
   }
 
-  function todayTimelineItems(key, now = new Date()) {
+  function todayActualTimelineItems(key, now = new Date()) {
+    const logs = logsForDay(key);
+    const completedOpportunityItems = generateFuelOpportunitiesForDay(key, { now })
+      .filter(item => item.completedAt)
+      .map(item => ({
+        type: "completed-opportunity",
+        time: logDate(item.completedAt) || logDate(item.plannedStart),
+        end: null,
+        title: item.label,
+        detail: `Suggested window ${timeRangeText(item.plannedStart, item.plannedEnd)}`,
+        status: item.status
+      }))
+      .filter(item => item.time);
+    const logItems = logs.map(log => ({
+      type: isFuelLog(log) ? "actual-fuel" : isHydrationLog(log) ? "actual-hydration" : isSubjectiveCheckinLog(log) ? "actual-checkin" : "actual-fuel",
+      time: log.date,
+      end: null,
+      title: logTypeLabel(log),
+      detail: isSubjectiveCheckinLog(log) ? (displayNoteForLog(log) || "Check-in saved") : "Completed log"
+    }));
+    return [...logItems, ...completedOpportunityItems]
+      .filter(item => item.time)
+      .sort((a, b) => a.time - b.time || String(a.type).localeCompare(String(b.type)));
+  }
+
+  function todaySuggestedTimelineItems(key, now = new Date()) {
     const logs = logsForDay(key);
     const demandItems = demandBlocksForDay(key).flatMap(block => {
       const range = blockRange(block);
@@ -4096,7 +4093,7 @@
       return [blockItem, ...breakItems];
     });
     const opportunityItems = generateFuelOpportunitiesForDay(key, { now }).map(item => ({
-      type: item.completedAt ? "completed-opportunity" : item.status === "missed" || item.status === "overdue" ? "missed-opportunity" : "suggested-fuel",
+      type: item.status === "missed" || item.status === "overdue" ? "missed-opportunity" : "suggested-fuel",
       time: logDate(item.plannedStart),
       end: logDate(item.plannedEnd),
       title: item.label,
@@ -4104,14 +4101,7 @@
       status: item.status
     })).filter(item => item.time);
     const hydrationItems = hydrationSuggestionForDay(key, logs, now);
-    const logItems = logs.map(log => ({
-      type: isFuelLog(log) ? "actual-fuel" : isHydrationLog(log) ? "actual-hydration" : isSubjectiveCheckinLog(log) ? "actual-checkin" : "actual-fuel",
-      time: log.date,
-      end: null,
-      title: logTypeLabel(log),
-      detail: isSubjectiveCheckinLog(log) ? (displayNoteForLog(log) || "Check-in saved") : "Completed log"
-    }));
-    return [...demandItems, ...opportunityItems, ...hydrationItems, ...logItems]
+    return [...demandItems, ...opportunityItems, ...hydrationItems]
       .filter(item => item.time)
       .sort((a, b) => a.time - b.time || String(a.type).localeCompare(String(b.type)));
   }
@@ -4129,29 +4119,44 @@
     return "Fuel log";
   }
 
-  function renderTodayTimeline(key = todayViewKey(), now = new Date()) {
-    const items = todayTimelineItems(key, now);
-    const title = key === dateKey(now) ? "Today’s timeline" : "Daily timeline";
+  function renderTimelineList(items, emptyCopy) {
     return `
-      <section class="beta-rhythm-section-card beta-today-timeline-card" aria-label="Today’s timeline">
+      <div class="beta-unified-timeline">
+        ${items.length ? items.map(item => `
+          <article class="beta-unified-timeline-item ${safeText(item.type)}">
+            <time>${safeText(item.end ? `${formatClock(item.time)}-${formatClock(item.end)}` : formatClock(item.time))}</time>
+            <span class="beta-timeline-dot" aria-hidden="true"></span>
+            <div>
+              <strong>${safeText(item.title)}</strong>
+              <small>${safeText(timelineTypeLabel(item.type))}${item.detail ? ` · ${safeText(item.detail)}` : ""}</small>
+            </div>
+          </article>
+        `).join("") : `<p class="muted beta-history-empty">${safeText(emptyCopy)}</p>`}
+      </div>
+    `;
+  }
+
+  function renderTodayTimeline(key = todayViewKey(), now = new Date()) {
+    const actualItems = todayActualTimelineItems(key, now);
+    const suggestedItems = todaySuggestedTimelineItems(key, now);
+    return `
+      <section class="beta-rhythm-section-card beta-today-timeline-card" aria-label="Today’s Fuel Plan">
         <div class="section-heading-row">
           <div>
-            <h3>${safeText(title)}</h3>
-            <p class="muted">Work, training, fuel suggestions, hydration suggestions, check-ins and actual logs in one place.</p>
+            <h3>Today’s Fuel Plan</h3>
+            <p class="muted">Compare what has actually happened today with the plan and suggested fuel windows.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
-        <div class="beta-unified-timeline">
-          ${items.length ? items.map(item => `
-            <article class="beta-unified-timeline-item ${safeText(item.type)}">
-              <time>${safeText(item.end ? `${formatClock(item.time)}-${formatClock(item.end)}` : formatClock(item.time))}</time>
-              <span class="beta-timeline-dot" aria-hidden="true"></span>
-              <div>
-                <strong>${safeText(item.title)}</strong>
-                <small>${safeText(timelineTypeLabel(item.type))}${item.detail ? ` · ${safeText(item.detail)}` : ""}</small>
-              </div>
-            </article>
-          `).join("") : `<p class="muted beta-history-empty">Add your work or training plan to protect your fuel times.</p>`}
+        <div class="beta-fuel-plan-comparison">
+          <section class="beta-fuel-plan-column actual" aria-label="Actual today’s timeline">
+            <h4>Actual</h4>
+            ${renderTimelineList(actualItems, "Log fuel or hydration to build the actual timeline.")}
+          </section>
+          <section class="beta-fuel-plan-column suggested" aria-label="Suggested timeline">
+            <h4>Suggested</h4>
+            ${renderTimelineList(suggestedItems, "Add work, breaks or training to generate suggested fuel windows.")}
+          </section>
         </div>
         <div class="beta-timeline-legend" aria-hidden="true">
           <span><i class="planned"></i>Planned</span>
@@ -4171,23 +4176,19 @@
     const opportunities = activeOpportunities(score.opportunities);
     const scored = opportunities.filter(opportunityIsScored);
     const adherence = scored.length ? Math.round(averageValue(scored.map(item => Number(item.timingScore || 0)))) : null;
-    const window = fuellingWindowStatusForDay(key, fuelLogs, now);
     return `
       <section class="beta-rhythm-section-card beta-today-progress-card" aria-label="Today’s progress">
         <div class="section-heading-row">
           <div>
             <h3>Today’s progress</h3>
-            <p class="muted">Compact targets, adherence, fuelling window and daily Fuel Score.</p>
+            <p class="muted">Progress toward today’s logs and suggested fuel windows.</p>
           </div>
         </div>
         <div class="beta-target-progress-grid beta-today-progress-grid">
           ${renderTargetProgressCard("Fuel", fuelLogs.length, targets().dailyFuelLogs, "fuel", "daily")}
           ${renderTargetProgressCard("Hydration", hydrationLogs.length, targets().dailyHydrationLogs, "hydration", "daily")}
           ${dailyMetricCard("Fuelling adherence", adherence === null ? "Building" : `${adherence}%`, scored.length ? `${scored.length} fuel suggestion${scored.length === 1 ? "" : "s"} checked.` : "Add fuel suggestions and logs.", "fuel")}
-          ${dailyMetricCard("Window remaining", window.remaining, window.message, "fuel")}
-          ${dailyMetricCard("Daily Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel")}
         </div>
-        <p class="row-note">Fuel Score reflects timing and targets only. It is not a calorie or medical score.</p>
       </section>
     `;
   }
@@ -4197,6 +4198,18 @@
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
+    const score = calculateDailyFuelScore(key);
+    const opportunities = generateFuelOpportunitiesForDay(key);
+    const next = nextFuelOpportunity(opportunities);
+    const window = fuellingWindowStatusForDay(key, fuelLogs);
+    const suggestionDetail = next
+      ? `${next.label} · ${opportunityCountdown(next)}`
+      : "No more fuel suggestions today.";
+    const planCards = [
+      dailyMetricCard("Fuelling window", window.started ? `${window.firstFuel}-${window.closesAt}` : window.remaining, window.message, "fuel"),
+      dailyMetricCard("Fuel Score", score.finalScore === null ? "Building" : `${score.finalScore}/100`, score.label, "fuel"),
+      dailyMetricCard("Fuel suggestions", String(opportunities.length), suggestionDetail, "fuel")
+    ];
     const fuelCards = [
       dailyMetricCard("First fuel", firstEventTime(fuelLogs), "", "fuel"),
       dailyMetricCard("Most recent fuel", lastEventTime(fuelLogs), "", "fuel")
@@ -4216,9 +4229,11 @@
           </div>
         </div>
         <div class="beta-daily-status-groups beta-compact-summary-grid">
+          ${renderDailyMetricGroup("Plan status", planCards)}
           ${renderDailyMetricGroup("Fuel timing", fuelCards)}
           ${renderDailyMetricGroup("Hydration timing", hydrationCards)}
         </div>
+        <p class="row-note">Fuel Score reflects timing and targets only. It is not a calorie or medical score.</p>
         ${renderDailyCheckinSection(key)}
       </section>
     `;
@@ -4335,7 +4350,6 @@
           </div>
         ` : ""}
         ${renderDailyStatusCard(entry)}
-        ${renderTodaysFuelPlan(fuelLogs, key)}
         ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length)}
       </section>
     `;
@@ -4643,23 +4657,17 @@
     const weeklyTargetsTarget = document.getElementById("fuelWeeklyTargetsSummary");
     const todayStatusTarget = document.getElementById("fuelTodayStatus");
     const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
-    const timelineCheckinsTarget = document.getElementById("fuelTimelineCheckins");
     const todayProgressTarget = document.getElementById("fuelTodayProgress");
     const todaySummaryTarget = document.getElementById("fuelTodaySummary");
-    const protectedMomentsTarget = document.getElementById("fuelProtectedMoments");
-    const planTodayOverviewTarget = document.getElementById("fuelPlanTodayOverview");
     renderPlanSubtabs();
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
     renderDemandPlanner();
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
-    if (planTodayOverviewTarget) planTodayOverviewTarget.innerHTML = renderPlanTodayOverview(key);
     if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
-    if (timelineCheckinsTarget) timelineCheckinsTarget.innerHTML = renderTimelineCheckins(key);
     if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(key);
     if (todaySummaryTarget) todaySummaryTarget.innerHTML = renderCompactDailySummary(key);
-    if (protectedMomentsTarget) protectedMomentsTarget.innerHTML = renderProtectedFuelMoments(key);
-    if (windowTarget) windowTarget.innerHTML = renderTodaysFuelPlan(fuelLogs, key);
+    if (windowTarget) windowTarget.innerHTML = "";
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
       const weekStart = startOfCalendarWeek(dateFromKey(todayKey));
@@ -4846,7 +4854,6 @@
         </div>
       </section>
       ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length, targets(), key)}
-      ${renderTodaysFuelPlan(fuelLogs, key)}
       ${renderHistoryDemandDetail(key)}
       ${renderTodayTimeline(key)}
       <section class="beta-rhythm-section-card beta-history-log-detail-card">
@@ -8387,7 +8394,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "plan", "history", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "plan", "history", "trends", "checklist"].includes(screen) ? screen : "plan";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -8650,7 +8657,7 @@
       demandPlannerEditingId = editDemand.dataset.editDemand || "";
       demandPlannerStatus = "Editing plan item.";
       const block = selectedDemandEditBlock();
-      if (block?.type) selectedPlanSubtab = block.type === "work" ? "work" : "training";
+      if (block?.type) selectedPlanSubtab = "today";
       renderSelectedDayCard();
       return;
     }
