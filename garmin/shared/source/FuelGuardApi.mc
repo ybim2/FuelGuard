@@ -23,7 +23,8 @@ module FuelGuardApi {
     var _callback = null;
 
     function isWhitespace(value as String or Null) as Boolean {
-        return value == " " || value == "\t" || value == "\n" || value == "\r";
+        var character = value as String;
+        return character.equals(" ") || character.equals("\t") || character.equals("\n") || character.equals("\r");
     }
 
     function trimString(value as String) as String {
@@ -87,6 +88,10 @@ module FuelGuardApi {
         if (event == null) {
             return;
         }
+        var eventId = FuelGuardQueue.externalEventId(event);
+        if (eventId == null) {
+            return;
+        }
 
         _inFlight = true;
         _lastAttempt = now;
@@ -104,7 +109,7 @@ module FuelGuardApi {
             :method => Communications.HTTP_REQUEST_METHOD_POST,
             :headers => headers,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
-            :context => event[:external_event_id]
+            :context => eventId
         };
 
         try {
@@ -129,7 +134,8 @@ module FuelGuardApi {
                 result = data["result"];
             }
             if (result instanceof String) {
-                return result == "ok" || result == "duplicate" || result == "already_recorded";
+                var resultText = result as String;
+                return resultText.equals("ok") || resultText.equals("duplicate") || resultText.equals("already_recorded");
             }
         }
         return false;

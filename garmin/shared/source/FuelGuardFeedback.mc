@@ -42,20 +42,20 @@ module FuelGuardFeedback {
     }
 
     function eventConfirmation(type as String) as String {
-        if (type == FuelGuardEvents.TYPE_HYDRATION) {
+        if (type.equals(FuelGuardEvents.TYPE_HYDRATION)) {
             return "HYDRATION|LOGGED";
         }
-        if (type == FuelGuardEvents.TYPE_FUEL_HYDRATION) {
+        if (type.equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
             return "FUEL + WATER|LOGGED";
         }
         return "FUEL|LOGGED";
     }
 
     function confirmationFirstLine(type as String) as String {
-        if (type == FuelGuardEvents.TYPE_HYDRATION) {
+        if (type.equals(FuelGuardEvents.TYPE_HYDRATION)) {
             return "HYDRATION";
         }
-        if (type == FuelGuardEvents.TYPE_FUEL_HYDRATION) {
+        if (type.equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
             return "FUEL + WATER";
         }
         return "FUEL";

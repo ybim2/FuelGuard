@@ -91,6 +91,22 @@ function responseAcknowledged(responseCode, data) {
   return false;
 }
 
+function isoUtcFromUnixSeconds(seconds) {
+  const date = new Date(seconds * 1000);
+  const parts = {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    hour: date.getUTCHours(),
+    minute: date.getUTCMinutes(),
+    second: date.getUTCSeconds()
+  };
+  for (const [name, value] of Object.entries(parts)) {
+    assert.equal(typeof value, "number", `${name} must be numeric before formatting`);
+  }
+  return `${String(parts.year).padStart(4, "0")}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}:${String(parts.second).padStart(2, "0")}Z`;
+}
+
 function externalEventId(event) {
   if (event && typeof event === "object" && typeof event.external_event_id === "string") {
     return event.external_event_id;
@@ -187,6 +203,21 @@ test("Garmin response acknowledgement handles dictionary result values safely", 
   assert.equal(responseAcknowledged(500, "ok"), false);
   assert.equal(responseAcknowledged(200, null), true);
   assert.equal(responseAcknowledged(201, { result: 12 }), true);
+});
+
+test("Garmin ISO timestamp formatting is numeric, padded, UTC, and parseable", () => {
+  const fixtures = [
+    [1704164645, "2024-01-02T03:04:05Z"],
+    [1723165323, "2024-08-09T01:02:03Z"],
+    [1728555072, "2024-10-10T10:11:12Z"]
+  ];
+
+  for (const [seconds, expected] of fixtures) {
+    const actual = isoUtcFromUnixSeconds(seconds);
+    assert.equal(actual, expected);
+    assert.equal(actual.endsWith("Z"), true);
+    assert.equal(Date.parse(actual), seconds * 1000);
+  }
 });
 
 test("Garmin queue sanitizes stale storage entries before indexing", () => {
@@ -365,6 +396,21 @@ test("Garmin sources avoid unsupported String.trim", () => {
   assert.match(apiSource, /function trimString\(value as String\) as String/);
 });
 
+test("Garmin event timestamps use numeric-safe UTC components", () => {
+  const source = readRepoFile("garmin/shared/source/FuelGuardEvents.mc");
+
+  assert.match(source, /Gregorian\.utcInfo\(new Time\.Moment\(seconds\), Time\.FORMAT_SHORT\)/);
+  assert.doesNotMatch(source, /FORMAT_MEDIUM/);
+  assert.match(source, /var year = info\.year instanceof Number \? info\.year as Number : 1970;/);
+  assert.match(source, /var month = info\.month instanceof Number \? info\.month as Number : 1;/);
+  assert.match(source, /var day = info\.day instanceof Number \? info\.day as Number : 1;/);
+  assert.match(source, /var hour = info\.hour instanceof Number \? info\.hour as Number : 0;/);
+  assert.match(source, /var minute = info\.min instanceof Number \? info\.min as Number : 0;/);
+  assert.match(source, /var second = info\.sec instanceof Number \? info\.sec as Number : 0;/);
+  assertSourceOrder(source, "var year = info.year instanceof Number", "year.format(\"%04d\")");
+  assertSourceOrder(source, "var month = info.month instanceof Number", "month.format(\"%02d\")");
+});
+
 test("Garmin launcher icons match the fr255 40x40 requirement", () => {
   assert.deepEqual(readPngDimensions("garmin/activity-logger/resources/icon.png"), {
     width: 40,
@@ -394,7 +440,7 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(queueSource, /function removeAcknowledged\(eventId as String\)/);
   assert.match(queueSource, /if \(items\.size\(\) == 0\)/);
   assert.doesNotMatch(queueSource, /items\.size\(\) > 0 \? items\[0\]/);
-  assert.match(queueSource, /externalEventId\(items\[i\]\) != eventId/);
+  assert.match(queueSource, /!\(itemId as String\)\.equals\(eventId\)/);
 });
 
 test("Quick Log glance and app startup avoid lifecycle network sync", () => {

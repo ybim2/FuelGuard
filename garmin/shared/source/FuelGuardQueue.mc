@@ -7,6 +7,9 @@ module FuelGuardQueue {
     function externalEventId(event as Object) as String? {
         if (event instanceof Dictionary) {
             var eventId = (event as Dictionary)[:external_event_id];
+            if (!(eventId instanceof String)) {
+                eventId = (event as Dictionary)["external_event_id"];
+            }
             if (eventId instanceof String) {
                 return eventId as String;
             }
@@ -46,8 +49,10 @@ module FuelGuardQueue {
         if (eventId == null) {
             return;
         }
+        var stableEventId = eventId as String;
         for (var i = 0; i < items.size(); i++) {
-            if (externalEventId(items[i]) == eventId) {
+            var itemId = externalEventId(items[i]);
+            if (itemId != null && (itemId as String).equals(stableEventId)) {
                 saveQueue(items);
                 return;
             }
@@ -72,7 +77,8 @@ module FuelGuardQueue {
         var items = queue();
         var kept = [];
         for (var i = 0; i < items.size(); i++) {
-            if (externalEventId(items[i]) != eventId) {
+            var itemId = externalEventId(items[i]);
+            if (itemId == null || !(itemId as String).equals(eventId)) {
                 kept.add(items[i]);
             }
         }
