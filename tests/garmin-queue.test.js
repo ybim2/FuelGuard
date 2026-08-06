@@ -550,15 +550,42 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
 test("Quick Log glance shows local fuel status without lifecycle network sync", () => {
   const appSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogGlance.mc");
+  const glanceDataSource = readRepoFile("garmin/quick-log/source/FuelGuardGlanceData.mc");
   const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
 
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric\(\)/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelLabel\(\)/);
-  assert.match(glanceSource, /FuelGuardQueue\.pendingCount\(\)/);
+  assert.match(appSource, /function getGlanceView\(\)/);
+  assert.match(appSource, /FuelGuardQuickLogGlance/);
+  assert.match(appSource, /function getGlanceTheme\(\)/);
+  assert.match(glanceSource, /\(:glance\)/);
+  assert.match(glanceSource, /FuelGuardGlanceData\.metric\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceData\.label\(\)/);
+  assert.match(glanceDataSource, /\(:glance\)\s*module FuelGuardGlanceData/);
+  assert.match(glanceDataSource, /LAST_FUEL_KEY = "fg_last_fuel_at"/);
+  assert.match(glanceDataSource, /TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count"/);
+  assert.match(glanceDataSource, /TODAY_FUEL_DATE_KEY = "fg_today_fuel_date"/);
+  assert.match(glanceDataSource, /\$1\$ since fuel/);
+  assert.match(glanceDataSource, /\$1\$ \$2\$ today/);
+  assert.match(glanceDataSource, /No fuel today/);
+  assert.match(glanceDataSource, /Press START to log/);
+  assert.doesNotMatch(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric/);
+  assert.doesNotMatch(glanceSource, /FuelGuardQueue\.pendingCount/);
+  assert.doesNotMatch(glanceSource, /pending/);
   assert.match(glanceSource, /getTextWidthInPixels/);
   assert.doesNotMatch(glanceSource, /Open to log/);
+});
+
+test("Garmin fuel events update local glance count without using the upload queue", () => {
+  const eventsSource = readRepoFile("garmin/shared/source/FuelGuardEvents.mc");
+  const apiSource = readRepoFile("garmin/shared/source/FuelGuardApi.mc");
+
+  assert.match(eventsSource, /TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count"/);
+  assert.match(eventsSource, /TODAY_FUEL_DATE_KEY = "fg_today_fuel_date"/);
+  assertSourceOrder(eventsSource, "var normalizedType = normalizeType(type);", "recordFuelForGlance(timestamp);");
+  assert.match(eventsSource, /normalizedType\.equals\(TYPE_FUEL\) \|\| normalizedType\.equals\(TYPE_FUEL_HYDRATION\)/);
+  assert.doesNotMatch(eventsSource, /normalizedType\.equals\(TYPE_HYDRATION\)[\s\S]{0,120}recordFuelForGlance/);
+  assert.doesNotMatch(apiSource, /TODAY_FUEL_COUNT_KEY|TODAY_FUEL_DATE_KEY|fg_today_fuel_count|fg_today_fuel_date/);
 });
 
 test("Quick Log wearable copy uses short safe labels", () => {
@@ -678,4 +705,26 @@ test("Quick Log health queue is separate, bounded, and lower priority than fuel 
   assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("open"\)/);
   assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("fuel_log"\)/);
   assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("refresh"\)/);
+});
+
+test("Quick Log health upload status is separate from fuel sync state", () => {
+  const api = readRepoFile("garmin/quick-log/source/FuelGuardHealthApi.mc");
+  const view = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+
+  for (const text of [
+    "Collecting Garmin data",
+    "Garmin data queued",
+    "Garmin data synced",
+    "No supported Garmin data found",
+    "Reconnect required",
+    "Upload failed - will retry"
+  ]) {
+    assert.match(api, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(api, /function statusText\(\) as String\?/);
+  assert.match(api, /function statusVisible\(\) as Boolean/);
+  assert.match(view, /function footerText\(\) as String/);
+  assertSourceOrder(view, "var syncText = pendingText();", "var healthText = FuelGuardHealth.statusText();");
+  assertSourceOrder(view, "return syncText as String;", "return healthText as String;");
+  assert.doesNotMatch(view, /0 pending/);
 });

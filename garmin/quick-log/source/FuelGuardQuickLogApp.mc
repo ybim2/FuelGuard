@@ -24,4 +24,8 @@ class FuelGuardQuickLogApp extends Application.AppBase {
     public function getGlanceView() as [WatchUi.GlanceView] or [WatchUi.GlanceView, WatchUi.GlanceViewDelegate] or Null {
         return [new $.FuelGuardQuickLogGlance()];
     }
+
+    public function getGlanceTheme() as Application.AppBase.GlanceTheme {
+        return AppBase.GLANCE_THEME_GREEN;
+    }
 }

@@ -202,6 +202,8 @@
 
 .beta-garmin-health-card,
 .beta-garmin-patterns-section,
+.beta-garmin-status-section,
+.beta-training-fuel-section,
 .beta-garmin-checkin-section {
   display: grid;
   gap: 12px;
@@ -222,6 +224,88 @@
   color: var(--text);
   font-size: .86rem;
   font-weight: 800;
+}
+
+.beta-garmin-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.beta-garmin-status-grid div,
+.beta-garmin-training-summary span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(7, 19, 15, .09);
+  border-radius: 14px;
+  background: rgba(22, 138, 70, .07);
+}
+
+.beta-garmin-status-grid span,
+.beta-garmin-training-summary span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.beta-garmin-status-grid strong,
+.beta-garmin-training-summary strong {
+  color: var(--text);
+  font-size: .94rem;
+  overflow-wrap: anywhere;
+}
+
+.beta-garmin-training-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.beta-garmin-workout-list {
+  display: grid;
+  gap: 8px;
+}
+
+.beta-garmin-workout-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(7, 19, 15, .09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.beta-garmin-workout-card.pre_workout_gap,
+.beta-garmin-workout-card.post_workout_gap,
+.beta-garmin-workout-card.long_gap_overlap {
+  background:
+    linear-gradient(90deg, rgba(255, 184, 77, .14), rgba(255, 255, 255, .78));
+}
+
+.beta-garmin-workout-card div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.beta-garmin-workout-card strong,
+.beta-garmin-workout-card span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.beta-garmin-workout-card > span {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: .78rem;
+  font-weight: 900;
 }
 
 .beta-garmin-pattern-list {
@@ -304,6 +388,8 @@
 
 @media (max-width: 420px) {
   .beta-garmin-health-grid,
+  .beta-garmin-status-grid,
+  .beta-garmin-training-summary,
   .beta-garmin-checkin-grid {
     grid-template-columns: 1fr;
   }

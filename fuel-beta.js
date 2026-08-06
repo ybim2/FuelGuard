@@ -4964,6 +4964,107 @@
     `;
   }
 
+  function garminIsoLabel(value) {
+    if (!value) return "Not received yet";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not received yet";
+    return `${formatDateKey(dateKey(date))} at ${formatClock(date)}`;
+  }
+
+  function renderGarminDataStatus(data = {}) {
+    const status = data?.health_status || {};
+    const metrics = Array.isArray(status.metrics_received) ? status.metrics_received : [];
+    const capabilities = status.capabilities || {};
+    const supported = [
+      ["heart_rate_history", "heart rate"],
+      ["stress_history", "stress"],
+      ["body_battery_history", "Body Battery"],
+      ["resting_heart_rate", "resting HR"],
+      ["activity_history", "activities"]
+    ].filter(([key]) => capabilities[key]).map(([, label]) => label);
+    const sharing = status.health_sharing === "on"
+      ? "Health sharing on"
+      : status.health_sharing === "off"
+        ? "Health sharing off"
+        : "Waiting for watch";
+    const freshness = status.last_server_upload_at
+      ? `Garmin data received ${garminIsoLabel(status.last_server_upload_at)}.`
+      : status.message || "Turn on health-pattern sharing in Quick Log settings, then open the watch app.";
+    return `
+      <section class="beta-analysis-card beta-garmin-status-section" aria-label="Garmin health status">
+        <div class="beta-analysis-card-head">
+          <span class="beta-icon-disc shield">${dailyIcon("heart")}</span>
+          <div>
+            <h3>Garmin data status</h3>
+            <p>Quick Log shows these upload states on the watch; Fuel Guard uses them only when you opt in.</p>
+          </div>
+        </div>
+        <div class="beta-garmin-status-grid">
+          <div><span>Sharing</span><strong>${safeText(sharing)}</strong></div>
+          <div><span>Last collection</span><strong>${safeText(garminIsoLabel(status.last_watch_collection_at))}</strong></div>
+          <div><span>Last upload</span><strong>${safeText(garminIsoLabel(status.last_server_upload_at))}</strong></div>
+          <div><span>Metrics received</span><strong>${safeText(metrics.length ? metrics.join(", ") : "Waiting for data")}</strong></div>
+        </div>
+        <p>${safeText(freshness)}</p>
+        <small class="row-note">${safeText(supported.length ? `Supported by this watch: ${supported.join(", ")}.` : "Supported metrics will appear after the watch reports its capabilities.")}</small>
+      </section>
+    `;
+  }
+
+  function trainingFuelStatusLabel(status) {
+    if (status === "covered") return "Covered";
+    if (status === "pre_workout_gap") return "Pre-workout gap";
+    if (status === "post_workout_gap") return "Post-workout gap";
+    if (status === "long_gap_overlap") return "Long gap overlapped";
+    return "Needs more logs";
+  }
+
+  function activityTypeLabel(type) {
+    return String(type || "workout")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
+  function renderTrainingFuelCoverage(data = {}) {
+    const coverage = data?.training_fuel_coverage || {};
+    const workouts = Array.isArray(coverage.workouts) ? coverage.workouts.slice(0, 4) : [];
+    const summary = Array.isArray(coverage.summary) ? coverage.summary : [];
+    const hasSummary = coverage.enough_for_summary && summary.length;
+    return `
+      <section class="beta-analysis-card beta-training-fuel-section" aria-label="Training fuel coverage">
+        <div class="beta-analysis-card-head">
+          <span class="beta-icon-disc amber">${dailyIcon("run")}</span>
+          <div>
+            <h3>Training fuel coverage</h3>
+            <p>Recent Garmin activities compared with fuel logs before and after training.</p>
+          </div>
+        </div>
+        <div class="beta-garmin-training-summary">
+          <span><strong>${safeText(String(coverage.workout_count || 0))}</strong> recent workouts</span>
+          <span><strong>${safeText(String(coverage.missing_pre_workout_fuel_count || 0))}</strong> pre-workout gaps</span>
+          <span><strong>${safeText(String(coverage.post_workout_covered_count || 0))}</strong> post-workout covered</span>
+        </div>
+        ${hasSummary
+          ? `<ul>${summary.map(item => `<li>${safeText(item)}</li>`).join("")}</ul>`
+          : `<p class="muted beta-history-empty">${safeText(coverage.insufficient_data_message || "Log fuel around a few Garmin workouts to build this view.")}</p>`}
+        ${workouts.length ? `
+          <div class="beta-garmin-workout-list">
+            ${workouts.map(item => `
+              <article class="beta-garmin-workout-card ${safeText(item.status || "neutral")}">
+                <div>
+                  <strong>${safeText(activityTypeLabel(item.activity_type))}</strong>
+                  <span>${safeText(garminIsoLabel(item.started_at))}</span>
+                </div>
+                <span>${safeText(trainingFuelStatusLabel(item.status))}</span>
+              </article>
+            `).join("")}
+          </div>
+        ` : ""}
+        <p class="row-note">${safeText(coverage.limitation || "Fuel Guard analyses logged events; unlogged food cannot be detected.")}</p>
+      </section>
+    `;
+  }
+
   function ratingInput(id, label) {
     return `
       <label>${safeText(label)}
@@ -5051,6 +5152,8 @@
       ${renderAnalysisTimelineGraph(key, now)}
       ${renderAnalysisKeyResult(key, now)}
       ${renderGarminPatternsSection()}
+      ${renderGarminDataStatus(garminPatternsState.data || {})}
+      ${renderTrainingFuelCoverage(garminPatternsState.data || {})}
       ${renderAnalysisGapGraph(key, now)}
       ${renderAnalysisAdherenceBreakdown(key, now)}
       ${renderAnalysisProgression(key, now)}

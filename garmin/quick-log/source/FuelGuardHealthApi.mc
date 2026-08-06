@@ -1,4 +1,5 @@
 import Toybox.Communications;
+import Toybox.Application.Storage;
 import Toybox.Lang;
 import Toybox.Time;
 import Toybox.WatchUi;
@@ -22,10 +23,14 @@ class FuelGuardHealthTestRequestException extends Lang.Exception {
 
 module FuelGuardHealthApi {
     const RETRY_INTERVAL_SECONDS = 15 * 60;
+    const STATUS_VISIBLE_SECONDS = 6;
+    const STATUS_KEY = "fg_health_upload_status";
 
     var _inFlight = false;
     var _lastAttempt = 0;
     var _callback = null;
+    var _lastStatus = null;
+    var _lastStatusAt = null;
 
     (:debug) var _testTransportEnabled = false;
     (:debug) var _testResponseCode = 200;
@@ -44,6 +49,43 @@ module FuelGuardHealthApi {
 
     function configured() as Boolean {
         return FuelGuardConnection.connected() && FuelGuardHealthSettings.sharingEnabled();
+    }
+
+    function noteStatus(state as String, label as String) as Void {
+        var now = Time.now().value();
+        _lastStatus = label;
+        _lastStatusAt = now;
+        Storage.setValue(STATUS_KEY, {
+            "state" => state,
+            "label" => label,
+            "updated_at_seconds" => now
+        });
+        WatchUi.requestUpdate();
+    }
+
+    function clearExpiredStatus() as Void {
+        if (_lastStatusAt != null && Time.now().value() - (_lastStatusAt as Number) >= STATUS_VISIBLE_SECONDS) {
+            _lastStatus = null;
+            _lastStatusAt = null;
+        }
+    }
+
+    function statusText() as String? {
+        clearExpiredStatus();
+        if (_inFlight) {
+            return "Garmin data queued";
+        }
+        if (_lastStatus instanceof String) {
+            return _lastStatus as String;
+        }
+        if (FuelGuardHealthQueue.pendingCount() > 0) {
+            return "Garmin data queued";
+        }
+        return null;
+    }
+
+    function statusVisible() as Boolean {
+        return statusText() != null;
     }
 
     function responseAcknowledged(responseCode as Number, data as Dictionary or String or Null) as Boolean {
@@ -104,10 +146,19 @@ module FuelGuardHealthApi {
     }
 
     function trySync(force as Boolean) as Void {
-        if (_inFlight || !configured()) {
+        if (_inFlight) {
+            return;
+        }
+        if (!configured()) {
+            if (FuelGuardHealthSettings.sharingEnabled() && !FuelGuardConnection.connected()) {
+                noteStatus("reconnect_required", "Reconnect required");
+            }
             return;
         }
         if (FuelGuardQueue.pendingCount() > 0) {
+            if (FuelGuardHealthQueue.pendingCount() > 0) {
+                noteStatus("queued", "Garmin data queued");
+            }
             return;
         }
         var now = Time.now().value();
@@ -120,14 +171,17 @@ module FuelGuardHealthApi {
         }
         var snapshotId = FuelGuardHealthQueue.snapshotId(snapshot);
         if (snapshotId == null) {
+            noteStatus("failed", "Upload failed - will retry");
             return;
         }
         _inFlight = true;
         _lastAttempt = now;
+        noteStatus("request_started", "Garmin data queued");
         try {
             dispatchRequest(snapshot as Dictionary, snapshotId as String);
         } catch (e) {
             _inFlight = false;
+            noteStatus("failed", "Upload failed - will retry");
         }
     }
 
@@ -137,6 +191,11 @@ module FuelGuardHealthApi {
             if (context instanceof String) {
                 FuelGuardHealthQueue.removeAcknowledged(context as String);
             }
+            noteStatus("acknowledged", "Garmin data synced");
+        } else if (responseCode == 401 || responseCode == 403) {
+            noteStatus("reconnect_required", "Reconnect required");
+        } else {
+            noteStatus("failed", "Upload failed - will retry");
         }
         trySync(false);
         WatchUi.requestUpdate();
@@ -154,6 +213,9 @@ module FuelGuardHealthApi {
         _testDispatchCount = 0;
         _testLastSnapshotId = null;
         _testLastEndpoint = null;
+        _lastStatus = null;
+        _lastStatusAt = null;
+        Storage.deleteValue(STATUS_KEY);
     }
 
     (:debug)
@@ -178,6 +240,11 @@ module FuelGuardHealthApi {
     function lastEndpointForTest() as String? {
         return _testLastEndpoint instanceof String ? _testLastEndpoint as String : null;
     }
+
+    (:debug)
+    function statusTextForTest() as String? {
+        return statusText();
+    }
 }
 
 module FuelGuardHealth {
@@ -186,14 +253,23 @@ module FuelGuardHealth {
         if (!FuelGuardConnection.appId().equals(FuelGuardConnection.APP_QUICK_LOG)) {
             return;
         }
-        if (!FuelGuardConnection.connected() || !FuelGuardHealthSettings.sharingEnabled()) {
+        if (!FuelGuardHealthSettings.sharingEnabled()) {
+            return;
+        }
+        if (!FuelGuardConnection.connected()) {
+            FuelGuardHealthApi.noteStatus("reconnect_required", "Reconnect required");
             return;
         }
         if (FuelGuardHealthSettings.collectionStale()) {
+            FuelGuardHealthApi.noteStatus("collecting", "Collecting Garmin data");
             var snapshot = FuelGuardHealthCollector.collect();
             if (snapshot != null) {
                 FuelGuardHealthQueue.enqueue(snapshot as Dictionary);
                 FuelGuardHealthSettings.markCollected();
+                FuelGuardHealthApi.noteStatus("queued", "Garmin data queued");
+            } else {
+                FuelGuardHealthSettings.markCollected();
+                FuelGuardHealthApi.noteStatus("unsupported", "No supported Garmin data found");
             }
         }
         FuelGuardHealthApi.trySync(false);
@@ -201,5 +277,16 @@ module FuelGuardHealth {
 
     function afterFuelSync() as Void {
         maybeCollectAndSync("fuel_sync");
+    }
+
+    function statusText() as String? {
+        if (!FuelGuardHealthSettings.sharingEnabled() && FuelGuardHealthQueue.pendingCount() == 0) {
+            return null;
+        }
+        return FuelGuardHealthApi.statusText();
+    }
+
+    function statusVisible() as Boolean {
+        return statusText() != null;
     }
 }
