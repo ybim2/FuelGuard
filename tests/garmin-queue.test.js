@@ -203,8 +203,50 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(apiSource, /if \(_inFlight \|\| !configured\(\)\)/);
   assert.match(apiSource, /FuelGuardQueue\.peek\(\)/);
   assert.match(apiSource, /FuelGuardQueue\.removeAcknowledged\(context as String\)/);
+  assert.match(apiSource, /VERCEL_BYPASS_PROPERTY = "vercelBypassSecret"/);
+  assert.match(apiSource, /headers\["x-vercel-protection-bypass"\] = bypassSecret/);
   assert.match(queueSource, /function removeAcknowledged\(eventId as String\)/);
   assert.match(queueSource, /items\[i\]\[:external_event_id\] != eventId/);
+});
+
+test("Garmin settings keep secrets blank and expose private alpha configuration", () => {
+  const activityProperties = readRepoFile("garmin/activity-logger/resources/properties.xml");
+  const quickLogProperties = readRepoFile("garmin/quick-log/resources/properties.xml");
+  const activityStrings = readRepoFile("garmin/activity-logger/resources/strings.xml");
+  const quickLogStrings = readRepoFile("garmin/quick-log/resources/strings.xml");
+  const previewEndpoint = "https://fuel-guard-git-feat-garmin-activ-66c653-theos-projects-9c89a4a9.vercel.app/api/garmin-log";
+
+  for (const source of [activityProperties, quickLogProperties]) {
+    assert.match(source, new RegExp(`<property id="apiEndpoint" type="string">${previewEndpoint}</property>`));
+    assert.match(source, /<property id="betaToken" type="string"><\/property>/);
+    assert.match(source, /<property id="vercelBypassSecret" type="string"><\/property>/);
+    assert.match(source, /propertyKey="@Properties\.vercelBypassSecret"/);
+  }
+
+  assert.match(activityStrings, /<string id="VercelBypassTitle">Vercel bypass secret<\/string>/);
+  assert.match(quickLogStrings, /<string id="VercelBypassTitle">Vercel bypass secret<\/string>/);
+});
+
+test("Garmin endpoint smoke-test script supports Keychain and Vercel bypass", () => {
+  const source = readRepoFile("scripts/test-garmin-endpoint.sh");
+
+  assert.match(source, /security find-generic-password/);
+  assert.match(source, /GARMIN_BETA_TOKEN/);
+  assert.match(source, /VERCEL_AUTOMATION_BYPASS_SECRET/);
+  assert.match(source, /x-vercel-protection-bypass/);
+  assert.doesNotMatch(source, /GARMIN_BETA_TOKEN=["'][A-Za-z0-9+/_=-]{16,}/);
+  assert.doesNotMatch(source, /VERCEL_AUTOMATION_BYPASS_SECRET=["'][A-Za-z0-9+/_=-]{16,}/);
+});
+
+test("Local Garmin configuration helper never contains secret values", () => {
+  const source = readRepoFile("scripts/configure-garmin-alpha-local.sh");
+
+  assert.match(source, /pbcopy/);
+  assert.match(source, /security find-generic-password/);
+  assert.match(source, /GARMIN_BETA_TOKEN/);
+  assert.match(source, /VERCEL_AUTOMATION_BYPASS_SECRET/);
+  assert.doesNotMatch(source, /GARMIN_BETA_TOKEN=["'][A-Za-z0-9+/_=-]{16,}/);
+  assert.doesNotMatch(source, /VERCEL_AUTOMATION_BYPASS_SECRET=["'][A-Za-z0-9+/_=-]{16,}/);
 });
 
 test("Garmin docs prominently warn that Auto Lap must be disabled", () => {

@@ -6,9 +6,23 @@ if [[ -z "${GARMIN_API_ENDPOINT:-}" ]]; then
   exit 1
 fi
 
+KEYCHAIN_SERVICE="${FUELGUARD_KEYCHAIN_SERVICE:-FuelGuard Garmin Alpha}"
+
+keychain_secret() {
+  local account="$1"
+  security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$account" -w 2>/dev/null || true
+}
+
 if [[ -z "${GARMIN_BETA_TOKEN:-}" ]]; then
-  echo "Set GARMIN_BETA_TOKEN to the private alpha bearer token."
-  exit 1
+  GARMIN_BETA_TOKEN="$(keychain_secret GARMIN_BETA_TOKEN)"
+  if [[ -z "$GARMIN_BETA_TOKEN" ]]; then
+    echo "Set GARMIN_BETA_TOKEN or store it in macOS Keychain service '$KEYCHAIN_SERVICE'."
+    exit 1
+  fi
+fi
+
+if [[ -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+  VERCEL_AUTOMATION_BYPASS_SECRET="$(keychain_secret VERCEL_AUTOMATION_BYPASS_SECRET)"
 fi
 
 EVENT_ID="fg-alpha-test-$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM"
@@ -20,15 +34,26 @@ HTTP_BODY=""
 
 safe_body() {
   local body="$1"
-  printf '%s\n' "${body//$GARMIN_BETA_TOKEN/[redacted]}"
+  body="${body//$GARMIN_BETA_TOKEN/[redacted]}"
+  if [[ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+    body="${body//$VERCEL_AUTOMATION_BYPASS_SECRET/[redacted]}"
+  fi
+  printf '%s\n' "$body"
 }
 
 send_event() {
   local label="$1"
   local response
+  local headers=(
+    -H "Content-Type: application/json"
+    -H "Authorization: Bearer $GARMIN_BETA_TOKEN"
+  )
+  if [[ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+    headers+=(-H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET")
+  fi
+
   response="$(curl -sS -X POST "$GARMIN_API_ENDPOINT" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $GARMIN_BETA_TOKEN" \
+    "${headers[@]}" \
     --data "$PAYLOAD" \
     -w '\n%{http_code}')"
   HTTP_STATUS="${response##*$'\n'}"

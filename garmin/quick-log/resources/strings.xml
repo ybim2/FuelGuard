@@ -2,4 +2,5 @@
     <string id="AppName">FG Quick Log</string>
     <string id="EndpointTitle">Fuel Guard API endpoint</string>
     <string id="TokenTitle">Garmin beta bearer token</string>
+    <string id="VercelBypassTitle">Vercel bypass secret</string>
 </resources>

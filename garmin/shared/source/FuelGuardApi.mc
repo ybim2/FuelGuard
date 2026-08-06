@@ -15,6 +15,7 @@ class FuelGuardApiCallback {
 module FuelGuardApi {
     const ENDPOINT_PROPERTY = "apiEndpoint";
     const TOKEN_PROPERTY = "betaToken";
+    const VERCEL_BYPASS_PROPERTY = "vercelBypassSecret";
     const RETRY_INTERVAL_SECONDS = 45;
 
     var _inFlight = false;
@@ -90,6 +91,10 @@ module FuelGuardApi {
             "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON,
             "Authorization" => "Bearer " + settingString(TOKEN_PROPERTY)
         };
+        var bypassSecret = settingString(VERCEL_BYPASS_PROPERTY);
+        if (bypassSecret.length() > 0) {
+            headers["x-vercel-protection-bypass"] = bypassSecret;
+        }
 
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_POST,
