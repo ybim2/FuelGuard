@@ -294,6 +294,76 @@
   font-size: .8rem;
 }
 
+.beta-garmin-graph-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.beta-garmin-graph-panel {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(7, 19, 15, .09);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, .94), rgba(244, 250, 246, .88)),
+    #fff;
+  box-shadow: 0 10px 22px rgba(35, 55, 42, .05);
+}
+
+.beta-garmin-graph-panel h4,
+.beta-garmin-graph-panel p {
+  margin: 0;
+}
+
+.beta-garmin-graph-panel h4 {
+  color: var(--text);
+  font-size: .96rem;
+  font-weight: 950;
+  line-height: 1.18;
+}
+
+.beta-garmin-graph-panel p {
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.35;
+}
+
+.beta-garmin-graph-panel .beta-analysis-graph {
+  min-height: 180px;
+}
+
+.beta-garmin-graph-panel.workout,
+.beta-garmin-graph-panel.trend {
+  grid-column: 1 / -1;
+}
+
+.beta-analysis-graph .line.garmin,
+.beta-analysis-legend i.garmin {
+  stroke: #7a3ff2;
+  background: #7a3ff2;
+}
+
+.beta-analysis-graph .line.body-battery,
+.beta-analysis-legend i.body-battery {
+  stroke: #d56b12;
+  background: #d56b12;
+}
+
+.beta-analysis-graph .line.training {
+  stroke: #111827;
+}
+
+.beta-analysis-graph .actual-marker.garmin {
+  fill: #7a3ff2;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
 .beta-garmin-checkin-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

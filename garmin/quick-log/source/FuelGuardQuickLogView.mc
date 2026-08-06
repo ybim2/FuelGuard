@@ -199,6 +199,18 @@ class FuelGuardQuickLogView extends WatchUi.View {
         return null;
     }
 
+    private function footerText() as String {
+        var syncText = pendingText();
+        if (syncText != null) {
+            return syncText as String;
+        }
+        var healthText = FuelGuardHealth.statusText();
+        if (healthText != null) {
+            return healthText as String;
+        }
+        return "Press START";
+    }
+
     private function typeForSelection(index as Number) as String {
         if (index == ACTION_HYDRATION) {
             return FuelGuardEvents.TYPE_HYDRATION;
@@ -237,9 +249,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
         if (confirming()) {
             drawCenter(dc, height / 2 - 28, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationFirstLine(_confirmType), Graphics.COLOR_GREEN);
             drawCenter(dc, height / 2 + 2, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationSecondLine(_confirmType), Graphics.COLOR_GREEN);
-            if (syncText != null) {
-                drawCenter(dc, height / 2 + 42, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
-            }
+            drawCenter(dc, height / 2 + 42, Graphics.FONT_XTINY, footerText(), Graphics.COLOR_LT_GRAY);
             updateSyncStatusTimer();
             return;
         }
@@ -269,11 +279,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
             dc.drawText(center, y, Graphics.FONT_XTINY, fitText(dc, labelForSelection(i), Graphics.FONT_XTINY), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
-        if (syncText != null) {
-            drawCenter(dc, height - 34, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
-        } else {
-            drawCenter(dc, height - 34, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
-        }
+        drawCenter(dc, height - 34, Graphics.FONT_XTINY, footerText(), Graphics.COLOR_LT_GRAY);
         updateSyncStatusTimer();
     }
 }

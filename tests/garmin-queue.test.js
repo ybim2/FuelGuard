@@ -550,13 +550,19 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
 test("Quick Log glance shows local fuel status without lifecycle network sync", () => {
   const appSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogGlance.mc");
+  const glanceDataSource = readRepoFile("garmin/quick-log/source/FuelGuardGlanceData.mc");
   const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
 
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric\(\)/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelLabel\(\)/);
-  assert.match(glanceSource, /FuelGuardQueue\.pendingCount\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceData\.metric\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceData\.label\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceData\.pendingCount\(\)/);
+  assert.doesNotMatch(glanceSource, /FuelGuardFeedback/);
+  assert.doesNotMatch(glanceSource, /FuelGuardQueue/);
+  assert.match(glanceDataSource, /\(:glance\)\s*module FuelGuardGlanceData/);
+  assert.match(glanceDataSource, /LAST_FUEL_KEY = "fg_last_fuel_at"/);
+  assert.match(glanceDataSource, /QUEUE_KEY = "fg_pending_events"/);
   assert.match(glanceSource, /getTextWidthInPixels/);
   assert.doesNotMatch(glanceSource, /Open to log/);
 });
@@ -678,4 +684,20 @@ test("Quick Log health queue is separate, bounded, and lower priority than fuel 
   assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("open"\)/);
   assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("fuel_log"\)/);
   assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("refresh"\)/);
+});
+
+test("Quick Log surfaces health snapshot sync states without changing queue priority", () => {
+  const api = readRepoFile("garmin/quick-log/source/FuelGuardHealthApi.mc");
+  const view = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+  const healthModule = sourceBlock(api, "module FuelGuardHealthApi", "module FuelGuardHealth");
+
+  assert.match(api, /Health queued/);
+  assert.match(api, /No health data/);
+  assert.match(healthModule, /Health syncing/);
+  assert.match(healthModule, /Health uploaded/);
+  assert.match(healthModule, /Health rejected/);
+  assert.match(healthModule, /Health pending/);
+  assert.match(healthModule, /Health waits for logs/);
+  assert.match(view, /FuelGuardHealth\.statusText\(\)/);
+  assertSourceOrder(view, "var syncText = pendingText();", "var healthText = FuelGuardHealth.statusText();");
 });
