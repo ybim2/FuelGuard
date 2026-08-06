@@ -9,7 +9,7 @@
   const PENDING = "pending";
   const ERROR = "error";
   const ALLOWED_TYPES = new Set(["fuel", "hydration", "fuel_hydration"]);
-  const ALLOWED_SOURCES = new Set(["manual", "csv_import", "hardware", "bluetooth"]);
+  const ALLOWED_SOURCES = new Set(["manual", "csv_import", "hardware", "bluetooth", "garmin"]);
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const CRASH_NOTE = "fuel_guard_event:crash";
   const CHECKIN_NOTE_PREFIX = "fuel_guard_checkin:";
@@ -216,6 +216,7 @@
       type,
       logType: type,
       source: normalizeSource(row.source),
+      externalEventId: row.external_event_id || "",
       dayType: row.day_type || "",
       trainingSession: row.training_session || "",
       checkin: checkin || null,
@@ -239,6 +240,7 @@
       logged_at: date.toISOString(),
       type: crash || checkin ? "fuel" : normalizeType(log.type),
       source: normalizeSource(log.source),
+      external_event_id: log.externalEventId || log.external_event_id || null,
       day_type: log.dayType || null,
       training_session: log.trainingSession || null,
       notes: crash ? CRASH_NOTE : checkin ? checkinNote : log.note || log.notes || null
@@ -744,6 +746,7 @@
     localLog.label = checkin ? checkinTypeLabel(checkin) : labelForType(localLog.type);
     localLog.syncStatus = SYNCED;
     localLog.source = normalizeSource(row.source);
+    localLog.externalEventId = row.external_event_id || localLog.externalEventId || "";
     localLog.dayType = row.day_type || localLog.dayType || "";
     localLog.trainingSession = row.training_session || localLog.trainingSession || "";
     if (checkin) localLog.checkin = checkin;
@@ -789,7 +792,7 @@
     if (!client || !currentUser) return [];
     const { data, error } = await client
       .from(TABLE)
-      .select("id,user_id,logged_at,type,source,day_type,training_session,notes,created_at")
+      .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
       .eq("user_id", currentUser.id)
       .order("logged_at", { ascending: true });
     if (error) throw error;
@@ -812,7 +815,7 @@
       const { data, error } = await client
         .from(TABLE)
         .upsert(withId.map(item => item.row), { onConflict: "id" })
-        .select("id,user_id,logged_at,type,source,day_type,training_session,notes,created_at");
+        .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at");
       if (error) throw error;
       (data || []).forEach((row, index) => {
         updateLocalLogFromRow(withId[index]?.log || findMatchingLocalLog(row), row);
@@ -824,7 +827,7 @@
       const { data, error } = await client
         .from(TABLE)
         .insert(withoutId.map(item => item.row))
-        .select("id,user_id,logged_at,type,source,day_type,training_session,notes,created_at");
+        .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at");
       if (error) throw error;
       (data || []).forEach((row, index) => {
         updateLocalLogFromRow(withoutId[index]?.log || findMatchingLocalLog(row), row);
@@ -1175,6 +1178,11 @@
     },
     get signedIn() {
       return Boolean(user());
+    },
+    _test: {
+      normalizeSource,
+      normalizeType,
+      rowToLog
     }
   };
 })();

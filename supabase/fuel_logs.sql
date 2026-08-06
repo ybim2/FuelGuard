@@ -6,6 +6,7 @@ create table if not exists public.fuel_logs (
   logged_at timestamptz not null,
   type text not null,
   source text not null default 'manual',
+  external_event_id text,
   day_type text,
   training_session text,
   notes text,
@@ -17,6 +18,7 @@ alter table public.fuel_logs
   add column if not exists logged_at timestamptz,
   add column if not exists type text,
   add column if not exists source text default 'manual',
+  add column if not exists external_event_id text,
   add column if not exists day_type text,
   add column if not exists training_session text,
   add column if not exists notes text,
@@ -39,13 +41,17 @@ alter table public.fuel_logs
 alter table public.fuel_logs
   drop constraint if exists fuel_logs_source_check,
   add constraint fuel_logs_source_check
-    check (source in ('manual', 'csv_import', 'hardware', 'bluetooth'));
+    check (source in ('manual', 'csv_import', 'hardware', 'bluetooth', 'garmin'));
 
 create index if not exists fuel_logs_user_logged_at_idx
   on public.fuel_logs (user_id, logged_at desc);
 
 create index if not exists fuel_logs_user_type_logged_at_idx
   on public.fuel_logs (user_id, type, logged_at desc);
+
+create unique index if not exists fuel_logs_user_source_external_event_idx
+  on public.fuel_logs (user_id, source, external_event_id)
+  where external_event_id is not null;
 
 revoke all on table public.fuel_logs from anon, authenticated;
 grant select, insert, update, delete on table public.fuel_logs to authenticated;
