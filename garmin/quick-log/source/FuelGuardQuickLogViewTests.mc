@@ -103,27 +103,27 @@ function testFuelGuardQuickLogNavigationAndDelegateMovement(logger) as Boolean {
     var view = new FuelGuardQuickLogView();
     var delegate = new FuelGuardQuickLogDelegate(view);
 
-    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Fuel")) {
+    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Log fuel")) {
         return false;
     }
 
     view.move(1);
-    if (!fuelGuardQuickAssertSelection(view, 1, FuelGuardEvents.TYPE_HYDRATION, "Hydration")) {
+    if (!fuelGuardQuickAssertSelection(view, 1, FuelGuardEvents.TYPE_HYDRATION, "Hydrate")) {
         return false;
     }
 
     delegate.onNextPage();
-    if (!fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + Water")) {
+    if (!fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + water")) {
         return false;
     }
 
     view.move(1);
-    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Fuel")) {
+    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Log fuel")) {
         return false;
     }
 
     delegate.onPreviousPage();
-    return fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + Water");
+    return fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + water");
 }
 
 (:test)
@@ -249,4 +249,40 @@ function testFuelGuardQuickLogPairingPreservesPendingEventWhenUploadFails(logger
         && (FuelGuardApi.lastEventIdForTest() as String).equals(eventId as String)
         && FuelGuardApi.lastLoggedAtForTest() != null
         && (FuelGuardApi.lastLoggedAtForTest() as String).equals(loggedAt as String);
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceShowsRecentLocalFuel(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(FuelGuardEvents.nowSeconds() - ((2 * 60 * 60) + (37 * 60)));
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.metricForTest().equals("2h 37m")
+        && glance.labelForTest().equals("since fuel")
+        && glance.pendingTextForTest() == null;
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceShowsNoLogFallback(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(null);
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.metricForTest().equals("Ready")
+        && glance.labelForTest().equals("to log")
+        && glance.pendingTextForTest() == null;
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceShowsPendingIndicator(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(null);
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL));
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.pendingTextForTest() != null
+        && (glance.pendingTextForTest() as String).equals("1 pending");
 }
