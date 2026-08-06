@@ -1,4 +1,18 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/garmin-log",
+      "destination": "/api/garmin/log"
+    },
+    {
+      "source": "/api/garmin-health",
+      "destination": "/api/garmin/health"
+    },
+    {
+      "source": "/api/garmin-auth",
+      "destination": "/api/garmin/auth/start"
+    }
+  ],
   "headers": [
     {
       "source": "/api/supabase-config.js",

@@ -1,3 +1,3 @@
-const { denyAuthHandler } = require("../../garmin-auth.js");
+const { denyAuthHandler } = require("../../../lib/garmin-auth.js");
 
 module.exports = denyAuthHandler;

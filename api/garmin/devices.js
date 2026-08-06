@@ -1,3 +1,3 @@
-const { devicesHandler } = require("../garmin-auth.js");
+const { devicesHandler } = require("../../lib/garmin-auth.js");
 
 module.exports = devicesHandler;

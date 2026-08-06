@@ -1,3 +1,3 @@
-const { garminPatternsHandler } = require("../garmin-health.js");
+const { garminPatternsHandler } = require("../../lib/garmin-health.js");
 
 module.exports = garminPatternsHandler;

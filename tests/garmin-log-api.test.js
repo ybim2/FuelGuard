@@ -3,8 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const legacyHandler = require("../api/garmin-log.js");
-const auth = require("../api/garmin-auth.js");
+const auth = require("../lib/garmin-auth.js");
+const garminLogHandler = require("../api/garmin/log.js");
 
 const BASE_ENV = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -355,12 +355,25 @@ test("Garmin Quick Log and Activity Logger tokens are independently revocable", 
   assert.equal(fake.deviceTokens.filter(row => row.revoked_at).length, 1);
 }));
 
-test("Legacy /api/garmin-log route now uses zero-secret device auth", async () => withFake(async (fake) => {
+test("Canonical /api/garmin/log route uses zero-secret device auth", async () => withFake(async (fake) => {
   const paired = await pairDevice(fake);
-  const res = await call(legacyHandler, { token: paired.deviceToken, body: { ...VALID_EVENT, external_event_id: "legacy-route" } });
+  const res = await call(garminLogHandler, { token: paired.deviceToken, body: { ...VALID_EVENT, external_event_id: "canonical-route" } });
   assert.equal(res.statusCode, 201);
-  assert.equal(legacyHandler._test.envReady({ GARMIN_BETA_TOKEN: "old", GARMIN_BETA_USER_ID: "old" }), false);
+  assert.equal(auth._test.envReady({ GARMIN_BETA_TOKEN: "old", GARMIN_BETA_USER_ID: "old" }), false);
 }));
+
+test("Legacy Garmin URLs are rewrites instead of extra serverless functions", () => {
+  const root = path.join(__dirname, "..");
+  const vercel = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8"));
+  assert.deepEqual(vercel.rewrites, [
+    { source: "/api/garmin-log", destination: "/api/garmin/log" },
+    { source: "/api/garmin-health", destination: "/api/garmin/health" },
+    { source: "/api/garmin-auth", destination: "/api/garmin/auth/start" }
+  ]);
+  assert.equal(fs.existsSync(path.join(root, "api/garmin-log.js")), false);
+  assert.equal(fs.existsSync(path.join(root, "api/garmin-auth.js")), false);
+  assert.equal(fs.existsSync(path.join(root, "api/garmin-health.js")), false);
+});
 
 test("Garmin endpoint validates payload shape and auth before writes", async () => withFake(async (fake) => {
   const paired = await pairDevice(fake);
@@ -371,7 +384,7 @@ test("Garmin endpoint validates payload shape and auth before writes", async () 
 
 test("Garmin backend source contains no shared beta-user fallback", () => {
   const root = path.join(__dirname, "..");
-  const source = fs.readFileSync(path.join(root, "api/garmin-auth.js"), "utf8") + fs.readFileSync(path.join(root, "api/garmin-log.js"), "utf8");
+  const source = fs.readFileSync(path.join(root, "lib/garmin-auth.js"), "utf8") + fs.readFileSync(path.join(root, "api/garmin/log.js"), "utf8");
   assert.doesNotMatch(source, /GARMIN_BETA_TOKEN/);
   assert.doesNotMatch(source, /GARMIN_BETA_USER_ID/);
   assert.doesNotMatch(source, /VERCEL_AUTOMATION_BYPASS_SECRET/);

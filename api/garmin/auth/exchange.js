@@ -1,3 +1,3 @@
-const { exchangeAuthHandler } = require("../../garmin-auth.js");
+const { exchangeAuthHandler } = require("../../../lib/garmin-auth.js");
 
 module.exports = exchangeAuthHandler;

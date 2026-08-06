@@ -1,8 +1,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const auth = require("../api/garmin-auth.js");
-const health = require("../api/garmin-health.js");
+const auth = require("../lib/garmin-auth.js");
+const health = require("../lib/garmin-health.js");
 
 const BASE_ENV = {
   SUPABASE_URL: "https://example.supabase.co",

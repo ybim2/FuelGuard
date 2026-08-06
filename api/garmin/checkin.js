@@ -1,3 +1,3 @@
-const { garminDailyCheckinHandler } = require("../garmin-health.js");
+const { garminDailyCheckinHandler } = require("../../lib/garmin-health.js");
 
 module.exports = garminDailyCheckinHandler;
