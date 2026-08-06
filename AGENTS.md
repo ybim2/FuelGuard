@@ -68,3 +68,19 @@ Garmin release and worktree rules
 - Never reset, clean, modify, or discard unrelated dirty local worktrees while integrating Garmin work.
 - After merging a Garmin release to `main`, synchronize from `origin/main` and rebuild final IQ packages from that merged main commit.
 - Do not commit secrets, Garmin developer keys, Vercel secrets, Supabase service keys, token values, generated `.prg` files, or generated `.iq` packages.
+
+
+Canonical local workspace rules
+---------------------------------
+
+- Canonical repository path is: `/Users/theo/Documents/Codex/FuelGuard/main`.
+- Current feature work must use: `/Users/theo/Documents/Codex/FuelGuard/worktree-active`.
+- Never create another permanent Fuel Guard clone or feature folder beneath `Documents/Codex`.
+- Temporary scratch folders may not contain the only copy of code or artifacts.
+- Only one active feature worktree is allowed at a time.
+- Before starting a task, synchronize canonical main with `origin/main`.
+- After a merge: synchronize canonical main, verify production/main, rebuild required release artifacts from merged main, update `STATUS.md`, remove the completed active worktree, delete the merged local feature branch when safe, and recreate `worktree-active` only for the next task.
+- Do not push unfinished work to `main` merely to preserve it; push feature branches to origin instead.
+- Do not merge without explicit approval.
+- Web-only changes must not bump Garmin versions.
+- Final Garmin IQ packages must be copied into `/Users/theo/Documents/Codex/FuelGuard/releases/garmin/<VERSION>/`.

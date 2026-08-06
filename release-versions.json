@@ -1,0 +1,12 @@
+{
+  "web": {
+    "version": "mobile-pwa-v85-garmin-health-patterns",
+    "commit": "a184cbba5b17cab986d81dc85fdf732549c24941"
+  },
+  "garmin_quick_log": {
+    "version": "0.4.1"
+  },
+  "garmin_activity_logger": {
+    "version": "0.4.1"
+  }
+}
