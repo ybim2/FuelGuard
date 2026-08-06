@@ -3,6 +3,7 @@ import Toybox.Application.Storage;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Time;
+import Toybox.Time.Gregorian;
 
 module FuelGuardFeedback {
     const CONFIRM_SECONDS = 3;
@@ -24,21 +25,69 @@ module FuelGuardFeedback {
         return Time.now().value() - (startSeconds as Number) < CONFIRM_SECONDS;
     }
 
-    function elapsedFuelText() as String {
+    function localYear(seconds as Number) as Number {
+        var info = Gregorian.info(new Time.Moment(seconds), Time.FORMAT_SHORT);
+        return info.year instanceof Number ? info.year as Number : 0;
+    }
+
+    function localMonth(seconds as Number) as Number {
+        var info = Gregorian.info(new Time.Moment(seconds), Time.FORMAT_SHORT);
+        return info.month instanceof Number ? info.month as Number : 0;
+    }
+
+    function localDay(seconds as Number) as Number {
+        var info = Gregorian.info(new Time.Moment(seconds), Time.FORMAT_SHORT);
+        return info.day instanceof Number ? info.day as Number : 0;
+    }
+
+    function sameLocalDay(leftSeconds as Number, rightSeconds as Number) as Boolean {
+        return localYear(leftSeconds) == localYear(rightSeconds)
+            && localMonth(leftSeconds) == localMonth(rightSeconds)
+            && localDay(leftSeconds) == localDay(rightSeconds);
+    }
+
+    function elapsedFuelMetric() as String {
         var lastFuel = FuelGuardEvents.lastFuelSeconds();
         if (lastFuel == null) {
-            return "No fuel logged";
+            return "Ready";
         }
-        var elapsed = Time.now().value() - (lastFuel as Number);
+        var nowSeconds = Time.now().value();
+        if (!sameLocalDay(lastFuel as Number, nowSeconds)) {
+            return "No fuel today";
+        }
+        var elapsed = nowSeconds - (lastFuel as Number);
         if (elapsed < 60) {
-            return "<1m since fuel";
+            return "<1m";
         }
         var minutes = elapsed / 60;
         var hours = minutes / 60;
         if (hours >= 1) {
-            return Lang.format("$1$h $2$m since fuel", [hours, minutes % 60]);
+            return Lang.format("$1$h $2$m", [hours, minutes % 60]);
         }
-        return Lang.format("$1$m since fuel", [minutes]);
+        return Lang.format("$1$m", [minutes]);
+    }
+
+    function elapsedFuelLabel() as String {
+        var lastFuel = FuelGuardEvents.lastFuelSeconds();
+        if (lastFuel == null) {
+            return "to log";
+        }
+        if (!sameLocalDay(lastFuel as Number, Time.now().value())) {
+            return "Ready to log";
+        }
+        return "since fuel";
+    }
+
+    function elapsedFuelText() as String {
+        var metric = elapsedFuelMetric();
+        var label = elapsedFuelLabel();
+        if (label.equals("since fuel")) {
+            return Lang.format("$1$ since fuel", [metric]);
+        }
+        if (metric.equals("Ready")) {
+            return "Ready to log";
+        }
+        return metric;
     }
 
     function eventConfirmation(type as String) as String {

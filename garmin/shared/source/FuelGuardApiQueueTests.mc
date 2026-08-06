@@ -28,7 +28,9 @@ function testFuelGuardApiAcknowledgesExpectedResponses(logger) as Boolean {
 
 (:test)
 function testFuelGuardApiSuccessRemovesOnlyAcknowledgedEvent(logger) as Boolean {
-    fuelGuardApiTestReset(201, {"result" => "ok"}, false);
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useHeldTestTransport();
 
     var first = fuelGuardApiTestEnqueue(FuelGuardEvents.TYPE_FUEL);
     var second = fuelGuardApiTestEnqueue(FuelGuardEvents.TYPE_HYDRATION);
@@ -36,15 +38,22 @@ function testFuelGuardApiSuccessRemovesOnlyAcknowledgedEvent(logger) as Boolean 
     var secondId = FuelGuardQueue.externalEventId(second);
 
     FuelGuardApi.trySync(true);
+    if (firstId == null) {
+        return false;
+    }
+    FuelGuardApi.onResponse(201, {"result" => "ok"}, firstId as String);
 
     var remaining = FuelGuardQueue.peek();
-    if (remaining == null || firstId == null || secondId == null) {
+    if (remaining == null || secondId == null) {
         return false;
     }
 
     return FuelGuardQueue.pendingCount() == 1
-        && FuelGuardApi.dispatchCountForTest() == 1
+        && FuelGuardApi.dispatchCountForTest() == 2
+        && FuelGuardApi.inFlightForTest()
         && FuelGuardApi.queuedBeforeDispatchForTest()
+        && FuelGuardApi.lastEventIdForTest() != null
+        && (FuelGuardApi.lastEventIdForTest() as String).equals(secondId as String)
         && FuelGuardQueue.externalEventId(remaining) != null
         && (FuelGuardQueue.externalEventId(remaining) as String).equals(secondId as String)
         && !(firstId as String).equals(secondId as String);
@@ -112,4 +121,86 @@ function testFuelGuardApiRequestStartExceptionKeepsQueueAndResetsInFlight(logger
         && FuelGuardQueue.pendingCount() == 1
         && FuelGuardApi.dispatchCountForTest() == 0
         && !FuelGuardApi.inFlightForTest();
+}
+
+(:debug)
+function fuelGuardApiTestEnqueueMany(count as Number) as Void {
+    for (var i = 0; i < count; i++) {
+        fuelGuardApiTestEnqueue(FuelGuardEvents.TYPE_FUEL);
+    }
+}
+
+(:test)
+function testFuelGuardApiBatchSyncKeepsStableVisibleCount(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useHeldTestTransport();
+    fuelGuardApiTestEnqueueMany(5);
+
+    FuelGuardApi.trySync(true);
+    var firstStatus = FuelGuardApi.syncStatusTextForTest();
+    var firstEventId = FuelGuardApi.lastEventIdForTest();
+    if (firstStatus == null || firstEventId == null) {
+        return false;
+    }
+
+    FuelGuardApi.onResponse(201, {"result" => "ok"}, firstEventId as String);
+    var afterOneStatus = FuelGuardApi.syncStatusTextForTest();
+
+    return FuelGuardQueue.pendingCount() == 4
+        && FuelGuardApi.batchStartCountForTest() == 5
+        && FuelGuardApi.syncActiveForTest()
+        && firstStatus.equals("Syncing 5 logs...")
+        && afterOneStatus != null
+        && (afterOneStatus as String).equals("Syncing 5 logs...");
+}
+
+(:test)
+function testFuelGuardApiBatchSyncFinalSuccessSummary(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useHeldTestTransport();
+    fuelGuardApiTestEnqueueMany(3);
+
+    FuelGuardApi.trySync(true);
+    while (FuelGuardQueue.pendingCount() > 0) {
+        var eventId = FuelGuardApi.lastEventIdForTest();
+        if (eventId == null) {
+            return false;
+        }
+        FuelGuardApi.onResponse(201, {"result" => "ok"}, eventId as String);
+    }
+
+    var status = FuelGuardApi.syncStatusTextForTest();
+    return !FuelGuardApi.syncActiveForTest()
+        && status != null
+        && (status as String).equals("3 logs synced")
+        && FuelGuardQueue.pendingCount() == 0;
+}
+
+(:test)
+function testFuelGuardApiBatchSyncPartialFailureSummary(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useHeldTestTransport();
+    fuelGuardApiTestEnqueueMany(3);
+
+    FuelGuardApi.trySync(true);
+    var firstEventId = FuelGuardApi.lastEventIdForTest();
+    if (firstEventId == null) {
+        return false;
+    }
+    FuelGuardApi.onResponse(201, {"result" => "ok"}, firstEventId as String);
+
+    var secondEventId = FuelGuardApi.lastEventIdForTest();
+    if (secondEventId == null) {
+        return false;
+    }
+    FuelGuardApi.onResponse(500, null, secondEventId as String);
+
+    var status = FuelGuardApi.syncStatusTextForTest();
+    return !FuelGuardApi.syncActiveForTest()
+        && FuelGuardQueue.pendingCount() == 2
+        && status != null
+        && (status as String).equals("2 logs still pending");
 }

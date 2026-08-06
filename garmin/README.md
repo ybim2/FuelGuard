@@ -133,7 +133,7 @@ Existing pending events are preserved when pairing, disconnecting or reconnectin
 1. Deploy Fuel Guard production from main with the zero-secret Garmin routes.
 2. Apply `supabase/fuel_logs.sql` and `supabase/garmin_zero_secret_auth.sql` to the linked Supabase project.
 3. Set the server-side Vercel variables: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `GARMIN_TOKEN_PEPPER`.
-4. Upload each 0.3.0 IQ package as a new version of its existing beta listing.
+4. Upload each 0.3.1 IQ package as a new version of its existing beta listing.
 5. Do not create new listings.
 6. Keep Apps for beta testing only enabled.
 7. Sync/update both apps on the Forerunner 255.

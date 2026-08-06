@@ -1,6 +1,7 @@
 import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.Time;
+import Toybox.WatchUi;
 
 class FuelGuardApiCallback {
     public function initialize() {
@@ -21,15 +22,23 @@ class FuelGuardTestRequestException extends Lang.Exception {
 
 module FuelGuardApi {
     const RETRY_INTERVAL_SECONDS = 45;
+    const SYNC_SUMMARY_SECONDS = 2;
 
     var _inFlight = false;
     var _lastAttempt = 0;
     var _callback = null;
+    var _batchActive = false;
+    var _batchStartCount = 0;
+    var _batchSyncedCount = 0;
+    var _batchFinishedAt = null;
+    var _batchFinishedSyncedCount = 0;
+    var _batchFinishedRemainingCount = 0;
 
     (:debug) var _testTransportEnabled = false;
     (:debug) var _testResponseCode = 201;
     (:debug) var _testResponseData = null;
     (:debug) var _testThrowOnRequest = false;
+    (:debug) var _testHoldResponse = false;
     (:debug) var _testDispatchCount = 0;
     (:debug) var _testLastEventId = null;
     (:debug) var _testLastLoggedAt = null;
@@ -57,7 +66,77 @@ module FuelGuardApi {
     }
 
     function savedSyncPendingText() as String {
-        return "SAVED - SYNC PENDING";
+        return "Saved pending";
+    }
+
+    function logWord(count as Number) as String {
+        return count == 1 ? "log" : "logs";
+    }
+
+    function beginBatch(pendingCount as Number) as Void {
+        if (_batchActive) {
+            return;
+        }
+        _batchActive = true;
+        _batchStartCount = pendingCount;
+        _batchSyncedCount = 0;
+        _batchFinishedAt = null;
+        _batchFinishedSyncedCount = 0;
+        _batchFinishedRemainingCount = 0;
+        WatchUi.requestUpdate();
+    }
+
+    function finishBatch() as Void {
+        if (!_batchActive) {
+            return;
+        }
+        _batchFinishedAt = Time.now().value();
+        _batchFinishedSyncedCount = _batchSyncedCount;
+        _batchFinishedRemainingCount = FuelGuardQueue.pendingCount();
+        _batchActive = false;
+        WatchUi.requestUpdate();
+    }
+
+    function clearSyncSummary() as Void {
+        _batchFinishedAt = null;
+        _batchFinishedSyncedCount = 0;
+        _batchFinishedRemainingCount = 0;
+    }
+
+    function clearExpiredSyncSummary() as Void {
+        if (_batchFinishedAt != null && Time.now().value() - (_batchFinishedAt as Number) >= SYNC_SUMMARY_SECONDS) {
+            clearSyncSummary();
+        }
+    }
+
+    function syncStatusText() as String? {
+        clearExpiredSyncSummary();
+        if (_batchActive) {
+            return Lang.format("Syncing $1$ $2$...", [_batchStartCount, logWord(_batchStartCount)]);
+        }
+        if (_batchFinishedAt != null) {
+            if (_batchFinishedRemainingCount > 0) {
+                return Lang.format("$1$ $2$ still pending", [_batchFinishedRemainingCount, logWord(_batchFinishedRemainingCount)]);
+            }
+            if (_batchFinishedSyncedCount > 1) {
+                return Lang.format("$1$ logs synced", [_batchFinishedSyncedCount]);
+            }
+            return "All synced";
+        }
+        var pendingCount = FuelGuardQueue.pendingCount();
+        if (pendingCount > 0) {
+            return Lang.format("$1$ pending", [pendingCount]);
+        }
+        return null;
+    }
+
+    function syncSummaryVisible() as Boolean {
+        clearExpiredSyncSummary();
+        return _batchFinishedAt != null;
+    }
+
+    function syncActive() as Boolean {
+        return _batchActive;
     }
 
     function responseCallback() as Method {
@@ -124,6 +203,9 @@ module FuelGuardApi {
             }
         }
 
+        if (_testHoldResponse) {
+            return;
+        }
         onResponse(_testResponseCode, _testResponseData, eventId);
     }
 
@@ -139,13 +221,16 @@ module FuelGuardApi {
 
         var event = FuelGuardQueue.peek();
         if (event == null) {
+            finishBatch();
             return;
         }
         var eventId = FuelGuardQueue.externalEventId(event);
         if (eventId == null) {
+            finishBatch();
             return;
         }
 
+        beginBatch(FuelGuardQueue.pendingCount());
         _inFlight = true;
         _lastAttempt = now;
 
@@ -153,6 +238,7 @@ module FuelGuardApi {
             dispatchRequest(event, eventId as String);
         } catch (e) {
             _inFlight = false;
+            finishBatch();
         }
     }
 
@@ -175,12 +261,18 @@ module FuelGuardApi {
 
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
-        if (responseAcknowledged(responseCode, data)) {
+        var acknowledged = responseAcknowledged(responseCode, data);
+        if (acknowledged) {
             if (context instanceof String) {
                 FuelGuardQueue.removeAcknowledged(context as String);
+                _batchSyncedCount += 1;
             }
         }
-        trySync(false);
+        if (acknowledged && FuelGuardQueue.pendingCount() > 0) {
+            trySync(true);
+        } else {
+            finishBatch();
+        }
     }
 
     (:debug)
@@ -189,6 +281,7 @@ module FuelGuardApi {
         _testResponseCode = 201;
         _testResponseData = null;
         _testThrowOnRequest = false;
+        _testHoldResponse = false;
         _testDispatchCount = 0;
         _testLastEventId = null;
         _testLastLoggedAt = null;
@@ -197,6 +290,12 @@ module FuelGuardApi {
         _testLastEndpoint = null;
         _inFlight = false;
         _lastAttempt = 0;
+        _batchActive = false;
+        _batchStartCount = 0;
+        _batchSyncedCount = 0;
+        _batchFinishedAt = null;
+        _batchFinishedSyncedCount = 0;
+        _batchFinishedRemainingCount = 0;
     }
 
     (:debug)
@@ -205,6 +304,7 @@ module FuelGuardApi {
         _testResponseCode = responseCode;
         _testResponseData = data;
         _testThrowOnRequest = throwOnRequest;
+        _testHoldResponse = false;
         _testDispatchCount = 0;
         _testLastEventId = null;
         _testLastLoggedAt = null;
@@ -213,6 +313,35 @@ module FuelGuardApi {
         _testLastEndpoint = null;
         _inFlight = false;
         _lastAttempt = 0;
+        _batchActive = false;
+        _batchStartCount = 0;
+        _batchSyncedCount = 0;
+        _batchFinishedAt = null;
+        _batchFinishedSyncedCount = 0;
+        _batchFinishedRemainingCount = 0;
+    }
+
+    (:debug)
+    function useHeldTestTransport() as Void {
+        _testTransportEnabled = true;
+        _testResponseCode = 201;
+        _testResponseData = {"result" => "ok"};
+        _testThrowOnRequest = false;
+        _testHoldResponse = true;
+        _testDispatchCount = 0;
+        _testLastEventId = null;
+        _testLastLoggedAt = null;
+        _testQueuedBeforeDispatch = false;
+        _testLastAuthorizationHeader = null;
+        _testLastEndpoint = null;
+        _inFlight = false;
+        _lastAttempt = 0;
+        _batchActive = false;
+        _batchStartCount = 0;
+        _batchSyncedCount = 0;
+        _batchFinishedAt = null;
+        _batchFinishedSyncedCount = 0;
+        _batchFinishedRemainingCount = 0;
     }
 
     (:debug)
@@ -238,6 +367,21 @@ module FuelGuardApi {
     (:debug)
     function inFlightForTest() as Boolean {
         return _inFlight;
+    }
+
+    (:debug)
+    function syncStatusTextForTest() as String? {
+        return syncStatusText();
+    }
+
+    (:debug)
+    function syncActiveForTest() as Boolean {
+        return syncActive();
+    }
+
+    (:debug)
+    function batchStartCountForTest() as Number {
+        return _batchStartCount;
     }
 
     (:debug)
