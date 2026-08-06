@@ -12,7 +12,7 @@ The current app no longer ships the old parked sections. Historical MVP notes li
 
 ## Supabase setup
 
-Run `supabase/fuel_logs.sql`, `supabase/fuel_targets.sql`, `supabase/fuel_demand_planning.sql`, and `supabase/garmin_zero_secret_auth.sql` in the Supabase project to create the cloud log, target, demand-planning, and Garmin pairing tables, grants, RLS, and owner-only policies.
+Run `supabase/fuel_logs.sql`, `supabase/fuel_targets.sql`, `supabase/fuel_demand_planning.sql`, `supabase/garmin_zero_secret_auth.sql`, and `supabase/garmin_health_snapshots.sql` in the Supabase project to create the cloud log, target, demand-planning, Garmin pairing, and opt-in Garmin health-pattern tables, grants, RLS, and owner-only policies.
 
 `supabase/fuel_logs.sql` also enables Garmin idempotency by adding `external_event_id`, allowing the `garmin` source, and adding a unique partial index for Garmin event IDs.
 
@@ -32,5 +32,7 @@ For Garmin beta logging and account pairing, set these Vercel server-side variab
 - `GARMIN_TOKEN_PEPPER`
 
 Generate `GARMIN_TOKEN_PEPPER` as a high-entropy server-only secret. It is used to HMAC-hash Garmin device tokens before storage. Do not expose `SUPABASE_SECRET_KEY`, `GARMIN_TOKEN_PEPPER`, or any service-role/secret key in Garmin source, frontend JavaScript, public config, HTML or service workers. See `garmin/README.md` for SDK setup, Forerunner 255 limitations and build instructions.
+
+The opt-in Garmin health-pattern layer uses `/api/garmin/health` with the same paired device-token authentication as Garmin logging. It stores only Connect IQ-local watch samples and derived daily features; it does not use Garmin Health API, Garmin Activity API cloud access, sleep, HRV Status, Training Readiness or Recovery Time data.
 
 Supabase's built-in email sender has very low testing limits and is not intended for beta or production auth email volume. Before wider testing, configure a custom SMTP provider in Supabase Auth settings so sign-up confirmation and password reset emails are not constrained by the default sender's tight limits.

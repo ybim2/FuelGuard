@@ -73,4 +73,13 @@ module FuelGuardEvents {
         var value = Storage.getValue(LAST_FUEL_KEY);
         return value instanceof Number ? value as Number : null;
     }
+
+    (:debug)
+    function setLastFuelSecondsForTest(seconds as Number?) as Void {
+        if (seconds == null) {
+            Storage.deleteValue(LAST_FUEL_KEY);
+        } else {
+            Storage.setValue(LAST_FUEL_KEY, seconds as Number);
+        }
+    }
 }

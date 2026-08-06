@@ -1,4 +1,5 @@
 import Toybox.Lang;
+import Toybox.Application.Properties;
 import Toybox.Test;
 
 (:debug)
@@ -8,6 +9,39 @@ function fuelGuardQuickReset(responseCode as Number, data as Dictionary or Strin
     FuelGuardConnection.setConnectedForTest("device-token-test");
     FuelGuardApi.resetForTest();
     FuelGuardApi.useTestTransport(responseCode, data, false);
+    FuelGuardHealthApi.resetForTest();
+    try {
+        Properties.setValue("shareHealthPatterns", false);
+        Properties.setValue("clearHealthPatterns", false);
+    } catch (e) {
+    }
+}
+
+(:debug)
+function fuelGuardQuickHealthReset(responseCode as Number, data as Dictionary or String or Null, throwOnRequest as Boolean) as Void {
+    fuelGuardQuickReset(500, null);
+    FuelGuardHealthApi.resetForTest();
+    FuelGuardHealthApi.useTestTransport(responseCode, data, throwOnRequest);
+    try {
+        Properties.setValue("shareHealthPatterns", true);
+        Properties.setValue("clearHealthPatterns", false);
+    } catch (e) {
+    }
+}
+
+(:debug)
+function fuelGuardQuickHealthSnapshot(id as String) as Dictionary {
+    return {
+        "schema_version" => 1,
+        "snapshot_external_id" => id,
+        "device_id" => FuelGuardEvents.DEVICE_ID,
+        "collected_at" => "2026-08-06T10:00:00Z",
+        "capabilities" => {"heart_rate_history" => true},
+        "heart_rate_samples" => [],
+        "stress_samples" => [],
+        "body_battery_samples" => [],
+        "activity_summaries" => []
+    };
 }
 
 (:debug)
@@ -103,27 +137,27 @@ function testFuelGuardQuickLogNavigationAndDelegateMovement(logger) as Boolean {
     var view = new FuelGuardQuickLogView();
     var delegate = new FuelGuardQuickLogDelegate(view);
 
-    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Fuel")) {
+    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Log fuel")) {
         return false;
     }
 
     view.move(1);
-    if (!fuelGuardQuickAssertSelection(view, 1, FuelGuardEvents.TYPE_HYDRATION, "Hydration")) {
+    if (!fuelGuardQuickAssertSelection(view, 1, FuelGuardEvents.TYPE_HYDRATION, "Hydrate")) {
         return false;
     }
 
     delegate.onNextPage();
-    if (!fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + Water")) {
+    if (!fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + water")) {
         return false;
     }
 
     view.move(1);
-    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Fuel")) {
+    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Log fuel")) {
         return false;
     }
 
     delegate.onPreviousPage();
-    return fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + Water");
+    return fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + water");
 }
 
 (:test)
@@ -249,4 +283,103 @@ function testFuelGuardQuickLogPairingPreservesPendingEventWhenUploadFails(logger
         && (FuelGuardApi.lastEventIdForTest() as String).equals(eventId as String)
         && FuelGuardApi.lastLoggedAtForTest() != null
         && (FuelGuardApi.lastLoggedAtForTest() as String).equals(loggedAt as String);
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceShowsRecentLocalFuel(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(FuelGuardEvents.nowSeconds() - ((2 * 60 * 60) + (37 * 60)));
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.metricForTest().equals("2h 37m")
+        && glance.labelForTest().equals("since fuel")
+        && glance.pendingTextForTest() == null;
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceShowsNoLogFallback(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(null);
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.metricForTest().equals("Ready")
+        && glance.labelForTest().equals("to log")
+        && glance.pendingTextForTest() == null;
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceShowsPendingIndicator(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(null);
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL));
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.pendingTextForTest() != null
+        && (glance.pendingTextForTest() as String).equals("1 pending");
+}
+
+(:test)
+function testFuelGuardQuickHealthQueueIsBoundedAndDeduped(logger) as Boolean {
+    fuelGuardQuickHealthReset(200, {"result" => "ok"}, false);
+
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-1"));
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-1"));
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-2"));
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-3"));
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-4"));
+
+    var first = FuelGuardHealthQueue.peek();
+    return FuelGuardHealthQueue.pendingCount() == 3
+        && first != null
+        && FuelGuardHealthQueue.snapshotId(first as Dictionary) != null
+        && (FuelGuardHealthQueue.snapshotId(first as Dictionary) as String).equals("health-2");
+}
+
+(:test)
+function testFuelGuardQuickHealthWaitsForFuelQueue(logger) as Boolean {
+    fuelGuardQuickHealthReset(200, {"result" => "ok"}, false);
+
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL));
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-waits"));
+    FuelGuardHealthApi.trySync(true);
+
+    return FuelGuardHealthApi.dispatchCountForTest() == 0
+        && FuelGuardHealthQueue.pendingCount() == 1
+        && FuelGuardQueue.pendingCount() == 1;
+}
+
+(:test)
+function testFuelGuardQuickHealthSuccessRemovesOnlyAcknowledgedSnapshot(logger) as Boolean {
+    fuelGuardQuickHealthReset(200, {"result" => "ok"}, false);
+
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-first"));
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-second"));
+    FuelGuardHealthApi.trySync(true);
+
+    var remaining = FuelGuardHealthQueue.peek();
+    return FuelGuardHealthApi.dispatchCountForTest() == 1
+        && FuelGuardHealthApi.lastSnapshotIdForTest() != null
+        && (FuelGuardHealthApi.lastSnapshotIdForTest() as String).equals("health-first")
+        && FuelGuardHealthQueue.pendingCount() == 1
+        && remaining != null
+        && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-second");
+}
+
+(:test)
+function testFuelGuardQuickHealthFailedUploadStaysQueued(logger) as Boolean {
+    fuelGuardQuickHealthReset(500, null, false);
+
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-failed"));
+    FuelGuardHealthApi.trySync(true);
+
+    var remaining = FuelGuardHealthQueue.peek();
+    return FuelGuardHealthApi.dispatchCountForTest() == 1
+        && FuelGuardHealthQueue.pendingCount() == 1
+        && remaining != null
+        && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-failed");
 }

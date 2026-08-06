@@ -547,6 +547,16 @@ module.exports = {
   exchangeAuthHandler,
   devicesHandler,
   revokeDeviceHandler,
+  authenticatedDevice,
+  boundedString,
+  duplicateSupabaseError,
+  envReady,
+  getUserFromBearer,
+  jsonResponse,
+  methodNotAllowed,
+  parseTimestamp,
+  readBody,
+  supabaseRequest,
   _test: {
     ALLOWED_APPS,
     GARMIN_DEVICE_NOTE_PREFIX,
@@ -559,6 +569,14 @@ module.exports = {
     getUserFromBearer,
     exchangeAuthCode,
     insertGarminLog,
-    findDeviceToken
+    findDeviceToken,
+    authenticatedDevice,
+    boundedString,
+    duplicateSupabaseError,
+    jsonResponse,
+    methodNotAllowed,
+    parseTimestamp,
+    readBody,
+    supabaseRequest
   }
 };

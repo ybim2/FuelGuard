@@ -15,7 +15,7 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v83-garmin-capture
+Canonical app: mobile-pwa-v85-garmin-health-patterns
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
@@ -135,7 +135,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v83-garmin-capture`.
+The current canonical version is `mobile-pwa-v85-garmin-health-patterns`.
 
 ## Future frontend changes
 

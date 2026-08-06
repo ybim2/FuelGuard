@@ -45,6 +45,11 @@ class GarminQueueHarness {
     this.inFlight = false;
     this.sent = [];
     this.outcomes = [];
+    this.batchActive = false;
+    this.batchStartCount = 0;
+    this.batchSyncedCount = 0;
+    this.finishedSyncedCount = 0;
+    this.finishedRemainingCount = 0;
   }
 
   nextEvent(type = "fuel", timestamp = 1000) {
@@ -64,8 +69,21 @@ class GarminQueueHarness {
     return event;
   }
 
+  enqueueOnly(type = "fuel", timestamp = 1000) {
+    const event = this.nextEvent(type, timestamp);
+    this.queue.push(event);
+    return event;
+  }
+
   syncNext() {
     if (this.inFlight || !this.queue.length) return;
+    if (!this.batchActive) {
+      this.batchActive = true;
+      this.batchStartCount = this.queue.length;
+      this.batchSyncedCount = 0;
+      this.finishedSyncedCount = 0;
+      this.finishedRemainingCount = 0;
+    }
     const event = this.queue[0];
     this.inFlight = true;
     this.sent.push(event);
@@ -76,8 +94,24 @@ class GarminQueueHarness {
     this.inFlight = false;
     if (ok || duplicate) {
       this.queue = this.queue.filter(item => item.external_event_id !== event.external_event_id);
+      this.batchSyncedCount += 1;
     }
-    this.syncNext();
+    if ((ok || duplicate) && this.queue.length > 0) {
+      this.syncNext();
+    } else {
+      this.finishedSyncedCount = this.batchSyncedCount;
+      this.finishedRemainingCount = this.queue.length;
+      this.batchActive = false;
+    }
+  }
+
+  statusText() {
+    if (this.batchActive) return `Syncing ${this.batchStartCount} logs...`;
+    if (this.finishedRemainingCount > 0) return `${this.finishedRemainingCount} logs still pending`;
+    if (this.finishedSyncedCount > 1) return `${this.finishedSyncedCount} logs synced`;
+    if (this.finishedSyncedCount === 1) return "All synced";
+    if (this.queue.length > 0) return `${this.queue.length} pending`;
+    return null;
   }
 }
 
@@ -163,6 +197,7 @@ test("Garmin queue retains failed uploads and reuses the stable event ID", () =>
   const harness = new GarminQueueHarness();
   const event = harness.record("fuel", 1000);
   harness.finish({ ok: false });
+  harness.syncNext();
 
   assert.deepEqual(harness.queue[0], event);
   assert.equal(harness.sent[0].external_event_id, event.external_event_id);
@@ -270,6 +305,64 @@ test("Garmin queue sends multiple pending events serially", () => {
   assert.equal(harness.sent.length, 3);
   harness.finish({ ok: true });
   assert.equal(harness.queue.length, 0);
+});
+
+test("Garmin batch sync presentation keeps one stable visible count", () => {
+  const harness = new GarminQueueHarness();
+  harness.enqueueOnly("fuel", 1000);
+  harness.enqueueOnly("hydration", 1001);
+  harness.enqueueOnly("fuel_hydration", 1002);
+  harness.enqueueOnly("fuel", 1003);
+  harness.enqueueOnly("hydration", 1004);
+  harness.syncNext();
+
+  assert.equal(harness.statusText(), "Syncing 5 logs...");
+  harness.finish({ ok: true });
+  assert.equal(harness.queue.length, 4);
+  assert.equal(harness.statusText(), "Syncing 5 logs...");
+  assert.notEqual(harness.statusText(), "4 pending");
+});
+
+test("Garmin batch sync presentation shows final success summary", () => {
+  const harness = new GarminQueueHarness();
+  harness.enqueueOnly("fuel", 1000);
+  harness.enqueueOnly("hydration", 1001);
+  harness.enqueueOnly("fuel_hydration", 1002);
+  harness.syncNext();
+
+  harness.finish({ ok: true });
+  harness.finish({ ok: true });
+  harness.finish({ duplicate: true });
+
+  assert.equal(harness.queue.length, 0);
+  assert.equal(harness.statusText(), "3 logs synced");
+});
+
+test("Garmin batch sync presentation shows partial failure summary and keeps events", () => {
+  const harness = new GarminQueueHarness();
+  harness.enqueueOnly("fuel", 1000);
+  harness.enqueueOnly("hydration", 1001);
+  harness.enqueueOnly("fuel_hydration", 1002);
+  harness.syncNext();
+
+  harness.finish({ ok: true });
+  harness.finish({ ok: false });
+
+  assert.equal(harness.queue.length, 2);
+  assert.equal(harness.statusText(), "2 logs still pending");
+});
+
+test("Garmin batch sync presentation handles longest expected pending values", () => {
+  const harness = new GarminQueueHarness();
+  for (let i = 0; i < 99; i += 1) {
+    harness.enqueueOnly("fuel", 2000 + i);
+  }
+  harness.syncNext();
+
+  assert.equal(harness.statusText(), "Syncing 99 logs...");
+  harness.finish({ ok: false });
+  assert.equal(harness.queue.length, 99);
+  assert.equal(harness.statusText(), "99 logs still pending");
 });
 
 test("Garmin manifests define two separate fr255 apps", () => {
@@ -433,7 +526,7 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(apiSource, /FuelGuardQueue\.removeAcknowledged\(context as String\)/);
   assert.match(apiSource, /function sendWebRequest\(event as Dictionary, eventId as String\) as Void \{[\s\S]*Communications\.makeWebRequest/);
   assert.match(apiSource, /try \{\s*dispatchRequest\(event, eventId as String\);/s);
-  assert.match(apiSource, /catch \(e\) \{\s*_inFlight = false;/s);
+  assert.match(apiSource, /catch \(e\) \{\s*_inFlight = false;\s*finishBatch\(\);/s);
   assert.match(apiSource, /\(:release\)\s*function dispatchRequest/);
   assert.match(apiSource, /\(:debug\)\s*function dispatchRequest/);
   assert.match(apiSource, /\(:debug\)\s*function useTestTransport/);
@@ -442,6 +535,9 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(apiSource, /FuelGuardConnection\.connected\(\)/);
   assert.match(apiSource, /FuelGuardConnection\.logEndpoint\(\)/);
   assert.match(apiSource, /"Authorization" => "Bearer " \+ deviceToken/);
+  assert.match(apiSource, /beginBatch\(FuelGuardQueue\.pendingCount\(\)\)/);
+  assert.match(apiSource, /Syncing \$1\$ \$2\$\.\.\./);
+  assert.match(apiSource, /trySync\(true\);/);
   assert.doesNotMatch(apiSource, /VERCEL_BYPASS_PROPERTY/);
   assert.doesNotMatch(apiSource, /x-vercel-protection-bypass/);
   assert.match(queueSource, /function externalEventId\(event as Object\) as String\?/);
@@ -451,15 +547,30 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(queueSource, /!\(itemId as String\)\.equals\(eventId\)/);
 });
 
-test("Quick Log glance and app startup avoid lifecycle network sync", () => {
+test("Quick Log glance shows local fuel status without lifecycle network sync", () => {
   const appSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogGlance.mc");
   const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
 
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
-  assert.doesNotMatch(glanceSource, /FuelGuardQueue\.pendingCount/);
-  assert.doesNotMatch(glanceSource, /FuelGuardFeedback\.elapsedFuelText/);
+  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric\(\)/);
+  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelLabel\(\)/);
+  assert.match(glanceSource, /FuelGuardQueue\.pendingCount\(\)/);
+  assert.match(glanceSource, /getTextWidthInPixels/);
+  assert.doesNotMatch(glanceSource, /Open to log/);
+});
+
+test("Quick Log wearable copy uses short safe labels", () => {
+  const source = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+
+  assert.match(source, /Press START/);
+  assert.match(source, /Log fuel/);
+  assert.match(source, /Hydrate/);
+  assert.match(source, /Fuel \+ water/);
+  assert.match(source, /getTextWidthInPixels/);
+  assert.doesNotMatch(source, /ENTER logs/);
+  assert.doesNotMatch(source, /Pending \$1\$  ENTER logs/);
 });
 
 test("Garmin settings remove all manual endpoint, token and bypass fields", () => {
@@ -510,4 +621,61 @@ test("Garmin docs prominently warn that Auto Lap must be disabled", () => {
 
   assert.match(readme, /Disable Auto Lap/i);
   assert.match(activityReadme, /Auto Lap must be disabled/i);
+});
+
+test("Quick Log health sharing is opt-in and Activity Logger stays fuel-only", () => {
+  const quickManifest = readRepoFile("garmin/quick-log/manifest.xml");
+  const quickBetaManifest = readRepoFile("garmin/quick-log/manifest.beta.xml");
+  const activityManifest = readRepoFile("garmin/activity-logger/manifest.xml");
+  const quickProperties = readRepoFile("garmin/quick-log/resources/properties.xml");
+  const quickStrings = readRepoFile("garmin/quick-log/resources/strings.xml");
+
+  assert.match(quickManifest, /id="SensorHistory"/);
+  assert.match(quickManifest, /id="UserProfile"/);
+  assert.match(quickBetaManifest, /id="SensorHistory"/);
+  assert.match(quickBetaManifest, /id="UserProfile"/);
+  assert.doesNotMatch(activityManifest, /id="SensorHistory"/);
+  assert.doesNotMatch(activityManifest, /id="UserProfile"/);
+  assert.match(quickProperties, /property id="shareHealthPatterns" type="boolean">false<\/property>/);
+  assert.match(quickProperties, /property id="clearHealthPatterns" type="boolean">false<\/property>/);
+  assert.match(quickStrings, /Share Garmin health patterns with Fuel Guard/);
+});
+
+test("Quick Log health collector uses runtime detection and avoids sensitive profile fields", () => {
+  const collector = readRepoFile("garmin/quick-log/source/FuelGuardHealthCollector.mc");
+
+  assert.match(collector, /Toybox has :SensorHistory/);
+  assert.match(collector, /SensorHistory has :getHeartRateHistory/);
+  assert.match(collector, /SensorHistory has :getStressHistory/);
+  assert.match(collector, /SensorHistory has :getBodyBatteryHistory/);
+  assert.match(collector, /Toybox has :UserProfile/);
+  assert.match(collector, /UserProfile has :getProfile/);
+  assert.match(collector, /UserProfile has :getUserActivityHistory/);
+  assert.match(collector, /restingHeartRate/);
+  assert.match(collector, /averageRestingHeartRate/);
+  assert.doesNotMatch(collector, /\.gender\b/);
+  assert.doesNotMatch(collector, /\.birthYear\b/);
+  assert.doesNotMatch(collector, /\.height\b/);
+  assert.doesNotMatch(collector, /\.weight\b/);
+  assert.doesNotMatch(collector, /sleepTime|upcomingSleepTime|upcomingWakeTime/);
+  assert.doesNotMatch(collector, /TrainingReadiness|RecoveryTime|HRV|hrv/i);
+});
+
+test("Quick Log health queue is separate, bounded, and lower priority than fuel logs", () => {
+  const queue = readRepoFile("garmin/quick-log/source/FuelGuardHealthQueue.mc");
+  const api = readRepoFile("garmin/quick-log/source/FuelGuardHealthApi.mc");
+  const connection = readRepoFile("garmin/shared/source/FuelGuardConnection.mc");
+  const view = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+
+  assert.match(queue, /QUEUE_KEY = "fg_pending_health_snapshots"/);
+  assert.match(queue, /MAX_QUEUE_SIZE = 3/);
+  assert.match(queue, /function removeAcknowledged\(id as String\)/);
+  assert.match(api, /if \(FuelGuardQueue\.pendingCount\(\) > 0\)/);
+  assert.match(api, /FuelGuardHealthQueue\.peek\(\)/);
+  assert.match(api, /FuelGuardHealthQueue\.removeAcknowledged\(context as String\)/);
+  assert.match(connection, /HEALTH_PATH = "\/api\/garmin\/health"/);
+  assert.match(connection, /function healthEndpoint\(\) as String/);
+  assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("open"\)/);
+  assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("fuel_log"\)/);
+  assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("refresh"\)/);
 });

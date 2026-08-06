@@ -300,7 +300,7 @@
 
         <section aria-labelledby="garmin-info">
           <h2 id="garmin-info">Information collected through the Garmin apps</h2>
-          <p>The private beta Garmin apps may transmit these fields to the Fuel Guard endpoint:</p>
+          <p>The private beta Garmin apps may transmit these fuel-log fields to the Fuel Guard endpoint:</p>
           <ul>
             <li>Fuel, hydration or fuel-plus-hydration event type.</li>
             <li>Timestamp for the event.</li>
@@ -309,12 +309,13 @@
             <li>Stable external event ID used for retries and duplicate prevention.</li>
             <li>The Fuel Guard account identifier assigned server-side for the private beta account.</li>
           </ul>
-          <p>App-setting credentials authenticate the request. They are not stored as fuel-log database fields.</p>
+          <p>If you explicitly enable Garmin health-pattern sharing in Quick Log settings, Fuel Guard may also receive bounded recent Connect IQ-local watch samples, where the device supports them: heart-rate history, stress history, Body Battery history, Garmin resting-heart-rate values, average resting-heart-rate values and high-level recent activity summaries such as activity type, start time, duration and distance. Availability varies by Garmin device.</p>
+          <p>Pairing/device-token credentials authenticate the request. They are not stored as fuel-log database fields.</p>
         </section>
 
         <section aria-labelledby="garmin-not-collected">
           <h2 id="garmin-not-collected">Information not collected by the Garmin apps</h2>
-          <p>Based on the private beta source code, the Garmin apps do not intentionally transmit GPS routes, precise location, heart-rate data, body weight, passwords, calorie totals or detailed descriptions of food.</p>
+          <p>Based on the private beta source code, the Garmin apps do not intentionally transmit GPS routes, precise location, raw beat-to-beat intervals, sleep stages, sleep score, HRV Status, Training Readiness, Recovery Time, gender, birth year, height, body weight, passwords, email addresses from the watch, calorie totals, macros, food weights or detailed descriptions of food.</p>
         </section>
 
         <section aria-labelledby="use-info">
@@ -324,6 +325,7 @@
             <li>Create and secure your account.</li>
             <li>Save and sync your logs across devices.</li>
             <li>Show history, trends, planning prompts and timing insights based on your own records.</li>
+            <li>Show optional Garmin pattern insights when you have enabled health-pattern sharing on the watch.</li>
             <li>Keep the app usable when network access is unavailable.</li>
             <li>Prevent duplicate Garmin beta events when retries happen.</li>
             <li>Respond to privacy, deletion or support requests.</li>
@@ -333,7 +335,7 @@
         <section aria-labelledby="auth-security">
           <h2 id="auth-security">Authentication and security credentials</h2>
           <p>Web account sign-up, login, password reset and session handling are managed through Supabase Auth. Fuel Guard's browser code uses the public Supabase anon or publishable key, not a Supabase service-role key.</p>
-          <p>The Garmin beta uses an API endpoint plus a beta bearer token. Server-side credentials such as the Supabase secret key are used only by the backend endpoint and must not be placed in browser code, Garmin code or public files.</p>
+          <p>The Garmin beta uses short-lived pairing plus revocable device tokens. Server-side credentials such as the Supabase secret key are used only by the backend endpoint and must not be placed in browser code, Garmin code or public files.</p>
         </section>
 
         <section aria-labelledby="lawful-purposes">
@@ -370,7 +372,7 @@
 
         <section aria-labelledby="retention">
           <h2 id="retention">Data retention</h2>
-          <p>Fuel Guard keeps account-backed logs, targets and planning data while your account is active or until you delete entries, clear supported local data, or ask for account and associated-data deletion. Local browser cache may remain on a device until you clear app data, browser storage or the app's local data controls.</p>
+          <p>Fuel Guard keeps account-backed logs, targets, planning data and optional Garmin health-pattern samples while your account is active or until you delete entries, clear supported local data, disable/clear supported watch sharing, or ask for account and associated-data deletion. Local browser cache may remain on a device until you clear app data, browser storage or the app's local data controls.</p>
         </section>
 
         <section aria-labelledby="security">

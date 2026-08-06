@@ -13,6 +13,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
     private var _confirmStartedAt as Number?;
     private var _confirmType as String = FuelGuardEvents.TYPE_FUEL;
     private var _confirmationTimer as Timer.Timer?;
+    private var _syncStatusTimer as Timer.Timer?;
 
     public function initialize() {
         View.initialize();
@@ -23,11 +24,13 @@ class FuelGuardQuickLogView extends WatchUi.View {
         FuelGuardConnection.registerForOAuthMessages();
         if (FuelGuardConnection.connected()) {
             FuelGuardApi.trySync(true);
+            FuelGuardHealth.maybeCollectAndSync("open");
         }
     }
 
     public function onHide() as Void {
         cancelConfirmationTimer();
+        cancelSyncStatusTimer();
     }
 
     public function move(delta as Number) as Void {
@@ -57,6 +60,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
         _confirmType = eventType;
         FuelGuardFeedback.vibrate();
         FuelGuardApi.trySync(true);
+        FuelGuardHealth.maybeCollectAndSync("fuel_log");
         startConfirmationTimer();
         WatchUi.requestUpdate();
     }
@@ -105,6 +109,13 @@ class FuelGuardQuickLogView extends WatchUi.View {
         }
     }
 
+    private function cancelSyncStatusTimer() as Void {
+        if (_syncStatusTimer != null) {
+            (_syncStatusTimer as Timer.Timer).stop();
+            _syncStatusTimer = null;
+        }
+    }
+
     private function startConfirmationTimer() as Void {
         cancelConfirmationTimer();
         if (Timer has :Timer) {
@@ -119,18 +130,73 @@ class FuelGuardQuickLogView extends WatchUi.View {
         WatchUi.requestUpdate();
     }
 
+    public function finishSyncStatus() as Void {
+        FuelGuardApi.clearSyncSummary();
+        cancelSyncStatusTimer();
+        WatchUi.requestUpdate();
+    }
+
+    private function updateSyncStatusTimer() as Void {
+        if (FuelGuardApi.syncSummaryVisible()) {
+            if (_syncStatusTimer == null && Timer has :Timer) {
+                _syncStatusTimer = new Timer.Timer();
+                (_syncStatusTimer as Timer.Timer).start(method(:finishSyncStatus), FuelGuardApi.SYNC_SUMMARY_SECONDS * 1000, false);
+            }
+        } else if (!FuelGuardApi.syncActive()) {
+            cancelSyncStatusTimer();
+        }
+    }
+
     private function selectedRowCount() as Number {
         return 1;
     }
 
     private function labelForSelection(index as Number) as String {
         if (index == ACTION_HYDRATION) {
-            return "Hydration";
+            return "Hydrate";
         }
         if (index == ACTION_FUEL_HYDRATION) {
-            return "Fuel + Water";
+            return "Fuel + water";
         }
-        return "Fuel";
+        return "Log fuel";
+    }
+
+    private function contentWidth(dc as Graphics.Dc) as Number {
+        var width = dc.getWidth() - 56;
+        if (width < 120) {
+            return dc.getWidth() - 36;
+        }
+        return width;
+    }
+
+    private function fitText(dc as Graphics.Dc, text as String, font) as String {
+        var maxWidth = contentWidth(dc);
+        if (dc.getTextWidthInPixels(text, font) <= maxWidth) {
+            return text;
+        }
+        var suffix = "...";
+        var keep = text.length();
+        while (keep > 0) {
+            var candidate = text.substring(0, keep) + suffix;
+            if (dc.getTextWidthInPixels(candidate, font) <= maxWidth) {
+                return candidate;
+            }
+            keep -= 1;
+        }
+        return "";
+    }
+
+    private function drawCenter(dc as Graphics.Dc, y as Number, font, text as String, color) as Void {
+        dc.setColor(color, Graphics.COLOR_BLACK);
+        dc.drawText(dc.getWidth() / 2, y, font, fitText(dc, text, font), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+    }
+
+    private function pendingText() as String? {
+        var status = FuelGuardApi.syncStatusText();
+        if (status != null) {
+            return status as String;
+        }
+        return null;
     }
 
     private function typeForSelection(index as Number) as String {
@@ -146,6 +212,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
     public function onUpdate(dc as Graphics.Dc) as Void {
         if (FuelGuardConnection.connected()) {
             FuelGuardApi.trySync(false);
+            FuelGuardHealth.maybeCollectAndSync("refresh");
         }
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
@@ -154,53 +221,60 @@ class FuelGuardQuickLogView extends WatchUi.View {
         var width = dc.getWidth();
         var height = dc.getHeight();
         var center = width / 2;
+        var syncText = pendingText();
 
         if (!FuelGuardConnection.connected()) {
-            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-            dc.drawText(center, 22, Graphics.FONT_SMALL, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-            dc.drawText(center, height / 2 - 24, Graphics.FONT_XTINY, "Connect Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            dc.drawText(center, height / 2 + 4, Graphics.FONT_XTINY, "ENTER to connect", Graphics.TEXT_JUSTIFY_CENTER);
-            dc.drawText(center, height - 32, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+            drawCenter(dc, 28, Graphics.FONT_SMALL, "Fuel Guard", Graphics.COLOR_GREEN);
+            drawCenter(dc, height / 2 - 14, Graphics.FONT_XTINY, "Connect", Graphics.COLOR_WHITE);
+            drawCenter(dc, height / 2 + 14, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
+            if (syncText != null) {
+                drawCenter(dc, height - 34, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
+            }
+            updateSyncStatusTimer();
             return;
         }
 
         if (confirming()) {
-            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-            dc.drawText(center, height / 2 - 36, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationFirstLine(_confirmType), Graphics.TEXT_JUSTIFY_CENTER);
-            dc.drawText(center, height / 2 - 6, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationSecondLine(_confirmType), Graphics.TEXT_JUSTIFY_CENTER);
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            dc.drawText(center, height / 2 + 36, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+            drawCenter(dc, height / 2 - 28, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationFirstLine(_confirmType), Graphics.COLOR_GREEN);
+            drawCenter(dc, height / 2 + 2, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationSecondLine(_confirmType), Graphics.COLOR_GREEN);
+            if (syncText != null) {
+                drawCenter(dc, height / 2 + 42, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
+            }
+            updateSyncStatusTimer();
             return;
         }
 
-        dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-        dc.drawText(center, 22, Graphics.FONT_SMALL, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(center, 48, Graphics.FONT_XTINY, "Connected", Graphics.TEXT_JUSTIFY_CENTER);
-        dc.drawText(center, 68, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);
+        drawCenter(dc, 24, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
+        drawCenter(dc, 58, Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelMetric(), Graphics.COLOR_WHITE);
+        drawCenter(dc, 84, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelLabel(), Graphics.COLOR_LT_GRAY);
 
-        var rowWidth = width - 64;
+        var rowWidth = width - 92;
+        if (rowWidth < 132) {
+            rowWidth = width - 68;
+        }
         var rowLeft = (width - rowWidth) / 2;
-        var firstRowY = 100;
-        var rowGap = 36;
-        var rowHeight = 28;
+        var firstRowY = 120;
+        var rowGap = 32;
+        var rowHeight = 26;
         for (var i = 0; i < ACTION_COUNT; i++) {
             var y = firstRowY + (i * rowGap);
             var selected = i == _selection;
             if (selected) {
                 dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-                dc.fillRectangle(rowLeft, y - 15, rowWidth, rowHeight);
+                dc.fillRectangle(rowLeft, y - (rowHeight / 2), rowWidth, rowHeight);
                 dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_GREEN);
             } else {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
             }
-            dc.drawText(center, y - 8, Graphics.FONT_XTINY, labelForSelection(i), Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(center, y, Graphics.FONT_XTINY, fitText(dc, labelForSelection(i), Graphics.FONT_XTINY), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(center, height - 32, Graphics.FONT_XTINY, Lang.format("Pending $1$  ENTER logs", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+        if (syncText != null) {
+            drawCenter(dc, height - 34, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
+        } else {
+            drawCenter(dc, height - 34, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
+        }
+        updateSyncStatusTimer();
     }
 }
 
