@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v85-garmin-health-patterns";
-const BUILD_VERSION = "2026-08-06T16:00:00Z";
+const APP_VERSION = "mobile-pwa-v86-share-ready-daily-experience";
+const BUILD_VERSION = "2026-08-06T19:45:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v85-garmin-health-patterns-20260806T160000Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v86-share-ready-daily-experience-20260806T194500Z";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -358,12 +358,24 @@ test("Garmin patterns response includes the latest device capabilities", async (
         resting_heart_rate: true
       }
     });
+    fake.tables.garmin_daily_features.push({
+      user_id: USER_ID,
+      local_date: "2026-08-05",
+      source: health._test.SOURCE,
+      morning_median_heart_rate: 52,
+      afternoon_median_stress: 41,
+      body_battery_daytime_change: -18,
+      activity_count: 1
+    });
 
     const response = await call(health.garminPatternsHandler, { method: "GET", token: "user-token" });
     assert.equal(response.statusCode, 200);
     assert.equal(response.json.capabilities.device_id, "fr255");
     assert.equal(response.json.capabilities.capabilities.heart_rate_history, true);
     assert.equal(response.json.capabilities.capabilities.body_battery_history, false);
+    assert.equal(response.json.features_count, 1);
+    assert.equal(response.json.features.length, 1);
+    assert.equal(response.json.features[0].local_date, "2026-08-05");
   });
 });
 

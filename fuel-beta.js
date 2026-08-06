@@ -177,6 +177,10 @@
   let missedLogEditingId = "";
   let missedLogStatus = "";
   let missedLogBusy = false;
+  let todayTimelineExpanded = false;
+  let selectedTodayTimelineLogId = "";
+  let quickLogConfirmation = "";
+  let quickLogConfirmationTimer = 0;
   let demandPlannerStatus = "";
   let garminPatternsState = {
     loaded: false,
@@ -1908,6 +1912,21 @@
     };
   };
 
+  function setQuickLogConfirmation(type = "fuel", date = new Date()) {
+    const label = type === "hydration"
+      ? "Hydration logged"
+      : type === "fuel_hydration"
+        ? "Fuel + hydration logged"
+        : "Fuel logged";
+    quickLogConfirmation = `${label} · ${formatClock(date)}`;
+    if (quickLogConfirmationTimer && typeof clearTimeout === "function") clearTimeout(quickLogConfirmationTimer);
+    quickLogConfirmationTimer = typeof setTimeout === "function" ? setTimeout(() => {
+      quickLogConfirmation = "";
+      quickLogConfirmationTimer = 0;
+      renderFuelGap();
+    }, 3500) : 0;
+  }
+
   function recordRhythmLog(type = "fuel", options = {}) {
     const normalizedType = ["fuel", "hydration", "fuel_hydration"].includes(type) ? type : "fuel";
     const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
@@ -1958,6 +1977,7 @@
     } else if (typeof addActivityEntry === "function") {
       addActivityEntry(normalizedType === "hydration" ? "hydrationLogged" : "fuelLogged", normalizedType === "hydration" ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
     }
+    setQuickLogConfirmation(normalizedType, loggedAt);
     save();
     renderAll();
     window.fuelGuardCloud?.saveLog(log);
@@ -1994,7 +2014,7 @@
     const panel = document.getElementById("missedLogPanel");
     const button = document.getElementById("showMissedLogButton");
     if (panel) panel.hidden = !open;
-    if (button) button.textContent = open ? "Editing missed log" : "Add missed log";
+    if (button) button.textContent = open ? "Editing log" : "+ Add a missed log";
     missedLogEditingId = log ? String(log.id || log.localId || log.cloudId || "") : "";
     if (open) setMissedLogDefaults(log);
     if (!open) missedLogStatus = "";
@@ -2389,16 +2409,76 @@
     target.innerHTML = `<p class="label">Daily summary</p>${renderAnalysisList(entry.analysis)}`;
   }
 
+  function timelineSourceLabel(log) {
+    const source = String(log?.source || log?.entryMethod || "manual").toLowerCase();
+    if (!source || source === "manual" || source === "live") return "Manual";
+    if (source === "csv_import" || source === "import" || source === "esp32") return "Imported";
+    if (source === "garmin") return "Garmin";
+    if (source === "hardware" || source === "bluetooth") return "Device";
+    return source.replace(/[_-]+/g, " ").replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  function renderEventTimeline(logs = [], {
+    emptyCopy = "No logs yet.",
+    allowEditing = false,
+    selectedId = "",
+    showSource = true
+  } = {}) {
+    const normalizedLogs = (Array.isArray(logs) ? logs : [])
+      .map(log => ({ ...log, date: logDate(log) }))
+      .filter(log => log.date && ["fuel", "hydration", "fuel_hydration"].includes(logType(log)))
+      .sort((a, b) => a.date - b.date);
+    if (!normalizedLogs.length) {
+      return `<p class="muted fuel-daily-empty">${safeText(emptyCopy)}</p>`;
+    }
+    return `
+      <div class="beta-event-timeline" role="list">
+        ${normalizedLogs.map(log => {
+          const type = logType(log);
+          const id = String(log?.id || log?.localId || log?.cloudId || "");
+          const selected = allowEditing && id && selectedId === id;
+          const iconType = type === "hydration" ? "hydration" : "fuel";
+          const canEdit = allowEditing && ["fuel", "hydration", "fuel_hydration"].includes(type);
+          return `
+            <article class="beta-event-timeline-item ${safeText(type)} ${selected ? "selected" : ""}" role="listitem">
+              <button class="beta-event-timeline-main" type="button" data-toggle-log-actions="${safeText(id)}" aria-expanded="${selected ? "true" : "false"}">
+                <time>${safeText(formatClock(log.date))}</time>
+                <span class="beta-event-timeline-dot ${safeText(type)}" aria-hidden="true">${dailyIcon(iconType)}</span>
+                <span class="beta-event-timeline-copy">
+                  <strong>${safeText(logTypeLabel(log))}</strong>
+                  <small>${showSource ? safeText(timelineSourceLabel(log)) : ""}</small>
+                </span>
+              </button>
+              ${id && canEdit ? `<div class="beta-log-event-actions beta-event-timeline-actions" ${selected ? "" : "hidden"}><button class="secondary" type="button" data-edit-log="${safeText(id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-log="${safeText(id)}">Delete</button></div>` : ""}
+            </article>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
   function renderDailyLog() {
     const dateEl = document.getElementById("fuelDailyLogDate");
+    const latestEl = document.getElementById("todayTimelineLatest");
+    const toggle = document.getElementById("todayTimelineToggle");
     const target = document.getElementById("fuelDailyLog");
     if (!target) return;
     const key = todayViewKey();
-    const logs = logsForDay(key);
-    if (dateEl) dateEl.textContent = logs.length ? `${logs.length} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
-    target.innerHTML = logs.length
-      ? `<div class="beta-history-log-list beta-latest-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>`
-      : `<p class="muted fuel-daily-empty">Your first log starts today’s rhythm.</p>`;
+    const logs = logsForDay(key)
+      .filter(log => ["fuel", "hydration", "fuel_hydration"].includes(logType(log)))
+      .sort((a, b) => (logDate(a) || 0) - (logDate(b) || 0));
+    const latest = logs[logs.length - 1] || null;
+    if (dateEl) dateEl.textContent = logs.length ? `${logs.length} log${logs.length === 1 ? "" : "s"} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
+    if (latestEl) latestEl.textContent = latest ? `${logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "Collapsed";
+    if (toggle) toggle.setAttribute("aria-expanded", todayTimelineExpanded ? "true" : "false");
+    target.hidden = !todayTimelineExpanded;
+    target.innerHTML = todayTimelineExpanded
+      ? renderEventTimeline(logs, {
+        emptyCopy: "No fuel or hydration logged yet today. Your first log will appear here.",
+        allowEditing: true,
+        selectedId: selectedTodayTimelineLogId
+      })
+      : "";
     renderMissedLogPanel();
   }
 
@@ -4429,12 +4509,14 @@
     const hydrationLogs = logs.filter(isHydrationLog);
     const opportunities = generateFuelOpportunitiesForDay(key, { now });
     const hydrationItems = hydrationSuggestionForDay(key, logs, now);
-    const hasData = fuelLogs.length || hydrationLogs.length || opportunities.length || demandBlocksForDay(key).length;
+    const demandBlocks = demandBlocksForDay(key);
+    const hasData = fuelLogs.length || hydrationLogs.length || opportunities.length || demandBlocks.length;
+    const hasPlan = opportunities.length || hydrationItems.length || demandBlocks.length;
     if (!hasData) {
       return renderAnalysisGraphCard({
-        title: "Planned vs actual timeline",
-        subtitle: "Protected fuel and hydration moments across the day.",
-        empty: "Add a plan item or log fuel and hydration to unlock the daily timeline."
+        title: "Selected-day replay",
+        subtitle: "Actual logs, planned moments, work and training across the day.",
+        empty: "Log fuel or hydration, or add a plan item, to build the selected-day replay."
       });
     }
     const width = 960;
@@ -4474,7 +4556,9 @@
     };
     const completedCount = opportunities.filter(item => item.completedAt).length;
     const missedCount = opportunities.filter(item => item.status === "missed" || item.status === "overdue").length;
-    const interpretation = missedCount
+    const interpretation = !hasPlan
+      ? "No plan was set for this day, so this replay shows the actual fuel and hydration logs that were captured."
+      : missedCount
       ? `${missedCount} protected fuel moment${missedCount === 1 ? "" : "s"} need attention on this day.`
       : completedCount
         ? `${completedCount} planned fuel moment${completedCount === 1 ? "" : "s"} connected with actual logs.`
@@ -4500,8 +4584,8 @@
       </div>
     `;
     return renderAnalysisGraphCard({
-      title: "Planned vs actual timeline",
-      subtitle: "Where protected moments and actual logs lined up.",
+      title: "Selected-day replay",
+      subtitle: "Actual logs, planned fuel opportunities, and work/training blocks.",
       graph,
       interpretation,
       className: "beta-analysis-timeline-card"
@@ -4881,8 +4965,8 @@
         error: error?.message || "Garmin patterns are not available yet."
       };
     } finally {
-      if (document.getElementById("analysis")?.classList.contains("active")) {
-        renderAnalysis();
+      if (document.getElementById("trends")?.classList.contains("active")) {
+        renderTrends();
       }
     }
   }
@@ -4920,9 +5004,116 @@
     `;
   }
 
+  function garminFeatureRows() {
+    const features = garminPatternsState.data?.features;
+    return Array.isArray(features) ? features : [];
+  }
+
+  function garminMetricSeries(features, key) {
+    return features
+      .map(row => ({
+        date: row.local_date || "",
+        value: Number(row[key])
+      }))
+      .filter(point => point.date && Number.isFinite(point.value));
+  }
+
+  function renderGarminMetricChart(series, unit = "") {
+    if (!series.length) return `<p class="muted beta-history-empty">No samples reported yet.</p>`;
+    const width = 720;
+    const height = 170;
+    const padding = { top: 24, right: 18, bottom: 38, left: 44 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const values = series.map(point => point.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = Math.max(1, max - min);
+    const yFor = value => padding.top + plotHeight - ((value - min) / range) * plotHeight;
+    const xFor = index => padding.left + (series.length === 1 ? plotWidth / 2 : (index / (series.length - 1)) * plotWidth);
+    const points = series.map((point, index) => `${xFor(index).toFixed(1)},${yFor(point.value).toFixed(1)}`).join(" ");
+    const ticks = [min, min + range / 2, max].map(value => {
+      const y = yFor(value);
+      return `
+        <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${width - padding.right}" y2="${y.toFixed(1)}"></line>
+        <text class="y-label" x="${padding.left - 8}" y="${(y + 4).toFixed(1)}">${safeText(`${Math.round(value)}${unit}`)}</text>
+      `;
+    }).join("");
+    const labels = [
+      series[0],
+      series[Math.floor((series.length - 1) / 2)],
+      series[series.length - 1]
+    ].filter((point, index, list) => point && list.findIndex(item => item.date === point.date) === index)
+      .map(point => {
+        const index = series.findIndex(item => item.date === point.date);
+        return `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 12}">${safeText(point.date.slice(5))}</text>`;
+      }).join("");
+    const markers = series.map((point, index) => {
+      const x = xFor(index);
+      const y = yFor(point.value);
+      return `<circle class="point fuel" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5"><title>${safeText(`${point.date}: ${Math.round(point.value)}${unit}`)}</title></circle>`;
+    }).join("");
+    return `
+      <div class="beta-garmin-metric-chart" role="img" aria-label="Garmin metric trend">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${ticks}
+          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${width - padding.right}" y2="${padding.top + plotHeight}"></line>
+          <polyline class="beta-garmin-metric-line" points="${points}"></polyline>
+          ${markers}
+          ${labels}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderGarminMetricsSection() {
+    if (!garminPatternsState.loaded && !garminPatternsState.loading) scheduleGarminPatternsLoad();
+    const features = garminFeatureRows();
+    const metrics = [
+      { title: "Heart rate", note: "Morning median from opt-in local samples.", key: "morning_median_heart_rate", unit: " bpm", icon: "heart" },
+      { title: "Stress", note: "Afternoon median from opt-in local samples.", key: "afternoon_median_stress", unit: "", icon: "chart" },
+      { title: "Body Battery", note: "Daytime change from morning to evening samples.", key: "body_battery_daytime_change", unit: " pts", icon: "score" },
+      { title: "Workouts", note: "Garmin activity summaries linked to fuelling rhythm.", key: "activity_count", unit: "", icon: "route" }
+    ];
+    return `
+      <section class="beta-trend-habit-section beta-garmin-metrics-section" aria-label="Garmin metrics">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("heart")}</span>
+          <div>
+            <h3>Garmin metrics</h3>
+            <p>Opt-in watch signals shown beside your fuelling rhythm. These are behavioural associations, not medical conclusions.</p>
+          </div>
+          <button class="secondary beta-garmin-refresh-button" type="button" data-refresh-garmin-patterns>Refresh</button>
+        </div>
+        ${garminPatternsState.loading ? `<p class="muted beta-history-empty">Loading Garmin metrics...</p>` : `
+          <div class="beta-garmin-metrics-grid">
+            ${metrics.map(metric => {
+              const series = garminMetricSeries(features, metric.key).slice(-14);
+              const latest = series[series.length - 1];
+              return `
+                <article class="beta-garmin-metric-card">
+                  <div class="beta-garmin-metric-head">
+                    <span class="beta-icon-disc">${dailyIcon(metric.icon)}</span>
+                    <div>
+                      <h4>${safeText(metric.title)}</h4>
+                      <p>${safeText(metric.note)}</p>
+                    </div>
+                    <strong>${latest ? safeText(`${Math.round(latest.value)}${metric.unit}`) : "Building"}</strong>
+                  </div>
+                  ${renderGarminMetricChart(series, metric.unit)}
+                </article>
+              `;
+            }).join("")}
+          </div>
+        `}
+        <p class="row-note">Graphs use server-derived daily feature rows from your authenticated account.</p>
+      </section>
+    `;
+  }
+
   function renderGarminPatternCards(insights = []) {
     if (!insights.length) {
-      const message = garminPatternsState.data?.message || garminPatternsState.error || "Garmin patterns need a few repeated days before Fuel Guard shows them.";
+      const message = garminPatternsState.data?.message || garminPatternsState.error || "Garmin pattern conclusions need repeated days, but the raw Garmin metrics above can appear sooner.";
       return `<p class="muted beta-history-empty">${safeText(message)}</p>`;
     }
     return `
@@ -4948,8 +5139,8 @@
       ? `<p class="muted beta-history-empty">Loading Garmin patterns...</p>`
       : renderGarminPatternCards(garminPatternsState.data?.insights || []);
     return `
-      <section class="beta-analysis-card beta-garmin-patterns-section" aria-label="Garmin patterns">
-        <div class="beta-analysis-card-head">
+      <section class="beta-trend-habit-section beta-garmin-patterns-section" aria-label="Garmin patterns">
+        <div class="beta-weekly-section-head">
           <span class="beta-icon-disc shield">${dailyIcon("heart")}</span>
           <div>
             <h3>Garmin patterns</h3>
@@ -5040,6 +5231,60 @@
     }
   }
 
+  function renderAnalysisDailyTakeaway(key = selectedDataDateKey(), now = new Date()) {
+    const entry = buildArchiveEntry(key);
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
+    const opportunities = generateFuelOpportunitiesForDay(key, { now });
+    const missed = opportunities.filter(item => item.status === "missed" || item.status === "overdue").length;
+    const completed = opportunities.filter(item => item.completedAt).length;
+    const longestFuel = longestGapForLogs(fuelLogs, gapsFromFuelLogs, key, now);
+    const fuelDebt = Number(entry.fuelDebtMinutes || 0);
+    const workBlocks = demandBlocksByTypeForDay(key, "work");
+    const trainingBlocks = demandBlocksByTypeForDay(key, "training");
+    const overlapsWork = longestFuel && workBlocks.some(block => {
+      const range = blockRange(block);
+      return range && rangesOverlapMinutes(longestFuel.start, longestFuel.end, range.start, range.end) > 0;
+    });
+    const overlapsTraining = longestFuel && trainingBlocks.some(block => {
+      const range = blockRange(block);
+      return range && rangesOverlapMinutes(longestFuel.start, longestFuel.end, range.start, range.end) > 0;
+    });
+    let headline = "Today’s rhythm is still building.";
+    let detail = "Add fuel and hydration logs, then use this replay to plan the next similar day.";
+    if (fuelDebt > 0) {
+      headline = `You spent ${fuelDebtDurationText(fuelDebt)} beyond your preferred fuelling window.`;
+      detail = overlapsWork
+        ? "That longer gap overlapped with work time, so the next useful action is protecting an earlier work fuel moment."
+        : overlapsTraining
+          ? "That longer gap overlapped with training time, so the next useful action is placing fuel around the training window."
+          : "That longer gap may affect how steady the rest of the day feels, so plan one earlier fuel moment next time.";
+    } else if (longestFuel) {
+      headline = `Your longest fuel gap was ${duration(longestFuel.minutes)}.`;
+      detail = missed
+        ? `${missed} planned fuel moment${missed === 1 ? "" : "s"} slipped, so start with the easiest one to protect next time.`
+        : completed
+          ? `${completed} planned fuel moment${completed === 1 ? "" : "s"} connected with actual logs.`
+          : "This day has logs, but no planned fuel moments to compare against yet.";
+    } else if (fuelLogs.length || hydrationLogs.length) {
+      headline = `${fuelLogs.length} fuel log${fuelLogs.length === 1 ? "" : "s"} and ${hydrationLogs.length} hydration log${hydrationLogs.length === 1 ? "" : "s"} were captured.`;
+      detail = "Add one more fuel log or a simple plan to turn this into a clearer replay.";
+    }
+    return `
+      <section class="beta-analysis-card beta-analysis-takeaway-card" aria-label="Daily takeaway">
+        <div class="beta-analysis-card-head">
+          <span class="beta-icon-disc shield">${dailyIcon(fuelDebt > 0 ? "clock" : "check")}</span>
+          <div>
+            <h3>Daily takeaway</h3>
+            <p>${safeText(headline)}</p>
+          </div>
+        </div>
+        <p class="beta-analysis-interpretation">${safeText(detail)}</p>
+      </section>
+    `;
+  }
+
   function renderAnalysis() {
     const target = document.getElementById("fuelAnalysisContent");
     if (!target) return;
@@ -5047,16 +5292,8 @@
     const key = selectedDataDateKey();
     const now = new Date();
     target.innerHTML = `
-      ${renderAnalysisPriorityCard(key, now)}
       ${renderAnalysisTimelineGraph(key, now)}
-      ${renderAnalysisKeyResult(key, now)}
-      ${renderGarminPatternsSection()}
-      ${renderAnalysisGapGraph(key, now)}
-      ${renderAnalysisAdherenceBreakdown(key, now)}
-      ${renderAnalysisProgression(key, now)}
-      ${renderAnalysisScenario(key, now)}
-      ${renderAnalysisWrittenInsights(key, now)}
-      ${renderGarminDailyCheckinSection(key)}
+      ${renderAnalysisDailyTakeaway(key, now)}
     `;
   }
 
@@ -5066,20 +5303,24 @@
     const hydrationLogs = logs.filter(isHydrationLog);
     const score = calculateDailyFuelScore(key, { now });
     const opportunities = activeOpportunities(score.opportunities);
-    const scored = opportunities.filter(opportunityIsScored);
-    const adherence = scored.length ? Math.round(averageValue(scored.map(item => Number(item.timingScore || 0)))) : null;
+    const completed = opportunities.filter(item => item.completedAt).length;
+    const hasPlannedDay = demandBlocksForDay(key).length > 0;
+    const fuelGap = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
+    const hydrationGap = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
     return `
       <section class="beta-rhythm-section-card beta-today-progress-card" aria-label="Today’s progress">
         <div class="section-heading-row">
           <div>
             <h3>Today’s progress</h3>
-            <p class="muted">Progress toward today’s logs and suggested fuel windows.</p>
+            <p class="muted">A quick read on today’s fuel and hydration rhythm.</p>
           </div>
         </div>
         <div class="beta-target-progress-grid beta-today-progress-grid">
-          ${renderTargetProgressCard("Fuel", fuelLogs.length, targets().dailyFuelLogs, "fuel", "daily")}
-          ${renderTargetProgressCard("Hydration", hydrationLogs.length, targets().dailyHydrationLogs, "hydration", "daily")}
-          ${dailyMetricCard("Fuelling adherence", adherence === null ? "Building" : `${adherence}%`, scored.length ? `${scored.length} fuel suggestion${scored.length === 1 ? "" : "s"} checked.` : "Add fuel suggestions and logs.", "fuel")}
+          ${dailyMetricCard("Fuel logs", String(fuelLogs.length), "Logged on the selected day.", "fuel")}
+          ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
+          ${dailyMetricCard("Longest fuel gap", fuelGap, "From the fuel logs available today.", fuelGap === "Not enough data yet" ? "neutral" : "warning")}
+          ${dailyMetricCard("Longest hydration gap", hydrationGap, "From the hydration logs available today.", hydrationGap === "Not enough data yet" ? "neutral" : "hydration")}
+          ${dailyMetricCard("Suggested moments", hasPlannedDay && opportunities.length ? `${completed} of ${opportunities.length}` : "No plan set", hasPlannedDay && opportunities.length ? "Protected fuelling moments completed today." : "Add work, breaks or training in Plan.", "fuel")}
         </div>
       </section>
     `;
@@ -5550,15 +5791,13 @@
     const todayStatusTarget = document.getElementById("fuelTodayStatus");
     const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
     const todayProgressTarget = document.getElementById("fuelTodayProgress");
-    const todaySummaryTarget = document.getElementById("fuelTodaySummary");
     renderPlanSubtabs();
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
     renderDemandPlanner();
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
     if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
-    if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(key);
-    if (todaySummaryTarget) todaySummaryTarget.innerHTML = renderCompactDailySummary(key);
+    if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(todayKey);
     if (windowTarget) windowTarget.innerHTML = "";
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
@@ -7749,7 +7988,7 @@
     return frequency * 4 + Math.min(40, magnitude) + recentSignalBoost(signals) + relevance + actionable;
   }
 
-  function insightCandidate({ id, category, text, detail = "", icon = "chart", tone = "neutral", frequency = 0, magnitude = 0, signals = [], relevance = 0, actionable = 8 }) {
+  function insightCandidate({ id, category, text, detail = "", icon = "chart", tone = "neutral", frequency = 0, magnitude = 0, signals = [], relevance = 0, actionable = 8, evidence = "" }) {
     return {
       id,
       category,
@@ -7759,6 +7998,7 @@
       tone,
       frequency,
       magnitude,
+      evidence,
       rank: personalisedInsightRank({ frequency, magnitude, signals, relevance, actionable })
     };
   }
@@ -8056,6 +8296,87 @@
     });
   }
 
+  function latestDayGapObservation(context) {
+    const entry = [...context.entries].reverse().find(item => entryLogsWithDates(item).filter(isFuelLog).length >= 2);
+    if (!entry) return null;
+    const fuelLogs = entryLogsWithDates(entry).filter(isFuelLog);
+    const longest = longestGapForLogs(fuelLogs, gapsFromFuelLogs, entry.date, new Date());
+    if (!longest) return null;
+    const debt = Number(buildArchiveEntry(entry.date).fuelDebtMinutes || entry.fuelDebtMinutes || 0);
+    if (longest.minutes < mediumRiskLimit() && debt <= 0) return null;
+    return insightCandidate({
+      id: "latest-day-gap-observation",
+      category: "gap",
+      text: debt > 0
+        ? `On your latest logged day, ${fuelDebtDurationText(debt)} sat beyond your preferred fuelling window.`
+        : `On your latest logged day, your longest fuel gap was ${duration(longest.minutes)}.`,
+      detail: "This is a single-day replay signal, not a repeated pattern yet.",
+      icon: "gap",
+      tone: "elevated",
+      frequency: 1,
+      magnitude: Math.max(longest.minutes / 3, debt / 3),
+      signals: [entry],
+      relevance: 2,
+      actionable: 4,
+      evidence: "Snapshot"
+    });
+  }
+
+  function logHabitObservation(context) {
+    const entries = context.entries.filter(entry => {
+      const logs = entryLogsWithDates(entry);
+      return logs.filter(isFuelLog).length || logs.filter(isHydrationLog).length;
+    });
+    if (entries.length < 2) return null;
+    const fuelAverage = averageValue(entries.map(entry => entryLogsWithDates(entry).filter(isFuelLog).length));
+    const hydrationAverage = averageValue(entries.map(entry => entryLogsWithDates(entry).filter(isHydrationLog).length));
+    if (!Number.isFinite(fuelAverage) && !Number.isFinite(hydrationAverage)) return null;
+    return insightCandidate({
+      id: "recent-log-habit-observation",
+      category: "habit",
+      text: `Across your recent logged days, you average ${Number.isFinite(fuelAverage) ? fuelAverage.toFixed(1) : "0"} fuel logs and ${Number.isFinite(hydrationAverage) ? hydrationAverage.toFixed(1) : "0"} hydration logs.`,
+      detail: "This helps show logging rhythm before stronger patterns are available.",
+      icon: "chart",
+      tone: "neutral",
+      frequency: entries.length,
+      magnitude: Math.max(fuelAverage || 0, hydrationAverage || 0),
+      signals: entries,
+      relevance: 2,
+      actionable: 3,
+      evidence: entries.length >= 3 ? "Early pattern" : "Limited evidence"
+    });
+  }
+
+  function timingObservation(context) {
+    const entries = context.entries
+      .map(entry => {
+        const fuelLogs = entryLogsWithDates(entry).filter(isFuelLog).sort((a, b) => a.date - b.date);
+        return { entry, first: fuelLogs[0]?.date || null };
+      })
+      .filter(item => item.first);
+    if (entries.length < 2) return null;
+    const averageMinute = averageValue(entries.map(item => item.first.getHours() * 60 + item.first.getMinutes()));
+    if (!Number.isFinite(averageMinute)) return null;
+    const hours = Math.floor(averageMinute / 60);
+    const minutes = Math.round(averageMinute % 60);
+    const labelDate = new Date();
+    labelDate.setHours(hours, minutes, 0, 0);
+    return insightCandidate({
+      id: "recent-first-fuel-timing",
+      category: "timing",
+      text: `Your first fuel log has recently tended to land around ${formatClock(labelDate)}.`,
+      detail: "Use this as a timing cue, not a rule.",
+      icon: "clock",
+      tone: "neutral",
+      frequency: entries.length,
+      magnitude: entries.length,
+      signals: entries.map(item => item.entry),
+      relevance: 3,
+      actionable: 5,
+      evidence: entries.length >= 3 ? "Early pattern" : "Limited evidence"
+    });
+  }
+
   function personalisedInsightCandidates(data = trendComparisonData()) {
     const context = personalisedInsightContext(data);
     const candidates = [
@@ -8066,18 +8387,39 @@
       trainingOpportunityCategoryInsight(context),
       trainingAdherenceWorkdayInsight(context),
       workGapInsight(context),
-      trainingGapInsight(context)
+      trainingGapInsight(context),
+      latestDayGapObservation(context),
+      logHabitObservation(context),
+      timingObservation(context)
     ].filter(Boolean);
     return { context, candidates };
   }
 
+  function personalisedInsightEvidenceLabel(insight) {
+    if (insight.evidence) return insight.evidence;
+    const frequency = Number(insight.frequency || 0);
+    const weeks = distinctWeekCountForSignals(insight.signals || []);
+    if (frequency >= 6 && weeks >= 3) return "Repeated pattern";
+    if (frequency >= 3) return "Emerging pattern";
+    if (frequency >= 2) return "Limited evidence";
+    return "Snapshot";
+  }
+
   function selectPersonalisedInsights(candidates, limit = 3) {
+    const dedupeKey = candidate => {
+      const category = String(candidate?.category || "");
+      if (category.includes("gap")) return "gap";
+      if (category.includes("training")) return "training";
+      if (category.includes("day-score") || category === "weekday") return "score";
+      return category || candidate.id;
+    };
     const seen = new Set();
     return [...candidates]
       .sort((a, b) => b.rank - a.rank || b.magnitude - a.magnitude || b.frequency - a.frequency)
       .filter(candidate => {
-        if (seen.has(candidate.category)) return false;
-        seen.add(candidate.category);
+        const key = dedupeKey(candidate);
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
       })
       .slice(0, limit);
@@ -8090,7 +8432,6 @@
   function renderPersonalisedInsights(data) {
     const { context, candidates } = personalisedInsightCandidates(data);
     const insights = selectPersonalisedInsights(candidates);
-    const enoughSignals = context.days.length >= 3;
     return `
       <section class="beta-trend-habit-section beta-personalised-insights-section" aria-label="Personalised Insights">
         <div class="beta-weekly-section-head">
@@ -8108,11 +8449,12 @@
                 <div>
                   <p>${safeText(insight.text)}</p>
                   ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
+                  <span class="beta-evidence-label">${safeText(personalisedInsightEvidenceLabel(insight))}</span>
                 </div>
               </article>
             `).join("")}
           </div>
-        ` : `<p class="muted beta-history-empty">${enoughSignals ? "No repeated personalised pattern is strong enough yet." : "Add a few repeated training, work or fuel-log days before Fuel Guard draws personalised conclusions."}</p>`}
+        ` : `<p class="muted beta-history-empty">Add a few repeated training, work or fuel-log days to build personalised patterns. Snapshot observations can appear sooner when there is enough recent log detail.</p>`}
         <p class="row-note">Insights need repeated evidence and use behavioural wording only. They are not medical or nutrition assessments.</p>
       </section>
     `;
@@ -9049,6 +9391,8 @@
     return `
       ${renderTrendPriorityInsight(data)}
       ${renderPersonalisedInsights(data)}
+      ${renderGarminMetricsSection()}
+      ${renderGarminPatternsSection()}
     `;
   }
 
@@ -9351,7 +9695,13 @@
     if (undo) undo.disabled = !logsForDay(todayViewKey()).length;
 
     const cooldownEl = document.getElementById("foodLogCooldownMessage");
-    if (cooldownEl) cooldownEl.textContent = cooldown > 0 ? `Logged. You can fuel again in ${cooldown}s.` : "";
+    if (cooldownEl) {
+      cooldownEl.textContent = quickLogConfirmation
+        ? `${quickLogConfirmation}${cooldown > 0 ? `. You can fuel again in ${cooldown}s.` : ""}`
+        : cooldown > 0
+          ? `Logged. You can fuel again in ${cooldown}s.`
+          : "";
+    }
 
     if (dashboardActive || analysisActive || planActive) {
       renderDayTypeControls();
@@ -9669,6 +10019,21 @@
     }
   });
   document.addEventListener("click", event => {
+    const todayTimelineToggle = event.target.closest("#todayTimelineToggle");
+    if (todayTimelineToggle) {
+      todayTimelineExpanded = !todayTimelineExpanded;
+      if (!todayTimelineExpanded) selectedTodayTimelineLogId = "";
+      renderDailyLog();
+      return;
+    }
+    const timelineLogToggle = event.target.closest("[data-toggle-log-actions]");
+    if (timelineLogToggle && timelineLogToggle.dataset.toggleLogActions) {
+      selectedTodayTimelineLogId = selectedTodayTimelineLogId === timelineLogToggle.dataset.toggleLogActions
+        ? ""
+        : timelineLogToggle.dataset.toggleLogActions;
+      renderDailyLog();
+      return;
+    }
     const editLog = event.target.closest("[data-edit-log]");
     if (editLog) {
       const log = logById(editLog.dataset.editLog);

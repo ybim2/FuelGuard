@@ -15,18 +15,18 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v85-garmin-health-patterns
+Canonical app: mobile-pwa-v86-share-ready-daily-experience
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 Current card ownership:
 
-- Log: default opening tab; current fuelling status, quick fuel/hydration logging, and today's logs.
-- Analysis: selected-day plan versus actual graphs, gap analysis, adherence breakdown, scenario comparison, and recommended adjustment.
-- Plan: Today contains the planning card, plan realism check, Today’s Fuel Plan actual-versus-suggested timeline, Today’s Progress, and Daily Summary.
+- Log: default opening tab; current fuelling status, quick fuel/hydration logging, Today’s Progress, a collapsed Today’s Timeline, and the collapsed missed-log form.
+- Analysis: selected-day replay plus one daily takeaway.
+- Plan: Today contains the planning card, plan realism check, and Today’s Fuel Plan actual-versus-suggested timeline. Today’s Progress belongs to Log.
 - History: compact daily summary cards with full day detail for logged days.
-- Trends: segmented Overview, Fuel, Hydration, Timing, and Adherence views for repeated patterns over time.
+- Trends: segmented Overview, Fuel, Hydration, Timing, and Adherence views for repeated patterns over time. Garmin patterns and opt-in Garmin metric visuals belong here, not in Analysis.
 - Settings: risk thresholds, account sync, import, update, app metadata, and support copy.
 
 ## Removed legacy features
@@ -53,7 +53,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-supabase.js`: Supabase Auth plus cloud log, target, and demand-planning sync layer
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
-- `fuel-beta.js`: canonical 4-tab mobile PWA behavior for Log, Plan, History, Trends, and header-accessible Settings
+- `fuel-beta.js`: canonical mobile PWA behavior for Log, Analysis, Plan, History, Trends, and header-accessible Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `day-type-overrides.js`: day type and training session support
 - `manifest.webmanifest`: PWA manifest
@@ -114,7 +114,7 @@ No `package.json`, Vite, Next, Netlify, or Firebase config is present in this re
 
 ## Mobile PWA update rules
 
-1. The canonical app is the 4-tab mobile PWA with Log, Plan, History, and Trends in the bottom navigation.
+1. The canonical app is the mobile PWA with Log, Analysis, Plan, Trends, and History in the bottom navigation.
 2. The deployed Vercel URL is the source for the installed mobile PWA.
 3. Settings must show the canonical marker and build version from `build-info.js`.
 4. Service worker caches must be versioned for each app-shell deployment.
@@ -135,7 +135,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v85-garmin-health-patterns`.
+The current canonical version is `mobile-pwa-v86-share-ready-daily-experience`.
 
 ## Future frontend changes
 

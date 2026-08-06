@@ -1,6 +1,8 @@
 # Fuel Guard
 
-The canonical frontend is the mobile-first Fuel Guard PWA with the bottom tabs Plan, Log, History, and Trends. Settings opens from the sticky header icon.
+The canonical frontend is the mobile-first Fuel Guard PWA with the bottom tabs Log, Analysis, Plan, Trends, and History. Settings opens from the sticky header icon.
+
+The current share-ready daily experience keeps quick logging on Log, keeps future planning on Plan, uses Analysis for selected-day replay plus one takeaway, and moves Garmin patterns/metric visuals into Trends.
 
 Read `AGENTS.md` and `FRONTEND_SOURCE_OF_TRUTH.md` before making frontend changes.
 

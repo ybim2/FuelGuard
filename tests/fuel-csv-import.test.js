@@ -226,12 +226,15 @@ function addFuelLogsForDay(appState, key, times) {
   });
 }
 
-test("personalised insights wait for repeated evidence", () => {
+test("personalised insights use snapshot wording before repeated evidence", () => {
   const { planner, appState } = loadFuelGuardCsvImporter();
   const [key] = recentWeekdayKeys(2, 4);
   addFuelLogsForDay(appState, key, ["08:00", "14:00"]);
 
-  assert.equal(planner.personalisedInsights().length, 0);
+  const insights = planner.personalisedInsights();
+  assert.ok(insights.length <= 1);
+  assert.ok(insights.every(insight => /single-day|latest logged day|Snapshot/i.test(`${insight.text} ${insight.detail} ${insight.evidence || ""}`)));
+  assert.ok(insights.every(insight => !/consistently|always|lowest-scoring day over/i.test(insight.text)));
 });
 
 test("personalised insights identify a repeated low-scoring weekday", () => {

@@ -4092,6 +4092,233 @@ body.beta-mvp .beta-log-event-actions button {
   font-size: .78rem;
 }
 
+body.beta-mvp .beta-today-log {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid rgba(29,49,38,.12);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35,55,42,.06);
+  box-sizing: border-box;
+}
+
+body.beta-mvp .beta-today-log > div {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-timeline-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-timeline-toggle strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+body.beta-mvp .beta-timeline-toggle small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.25;
+}
+
+body.beta-mvp .beta-timeline-chevron {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+body.beta-mvp .beta-timeline-toggle[aria-expanded="true"] .beta-timeline-chevron {
+  transform: rotate(180deg);
+}
+
+body.beta-mvp .beta-today-timeline-panel[hidden],
+body.beta-mvp .beta-event-timeline-actions[hidden] {
+  display: none;
+}
+
+body.beta-mvp .beta-event-timeline {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+body.beta-mvp .beta-event-timeline-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(29,49,38,.1);
+  border-radius: 14px;
+  background: rgba(247,251,249,.9);
+}
+
+body.beta-mvp .beta-event-timeline-item.selected {
+  border-color: rgba(22,122,69,.3);
+  background: rgba(45,255,136,.07);
+}
+
+body.beta-mvp .beta-event-timeline-main {
+  display: grid;
+  grid-template-columns: 58px 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-event-timeline-main time {
+  color: var(--ink);
+  font-weight: 800;
+  font-size: .88rem;
+  line-height: 1.1;
+}
+
+body.beta-mvp .beta-event-timeline-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: #167a45;
+  background: rgba(45,255,136,.12);
+}
+
+body.beta-mvp .beta-event-timeline-dot.hydration {
+  color: #1d4ed8;
+  background: rgba(59,130,246,.12);
+}
+
+body.beta-mvp .beta-event-timeline-dot svg {
+  width: 17px;
+  height: 17px;
+}
+
+body.beta-mvp .beta-event-timeline-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-event-timeline-copy strong {
+  overflow-wrap: anywhere;
+  font-size: .95rem;
+  line-height: 1.15;
+}
+
+body.beta-mvp .beta-event-timeline-copy small {
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+body.beta-mvp .beta-event-timeline-actions {
+  margin: 0 0 0 102px;
+}
+
+body.beta-mvp .fuel-cooldown-message:not(:empty) {
+  padding-top: 4px;
+  color: #167a45;
+  font-weight: 750;
+}
+
+body.beta-mvp .beta-evidence-label {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(29,49,38,.12);
+  border-radius: 999px;
+  color: #355245;
+  background: rgba(255,255,255,.72);
+  font-size: .76rem;
+  font-weight: 800;
+}
+
+body.beta-mvp .beta-garmin-metrics-grid {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-garmin-metric-card {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid rgba(29,49,38,.1);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, rgba(247,251,249,.96));
+}
+
+body.beta-mvp .beta-garmin-metric-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+body.beta-mvp .beta-garmin-metric-head h4,
+body.beta-mvp .beta-garmin-metric-head p {
+  margin: 0;
+}
+
+body.beta-mvp .beta-garmin-metric-head p {
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.25;
+}
+
+body.beta-mvp .beta-garmin-metric-head strong {
+  color: #123023;
+  font-size: .95rem;
+  white-space: nowrap;
+}
+
+body.beta-mvp .beta-garmin-metric-chart {
+  width: 100%;
+  min-height: 150px;
+}
+
+body.beta-mvp .beta-garmin-metric-chart svg {
+  display: block;
+  width: 100%;
+  min-height: 150px;
+}
+
+body.beta-mvp .beta-garmin-metric-line {
+  fill: none;
+  stroke: #167a45;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 body.beta-mvp .beta-comparison-state {
   display: grid;
   gap: 4px;
