@@ -561,14 +561,31 @@ test("Quick Log glance shows local fuel status without lifecycle network sync", 
   assert.match(glanceSource, /\(:glance\)/);
   assert.match(glanceSource, /FuelGuardGlanceData\.metric\(\)/);
   assert.match(glanceSource, /FuelGuardGlanceData\.label\(\)/);
-  assert.match(glanceSource, /FuelGuardGlanceData\.pendingCount\(\)/);
   assert.match(glanceDataSource, /\(:glance\)\s*module FuelGuardGlanceData/);
   assert.match(glanceDataSource, /LAST_FUEL_KEY = "fg_last_fuel_at"/);
+  assert.match(glanceDataSource, /TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count"/);
+  assert.match(glanceDataSource, /TODAY_FUEL_DATE_KEY = "fg_today_fuel_date"/);
+  assert.match(glanceDataSource, /\$1\$ since fuel/);
+  assert.match(glanceDataSource, /\$1\$ \$2\$ today/);
   assert.match(glanceDataSource, /No fuel today/);
+  assert.match(glanceDataSource, /Press START to log/);
   assert.doesNotMatch(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric/);
   assert.doesNotMatch(glanceSource, /FuelGuardQueue\.pendingCount/);
+  assert.doesNotMatch(glanceSource, /pending/);
   assert.match(glanceSource, /getTextWidthInPixels/);
   assert.doesNotMatch(glanceSource, /Open to log/);
+});
+
+test("Garmin fuel events update local glance count without using the upload queue", () => {
+  const eventsSource = readRepoFile("garmin/shared/source/FuelGuardEvents.mc");
+  const apiSource = readRepoFile("garmin/shared/source/FuelGuardApi.mc");
+
+  assert.match(eventsSource, /TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count"/);
+  assert.match(eventsSource, /TODAY_FUEL_DATE_KEY = "fg_today_fuel_date"/);
+  assertSourceOrder(eventsSource, "var normalizedType = normalizeType(type);", "recordFuelForGlance(timestamp);");
+  assert.match(eventsSource, /normalizedType\.equals\(TYPE_FUEL\) \|\| normalizedType\.equals\(TYPE_FUEL_HYDRATION\)/);
+  assert.doesNotMatch(eventsSource, /normalizedType\.equals\(TYPE_HYDRATION\)[\s\S]{0,120}recordFuelForGlance/);
+  assert.doesNotMatch(apiSource, /TODAY_FUEL_COUNT_KEY|TODAY_FUEL_DATE_KEY|fg_today_fuel_count|fg_today_fuel_date/);
 });
 
 test("Quick Log wearable copy uses short safe labels", () => {

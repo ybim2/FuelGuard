@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${GARMIN_BETA_VERSION:-0.4.2}"
+VERSION="${GARMIN_BETA_VERSION:-0.4.3}"
 DEFAULT_RELEASE_ROOT="$HOME/Documents/Codex/2026-08-06/fuelguard-garmin-activity-and-quick-log/build/garmin-beta"
 RELEASE_ROOT="${FUELGUARD_RELEASE_ROOT:-$DEFAULT_RELEASE_ROOT}"
 

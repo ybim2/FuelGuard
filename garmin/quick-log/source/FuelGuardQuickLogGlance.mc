@@ -38,14 +38,6 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         dc.drawText(dc.getWidth() / 2, y, font, fitText(dc, text, font), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
-    private function pendingText() as String? {
-        var pendingCount = FuelGuardGlanceData.pendingCount();
-        if (pendingCount > 0) {
-            return Lang.format("$1$ pending", [pendingCount]);
-        }
-        return null;
-    }
-
     (:debug)
     public function metricForTest() as String {
         return FuelGuardGlanceData.metric();
@@ -56,11 +48,6 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         return FuelGuardGlanceData.label();
     }
 
-    (:debug)
-    public function pendingTextForTest() as String? {
-        return pendingText();
-    }
-
     public function onUpdate(dc as Graphics.Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
@@ -69,17 +56,12 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         var metric = FuelGuardGlanceData.metric();
         var label = FuelGuardGlanceData.label();
         var titleY = height < 80 ? 11 : 14;
-        var metricY = height / 2;
+        var metricY = height < 92 ? height / 2 - 3 : height / 2 - 8;
         var labelY = height < 92 ? height - 18 : height / 2 + 26;
-        var metricFont = metric.length() > 9 || dc.getWidth() < 130 ? Graphics.FONT_XTINY : Graphics.FONT_SMALL;
+        var metricFont = metric.length() > 12 || dc.getWidth() < 140 ? Graphics.FONT_XTINY : Graphics.FONT_SMALL;
 
         drawCenter(dc, titleY, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
         drawCenter(dc, metricY, metricFont, metric, Graphics.COLOR_WHITE);
         drawCenter(dc, labelY, Graphics.FONT_XTINY, label, Graphics.COLOR_LT_GRAY);
-
-        var pending = pendingText();
-        if (pending != null && height > 112) {
-            drawCenter(dc, height - 12, Graphics.FONT_XTINY, pending as String, Graphics.COLOR_LT_GRAY);
-        }
     }
 }

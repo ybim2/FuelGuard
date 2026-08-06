@@ -6,7 +6,8 @@ import Toybox.Time.Gregorian;
 (:glance)
 module FuelGuardGlanceData {
     const LAST_FUEL_KEY = "fg_last_fuel_at";
-    const QUEUE_KEY = "fg_pending_events";
+    const TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count";
+    const TODAY_FUEL_DATE_KEY = "fg_today_fuel_date";
 
     function localYear(seconds as Number) as Number {
         var info = Gregorian.info(new Time.Moment(seconds), Time.FORMAT_SHORT);
@@ -29,21 +30,36 @@ module FuelGuardGlanceData {
             && localDay(leftSeconds) == localDay(rightSeconds);
     }
 
+    function localDateKey(seconds as Number) as String {
+        var info = Gregorian.info(new Time.Moment(seconds), Time.FORMAT_SHORT);
+        var year = info.year instanceof Number ? info.year as Number : 1970;
+        var month = info.month instanceof Number ? info.month as Number : 1;
+        var day = info.day instanceof Number ? info.day as Number : 1;
+        return Lang.format("$1$-$2$-$3$", [
+            year.format("%04d"),
+            month.format("%02d"),
+            day.format("%02d")
+        ]);
+    }
+
     function lastFuelSeconds() as Number? {
         var value = Storage.getValue(LAST_FUEL_KEY);
         return value instanceof Number ? value as Number : null;
     }
 
-    function metric() as String {
-        var lastFuel = lastFuelSeconds();
-        if (lastFuel == null) {
-            return "Ready";
+    function todayFuelCount() as Number {
+        var today = localDateKey(Time.now().value());
+        var storedDate = Storage.getValue(TODAY_FUEL_DATE_KEY);
+        if (!(storedDate instanceof String) || !(storedDate as String).equals(today)) {
+            Storage.setValue(TODAY_FUEL_DATE_KEY, today);
+            Storage.setValue(TODAY_FUEL_COUNT_KEY, 0);
+            return 0;
         }
-        var nowSeconds = Time.now().value();
-        if (!sameLocalDay(lastFuel as Number, nowSeconds)) {
-            return "No fuel today";
-        }
-        var elapsed = nowSeconds - (lastFuel as Number);
+        var count = Storage.getValue(TODAY_FUEL_COUNT_KEY);
+        return count instanceof Number ? count as Number : 0;
+    }
+
+    function elapsedText(elapsed as Number) as String {
         if (elapsed < 60) {
             return "<1m";
         }
@@ -55,42 +71,40 @@ module FuelGuardGlanceData {
         return Lang.format("$1$m", [minutes]);
     }
 
+    function metric() as String {
+        var lastFuel = lastFuelSeconds();
+        if (lastFuel == null) {
+            return "No fuel today";
+        }
+        var nowSeconds = Time.now().value();
+        if (!sameLocalDay(lastFuel as Number, nowSeconds)) {
+            return "No fuel today";
+        }
+        return Lang.format("$1$ since fuel", [elapsedText(nowSeconds - (lastFuel as Number))]);
+    }
+
     function label() as String {
         var lastFuel = lastFuelSeconds();
         if (lastFuel == null) {
-            return "to log";
+            return "Press START to log";
         }
         if (!sameLocalDay(lastFuel as Number, Time.now().value())) {
-            return "Ready to log";
+            return "Press START to log";
         }
-        return "since fuel";
+        var count = todayFuelCount();
+        if (count < 1) {
+            count = 1;
+        }
+        return Lang.format("$1$ $2$ today", [count, count == 1 ? "log" : "logs"]);
     }
 
-    function eventId(event as Object) as String? {
-        if (event instanceof Dictionary) {
-            var id = (event as Dictionary)[:external_event_id];
-            if (!(id instanceof String)) {
-                id = (event as Dictionary)["external_event_id"];
-            }
-            if (id instanceof String) {
-                return id as String;
-            }
-        }
-        return null;
+    (:debug)
+    function todayFuelCountForTest() as Number {
+        return todayFuelCount();
     }
 
-    function pendingCount() as Number {
-        var value = Storage.getValue(QUEUE_KEY);
-        if (!(value instanceof Array)) {
-            return 0;
-        }
-        var items = value as Array;
-        var count = 0;
-        for (var i = 0; i < items.size(); i++) {
-            if (eventId(items[i]) != null) {
-                count += 1;
-            }
-        }
-        return count;
+    (:debug)
+    function localDateKeyForTest(seconds as Number) as String {
+        return localDateKey(seconds);
     }
 }
