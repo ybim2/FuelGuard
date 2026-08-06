@@ -158,7 +158,7 @@ See `garmin/GARMIN_HEALTH_API_BOUNDARY.md` for the current Connect IQ-local boun
 
 ## Exporting private beta packages
 
-Run `scripts/build-garmin-beta-release.sh` to build both beta IQ packages and export them to persistent local storage under `build/garmin-beta/0.4.1/`. Set `FUELGUARD_RELEASE_ROOT` only when you need a different persistent destination; the release script refuses `/tmp` and `/private/tmp` outputs.
+Run `scripts/build-garmin-beta-release.sh` to build both beta IQ packages and export them to persistent local storage under `build/garmin-beta/0.4.2/`. Set `FUELGUARD_RELEASE_ROOT` only when you need a different persistent destination; the release script refuses `/tmp` and `/private/tmp` outputs.
 
 ## Activity Logger setup
 
@@ -193,7 +193,7 @@ Existing pending events are preserved when pairing, disconnecting or reconnectin
 1. Deploy Fuel Guard production from main with the zero-secret Garmin routes.
 2. Apply `supabase/fuel_logs.sql` and `supabase/garmin_zero_secret_auth.sql` to the linked Supabase project.
 3. Set the server-side Vercel variables: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `GARMIN_TOKEN_PEPPER`.
-4. Run `scripts/build-garmin-beta-release.sh` and upload each exported 0.4.1 IQ package as a new version of its existing beta listing.
+4. Run `scripts/build-garmin-beta-release.sh` and upload the exported 0.4.2 Quick Log IQ package as a new version of its existing beta listing.
 5. Do not create new listings.
 6. Keep Apps for beta testing only enabled.
 7. Sync/update both apps on the Forerunner 255.

@@ -8,57 +8,24 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         GlanceView.initialize();
     }
 
-    private function contentWidth(dc as Graphics.Dc) as Number {
-        var width = dc.getWidth() - 32;
-        if (width < 80) {
-            return dc.getWidth() - 16;
-        }
-        return width;
-    }
-
-    private function fitText(dc as Graphics.Dc, text as String, font) as String {
-        var maxWidth = contentWidth(dc);
-        if (dc.getTextWidthInPixels(text, font) <= maxWidth) {
-            return text;
-        }
-        var suffix = "...";
-        var keep = text.length();
-        while (keep > 0) {
-            var candidate = text.substring(0, keep) + suffix;
-            if (dc.getTextWidthInPixels(candidate, font) <= maxWidth) {
-                return candidate;
-            }
-            keep -= 1;
-        }
-        return "";
-    }
-
     private function drawCenter(dc as Graphics.Dc, y as Number, font, text as String, color) as Void {
         dc.setColor(color, Graphics.COLOR_BLACK);
-        dc.drawText(dc.getWidth() / 2, y, font, fitText(dc, text, font), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-    }
-
-    private function pendingText() as String? {
-        var pendingCount = FuelGuardQueue.pendingCount();
-        if (pendingCount > 0) {
-            return Lang.format("$1$ pending", [pendingCount]);
-        }
-        return null;
+        dc.drawText(dc.getWidth() / 2, y, font, text, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     (:debug)
     public function metricForTest() as String {
-        return FuelGuardFeedback.elapsedFuelMetric();
+        return FuelGuardGlanceState.metric();
     }
 
     (:debug)
     public function labelForTest() as String {
-        return FuelGuardFeedback.elapsedFuelLabel();
+        return FuelGuardGlanceState.label();
     }
 
     (:debug)
-    public function pendingTextForTest() as String? {
-        return pendingText();
+    public function countLabelForTest() as String {
+        return FuelGuardGlanceState.countLabel();
     }
 
     public function onUpdate(dc as Graphics.Dc) as Void {
@@ -66,13 +33,34 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         dc.clear();
 
         var height = dc.getHeight();
-        drawCenter(dc, 14, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
-        drawCenter(dc, height / 2, Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelMetric(), Graphics.COLOR_WHITE);
-        drawCenter(dc, height / 2 + 26, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelLabel(), Graphics.COLOR_LT_GRAY);
+        var metric = "Ready to log";
+        var label = "";
+        var count = "";
 
-        var pending = pendingText();
-        if (pending != null && height > 104) {
-            drawCenter(dc, height - 16, Graphics.FONT_XTINY, pending as String, Graphics.COLOR_LT_GRAY);
+        try {
+            metric = FuelGuardGlanceState.metric();
+            label = FuelGuardGlanceState.label();
+            count = FuelGuardGlanceState.countLabel();
+        } catch (e) {
+            metric = "Ready to log";
+            label = "";
+            count = "";
         }
+
+        if (label.length() == 0) {
+            drawCenter(dc, height / 2 - 18, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
+            drawCenter(dc, height / 2 + 12, Graphics.FONT_XTINY, metric, Graphics.COLOR_WHITE);
+            return;
+        }
+
+        var titleY = height < 100 ? 12 : height / 2 - 42;
+        var metricY = height < 100 ? 38 : height / 2 - 12;
+        var labelY = height < 100 ? 60 : height / 2 + 14;
+        var countY = height < 100 ? height - 12 : height / 2 + 38;
+
+        drawCenter(dc, titleY, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
+        drawCenter(dc, metricY, Graphics.FONT_SMALL, metric, Graphics.COLOR_WHITE);
+        drawCenter(dc, labelY, Graphics.FONT_XTINY, label, Graphics.COLOR_LT_GRAY);
+        drawCenter(dc, countY, Graphics.FONT_XTINY, count, Graphics.COLOR_LT_GRAY);
     }
 }
