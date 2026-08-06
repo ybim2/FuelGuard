@@ -5285,6 +5285,56 @@ body.beta-mvp #checklist > .card {
   box-shadow: var(--fg-card-shadow);
 }
 
+body.beta-mvp .beta-context-disclosure-card,
+body.beta-mvp .beta-settings-disclosure,
+body.beta-mvp .beta-trend-detail-disclosure {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-settings-disclosure,
+body.beta-mvp .beta-trend-detail-disclosure {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(29, 49, 38, .1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .72);
+}
+
+body.beta-mvp .beta-settings-disclosure + .beta-settings-disclosure,
+body.beta-mvp .beta-trend-detail-disclosure + .beta-trend-detail-disclosure {
+  margin-top: 12px;
+}
+
+body.beta-mvp .beta-context-disclosure-card summary,
+body.beta-mvp .beta-settings-disclosure summary,
+body.beta-mvp .beta-trend-detail-disclosure summary {
+  cursor: pointer;
+  list-style: none;
+  color: #07130f;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+body.beta-mvp .beta-context-disclosure-card summary::-webkit-details-marker,
+body.beta-mvp .beta-settings-disclosure summary::-webkit-details-marker,
+body.beta-mvp .beta-trend-detail-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+body.beta-mvp .beta-settings-disclosure > :not(summary),
+body.beta-mvp .beta-trend-detail-disclosure > :not(summary) {
+  margin-top: 12px;
+}
+
+body.beta-mvp .beta-trend-detail-stack {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
 body.beta-mvp *,
 body.beta-mvp *::before,
 body.beta-mvp *::after {
@@ -6741,7 +6791,7 @@ body.beta-mvp #graphLogHydrationButton {
 }
 
 body.beta-mvp .mobile-bottom-nav {
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   background: rgba(255, 255, 255, .97) !important;
 }
 

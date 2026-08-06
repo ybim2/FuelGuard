@@ -1,13 +1,11 @@
 # Fuel Guard Frontend Source Of Truth
 
-## Canonical app
+## Canonical App
 
-The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders the five main bottom-navigation tabs in this order:
+The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders exactly three primary bottom-navigation screens:
 
 - Log
-- Analysis
-- Plan
-- Trends
+- Insights
 - History
 
 Settings is still part of the canonical app, but it opens from the sticky header settings icon instead of the bottom navigation.
@@ -15,21 +13,21 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v86-share-ready-daily-experience
+Canonical app: mobile-pwa-v87-three-screen-core
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
-Current card ownership:
+## Current Screen Ownership
 
-- Log: default opening tab; current fuelling status, quick fuel/hydration logging, Today’s Progress, a collapsed Today’s Timeline, and the collapsed missed-log form.
-- Analysis: selected-day replay plus one daily takeaway.
-- Plan: Today contains the planning card, plan realism check, and Today’s Fuel Plan actual-versus-suggested timeline. Today’s Progress belongs to Log.
-- History: compact daily summary cards with full day detail for logged days.
-- Trends: segmented Overview, Fuel, Hydration, Timing, and Adherence views for repeated patterns over time. Garmin patterns and opt-in Garmin metric visuals belong here, not in Analysis.
-- Settings: risk thresholds, account sync, import, update, app metadata, and support copy.
+- Log: default opening screen; current fuel/hydration status, quick fuel and hydration logging, Today’s progress, a collapsed Today’s timeline, the collapsed missed-log form, and a compact optional “Add today’s context” disclosure.
+- Insights: the renamed former Trends screen. It owns weekly summary, the most important actionable pattern, personalised insights, opt-in Garmin signals, and collapsed supporting charts/details.
+- History: compact factual daily summaries with full day detail after opening a day.
+- Settings: account and sync, connected Garmin apps and Garmin sharing information, preferences, advanced thresholds/window/targets, legacy CSV import, destructive actions, app update, app version, and privacy.
 
-## Removed legacy features
+Analysis and Plan are no longer visible product screens. Dormant planning/demand and analysis helper code may remain only where it supports existing records, migrations, Garmin-derived insights, or calculations used by the active screens.
+
+## Removed Legacy Features
 
 These old parked features have been removed from the active app, service worker cache, and visible app shell:
 
@@ -41,10 +39,12 @@ These old parked features have been removed from the active app, service worker 
 - Settings Bluetooth / live FG Button connection workflow
 - Ride Plan
 - Food Runway
+- Analysis primary screen
+- Plan primary screen
 
 Do not reintroduce them unless the user explicitly asks for them.
 
-## Active files
+## Active Files
 
 - `index.html`: static app shell, screen markup, and script/style imports
 - `build-info.js`: visible build metadata used by Settings and PWA update checks
@@ -53,7 +53,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-supabase.js`: Supabase Auth plus cloud log, target, and demand-planning sync layer
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
-- `fuel-beta.js`: canonical mobile PWA behavior for Log, Analysis, Plan, History, Trends, and header-accessible Settings
+- `fuel-beta.js`: canonical mobile PWA behavior for Log, Insights, History, and header-accessible Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `day-type-overrides.js`: day type and training session support
 - `manifest.webmanifest`: PWA manifest
@@ -63,7 +63,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `icons/icon.svg`: PWA icon
 - `FUEL_GUARD_BRAND_SYSTEM.md`: reusable Fuel Guard colour roles and visual identity rules
 
-## Visual identity
+## Visual Identity
 
 The canonical app uses the Fuel Guard brand tokens documented in `FUEL_GUARD_BRAND_SYSTEM.md` and implemented in `fuel-beta.css`.
 
@@ -80,15 +80,15 @@ Core visual roles:
 - Recovery needed / missed critical state: red
 - Inactive / secondary: neutral grey
 
-Use these semantic tokens for navigation, Plan subtabs, selected states, buttons, progress bars, timelines, charts, cards, empty states, focus states, and status badges. Do not add one-off decorative colours where an existing semantic token fits.
+Use these semantic tokens for navigation, selected states, buttons, progress bars, timelines, charts, cards, empty states, focus states, and status badges. Do not add one-off decorative colours where an existing semantic token fits.
 
-## Deprecated files
+## Deprecated Files
 
 The `deprecated_old_frontends/` folder is retained only as an archive boundary. It is not imported by the canonical PWA.
 
 Do not make future frontend changes in `deprecated_old_frontends/`.
 
-## Local run
+## Local Run
 
 There is no package install or build step. Serve the repository root with a static server:
 
@@ -112,9 +112,9 @@ Deploy the repository root. The `.nojekyll` file indicates the project is safe t
 
 No `package.json`, Vite, Next, Netlify, or Firebase config is present in this repo. The `vercel.json` file only sets cache headers for the canonical static PWA. If a build tool is added later, it must point to this canonical root app.
 
-## Mobile PWA update rules
+## Mobile PWA Update Rules
 
-1. The canonical app is the mobile PWA with Log, Analysis, Plan, Trends, and History in the bottom navigation.
+1. The canonical app is the mobile PWA with Log, Insights, and History in the bottom navigation.
 2. The deployed Vercel URL is the source for the installed mobile PWA.
 3. Settings must show the canonical marker and build version from `build-info.js`.
 4. Service worker caches must be versioned for each app-shell deployment.
@@ -122,7 +122,7 @@ No `package.json`, Vite, Next, Netlify, or Firebase config is present in this re
 6. The installed PWA may need the Settings update action after deploys to check for a waiting service worker and refresh safely.
 7. Future frontend work must not ignore PWA cache/update behavior when Safari shows a newer version than the installed iOS PWA.
 
-## Installed/mobile PWA updates
+## Installed/Mobile PWA Updates
 
 When changing deployed frontend files:
 
@@ -135,8 +135,8 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v86-share-ready-daily-experience`.
+The current canonical version is `mobile-pwa-v87-three-screen-core`.
 
-## Future frontend changes
+## Future Frontend Changes
 
-Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main bottom tabs Log, Analysis, Plan, Trends, and History, with Settings reachable from the sticky header icon.
+Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the main bottom tabs Log, Insights, and History, with Settings reachable from the sticky header icon.

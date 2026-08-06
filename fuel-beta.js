@@ -4277,7 +4277,7 @@
         <div class="beta-today-status-grid">
           ${dailyMetricCard("Last fuel", snapshot.timeSinceFuel, snapshot.lastFuelled === "No fuel logged" ? "No fuel logged yet" : `Logged at ${snapshot.lastFuelled}`, "fuel")}
           ${dailyMetricCard("Last hydration", hydrationSince, lastLogForDay(key, isHydrationLog) ? `Logged at ${formatClock(lastLogForDay(key, isHydrationLog).date)}` : "No hydration logged yet", "hydration")}
-          ${dailyMetricCard("Next useful window", event ? (event.end ? `${formatClock(event.time)}-${formatClock(event.end)}` : formatClock(event.time)) : "No planned event", event ? event.label : "Add work or training in Plan.", event ? "fuel" : "neutral")}
+          ${dailyMetricCard("Next useful window", event ? (event.end ? `${formatClock(event.time)}-${formatClock(event.end)}` : formatClock(event.time)) : "No context set", event ? event.label : "Add today’s context if it helps.", event ? "fuel" : "neutral")}
         </div>
       </section>
     `;
@@ -4404,11 +4404,11 @@
     const actualItems = todayActualTimelineItems(key, now);
     const suggestedItems = todaySuggestedTimelineItems(key, now);
     return `
-      <section class="beta-rhythm-section-card beta-today-timeline-card" aria-label="Today’s Fuel Plan">
+      <section class="beta-rhythm-section-card beta-today-timeline-card" aria-label="Today’s timeline">
         <div class="section-heading-row">
           <div>
-            <h3>Today’s Fuel Plan</h3>
-            <p class="muted">Compare what has actually happened today with the plan and suggested fuel windows.</p>
+            <h3>Today’s timeline</h3>
+            <p class="muted">Fuel, hydration and optional context across the selected day.</p>
           </div>
           <span class="row-note">${safeText(formatDateKey(key))}</span>
         </div>
@@ -4965,7 +4965,7 @@
         error: error?.message || "Garmin patterns are not available yet."
       };
     } finally {
-      if (document.getElementById("trends")?.classList.contains("active")) {
+      if (document.getElementById("insights")?.classList.contains("active")) {
         renderTrends();
       }
     }
@@ -5320,7 +5320,7 @@
           ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
           ${dailyMetricCard("Longest fuel gap", fuelGap, "From the fuel logs available today.", fuelGap === "Not enough data yet" ? "neutral" : "warning")}
           ${dailyMetricCard("Longest hydration gap", hydrationGap, "From the hydration logs available today.", hydrationGap === "Not enough data yet" ? "neutral" : "hydration")}
-          ${dailyMetricCard("Suggested moments", hasPlannedDay && opportunities.length ? `${completed} of ${opportunities.length}` : "No plan set", hasPlannedDay && opportunities.length ? "Protected fuelling moments completed today." : "Add work, breaks or training in Plan.", "fuel")}
+          ${dailyMetricCard("Suggested moments", hasPlannedDay && opportunities.length ? `${completed} of ${opportunities.length}` : "No context set", hasPlannedDay && opportunities.length ? "Protected fuelling moments completed today." : "Add today’s context if it helps explain the day.", "fuel")}
         </div>
       </section>
     `;
@@ -5362,7 +5362,7 @@
           </div>
         </div>
         <div class="beta-daily-status-groups beta-compact-summary-grid">
-          ${renderDailyMetricGroup("Plan status", planCards)}
+          ${renderDailyMetricGroup("Fuel support", planCards)}
           ${renderDailyMetricGroup("Fuel timing", fuelCards)}
           ${renderDailyMetricGroup("Hydration timing", hydrationCards)}
         </div>
@@ -8785,7 +8785,7 @@
     }
     if (signals.workIssues) return "Use the Work check-in after your next shift to notice whether breaks and fuel access are part of the pattern.";
     if (signals.trainingIssues) return "Use the Training check-in after your next session to see whether recovery fuel is part of the pattern.";
-    if (signals.checkins < 3) return "Add a quick energy or concentration check-in from Plan when something changes, then Fuel Guard can compare it with your gaps.";
+    if (signals.checkins < 3) return "Add a quick energy or concentration check-in when something changes, then Fuel Guard can compare it with your gaps.";
     return "Keep fuel and hydration logging simple, then review whether check-ins continue to cluster around longer gaps.";
   }
 
@@ -9069,7 +9069,7 @@
     ctx.fillText("Fuel Guard", 154, 56);
     ctx.fillStyle = "rgba(255,255,255,.76)";
     ctx.font = "600 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("Trends", 158, 108);
+    ctx.fillText("Insights", 158, 108);
   }
 
 
@@ -9250,25 +9250,25 @@
   }
 
   async function shareTrendCanvas(canvas, filename, statusLabel, downloadOnly = false) {
-    setTrendsShareStatus("Creating trend image...");
+    setTrendsShareStatus("Creating insight image...");
     try {
       const blob = await canvasBlob(canvas);
       if (!downloadOnly && navigator.share && typeof File !== "undefined") {
         const file = new File([blob], filename, { type: "image/png" });
         if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file], title: statusLabel, text: statusLabel });
-          setTrendsShareStatus("Trend image shared.");
+          setTrendsShareStatus("Insight image shared.");
           return;
         }
       }
       downloadBlob(blob, filename);
-      setTrendsShareStatus(downloadOnly ? "Trend image downloaded." : "Trend image downloaded because native sharing is not available here.");
+      setTrendsShareStatus(downloadOnly ? "Insight image downloaded." : "Insight image downloaded because native sharing is not available here.");
     } catch (error) {
       if (error?.name === "AbortError") {
         setTrendsShareStatus("Share cancelled.");
         return;
       }
-      setTrendsShareStatus(`Trend image failed: ${error?.message || "unknown error"}`);
+      setTrendsShareStatus(`Insight image failed: ${error?.message || "unknown error"}`);
     }
   }
 
@@ -9281,7 +9281,7 @@
 
   async function shareAllTrends(downloadOnly = false) {
     const data = trendComparisonData();
-    await shareTrendCanvas(createAllTrendsCanvas(data), trendImageFilename("trends"), "Fuel Guard trends", downloadOnly);
+    await shareTrendCanvas(createAllTrendsCanvas(data), trendImageFilename("insights"), "Fuel Guard insights", downloadOnly);
   }
 
   function updateTrendControls(range) {
@@ -9361,6 +9361,100 @@
     `;
   }
 
+  function renderInsightsWeeklySummary(data) {
+    const loggedDays = data.currentEntries.filter(entry => (entry.logs || []).length || Number(entry.fuelLogCount || 0) || Number(entry.hydrationLogCount || 0));
+    const fuelLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0);
+    const hydrationLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0);
+    const longestFuel = data.currentEntries.reduce((max, entry) => Math.max(max, Number(entry.longestGapMinutes || 0)), 0);
+    const summaryCopy = loggedDays.length
+      ? `You logged ${fuelLogs} fuel and ${hydrationLogs} hydration moment${fuelLogs + hydrationLogs === 1 ? "" : "s"} across ${loggedDays.length} day${loggedDays.length === 1 ? "" : "s"} in this ${data.range.period}.`
+      : `No logged days yet for ${data.range.label}.`;
+    return `
+      <section class="beta-trend-habit-section beta-insights-summary-section" aria-label="Weekly summary">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
+          <div>
+            <h3>Weekly summary</h3>
+            <p>${safeText(summaryCopy)}</p>
+          </div>
+        </div>
+        <div class="beta-trend-habit-grid beta-insights-summary-grid">
+          ${renderWeeklyMetricCard("Logged days", String(loggedDays.length), `Based on ${safeText(data.range.label)}.`)}
+          ${renderWeeklyMetricCard("Fuel logs", String(fuelLogs), "Fuel moments recorded in this period.")}
+          ${renderWeeklyMetricCard("Hydration logs", String(hydrationLogs), "Hydration moments recorded in this period.")}
+          ${renderWeeklyMetricCard("Longest fuel gap", longestFuel ? duration(longestFuel) : "Not enough data", "Largest daily fuel gap in this period.")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderGarminSignalsSummary() {
+    if (!garminPatternsState.loaded && !garminPatternsState.loading) scheduleGarminPatternsLoad();
+    const account = window.fuelGuardCloud?.accountView?.() || {};
+    const insights = garminPatternsState.data?.insights || [];
+    const features = garminFeatureRows();
+    let body = "";
+    if (garminPatternsState.loading) {
+      body = `<p class="muted beta-history-empty">Loading Garmin signals...</p>`;
+    } else if (!account.signedIn) {
+      body = `<p class="muted beta-history-empty">Sign in and connect Quick Log to compare opt-in watch signals with your fuelling rhythm.</p>`;
+    } else if (garminPatternsState.error) {
+      body = `<p class="muted beta-history-empty">${safeText(garminPatternsState.error)}</p>`;
+    } else if (insights.length) {
+      const insight = insights[0];
+      body = `
+        <article class="beta-personalised-insight-card ${safeText(insight.tone || "neutral")}">
+          <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : "shield"}">${dailyIcon(insight.metric === "heart_rate" ? "heart" : insight.metric === "body_battery" ? "score" : "chart")}</span>
+          <div>
+            <p>${safeText(insight.text)}</p>
+            ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
+            <span class="beta-evidence-label">${safeText(`${insight.confidence || "limited"} confidence · ${insight.count || 0} matching days`)}</span>
+          </div>
+        </article>
+      `;
+    } else if (features.length) {
+      body = `<p class="muted beta-history-empty">Garmin samples are connected. Fuel Guard needs more repeated days before highlighting a relationship.</p>`;
+    } else {
+      body = `<p class="muted beta-history-empty">No Garmin signals yet. Turn on health-pattern sharing in Quick Log if you want these comparisons.</p>`;
+    }
+    return `
+      <section class="beta-trend-habit-section beta-garmin-signals-summary" aria-label="Garmin signals">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("heart")}</span>
+          <div>
+            <h3>Garmin signals</h3>
+            <p>Opt-in Connect IQ-local samples, shown as behavioural associations only.</p>
+          </div>
+          <button class="secondary beta-garmin-refresh-button" type="button" data-refresh-garmin-patterns>Refresh</button>
+        </div>
+        ${body}
+      </section>
+    `;
+  }
+
+  function renderInsightsSupportingDetails(data) {
+    return `
+      <details class="beta-trend-detail-disclosure">
+        <summary>View supporting trend details</summary>
+        <div class="beta-trend-detail-stack">
+          ${renderGapInsights(data)}
+          ${renderTrendHabitInsights(data)}
+          ${renderLogHabits(data)}
+          ${renderTrendCards(data, ["fuel-gap", "hydration-gap", "low-energy", "logs"])}
+          ${renderFuelScoreTrends(data)}
+          ${renderDemandAdherenceInsights(data)}
+        </div>
+      </details>
+      <details class="beta-trend-detail-disclosure">
+        <summary>View Garmin metric history</summary>
+        <div class="beta-trend-detail-stack">
+          ${renderGarminMetricsSection()}
+          ${renderGarminPatternsSection()}
+        </div>
+      </details>
+    `;
+  }
+
   function renderTrendSegmentContent(data) {
     selectedTrendSegment = normalizeTrendSegment(selectedTrendSegment);
     if (selectedTrendSegment === "fuel") {
@@ -9403,8 +9497,11 @@
     const data = trendComparisonData();
     updateTrendControls(data.range);
     summaryTarget.innerHTML = `
-      ${renderTrendSegmentTabs()}
-      ${renderTrendSegmentContent(data)}
+      ${renderInsightsWeeklySummary(data)}
+      ${renderTrendPriorityInsight(data)}
+      ${renderPersonalisedInsights(data)}
+      ${renderGarminSignalsSummary()}
+      ${renderInsightsSupportingDetails(data)}
     `;
   }
 
@@ -9676,10 +9773,8 @@
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
-    const analysisActive = document.getElementById("analysis")?.classList.contains("active");
-    const planActive = document.getElementById("plan")?.classList.contains("active");
     const historyActive = document.getElementById("history")?.classList.contains("active");
-    const trendsActive = document.getElementById("trends")?.classList.contains("active");
+    const trendsActive = document.getElementById("insights")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
     const button = document.getElementById("graphLogFoodButton");
@@ -9703,12 +9798,11 @@
           : "";
     }
 
-    if (dashboardActive || analysisActive || planActive) {
+    if (dashboardActive) {
       renderDayTypeControls();
       renderSelectedDayCard();
-      if (dashboardActive) renderDailyLog();
+      renderDailyLog();
     }
-    if (analysisActive) renderAnalysis();
     if (historyActive) renderHistoryScreen();
     if (settingsActive) renderSettings();
     if (trendsActive) renderTrends();
@@ -9716,7 +9810,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "analysis", "plan", "history", "trends", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "history", "insights", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -9727,14 +9821,6 @@
     if (target === "dashboard") {
       renderSelectedDayCard();
       renderDailyLog();
-    }
-    if (target === "analysis") {
-      renderSelectedDayCard();
-      renderAnalysis();
-    }
-    if (target === "plan") {
-      renderDayTypeControls();
-      renderSelectedDayCard();
     }
     if (target === "history") renderHistoryScreen();
     if (target === "trends") renderTrends();
@@ -9824,7 +9910,8 @@
   async function clearBetaData() {
     if (!window.confirm("Clear fuel beta logs, summaries, day types and thresholds?")) return;
     const settingsStatus = document.getElementById("fuelSettingsStatus");
-    let clearStatus = "Fuel beta data cleared.";
+    const dataStatus = document.getElementById("fuelDataActionsStatus");
+    let clearStatus = "Fuel Guard data cleared.";
     try {
       await window.fuelGuardCloud?.clearCloudLogs();
     } catch (error) {
@@ -9842,6 +9929,7 @@
     gap.fastingStartedAt = "";
     gap.cooldownUntil = 0;
     if (settingsStatus) settingsStatus.textContent = clearStatus;
+    if (dataStatus) dataStatus.textContent = clearStatus;
     save();
     renderAll();
   }

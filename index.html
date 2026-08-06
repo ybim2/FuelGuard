@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v86-share-ready-daily-experience" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v86-share-ready-daily-experience" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v86-share-ready-daily-experience" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v87-three-screen-core" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v87-three-screen-core" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v87-three-screen-core" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -50,7 +50,7 @@
       width: 100vw;
       max-width: 100vw;
       display: grid !important;
-      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
       overflow: hidden;
     }
 
@@ -100,19 +100,17 @@
 <body class="beta-mvp app-booting">
   <div class="app-boot-splash" role="status" aria-live="polite">
     <div class="logo" aria-hidden="true">FG</div>
-    <span>Loading Fuel Guard</span>
+    <span>Notice the rhythm.</span>
   </div>
   <div class="layout">
     <aside class="sidebar">
       <div class="brand beta-brand-marker" aria-label="Fuel Guard"><div class="logo">FG</div></div>
       <nav class="side-nav beta-nav">
         <button class="nav-item active" data-screen="dashboard">Log</button>
-        <button class="nav-item" data-screen="analysis">Analysis</button>
-        <button class="nav-item" data-screen="plan">Plan</button>
-        <button class="nav-item" data-screen="trends">Trends</button>
+        <button class="nav-item" data-screen="insights">Insights</button>
         <button class="nav-item" data-screen="history">History</button>
       </nav>
-      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Daily flow</span><strong>Plan -> protect -> log -> analyse</strong><p>Set the day up, log quickly, then use the analysis to improve the next plan.</p></div>
+      <div class="sidebar-card beta-sidebar-card"><span class="tiny">Weekly rhythm</span><strong>Log -> learn -> review</strong><p>Capture fuel and hydration quickly, then come back for useful weekly patterns.</p></div>
     </aside>
 
     <main class="app">
@@ -178,132 +176,45 @@
               <p id="missedLogStatus" class="row-note" aria-live="polite"></p>
             </div>
           </section>
+
+          <details class="beta-rhythm-section-card beta-context-disclosure-card">
+            <summary>Add today’s context</summary>
+            <p class="muted">Optional. Use this when day type or training context helps explain your patterns.</p>
+            <div class="fuel-day-type-row beta-day-type-row">
+              <label class="day-type-field beta-history-date">
+                <span>Context date</span>
+                <input id="fuelDataDate" type="date">
+              </label>
+              <label class="day-type-field">
+                <span>Day type</span>
+                <select id="fuelDayType">
+                  <option value="">Select day type</option>
+                  <option value="work">Working Day</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="competition">Competition Day</option>
+                </select>
+              </label>
+              <label class="day-type-field" id="trainingSessionField">
+                <span>Training session</span>
+                <select id="fuelTrainingSession">
+                  <option value="">Select session</option>
+                  <option value="run">Run</option>
+                  <option value="bike">Bike</option>
+                  <option value="swim">Swim</option>
+                  <option value="strength">Strength</option>
+                  <option value="brick">Brick</option>
+                  <option value="rest">No training</option>
+                </select>
+              </label>
+              <span id="fuelDayTypeSaved" class="row-note"></span>
+            </div>
+          </details>
         </article>
 
         <article class="card insight dismissible beta-hidden-feature" id="dashboardTip" aria-hidden="true">
           <div class="icon">!</div>
           <p id="dashboardInsight">Live Fuel Status is your default daily check-in.</p>
           <button class="tip-close" data-close-tip="dashboardTip" aria-label="Close tip">x</button>
-        </article>
-      </section>
-
-      <section id="analysis" class="screen">
-        <article class="card beta-analysis-shell">
-          <section class="beta-rhythm-section-card beta-analysis-date-card" aria-label="Analysis day">
-            <div class="section-heading-row beta-data-date-row">
-              <div>
-                <h2 class="beta-panel-title">Analysis</h2>
-                <p class="muted">Review the selected day, compare the plan with what happened, and choose the next useful adjustment.</p>
-              </div>
-              <label class="day-type-field beta-history-date">
-                <span>Review day</span>
-                <input id="fuelAnalysisDate" type="date">
-              </label>
-            </div>
-          </section>
-          <section id="fuelAnalysisContent" class="beta-analysis-content"></section>
-        </article>
-      </section>
-
-      <section id="plan" class="screen">
-        <article class="card beta-plan-shell">
-          <nav class="beta-plan-subtabs" aria-label="Plan sections">
-            <button class="active" type="button" data-plan-subtab="today" aria-pressed="true">Today</button>
-            <button type="button" data-plan-subtab="work" aria-pressed="false">Work</button>
-            <button type="button" data-plan-subtab="training" aria-pressed="false">Training</button>
-            <button type="button" data-plan-subtab="targets" aria-pressed="false">Targets</button>
-          </nav>
-
-          <section id="planSubtabToday" class="beta-plan-subtab-panel active" data-plan-panel="today">
-            <section class="beta-rhythm-section-card beta-selected-day-card beta-plan-day-card" aria-label="Plan day">
-              <div class="section-heading-row beta-data-date-row">
-                <div>
-                  <h2 class="beta-panel-title">Plan</h2>
-                  <p class="muted">Enter the shape of your day, then Fuel Guard turns it into practical fuel suggestions.</p>
-                </div>
-                <label class="day-type-field beta-history-date">
-                  <span>Plan day</span>
-                  <input id="fuelDataDate" type="date">
-                </label>
-              </div>
-              <div class="fuel-day-type-row beta-day-type-row">
-                <label class="day-type-field">
-                  <span>Day type</span>
-                  <select id="fuelDayType">
-                    <option value="">Select day type</option>
-                    <option value="work">Working Day</option>
-                    <option value="holiday">Holiday</option>
-                    <option value="competition">Competition Day</option>
-                  </select>
-                </label>
-                <label class="day-type-field" id="trainingSessionField">
-                  <span>Training session</span>
-                  <select id="fuelTrainingSession">
-                    <option value="">Select session</option>
-                    <option value="run">Run</option>
-                    <option value="bike">Bike</option>
-                    <option value="swim">Swim</option>
-                    <option value="strength">Strength</option>
-                    <option value="brick">Brick</option>
-                    <option value="rest">No training</option>
-                  </select>
-                </label>
-                <span id="fuelDayTypeSaved" class="row-note"></span>
-              </div>
-              <div id="fuelTodayPlanningFields"></div>
-            </section>
-
-            <section id="fuelTodayTimeline"></section>
-          </section>
-
-          <section id="planSubtabWork" class="beta-plan-subtab-panel" data-plan-panel="work" hidden>
-            <div id="fuelWorkPlanner"></div>
-          </section>
-
-          <section id="planSubtabTraining" class="beta-plan-subtab-panel" data-plan-panel="training" hidden>
-            <div id="fuelTrainingPlanner"></div>
-          </section>
-
-          <section id="planSubtabTargets" class="beta-plan-subtab-panel" data-plan-panel="targets" hidden>
-            <section class="beta-rhythm-section-card beta-plan-fuelling-card" aria-label="Fuelling window">
-              <div class="section-heading-row">
-                <div>
-                  <h3>Fuelling window</h3>
-                  <p class="muted">Choose the fuelling window Fuel Guard should use for planning and scores.</p>
-                </div>
-              </div>
-              <div class="form-grid beta-settings-grid">
-                <label>Fuelling window
-                  <select id="fuelWindowPreset">
-                    <option value="480">8 hours</option>
-                    <option value="600">10 hours</option>
-                    <option value="720">12 hours</option>
-                    <option value="840">14 hours</option>
-                    <option value="custom">Custom duration</option>
-                  </select>
-                </label>
-                <label>Custom window length (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
-              </div>
-            </section>
-
-            <section class="beta-rhythm-section-card beta-targets-card">
-              <h3>Daily targets</h3>
-              <p class="muted">Set optional daily fuel and hydration log targets. Weekly targets are calculated automatically.</p>
-              <div class="form-grid beta-settings-grid">
-                <label>Fuel logs per day<input id="dailyFuelTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
-                <label>Hydration logs per day<input id="dailyHydrationTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
-              </div>
-              <div class="beta-calculated-targets" aria-label="Calculated weekly targets">
-                <div><span>Weekly fuel target</span><strong id="weeklyFuelTargetDisplay">No daily fuel target set.</strong></div>
-                <div><span>Weekly hydration target</span><strong id="weeklyHydrationTargetDisplay">No daily hydration target set.</strong></div>
-              </div>
-              <div class="button-row beta-settings-actions">
-                <button id="saveFuelTargets" class="primary" type="button">Save targets</button>
-                <button id="clearFuelTargets" class="secondary" type="button">Clear targets</button>
-              </div>
-              <p id="fuelTargetsStatus" class="row-note" aria-live="polite"></p>
-            </section>
-          </section>
         </article>
       </section>
 
@@ -320,10 +231,10 @@
         </article>
       </section>
 
-      <section id="trends" class="screen">
+      <section id="insights" class="screen">
         <article class="card beta-trends-card">
           <div class="section-heading-row beta-insight-heading beta-trends-week-row">
-            <h2 class="beta-trends-filter-title">Trends</h2>
+            <h2 class="beta-trends-filter-title">Insights</h2>
             <div class="beta-trend-controls">
               <div class="beta-trend-period-toggle" aria-label="Trend comparison period">
                 <button id="trendPeriodWeekButton" class="secondary active" type="button" aria-pressed="true">Week</button>
@@ -339,8 +250,8 @@
               </div>
             </div>
             <div class="button-row beta-trends-share-actions">
-              <button id="shareTrendsButton" class="secondary" type="button">Share trends</button>
-              <button id="downloadTrendsButton" class="secondary" type="button">Download trends</button>
+              <button id="shareTrendsButton" class="secondary" type="button">Share insights</button>
+              <button id="downloadTrendsButton" class="secondary" type="button">Download insights</button>
             </div>
             <p id="trendsShareStatus" class="row-note" aria-live="polite"></p>
           </div>
@@ -349,59 +260,9 @@
       </section>
 
       <section id="checklist" class="screen">
-        <article class="card">
+        <article class="card beta-settings-intro-card">
           <h2>Settings</h2>
-          <p class="muted">Adjust when Eat soon, Eat now, and Recovery needed estimates begin for fuel and hydration rhythm.</p>
           <p class="muted beta-supportive-note">Fuel Guard is designed to help you notice fuelling rhythm, not judge food choices. If tracking food or fuelling timing feels distressing, use the app in the gentlest way that supports you.</p>
-          <div class="form-grid beta-settings-grid">
-            <label>Fuel Eat soon starts at (hours)<input id="fuelGreenHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
-            <label>Fuel Eat now starts at (hours)<input id="fuelRedHours" type="number" min="1" max="10" step="0.25" inputmode="decimal"></label>
-            <label>Fuel Recovery needed starts at (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
-            <label>Hydration Sip soon starts at (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
-            <label>Hydration Sip now starts at (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
-            <label>Hydration Recovery needed starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
-          </div>
-          <div class="button-row beta-settings-actions">
-            <button id="saveFuelThresholds" class="primary" type="button">Save thresholds</button>
-            <button id="clearFuelBetaData" class="secondary danger-secondary" type="button">Clear fuel beta data</button>
-          </div>
-          <p id="fuelSettingsStatus" class="row-note"></p>
-        </article>
-
-        <article class="card beta-update-card">
-          <h2>App update</h2>
-          <p class="muted">Check for the latest deployed PWA shell without clearing fuel or hydration logs.</p>
-          <div class="beta-update-build">
-            <span>Current build</span>
-            <strong id="appUpdateCurrentBuild">loading...</strong>
-          </div>
-          <div class="button-row beta-settings-actions">
-            <button id="checkAppUpdateButton" class="secondary" type="button">Check for update / Refresh app</button>
-          </div>
-          <p id="appUpdateStatus" class="row-note" aria-live="polite">Update status: ready.</p>
-        </article>
-
-        <article class="card beta-import-card">
-          <h2>Import Fuel Guard logs</h2>
-          <p class="muted">Upload a CSV from your FG button to add fuel logs from your hardware device.</p>
-          <input id="fuelCsvImportFileInput" type="file" accept=".csv,text/csv" hidden>
-          <div class="button-row beta-settings-actions">
-            <button id="fuelCsvImportButton" class="secondary" type="button">Import CSV</button>
-          </div>
-          <div id="fuelCsvImportPreview" class="beta-import-preview" hidden>
-            <strong>Ready to import</strong>
-            <div class="beta-import-stats">
-              <div><span>Valid fuel logs</span><strong id="fuelCsvImportValidCount">0</strong></div>
-              <div><span>Duplicates ignored</span><strong id="fuelCsvImportDuplicateCount">0</strong></div>
-              <div><span>Invalid rows skipped</span><strong id="fuelCsvImportInvalidCount">0</strong></div>
-              <div><span>Earliest log</span><strong id="fuelCsvImportEarliest">--</strong></div>
-              <div><span>Latest log</span><strong id="fuelCsvImportLatest">--</strong></div>
-            </div>
-            <div class="button-row beta-settings-actions">
-              <button id="fuelCsvImportConfirmButton" class="primary" type="button">Import logs</button>
-            </div>
-          </div>
-          <p id="fuelCsvImportStatus" class="row-note" aria-live="polite"></p>
         </article>
 
         <article class="card beta-account-card">
@@ -461,7 +322,7 @@
 
         <article id="garminHealthPatternsCard" class="card beta-garmin-health-card">
           <h2>Garmin health patterns</h2>
-          <p class="muted">Optional watch-side pattern sharing is off by default. Turn on “Share Garmin health patterns with Fuel Guard” in the Quick Log app settings in Garmin Connect if you want Analysis to compare fuelling rhythm with local watch signals.</p>
+          <p class="muted">Optional watch-side pattern sharing is off by default. Turn on “Share Garmin health patterns with Fuel Guard” in the Quick Log app settings in Garmin Connect if you want Insights to compare fuelling rhythm with local watch signals.</p>
           <div class="beta-garmin-health-grid" aria-label="Supported Garmin pattern metrics">
             <span>Heart-rate history</span>
             <span>Stress history</span>
@@ -472,9 +333,107 @@
           <p class="row-note">Fuel Guard does not collect GPS routes, sleep stages, HRV Status, Training Readiness, Recovery Time, gender, birth year, height, weight, calories, or food details for these insights.</p>
         </article>
 
+        <article class="card beta-preferences-card">
+          <h2>Preferences</h2>
+          <details class="beta-settings-disclosure">
+            <summary>Daily targets</summary>
+            <p class="muted">Optional fuel and hydration log counts. Weekly targets are calculated automatically.</p>
+            <div class="form-grid beta-settings-grid">
+              <label>Fuel logs per day<input id="dailyFuelTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+              <label>Hydration logs per day<input id="dailyHydrationTarget" type="number" min="1" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="No target"></label>
+            </div>
+            <div class="beta-calculated-targets" aria-label="Calculated weekly targets">
+              <div><span>Weekly fuel target</span><strong id="weeklyFuelTargetDisplay">No daily fuel target set.</strong></div>
+              <div><span>Weekly hydration target</span><strong id="weeklyHydrationTargetDisplay">No daily hydration target set.</strong></div>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="saveFuelTargets" class="primary" type="button">Save targets</button>
+              <button id="clearFuelTargets" class="secondary" type="button">Clear targets</button>
+            </div>
+            <p id="fuelTargetsStatus" class="row-note" aria-live="polite"></p>
+          </details>
+        </article>
+
+        <article class="card beta-advanced-settings-card">
+          <h2>Advanced settings</h2>
+          <details class="beta-settings-disclosure">
+            <summary>Support thresholds and fuelling window</summary>
+            <p class="muted">Adjust the timing estimates only if the defaults do not match your rhythm.</p>
+            <div class="form-grid beta-settings-grid">
+              <label>Fuelling window
+                <select id="fuelWindowPreset">
+                  <option value="480">8 hours</option>
+                  <option value="600">10 hours</option>
+                  <option value="720">12 hours</option>
+                  <option value="840">14 hours</option>
+                  <option value="custom">Custom duration</option>
+                </select>
+              </label>
+              <label>Custom window length (hours)<input id="fuelWindowHours" type="number" min="4" max="20" step="0.5" inputmode="decimal"></label>
+              <label>Fuel Eat soon starts at (hours)<input id="fuelGreenHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
+              <label>Fuel Eat now starts at (hours)<input id="fuelRedHours" type="number" min="1" max="10" step="0.25" inputmode="decimal"></label>
+              <label>Fuel Recovery needed starts at (hours)<input id="fuelCrashHours" type="number" min="1.25" max="12" step="0.25" inputmode="decimal"></label>
+              <label>Hydration Sip soon starts at (hours)<input id="hydrationGreenHours" type="number" min="0.25" max="6" step="0.25" inputmode="decimal"></label>
+              <label>Hydration Sip now starts at (hours)<input id="hydrationRedHours" type="number" min="0.5" max="8" step="0.25" inputmode="decimal"></label>
+              <label>Hydration Recovery needed starts at (hours)<input id="hydrationCrashHours" type="number" min="0.75" max="10" step="0.25" inputmode="decimal"></label>
+            </div>
+            <div class="button-row beta-settings-actions">
+              <button id="saveFuelThresholds" class="primary" type="button">Save settings</button>
+            </div>
+            <p id="fuelSettingsStatus" class="row-note"></p>
+          </details>
+        </article>
+
+        <article class="card beta-import-card">
+          <h2>Data import and clearing</h2>
+          <details class="beta-settings-disclosure">
+            <summary>Legacy CSV import</summary>
+            <p class="muted">Import older CSV fuel logs from a compatible export file.</p>
+            <input id="fuelCsvImportFileInput" type="file" accept=".csv,text/csv" hidden>
+            <div class="button-row beta-settings-actions">
+              <button id="fuelCsvImportButton" class="secondary" type="button">Import CSV</button>
+            </div>
+            <div id="fuelCsvImportPreview" class="beta-import-preview" hidden>
+              <strong>Ready to import</strong>
+              <div class="beta-import-stats">
+                <div><span>Valid fuel logs</span><strong id="fuelCsvImportValidCount">0</strong></div>
+                <div><span>Duplicates ignored</span><strong id="fuelCsvImportDuplicateCount">0</strong></div>
+                <div><span>Invalid rows skipped</span><strong id="fuelCsvImportInvalidCount">0</strong></div>
+                <div><span>Earliest log</span><strong id="fuelCsvImportEarliest">--</strong></div>
+                <div><span>Latest log</span><strong id="fuelCsvImportLatest">--</strong></div>
+              </div>
+              <div class="button-row beta-settings-actions">
+                <button id="fuelCsvImportConfirmButton" class="primary" type="button">Import logs</button>
+              </div>
+            </div>
+            <p id="fuelCsvImportStatus" class="row-note" aria-live="polite"></p>
+          </details>
+          <details class="beta-settings-disclosure beta-danger-disclosure">
+            <summary>Destructive actions</summary>
+            <p class="muted">Only use this if you intentionally want to clear Fuel Guard log data.</p>
+            <div class="button-row beta-settings-actions">
+              <button id="clearFuelBetaData" class="secondary danger-secondary" type="button">Clear Fuel Guard data</button>
+            </div>
+            <p id="fuelDataActionsStatus" class="row-note" aria-live="polite"></p>
+          </details>
+        </article>
+
+        <article class="card beta-update-card">
+          <h2>App version and privacy</h2>
+          <p class="muted">Check for the latest deployed PWA shell without clearing fuel or hydration logs.</p>
+          <div class="beta-update-build">
+            <span>Current build</span>
+            <strong id="appUpdateCurrentBuild">loading...</strong>
+          </div>
+          <div class="button-row beta-settings-actions">
+            <button id="checkAppUpdateButton" class="secondary" type="button">Check for update / Refresh app</button>
+          </div>
+          <p id="appUpdateStatus" class="row-note" aria-live="polite">Update status: ready.</p>
+        </article>
+
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v86-share-ready-daily-experience</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v87-three-screen-core</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -488,17 +447,9 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 3-4 3 3 5-7 1 2"/></svg>
       <span>Log</span>
     </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="analysis" data-mobile-tab="analysis">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"/><path d="M6 17V9"/><path d="M12 17V5"/><path d="M18 17v-6"/><path d="M6 9l6-4 6 6"/></svg>
-      <span>Analysis</span>
-    </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="plan" data-mobile-tab="plan">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8 8h8"/><path d="M8 12h5"/><path d="M8 16h7"/></svg>
-      <span>Plan</span>
-    </button>
-    <button class="mobile-nav-item" type="button" data-mobile-screen="trends" data-mobile-tab="trends">
+    <button class="mobile-nav-item" type="button" data-mobile-screen="insights" data-mobile-tab="insights">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 4-5 3 3 5-7"/></svg>
-      <span>Trends</span>
+      <span>Insights</span>
     </button>
     <button class="mobile-nav-item" type="button" data-mobile-screen="history" data-mobile-tab="history">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14"/><path d="M5 12h14"/><path d="M5 19h14"/><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/></svg>
@@ -506,16 +457,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
+  <script src="build-info.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v87-three-screen-core"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="app-ui.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v86-share-ready-daily-experience"></script>
+  <script src="app-state.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="app-ui.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v87-three-screen-core"></script>
 </body>
 </html>
