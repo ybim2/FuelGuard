@@ -1,18 +1,18 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Time;
+import Toybox.Timer;
 import Toybox.WatchUi;
 
 class FuelGuardQuickLogView extends WatchUi.View {
-    private const ACTIONS = [
-        { :label => "Fuel", :type => FuelGuardEvents.TYPE_FUEL },
-        { :label => "Hydration", :type => FuelGuardEvents.TYPE_HYDRATION },
-        { :label => "Fuel + Water", :type => FuelGuardEvents.TYPE_FUEL_HYDRATION }
-    ];
+    private const ACTION_COUNT = 3;
+    private const ACTION_HYDRATION = 1;
+    private const ACTION_FUEL_HYDRATION = 2;
 
     private var _selection as Number = 0;
     private var _confirmStartedAt as Number?;
-    private var _confirmText as String = "";
+    private var _confirmType as String = FuelGuardEvents.TYPE_FUEL;
+    private var _confirmationTimer as Timer.Timer?;
 
     public function initialize() {
         View.initialize();
@@ -22,20 +22,88 @@ class FuelGuardQuickLogView extends WatchUi.View {
         FuelGuardApi.trySync(true);
     }
 
+    public function onHide() as Void {
+        cancelConfirmationTimer();
+    }
+
     public function move(delta as Number) as Void {
-        _selection = (_selection + delta + ACTIONS.size()) % ACTIONS.size();
+        if (confirming()) {
+            return;
+        }
+        _selection = (_selection + delta + ACTION_COUNT) % ACTION_COUNT;
         WatchUi.requestUpdate();
     }
 
     public function logSelection() as Void {
-        var action = ACTIONS[_selection];
-        var event = FuelGuardEvents.create(action[:type]);
+        if (confirming()) {
+            return;
+        }
+        var eventType = typeForSelection(_selection);
+        var event = FuelGuardEvents.create(eventType);
         FuelGuardQueue.enqueue(event);
         _confirmStartedAt = Time.now().value();
-        _confirmText = FuelGuardFeedback.eventConfirmation(action[:type]);
+        _confirmType = eventType;
         FuelGuardFeedback.vibrate();
         FuelGuardApi.trySync(true);
+        startConfirmationTimer();
         WatchUi.requestUpdate();
+    }
+
+    public function selectedIndex() as Number {
+        return _selection;
+    }
+
+    public function isConfirming() as Boolean {
+        return confirming();
+    }
+
+    private function confirming() as Boolean {
+        return FuelGuardFeedback.confirmationActive(_confirmStartedAt);
+    }
+
+    private function cancelConfirmationTimer() as Void {
+        if (_confirmationTimer != null) {
+            (_confirmationTimer as Timer.Timer).stop();
+            _confirmationTimer = null;
+        }
+    }
+
+    private function startConfirmationTimer() as Void {
+        cancelConfirmationTimer();
+        if (Timer has :Timer) {
+            _confirmationTimer = new Timer.Timer();
+            (_confirmationTimer as Timer.Timer).start(method(:finishConfirmation), FuelGuardFeedback.CONFIRM_SECONDS * 1000, false);
+        }
+    }
+
+    public function finishConfirmation() as Void {
+        _confirmStartedAt = null;
+        cancelConfirmationTimer();
+        WatchUi.requestUpdate();
+    }
+
+    private function selectedRowCount() as Number {
+        return 1;
+    }
+
+    private function labelForSelection(index as Number) as String {
+        if (index == ACTION_HYDRATION) {
+            return "Hydration";
+        }
+        if (index == ACTION_FUEL_HYDRATION) {
+            return "Fuel + Water";
+        }
+        return "Fuel";
+    }
+
+    private function typeForSelection(index as Number) as String {
+        if (index == ACTION_HYDRATION) {
+            return FuelGuardEvents.TYPE_HYDRATION;
+        }
+        if (index == ACTION_FUEL_HYDRATION) {
+            return FuelGuardEvents.TYPE_FUEL_HYDRATION;
+        }
+        return FuelGuardEvents.TYPE_FUEL;
     }
 
     public function onUpdate(dc as Graphics.Dc) as Void {
@@ -45,31 +113,43 @@ class FuelGuardQuickLogView extends WatchUi.View {
         dc.clear();
 
         var width = dc.getWidth();
+        var height = dc.getHeight();
         var center = width / 2;
 
-        if (FuelGuardFeedback.confirmationActive(_confirmStartedAt)) {
+        if (confirming()) {
             dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-            dc.drawText(center, 102, Graphics.FONT_SMALL, _confirmText, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(center, height / 2 - 36, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationFirstLine(_confirmType), Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(center, height / 2 - 6, Graphics.FONT_SMALL, FuelGuardFeedback.confirmationSecondLine(_confirmType), Graphics.TEXT_JUSTIFY_CENTER);
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            dc.drawText(center, 168, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(center, height / 2 + 36, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
             return;
         }
 
         dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-        dc.drawText(center, 28, Graphics.FONT_SMALL, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(center, 22, Graphics.FONT_SMALL, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(center, 54, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(center, 48, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);
 
-        for (var i = 0; i < ACTIONS.size(); i++) {
-            var y = 96 + (i * 38);
+        var rowWidth = width - 64;
+        var rowLeft = (width - rowWidth) / 2;
+        var firstRowY = 90;
+        var rowGap = 40;
+        var rowHeight = 30;
+        for (var i = 0; i < ACTION_COUNT; i++) {
+            var y = firstRowY + (i * rowGap);
             var selected = i == _selection;
-            dc.setColor(selected ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE, selected ? Graphics.COLOR_GREEN : Graphics.COLOR_BLACK);
-            dc.fillRectangle(46, y - 16, width - 92, 30);
-            dc.drawText(center, y - 9, Graphics.FONT_XTINY, ACTIONS[i][:label], Graphics.TEXT_JUSTIFY_CENTER);
+            if (selected) {
+                dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+                dc.fillRectangle(rowLeft, y - 16, rowWidth, rowHeight);
+                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_GREEN);
+            } else {
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            }
+            dc.drawText(center, y - 9, Graphics.FONT_XTINY, labelForSelection(i), Graphics.TEXT_JUSTIFY_CENTER);
         }
 
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(center, 224, Graphics.FONT_XTINY, Lang.format("Pending $1$  ENTER logs", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(center, height - 32, Graphics.FONT_XTINY, Lang.format("Pending $1$  ENTER logs", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
     }
 }
 

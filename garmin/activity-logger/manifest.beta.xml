@@ -1,5 +1,5 @@
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="1">
-    <iq:application entry="FuelGuardActivityLoggerApp" id="5D34775D0DE84E388CC2BF0F2A8EB4DA" launcherIcon="@Drawables.LauncherIcon" minSdkVersion="3.1.0" name="@Strings.AppName" type="datafield">
+    <iq:application entry="FuelGuardActivityLoggerApp" id="5D34775D0DE84E388CC2BF0F2A8EB4DA" launcherIcon="@Drawables.LauncherIcon" minSdkVersion="3.1.0" name="@Strings.AppName" type="datafield" version="0.2.0">
         <iq:products>
             <iq:product id="fr255"/>
         </iq:products>

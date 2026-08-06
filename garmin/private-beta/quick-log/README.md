@@ -43,10 +43,10 @@ This beta targets Garmin product ID `fr255`. The 48x48 launcher source has been 
 ## Garmin Developer Dashboard upload steps
 
 1. Open the Garmin Connect IQ Developer Dashboard.
-2. Create a Beta App listing for Fuel Guard Quick Log.
+2. Open the existing Beta App listing for Fuel Guard Quick Log.
 3. Confirm the app type is Device App with Glance support.
-4. Upload `build/garmin-beta/fuel-guard-quick-log-beta.iq`.
+4. Upload `build/garmin-beta/fuel-guard-quick-log-beta.iq` as a new version of the existing beta listing.
 5. Confirm Forerunner 255 support.
-6. Keep the app private.
+6. Keep Apps for beta testing only enabled and keep the app private.
 7. Add the description, privacy text, store icon, and screenshots.
-8. Save the beta listing and download it from the developer account to the paired Forerunner 255.
+8. Save the beta listing and sync/update it on the paired Forerunner 255.

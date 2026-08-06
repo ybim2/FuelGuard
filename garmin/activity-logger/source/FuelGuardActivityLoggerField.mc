@@ -55,6 +55,10 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
         dc.drawText(width / 2, smallLayout ? height / 2 - 8 : height / 2 - 12, smallLayout ? Graphics.FONT_XTINY : Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);
 
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(width / 2, smallLayout ? height - 18 : height - 24, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+        var pendingCount = FuelGuardQueue.pendingCount();
+        var pendingText = pendingCount > 0
+            ? FuelGuardApi.savedSyncPendingText()
+            : Lang.format("Pending $1$", [pendingCount]);
+        dc.drawText(width / 2, smallLayout ? height - 18 : height - 24, Graphics.FONT_XTINY, pendingText, Graphics.TEXT_JUSTIFY_CENTER);
     }
 }

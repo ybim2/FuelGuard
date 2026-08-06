@@ -43,12 +43,26 @@ module FuelGuardFeedback {
 
     function eventConfirmation(type as String) as String {
         if (type == FuelGuardEvents.TYPE_HYDRATION) {
-            return "HYDRATION\nLOGGED";
+            return "HYDRATION|LOGGED";
         }
         if (type == FuelGuardEvents.TYPE_FUEL_HYDRATION) {
-            return "FUEL + WATER\nLOGGED";
+            return "FUEL + WATER|LOGGED";
         }
-        return "FUEL\nLOGGED";
+        return "FUEL|LOGGED";
+    }
+
+    function confirmationFirstLine(type as String) as String {
+        if (type == FuelGuardEvents.TYPE_HYDRATION) {
+            return "HYDRATION";
+        }
+        if (type == FuelGuardEvents.TYPE_FUEL_HYDRATION) {
+            return "FUEL + WATER";
+        }
+        return "FUEL";
+    }
+
+    function confirmationSecondLine(type as String) as String {
+        return "LOGGED";
     }
 
     function drawCentered(dc as Graphics.Dc, lines as Array<String>, font as Graphics.FontDefinition, yStart as Number, color as Graphics.ColorType) as Void {

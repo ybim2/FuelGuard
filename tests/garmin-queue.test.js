@@ -81,6 +81,61 @@ class GarminQueueHarness {
   }
 }
 
+function responseAcknowledged(responseCode, data) {
+  if (responseCode === 200 || responseCode === 201) return true;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    let result = data[":result"];
+    if (typeof result !== "string") result = data.result;
+    return typeof result === "string" && ["ok", "duplicate", "already_recorded"].includes(result);
+  }
+  return false;
+}
+
+function externalEventId(event) {
+  if (event && typeof event === "object" && typeof event.external_event_id === "string") {
+    return event.external_event_id;
+  }
+  return null;
+}
+
+function sanitizeQueue(items) {
+  if (!Array.isArray(items)) return [];
+  return items.filter(item => externalEventId(item) !== null);
+}
+
+class QuickLogHarness {
+  constructor() {
+    this.actions = ["fuel", "hydration", "fuel_hydration"];
+    this.selection = 0;
+    this.confirming = false;
+    this.queue = [];
+  }
+
+  move(delta) {
+    if (this.confirming) return;
+    this.selection = (this.selection + delta + this.actions.length) % this.actions.length;
+  }
+
+  selectedRows() {
+    return this.actions.map((_action, index) => index === this.selection);
+  }
+
+  enter() {
+    if (this.confirming) return null;
+    const event = {
+      external_event_id: `fg-fr255-${this.queue.length + 1}`,
+      type: this.actions[this.selection]
+    };
+    this.queue.push(event);
+    this.confirming = true;
+    return event;
+  }
+
+  finishConfirmation() {
+    this.confirming = false;
+  }
+}
+
 test("Garmin queue stores the event before upload starts", () => {
   const harness = new GarminQueueHarness();
   const event = harness.record("fuel", 1000);
@@ -120,6 +175,54 @@ test("Garmin queue treats duplicate acknowledgement as success for only that eve
 
   assert.deepEqual(harness.queue, [second]);
   assert.notEqual(harness.queue[0].external_event_id, first.external_event_id);
+});
+
+test("Garmin response acknowledgement handles dictionary result values safely", () => {
+  assert.equal(responseAcknowledged(500, { ":result": "ok" }), true);
+  assert.equal(responseAcknowledged(500, { result: "duplicate" }), true);
+  assert.equal(responseAcknowledged(500, { result: "already_recorded" }), true);
+  assert.equal(responseAcknowledged(500, { result: null }), false);
+  assert.equal(responseAcknowledged(500, { ":result": true, result: 12 }), false);
+  assert.equal(responseAcknowledged(500, null), false);
+  assert.equal(responseAcknowledged(500, "ok"), false);
+  assert.equal(responseAcknowledged(200, null), true);
+  assert.equal(responseAcknowledged(201, { result: 12 }), true);
+});
+
+test("Garmin queue sanitizes stale storage entries before indexing", () => {
+  const valid = { external_event_id: "fg-fr255-1000-1", type: "fuel" };
+  const staleQueue = [null, "bad", {}, { external_event_id: 12 }, valid];
+
+  assert.deepEqual(sanitizeQueue(staleQueue), [valid]);
+  assert.deepEqual(sanitizeQueue(null), []);
+});
+
+test("Quick Log menu has one selected row and wraps selection", () => {
+  const harness = new QuickLogHarness();
+  assert.deepEqual(harness.selectedRows(), [true, false, false]);
+
+  harness.move(1);
+  assert.deepEqual(harness.selectedRows(), [false, true, false]);
+  harness.move(1);
+  assert.deepEqual(harness.selectedRows(), [false, false, true]);
+  harness.move(1);
+  assert.deepEqual(harness.selectedRows(), [true, false, false]);
+  harness.move(-1);
+  assert.deepEqual(harness.selectedRows(), [false, false, true]);
+});
+
+test("Quick Log repeated ENTER during confirmation does not enqueue a duplicate", () => {
+  const harness = new QuickLogHarness();
+
+  const first = harness.enter();
+  const second = harness.enter();
+
+  assert.equal(first.type, "fuel");
+  assert.equal(second, null);
+  assert.equal(harness.queue.length, 1);
+  harness.finishConfirmation();
+  harness.enter();
+  assert.equal(harness.queue.length, 2);
 });
 
 test("Garmin queue sends multiple pending events serially", () => {
@@ -281,10 +384,28 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(apiSource, /if \(_inFlight \|\| !configured\(\)\)/);
   assert.match(apiSource, /FuelGuardQueue\.peek\(\)/);
   assert.match(apiSource, /FuelGuardQueue\.removeAcknowledged\(context as String\)/);
+  assert.match(apiSource, /try \{\s*Communications\.makeWebRequest/s);
+  assert.match(apiSource, /catch \(e\) \{\s*_inFlight = false;/s);
+  assert.match(apiSource, /if \(context instanceof String\)/);
+  assert.doesNotMatch(apiSource, /\|\|\s*data\["result"\]/);
   assert.match(apiSource, /VERCEL_BYPASS_PROPERTY = "vercelBypassSecret"/);
   assert.match(apiSource, /headers\["x-vercel-protection-bypass"\] = bypassSecret/);
+  assert.match(queueSource, /function externalEventId\(event as Object\) as String\?/);
   assert.match(queueSource, /function removeAcknowledged\(eventId as String\)/);
-  assert.match(queueSource, /items\[i\]\[:external_event_id\] != eventId/);
+  assert.match(queueSource, /if \(items\.size\(\) == 0\)/);
+  assert.doesNotMatch(queueSource, /items\.size\(\) > 0 \? items\[0\]/);
+  assert.match(queueSource, /externalEventId\(items\[i\]\) != eventId/);
+});
+
+test("Quick Log glance and app startup avoid lifecycle network sync", () => {
+  const appSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogApp.mc");
+  const glanceSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogGlance.mc");
+  const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
+
+  assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
+  assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
+  assert.doesNotMatch(glanceSource, /FuelGuardQueue\.pendingCount/);
+  assert.doesNotMatch(glanceSource, /FuelGuardFeedback\.elapsedFuelText/);
 });
 
 test("Garmin settings keep secrets blank and expose private alpha configuration", () => {

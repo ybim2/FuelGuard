@@ -62,6 +62,10 @@ module FuelGuardApi {
         trySync(false);
     }
 
+    function savedSyncPendingText() as String {
+        return "SAVED - SYNC PENDING";
+    }
+
     function responseCallback() as Method {
         if (_callback == null) {
             _callback = new FuelGuardApiCallback();
@@ -103,12 +107,16 @@ module FuelGuardApi {
             :context => event[:external_event_id]
         };
 
-        Communications.makeWebRequest(
-            settingString(ENDPOINT_PROPERTY),
-            event,
-            options,
-            responseCallback()
-        );
+        try {
+            Communications.makeWebRequest(
+                settingString(ENDPOINT_PROPERTY),
+                event,
+                options,
+                responseCallback()
+            );
+        } catch (e) {
+            _inFlight = false;
+        }
     }
 
     function responseAcknowledged(responseCode as Number, data as Dictionary or String or Null) as Boolean {
@@ -116,8 +124,13 @@ module FuelGuardApi {
             return true;
         }
         if (data instanceof Dictionary) {
-            var result = data[:result] || data["result"];
-            return result == "ok" || result == "duplicate" || result == "already_recorded";
+            var result = data[:result];
+            if (!(result instanceof String)) {
+                result = data["result"];
+            }
+            if (result instanceof String) {
+                return result == "ok" || result == "duplicate" || result == "already_recorded";
+            }
         }
         return false;
     }
@@ -125,7 +138,9 @@ module FuelGuardApi {
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
         if (responseAcknowledged(responseCode, data)) {
-            FuelGuardQueue.removeAcknowledged(context as String);
+            if (context instanceof String) {
+                FuelGuardQueue.removeAcknowledged(context as String);
+            }
         }
         trySync(false);
     }

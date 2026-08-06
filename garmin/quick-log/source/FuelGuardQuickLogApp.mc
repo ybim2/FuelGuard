@@ -9,7 +9,6 @@ class FuelGuardQuickLogApp extends Application.AppBase {
     }
 
     public function onStart(state as Dictionary?) as Void {
-        FuelGuardApi.trySync(true);
     }
 
     public function onStop(state as Dictionary?) as Void {
