@@ -22,10 +22,13 @@ class FuelGuardHealthTestRequestException extends Lang.Exception {
 
 module FuelGuardHealthApi {
     const RETRY_INTERVAL_SECONDS = 15 * 60;
+    const STATUS_VISIBLE_SECONDS = 20;
 
     var _inFlight = false;
     var _lastAttempt = 0;
     var _callback = null;
+    var _lastStatus = null;
+    var _lastStatusAt = null;
 
     (:debug) var _testTransportEnabled = false;
     (:debug) var _testResponseCode = 200;
@@ -44,6 +47,34 @@ module FuelGuardHealthApi {
 
     function configured() as Boolean {
         return FuelGuardConnection.connected() && FuelGuardHealthSettings.sharingEnabled();
+    }
+
+    function noteStatus(text as String?) as Void {
+        _lastStatus = text;
+        _lastStatusAt = text == null ? null : Time.now().value();
+        WatchUi.requestUpdate();
+    }
+
+    function clearExpiredStatus() as Void {
+        if (_lastStatusAt != null && Time.now().value() - (_lastStatusAt as Number) >= STATUS_VISIBLE_SECONDS) {
+            _lastStatus = null;
+            _lastStatusAt = null;
+        }
+    }
+
+    function statusText() as String? {
+        clearExpiredStatus();
+        if (_inFlight) {
+            return "Health syncing";
+        }
+        if (_lastStatus instanceof String) {
+            return _lastStatus as String;
+        }
+        var pending = FuelGuardHealthQueue.pendingCount();
+        if (pending > 0) {
+            return pending == 1 ? "1 health pending" : Lang.format("$1$ health pending", [pending]);
+        }
+        return null;
     }
 
     function responseAcknowledged(responseCode as Number, data as Dictionary or String or Null) as Boolean {
@@ -104,10 +135,16 @@ module FuelGuardHealthApi {
     }
 
     function trySync(force as Boolean) as Void {
-        if (_inFlight || !configured()) {
+        if (_inFlight) {
+            return;
+        }
+        if (!configured()) {
             return;
         }
         if (FuelGuardQueue.pendingCount() > 0) {
+            if (FuelGuardHealthQueue.pendingCount() > 0) {
+                noteStatus("Health waits for logs");
+            }
             return;
         }
         var now = Time.now().value();
@@ -120,14 +157,17 @@ module FuelGuardHealthApi {
         }
         var snapshotId = FuelGuardHealthQueue.snapshotId(snapshot);
         if (snapshotId == null) {
+            noteStatus("Health rejected");
             return;
         }
         _inFlight = true;
         _lastAttempt = now;
+        noteStatus("Health syncing");
         try {
             dispatchRequest(snapshot as Dictionary, snapshotId as String);
         } catch (e) {
             _inFlight = false;
+            noteStatus("Health pending");
         }
     }
 
@@ -137,6 +177,11 @@ module FuelGuardHealthApi {
             if (context instanceof String) {
                 FuelGuardHealthQueue.removeAcknowledged(context as String);
             }
+            noteStatus("Health uploaded");
+        } else if (responseCode == 400 || responseCode == 401 || responseCode == 403) {
+            noteStatus("Health rejected");
+        } else {
+            noteStatus("Health pending");
         }
         trySync(false);
         WatchUi.requestUpdate();
@@ -154,6 +199,8 @@ module FuelGuardHealthApi {
         _testDispatchCount = 0;
         _testLastSnapshotId = null;
         _testLastEndpoint = null;
+        _lastStatus = null;
+        _lastStatusAt = null;
     }
 
     (:debug)
@@ -178,6 +225,11 @@ module FuelGuardHealthApi {
     function lastEndpointForTest() as String? {
         return _testLastEndpoint instanceof String ? _testLastEndpoint as String : null;
     }
+
+    (:debug)
+    function statusTextForTest() as String? {
+        return statusText();
+    }
 }
 
 module FuelGuardHealth {
@@ -194,6 +246,9 @@ module FuelGuardHealth {
             if (snapshot != null) {
                 FuelGuardHealthQueue.enqueue(snapshot as Dictionary);
                 FuelGuardHealthSettings.markCollected();
+                FuelGuardHealthApi.noteStatus("Health queued");
+            } else {
+                FuelGuardHealthApi.noteStatus("No health data");
             }
         }
         FuelGuardHealthApi.trySync(false);
@@ -201,5 +256,12 @@ module FuelGuardHealth {
 
     function afterFuelSync() as Void {
         maybeCollectAndSync("fuel_sync");
+    }
+
+    function statusText() as String? {
+        if (!FuelGuardHealthSettings.sharingEnabled() && FuelGuardHealthQueue.pendingCount() == 0) {
+            return null;
+        }
+        return FuelGuardHealthApi.statusText();
     }
 }

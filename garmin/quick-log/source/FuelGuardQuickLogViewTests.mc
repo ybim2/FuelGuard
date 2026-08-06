@@ -346,9 +346,12 @@ function testFuelGuardQuickHealthWaitsForFuelQueue(logger) as Boolean {
     FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-waits"));
     FuelGuardHealthApi.trySync(true);
 
+    var status = FuelGuardHealthApi.statusTextForTest();
     return FuelGuardHealthApi.dispatchCountForTest() == 0
         && FuelGuardHealthQueue.pendingCount() == 1
-        && FuelGuardQueue.pendingCount() == 1;
+        && FuelGuardQueue.pendingCount() == 1
+        && status != null
+        && (status as String).equals("Health waits for logs");
 }
 
 (:test)
@@ -360,13 +363,16 @@ function testFuelGuardQuickHealthSuccessRemovesOnlyAcknowledgedSnapshot(logger) 
     FuelGuardHealthApi.trySync(true);
 
     var remaining = FuelGuardHealthQueue.peek();
+    var status = FuelGuardHealthApi.statusTextForTest();
     return FuelGuardHealthApi.dispatchCountForTest() == 1
         && FuelGuardHealthApi.lastSnapshotIdForTest() != null
         && (FuelGuardHealthApi.lastSnapshotIdForTest() as String).equals("health-first")
         && FuelGuardHealthQueue.pendingCount() == 1
         && remaining != null
         && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
-        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-second");
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-second")
+        && status != null
+        && (status as String).equals("Health uploaded");
 }
 
 (:test)
@@ -377,9 +383,30 @@ function testFuelGuardQuickHealthFailedUploadStaysQueued(logger) as Boolean {
     FuelGuardHealthApi.trySync(true);
 
     var remaining = FuelGuardHealthQueue.peek();
+    var status = FuelGuardHealthApi.statusTextForTest();
     return FuelGuardHealthApi.dispatchCountForTest() == 1
         && FuelGuardHealthQueue.pendingCount() == 1
         && remaining != null
         && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
-        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-failed");
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-failed")
+        && status != null
+        && (status as String).equals("Health pending");
+}
+
+(:test)
+function testFuelGuardQuickHealthRejectedUploadStaysQueued(logger) as Boolean {
+    fuelGuardQuickHealthReset(400, {"error" => "invalid_payload"}, false);
+
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-rejected"));
+    FuelGuardHealthApi.trySync(true);
+
+    var remaining = FuelGuardHealthQueue.peek();
+    var status = FuelGuardHealthApi.statusTextForTest();
+    return FuelGuardHealthApi.dispatchCountForTest() == 1
+        && FuelGuardHealthQueue.pendingCount() == 1
+        && remaining != null
+        && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-rejected")
+        && status != null
+        && (status as String).equals("Health rejected");
 }

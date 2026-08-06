@@ -29,9 +29,10 @@ function responseMock() {
   };
 }
 
-async function call(handler, { method = "POST", token = DEVICE_TOKEN, body = {} } = {}) {
+async function call(handler, { method = "POST", token = DEVICE_TOKEN, body = {}, url = "/api/garmin/health" } = {}) {
   const req = {
     method,
+    url,
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
     body
   };
@@ -364,6 +365,55 @@ test("Garmin patterns response includes the latest device capabilities", async (
     assert.equal(response.json.capabilities.device_id, "fr255");
     assert.equal(response.json.capabilities.capabilities.heart_rate_history, true);
     assert.equal(response.json.capabilities.capabilities.body_battery_history, false);
+  });
+});
+
+test("Garmin patterns response includes feature series and selected-day graph data", async () => {
+  await withFake(async fake => {
+    fake.tables.garmin_daily_features.push(
+      {
+        user_id: USER_ID,
+        source: health._test.SOURCE,
+        local_date: "2026-08-05",
+        timezone: "Europe/London",
+        fuel_event_count: 2,
+        fuel_debt_minutes: 30,
+        afternoon_median_stress: 35,
+        body_battery_daytime_change: -8,
+        activity_count: 0
+      },
+      {
+        user_id: USER_ID,
+        source: health._test.SOURCE,
+        local_date: "2026-08-06",
+        timezone: "Europe/London",
+        fuel_event_count: 3,
+        fuel_debt_minutes: 90,
+        afternoon_median_stress: 48,
+        body_battery_daytime_change: -22,
+        activity_count: 1
+      }
+    );
+    fake.tables.fuel_logs.push({ id: "fuel-1", user_id: USER_ID, logged_at: "2026-08-06T08:00:00.000Z", type: "fuel", source: "garmin" });
+    fake.tables.garmin_heart_rate_samples.push({ user_id: USER_ID, source: health._test.SOURCE, device_id: "fr255", observed_at: "2026-08-06T09:00:00.000Z", value_bpm: 67 });
+    fake.tables.garmin_stress_samples.push({ user_id: USER_ID, source: health._test.SOURCE, device_id: "fr255", observed_at: "2026-08-06T13:00:00.000Z", value: 42, sample_status: "valid" });
+    fake.tables.garmin_body_battery_samples.push({ user_id: USER_ID, source: health._test.SOURCE, device_id: "fr255", observed_at: "2026-08-06T18:00:00.000Z", value: 39 });
+    fake.tables.garmin_activity_summaries.push({ user_id: USER_ID, source: health._test.SOURCE, device_id: "fr255", started_at: "2026-08-06T17:00:00.000Z", activity_type: "running", duration_seconds: 1800, distance_metres: 5000 });
+
+    const response = await call(health.garminPatternsHandler, {
+      method: "GET",
+      token: "user-token",
+      url: "/api/garmin/patterns?date=2026-08-06"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.features.length, 2);
+    assert.equal(response.json.selected_day.local_date, "2026-08-06");
+    assert.equal(response.json.selected_day.fuel_logs.length, 1);
+    assert.equal(response.json.selected_day.heart_rate_samples[0].value_bpm, 67);
+    assert.equal(response.json.selected_day.stress_samples[0].value, 42);
+    assert.equal(response.json.selected_day.body_battery_samples[0].value, 39);
+    assert.equal(response.json.selected_day.activity_summaries[0].activity_type, "running");
   });
 });
 

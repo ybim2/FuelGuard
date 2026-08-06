@@ -181,6 +181,7 @@
   let garminPatternsState = {
     loaded: false,
     loading: false,
+    dateKey: "",
     data: null,
     error: ""
   };
@@ -4852,14 +4853,16 @@
   }
 
   async function loadGarminPatterns(force = false) {
+    const requestedDateKey = selectedDataDateKey();
     if (garminPatternsState.loading) return;
-    if (garminPatternsState.loaded && !force) return;
+    if (garminPatternsState.loaded && garminPatternsState.dateKey === requestedDateKey && !force) return;
     const token = garminPatternsToken();
     const account = window.fuelGuardCloud?.accountView?.() || {};
     if (!account.signedIn || !token) {
       garminPatternsState = {
         loaded: true,
         loading: false,
+        dateKey: requestedDateKey,
         data: null,
         error: "Sign in to view Garmin patterns after you connect Quick Log."
       };
@@ -4867,16 +4870,17 @@
     }
     garminPatternsState = { ...garminPatternsState, loading: true, error: "" };
     try {
-      const response = await fetch("/api/garmin/patterns", {
+      const response = await fetch(`/api/garmin/patterns?date=${encodeURIComponent(requestedDateKey)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.message || data?.error || "Garmin patterns are not available yet.");
-      garminPatternsState = { loaded: true, loading: false, data, error: "" };
+      garminPatternsState = { loaded: true, loading: false, dateKey: requestedDateKey, data, error: "" };
     } catch (error) {
       garminPatternsState = {
         loaded: true,
         loading: false,
+        dateKey: requestedDateKey,
         data: null,
         error: error?.message || "Garmin patterns are not available yet."
       };
@@ -4942,11 +4946,271 @@
     `;
   }
 
+  function garminSeriesValue(row, key) {
+    const value = Number(row?.[key]);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function garminSampleRows(samples, timeKey, valueKey) {
+    return (Array.isArray(samples) ? samples : [])
+      .map(row => {
+        const date = logDate(row?.[timeKey]);
+        const value = garminSeriesValue(row, valueKey);
+        if (!date || value === null) return null;
+        return { date, value };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.date - b.date);
+  }
+
+  function renderGarminSignalGraph({ title, subtitle, samples, timeKey = "observed_at", valueKey, unit = "", className = "" }) {
+    const rows = garminSampleRows(samples, timeKey, valueKey);
+    if (!rows.length) {
+      return `
+        <article class="beta-garmin-graph-panel ${safeText(className)}">
+          <h4>${safeText(title)}</h4>
+          <p>${safeText(subtitle)}</p>
+          <p class="muted beta-history-empty">No watch samples for the selected day yet.</p>
+        </article>
+      `;
+    }
+    const key = selectedDataDateKey();
+    const width = 960;
+    const height = 260;
+    const padding = { top: 30, right: 28, bottom: 58, left: 72 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const values = rows.map(row => row.value);
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (min === max) {
+      min = Math.max(0, min - 1);
+      max += 1;
+    }
+    const range = Math.max(1, max - min);
+    const yForValue = value => padding.top + plotHeight - ((value - min) / range) * plotHeight;
+    const points = rows.map(row => {
+      const minute = minutesFromDayStartForKey(key, row.date);
+      if (minute === null) return null;
+      const x = analysisXForMinute(minute, padding, plotWidth);
+      const y = yForValue(row.value);
+      return { ...row, x, y };
+    }).filter(Boolean);
+    if (!points.length) {
+      return `
+        <article class="beta-garmin-graph-panel ${safeText(className)}">
+          <h4>${safeText(title)}</h4>
+          <p>${safeText(subtitle)}</p>
+          <p class="muted beta-history-empty">No watch samples match the selected local day.</p>
+        </article>
+      `;
+    }
+    const path = points.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+    const yTicks = [min, min + range / 2, max].map(value => {
+      const y = yForValue(value);
+      return `
+        <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${width - padding.right}" y2="${y.toFixed(1)}"></line>
+        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(`${Math.round(value)}${unit}`)}</text>
+      `;
+    }).join("");
+    const dots = points.map(point => `
+      <circle class="actual-marker garmin" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="5">
+        <title>${safeText(`${title}: ${Math.round(point.value)}${unit} at ${formatClock(point.date)}`)}</title>
+      </circle>
+    `).join("");
+    return `
+      <article class="beta-garmin-graph-panel ${safeText(className)}">
+        <h4>${safeText(title)}</h4>
+        <p>${safeText(subtitle)}</p>
+        <div class="beta-analysis-graph beta-garmin-signal-graph" role="img" aria-label="${safeText(`${title} watch samples across the selected day`)}">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+            ${renderAnalysisTimeAxis({ width, height, padding, plotWidth, plotHeight })}
+            ${yTicks}
+            <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+            <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
+            ${points.length > 1 ? `<polyline class="line garmin" points="${path}"></polyline>` : ""}
+            ${dots}
+          </svg>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderGarminWorkoutFuelGraph(selectedDay = {}) {
+    const key = selectedDay.local_date || selectedDataDateKey();
+    const fuelLogs = (Array.isArray(selectedDay.fuel_logs) ? selectedDay.fuel_logs : [])
+      .map(row => ({ ...row, date: logDate(row.logged_at) }))
+      .filter(row => row.date)
+      .sort((a, b) => a.date - b.date);
+    const activities = (Array.isArray(selectedDay.activity_summaries) ? selectedDay.activity_summaries : [])
+      .map(row => {
+        const start = logDate(row.started_at);
+        const durationSeconds = Number(row.duration_seconds || 0);
+        if (!start || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+        return { ...row, start, end: new Date(start.getTime() + durationSeconds * 1000) };
+      })
+      .filter(Boolean);
+    if (!fuelLogs.length && !activities.length) {
+      return `
+        <article class="beta-garmin-graph-panel workout">
+          <h4>Workout and fuelling</h4>
+          <p>Fuel logs shown against Garmin activity windows.</p>
+          <p class="muted beta-history-empty">No Garmin activity or fuel logs for the selected day yet.</p>
+        </article>
+      `;
+    }
+    const width = 960;
+    const height = 230;
+    const padding = { top: 34, right: 28, bottom: 58, left: 92 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const activityBars = activities.map(activity => {
+      const startMinute = minutesFromDayStartForKey(key, activity.start);
+      const endMinute = minutesFromDayStartForKey(key, activity.end);
+      if (startMinute === null || endMinute === null) return "";
+      const x = analysisXForMinute(startMinute, padding, plotWidth);
+      const w = Math.max(8, analysisXForMinute(endMinute, padding, plotWidth) - x);
+      return `<rect class="planned-window training" x="${x.toFixed(1)}" y="74" width="${w.toFixed(1)}" height="28" rx="14"><title>${safeText(`${activity.activity_type || "Activity"} · ${formatClock(activity.start)} to ${formatClock(activity.end)}`)}</title></rect>`;
+    }).join("");
+    const fuelMarkers = fuelLogs.map(log => {
+      const minute = minutesFromDayStartForKey(key, log.date);
+      if (minute === null) return "";
+      const x = analysisXForMinute(minute, padding, plotWidth);
+      return `<circle class="actual-marker fuel" cx="${x.toFixed(1)}" cy="142" r="7"><title>${safeText(`Fuel log · ${formatClock(log.date)}`)}</title></circle>`;
+    }).join("");
+    return `
+      <article class="beta-garmin-graph-panel workout">
+        <h4>Workout and fuelling</h4>
+        <p>Fuel logs shown against Garmin activity windows.</p>
+        <div class="beta-analysis-graph beta-garmin-workout-graph" role="img" aria-label="Garmin activity windows and fuel logs across the selected day">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+            ${renderAnalysisTimeAxis({ width, height, padding, plotWidth, plotHeight })}
+            <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+            <text class="row-label" x="18" y="94">Workout</text>
+            <text class="row-label" x="18" y="147">Fuel logs</text>
+            ${activityBars}
+            ${fuelMarkers}
+          </svg>
+          <div class="beta-analysis-legend">
+            <span><i class="neutral"></i>Garmin activity</span>
+            <span><i class="fuel"></i>Fuel log</span>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderGarminFeatureTrendGraph(features = []) {
+    const rows = (Array.isArray(features) ? features : [])
+      .slice(-14)
+      .filter(row => row?.local_date)
+      .map(row => ({
+        date: row.local_date,
+        fuelDebt: Number(row.fuel_debt_minutes || 0),
+        workouts: Number(row.activity_count || 0),
+        stress: garminSeriesValue(row, "afternoon_median_stress"),
+        battery: garminSeriesValue(row, "body_battery_daytime_change")
+      }));
+    if (rows.length < 2) {
+      return `
+        <article class="beta-garmin-graph-panel trend">
+          <h4>Fuelling and watch signals</h4>
+          <p>Daily feature trend from opt-in watch snapshots.</p>
+          <p class="muted beta-history-empty">A few more days of watch snapshots will unlock this graph.</p>
+        </article>
+      `;
+    }
+    const width = 960;
+    const height = 270;
+    const padding = { top: 34, right: 30, bottom: 66, left: 76 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const values = rows.flatMap(row => [row.fuelDebt, row.stress, Math.abs(row.battery || 0) * 3, row.workouts * 60].filter(Number.isFinite));
+    const max = Math.max(60, ...values);
+    const xForIndex = index => padding.left + (rows.length === 1 ? plotWidth / 2 : (index / (rows.length - 1)) * plotWidth);
+    const yForValue = value => padding.top + plotHeight - (clamp(value, 0, max) / max) * plotHeight;
+    const lineFor = (key, scale = 1) => rows.map((row, index) => {
+      const value = Number(row[key]);
+      if (!Number.isFinite(value)) return null;
+      return `${xForIndex(index).toFixed(1)},${yForValue(Math.max(0, value * scale)).toFixed(1)}`;
+    }).filter(Boolean).join(" ");
+    const ticks = [0, max / 2, max].map(value => {
+      const y = yForValue(value);
+      return `
+        <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${width - padding.right}" y2="${y.toFixed(1)}"></line>
+        <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(Math.round(value))}</text>
+      `;
+    }).join("");
+    const labels = rows.map((row, index) => {
+      const x = xForIndex(index);
+      return `<text class="x-label" x="${x.toFixed(1)}" y="${height - 24}">${safeText(row.date.slice(5))}</text>`;
+    }).join("");
+    return `
+      <article class="beta-garmin-graph-panel trend">
+        <h4>Fuelling and watch signals</h4>
+        <p>Daily fuel timing alongside opt-in watch feature summaries.</p>
+        <div class="beta-analysis-graph beta-garmin-feature-trend" role="img" aria-label="Daily Garmin health feature trend">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+            ${ticks}
+            <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+            <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
+            <polyline class="line fuel" points="${lineFor("fuelDebt")}"></polyline>
+            <polyline class="line garmin" points="${lineFor("stress")}"></polyline>
+            <polyline class="line body-battery" points="${lineFor("battery", 3)}"></polyline>
+            <polyline class="line training" points="${lineFor("workouts", 60)}"></polyline>
+            ${labels}
+          </svg>
+          <div class="beta-analysis-legend">
+            <span><i class="fuel"></i>Fuel window minutes</span>
+            <span><i class="garmin"></i>Stress</span>
+            <span><i class="body-battery"></i>Body Battery change x3</span>
+            <span><i class="neutral"></i>Workouts x60</span>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderGarminWatchGraphs(data = {}) {
+    const selectedDay = data?.selected_day || {};
+    return `
+      <div class="beta-garmin-graph-grid">
+        ${renderGarminWorkoutFuelGraph(selectedDay)}
+        ${renderGarminSignalGraph({
+          title: "Heart rate",
+          subtitle: "Local watch heart-rate samples for the selected day.",
+          samples: selectedDay.heart_rate_samples,
+          valueKey: "value_bpm",
+          unit: " bpm",
+          className: "heart"
+        })}
+        ${renderGarminSignalGraph({
+          title: "Stress",
+          subtitle: "Local watch stress samples. Rest/unavailable samples are excluded.",
+          samples: (selectedDay.stress_samples || []).filter(row => row?.sample_status === "valid" && row?.value !== null),
+          valueKey: "value",
+          className: "stress"
+        })}
+        ${renderGarminSignalGraph({
+          title: "Body Battery",
+          subtitle: "Local watch Body Battery samples for the selected day.",
+          samples: selectedDay.body_battery_samples,
+          valueKey: "value",
+          className: "body-battery"
+        })}
+        ${renderGarminFeatureTrendGraph(data?.features || [])}
+      </div>
+    `;
+  }
+
   function renderGarminPatternsSection() {
-    if (!garminPatternsState.loaded && !garminPatternsState.loading) scheduleGarminPatternsLoad();
+    if ((!garminPatternsState.loaded || garminPatternsState.dateKey !== selectedDataDateKey()) && !garminPatternsState.loading) scheduleGarminPatternsLoad();
     const content = garminPatternsState.loading
       ? `<p class="muted beta-history-empty">Loading Garmin patterns...</p>`
       : renderGarminPatternCards(garminPatternsState.data?.insights || []);
+    const graphContent = garminPatternsState.loading
+      ? ""
+      : renderGarminWatchGraphs(garminPatternsState.data || {});
     return `
       <section class="beta-analysis-card beta-garmin-patterns-section" aria-label="Garmin patterns">
         <div class="beta-analysis-card-head">
@@ -4958,6 +5222,7 @@
           <button class="secondary beta-garmin-refresh-button" type="button" data-refresh-garmin-patterns>Refresh</button>
         </div>
         ${renderGarminCapabilitySummary(garminPatternsState.data || {})}
+        ${graphContent}
         ${content}
         <p class="row-note">Fuel Guard uses Connect IQ-local samples only and shows insights after repeated evidence.</p>
       </section>
