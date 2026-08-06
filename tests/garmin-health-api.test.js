@@ -367,6 +367,91 @@ test("Garmin patterns response includes the latest device capabilities", async (
   });
 });
 
+test("training fuel coverage compares fuel logs before and after Garmin workouts", () => {
+  const fuelLogs = [
+    { logged_at: "2026-08-06T14:30:00.000Z", type: "fuel" },
+    { logged_at: "2026-08-06T18:20:00.000Z", type: "fuel" },
+    { logged_at: "2026-08-07T12:00:00.000Z", type: "fuel" },
+    { logged_at: "2026-08-08T08:15:00.000Z", type: "fuel_hydration" },
+    { logged_at: "2026-08-08T10:00:00.000Z", type: "fuel" }
+  ];
+  const activities = [
+    { started_at: "2026-08-06T17:00:00.000Z", duration_seconds: 3600, activity_type: "running" },
+    { started_at: "2026-08-07T09:00:00.000Z", duration_seconds: 1800, activity_type: "cycling" },
+    { started_at: "2026-08-08T09:00:00.000Z", duration_seconds: 1800, activity_type: "strength_training" }
+  ];
+
+  const coverage = health._test.buildTrainingFuelCoverage(fuelLogs, activities, "Europe/London");
+
+  assert.equal(coverage.workout_count, 3);
+  assert.equal(coverage.enough_for_summary, true);
+  assert.equal(coverage.missing_pre_workout_fuel_count, 1);
+  assert.equal(coverage.post_workout_covered_count, 2);
+  assert.equal(coverage.long_gap_overlap_count, 1);
+  assert.equal(coverage.workouts.some(item => item.status === "covered"), true);
+  assert.equal(coverage.workouts.some(item => item.status === "pre_workout_gap"), true);
+  assert.equal(coverage.workouts.some(item => item.long_gap_overlapped), true);
+  assert.equal(coverage.limitation, "Fuel Guard analyses logged events; unlogged food cannot be detected.");
+  assert.equal(/caused|proved|blood sugar|detected food/i.test(JSON.stringify(coverage)), false);
+});
+
+test("training fuel coverage stays soft with insufficient workout evidence", () => {
+  const coverage = health._test.buildTrainingFuelCoverage(
+    [{ logged_at: "2026-08-06T07:00:00.000Z", type: "fuel" }],
+    [{ started_at: "2026-08-06T08:00:00.000Z", duration_seconds: 1800, activity_type: "running" }],
+    "UTC"
+  );
+
+  assert.equal(coverage.workout_count, 1);
+  assert.equal(coverage.enough_for_summary, false);
+  assert.match(coverage.insufficient_data_message, /2 more Garmin workouts/);
+  assert.deepEqual(coverage.summary, []);
+});
+
+test("Garmin patterns response includes health upload status and training fuel coverage", async () => {
+  await withFake(async fake => {
+    fake.tables.garmin_device_capabilities.push({
+      user_id: USER_ID,
+      device_id: "fr255",
+      source: health._test.SOURCE,
+      collected_at: "2026-08-06T10:00:00.000Z",
+      capabilities: {
+        heart_rate_history: true,
+        stress_history: true,
+        body_battery_history: true,
+        activity_history: true,
+        resting_heart_rate: true
+      }
+    });
+    fake.tables.garmin_heart_rate_samples.push({
+      user_id: USER_ID,
+      device_id: "fr255",
+      source: health._test.SOURCE,
+      observed_at: "2026-08-06T09:00:00.000Z",
+      value_bpm: 62,
+      created_at: "2026-08-06T09:01:00.000Z"
+    });
+    fake.tables.fuel_logs.push(
+      { id: "fuel-1", user_id: USER_ID, logged_at: "2026-08-06T14:30:00.000Z", type: "fuel", source: "garmin" },
+      { id: "fuel-2", user_id: USER_ID, logged_at: "2026-08-06T18:20:00.000Z", type: "fuel", source: "garmin" },
+      { id: "fuel-3", user_id: USER_ID, logged_at: "2026-08-07T12:00:00.000Z", type: "fuel", source: "garmin" }
+    );
+    fake.tables.garmin_activity_summaries.push(
+      { user_id: USER_ID, device_id: "fr255", source: health._test.SOURCE, started_at: "2026-08-06T17:00:00.000Z", duration_seconds: 3600, activity_type: "running" },
+      { user_id: USER_ID, device_id: "fr255", source: health._test.SOURCE, started_at: "2026-08-07T09:00:00.000Z", duration_seconds: 1800, activity_type: "cycling" }
+    );
+
+    const response = await call(health.garminPatternsHandler, { method: "GET", token: "user-token" });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json.health_status.health_sharing, "on");
+    assert.deepEqual(response.json.health_status.metrics_received, ["Heart rate", "Activities"]);
+    assert.equal(response.json.training_fuel_coverage.workout_count, 2);
+    assert.equal(response.json.training_fuel_coverage.missing_pre_workout_fuel_count, 1);
+    assert.match(response.json.training_fuel_coverage.limitation, /unlogged food cannot be detected/);
+  });
+});
+
 test("daily subjective check-in validation accepts only 1-5 ratings", () => {
   const valid = health._test.validateCheckinPayload({
     local_date: "2026-08-06",

@@ -310,6 +310,18 @@ function testFuelGuardQuickLogGlanceShowsNoLogFallback(logger) as Boolean {
 }
 
 (:test)
+function testFuelGuardQuickLogGlanceShowsNoFuelTodayFallback(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardEvents.setLastFuelSecondsForTest(FuelGuardEvents.nowSeconds() - (30 * 60 * 60));
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.metricForTest().equals("No fuel today")
+        && glance.labelForTest().equals("Ready to log")
+        && glance.pendingTextForTest() == null;
+}
+
+(:test)
 function testFuelGuardQuickLogGlanceShowsPendingIndicator(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
     FuelGuardEvents.setLastFuelSecondsForTest(null);
@@ -348,7 +360,9 @@ function testFuelGuardQuickHealthWaitsForFuelQueue(logger) as Boolean {
 
     return FuelGuardHealthApi.dispatchCountForTest() == 0
         && FuelGuardHealthQueue.pendingCount() == 1
-        && FuelGuardQueue.pendingCount() == 1;
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardHealthApi.statusTextForTest() != null
+        && (FuelGuardHealthApi.statusTextForTest() as String).equals("Garmin data queued");
 }
 
 (:test)
@@ -366,7 +380,9 @@ function testFuelGuardQuickHealthSuccessRemovesOnlyAcknowledgedSnapshot(logger) 
         && FuelGuardHealthQueue.pendingCount() == 1
         && remaining != null
         && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
-        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-second");
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-second")
+        && FuelGuardHealthApi.statusTextForTest() != null
+        && (FuelGuardHealthApi.statusTextForTest() as String).equals("Garmin data synced");
 }
 
 (:test)
@@ -381,5 +397,29 @@ function testFuelGuardQuickHealthFailedUploadStaysQueued(logger) as Boolean {
         && FuelGuardHealthQueue.pendingCount() == 1
         && remaining != null
         && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
-        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-failed");
+        && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-failed")
+        && FuelGuardHealthApi.statusTextForTest() != null
+        && (FuelGuardHealthApi.statusTextForTest() as String).equals("Upload failed - will retry");
+}
+
+(:test)
+function testFuelGuardQuickHealthUnauthorizedShowsReconnectRequired(logger) as Boolean {
+    fuelGuardQuickHealthReset(401, {"error" => "unauthorized"}, false);
+
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-unauthorized"));
+    FuelGuardHealthApi.trySync(true);
+
+    return FuelGuardHealthQueue.pendingCount() == 1
+        && FuelGuardHealthApi.statusTextForTest() != null
+        && (FuelGuardHealthApi.statusTextForTest() as String).equals("Reconnect required");
+}
+
+(:test)
+function testFuelGuardQuickHealthUnsupportedStatusIsVisible(logger) as Boolean {
+    fuelGuardQuickHealthReset(200, {"result" => "ok"}, false);
+
+    FuelGuardHealthApi.noteStatus("unsupported", "No supported Garmin data found");
+
+    return FuelGuardHealthApi.statusTextForTest() != null
+        && (FuelGuardHealthApi.statusTextForTest() as String).equals("No supported Garmin data found");
 }

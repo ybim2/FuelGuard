@@ -9,9 +9,9 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
     }
 
     private function contentWidth(dc as Graphics.Dc) as Number {
-        var width = dc.getWidth() - 32;
+        var width = dc.getWidth() - 24;
         if (width < 80) {
-            return dc.getWidth() - 16;
+            return dc.getWidth() - 12;
         }
         return width;
     }
@@ -39,7 +39,7 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
     }
 
     private function pendingText() as String? {
-        var pendingCount = FuelGuardQueue.pendingCount();
+        var pendingCount = FuelGuardGlanceData.pendingCount();
         if (pendingCount > 0) {
             return Lang.format("$1$ pending", [pendingCount]);
         }
@@ -48,12 +48,12 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
 
     (:debug)
     public function metricForTest() as String {
-        return FuelGuardFeedback.elapsedFuelMetric();
+        return FuelGuardGlanceData.metric();
     }
 
     (:debug)
     public function labelForTest() as String {
-        return FuelGuardFeedback.elapsedFuelLabel();
+        return FuelGuardGlanceData.label();
     }
 
     (:debug)
@@ -66,13 +66,20 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         dc.clear();
 
         var height = dc.getHeight();
-        drawCenter(dc, 14, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
-        drawCenter(dc, height / 2, Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelMetric(), Graphics.COLOR_WHITE);
-        drawCenter(dc, height / 2 + 26, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelLabel(), Graphics.COLOR_LT_GRAY);
+        var metric = FuelGuardGlanceData.metric();
+        var label = FuelGuardGlanceData.label();
+        var titleY = height < 80 ? 11 : 14;
+        var metricY = height / 2;
+        var labelY = height < 92 ? height - 18 : height / 2 + 26;
+        var metricFont = metric.length() > 9 || dc.getWidth() < 130 ? Graphics.FONT_XTINY : Graphics.FONT_SMALL;
+
+        drawCenter(dc, titleY, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
+        drawCenter(dc, metricY, metricFont, metric, Graphics.COLOR_WHITE);
+        drawCenter(dc, labelY, Graphics.FONT_XTINY, label, Graphics.COLOR_LT_GRAY);
 
         var pending = pendingText();
-        if (pending != null && height > 104) {
-            drawCenter(dc, height - 16, Graphics.FONT_XTINY, pending as String, Graphics.COLOR_LT_GRAY);
+        if (pending != null && height > 112) {
+            drawCenter(dc, height - 12, Graphics.FONT_XTINY, pending as String, Graphics.COLOR_LT_GRAY);
         }
     }
 }
