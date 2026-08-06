@@ -1090,6 +1090,10 @@
     }
   }
 
+  function accessToken() {
+    return session?.access_token || "";
+  }
+
   function accountView() {
     const gap = gapState();
     const pending = allLogs().filter(log => log.syncStatus !== SYNCED).length;
@@ -1167,6 +1171,7 @@
     cancelPasswordRecovery,
     signOut,
     accountView,
+    accessToken,
     get client() {
       return client;
     },

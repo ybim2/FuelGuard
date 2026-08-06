@@ -1,18 +1,2 @@
 <resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
-    <properties>
-        <property id="apiEndpoint" type="string">https://fuel-guard-git-feat-garmin-activ-66c653-theos-projects-9c89a4a9.vercel.app/api/garmin-log</property>
-        <property id="betaToken" type="string"></property>
-        <property id="vercelBypassSecret" type="string"></property>
-    </properties>
-    <settings>
-        <setting propertyKey="@Properties.apiEndpoint" title="@Strings.EndpointTitle">
-            <settingConfig type="alphaNumeric" />
-        </setting>
-        <setting propertyKey="@Properties.betaToken" title="@Strings.TokenTitle">
-            <settingConfig type="alphaNumeric" />
-        </setting>
-        <setting propertyKey="@Properties.vercelBypassSecret" title="@Strings.VercelBypassTitle">
-            <settingConfig type="alphaNumeric" />
-        </setting>
-    </settings>
 </resources>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Connect Garmin | Fuel Guard</title>
+  <link rel="stylesheet" href="/garmin/connect/garmin-connect.css" />
+</head>
+<body>
+  <main class="fg-connect-shell">
+    <section class="fg-connect-card" aria-live="polite">
+      <div class="fg-connect-mark" aria-hidden="true">FG</div>
+      <p class="fg-connect-kicker">Fuel Guard Garmin</p>
+      <h1 id="connectTitle">Connect Fuel Guard</h1>
+      <p id="connectIntro" class="fg-connect-copy">Checking this Garmin connection request...</p>
+
+      <div id="authPanel" class="fg-connect-panel" hidden>
+        <label>Email
+          <input id="connectEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+        </label>
+        <label>Password
+          <input id="connectPassword" type="password" autocomplete="current-password" placeholder="Password" />
+        </label>
+        <div class="fg-connect-actions">
+          <button id="connectSignIn" type="button">Log in</button>
+          <button id="connectSignUp" type="button" class="secondary">Create account</button>
+        </div>
+      </div>
+
+      <div id="approvalPanel" class="fg-connect-panel" hidden>
+        <p id="approvalCopy" class="fg-connect-copy"></p>
+        <div class="fg-connect-actions">
+          <button id="approveButton" type="button">Approve connection</button>
+          <button id="denyButton" type="button" class="secondary">Deny</button>
+        </div>
+      </div>
+
+      <p id="connectStatus" class="fg-connect-status"></p>
+    </section>
+  </main>
+  <script src="/api/supabase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
+  <script src="/garmin/connect/garmin-connect.js"></script>
+</body>
+</html>

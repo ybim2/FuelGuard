@@ -1,6 +1,3 @@
 <resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
     <string id="AppName">FG Activity Logger</string>
-    <string id="EndpointTitle">Fuel Guard API endpoint</string>
-    <string id="TokenTitle">Garmin beta bearer token</string>
-    <string id="VercelBypassTitle">Vercel bypass secret</string>
 </resources>

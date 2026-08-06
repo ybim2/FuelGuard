@@ -15,6 +15,8 @@ function fuelGuardActivityIsoShape(value as String) as Boolean {
 (:test)
 function testFuelGuardActivityLoggerLapCreatesFuelEvent(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setConnectedForTest("device-token-test");
     FuelGuardApi.resetForTest();
     FuelGuardApi.useTestTransport(500, null, false);
 
@@ -45,4 +47,58 @@ function testFuelGuardActivityLoggerLapCreatesFuelEvent(logger) as Boolean {
         && (eventType as String).equals(FuelGuardEvents.TYPE_FUEL)
         && deviceId instanceof String
         && (deviceId as String).equals(FuelGuardEvents.DEVICE_ID);
+}
+
+
+(:test)
+function testFuelGuardActivityLoggerSettingsInitiatesAuth(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.useTestAuthRequestOnly();
+    FuelGuardApi.resetForTest();
+
+    var view = new FuelGuardActivityLoggerSettingsView();
+    var delegate = new FuelGuardActivityLoggerSettingsDelegate(view);
+    delegate.onSelect();
+
+    return FuelGuardConnection.authRequestCountForTest() == 1
+        && FuelGuardConnection.lastAuthStateForTest() != null
+        && !FuelGuardConnection.connected();
+}
+
+(:test)
+function testFuelGuardActivityLoggerUnconnectedLapQueuesSafely(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardApi.resetForTest();
+
+    var field = new FuelGuardActivityLoggerField();
+    field.onTimerLap();
+
+    var event = FuelGuardQueue.peek();
+    return event != null
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardApi.dispatchCountForTest() == 0
+        && !FuelGuardConnection.connected();
+}
+
+(:test)
+function testFuelGuardActivityLoggerDisconnectDoesNotErasePendingEvents(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setConnectedForTest("device-token-test");
+    FuelGuardConnection.useTestRevoke(200, {"result" => "revoked"});
+
+    var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
+    var eventId = FuelGuardQueue.externalEventId(event);
+    FuelGuardQueue.enqueue(event);
+    FuelGuardConnection.disconnect();
+
+    var queued = FuelGuardQueue.peek();
+    return eventId != null
+        && queued != null
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardQueue.externalEventId(queued) != null
+        && (FuelGuardQueue.externalEventId(queued) as String).equals(eventId as String)
+        && !FuelGuardConnection.connected();
 }

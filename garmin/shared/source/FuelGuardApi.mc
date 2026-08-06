@@ -1,4 +1,3 @@
-import Toybox.Application.Properties;
 import Toybox.Communications;
 import Toybox.Lang;
 import Toybox.Time;
@@ -21,9 +20,6 @@ class FuelGuardTestRequestException extends Lang.Exception {
 }
 
 module FuelGuardApi {
-    const ENDPOINT_PROPERTY = "apiEndpoint";
-    const TOKEN_PROPERTY = "betaToken";
-    const VERCEL_BYPASS_PROPERTY = "vercelBypassSecret";
     const RETRY_INTERVAL_SECONDS = 45;
 
     var _inFlight = false;
@@ -38,41 +34,11 @@ module FuelGuardApi {
     (:debug) var _testLastEventId = null;
     (:debug) var _testLastLoggedAt = null;
     (:debug) var _testQueuedBeforeDispatch = false;
-
-    function isWhitespace(value as String or Null) as Boolean {
-        var character = value as String;
-        return character.equals(" ") || character.equals("\t") || character.equals("\n") || character.equals("\r");
-    }
-
-    function trimString(value as String) as String {
-        var start = 0;
-        var finish = value.length();
-
-        while (start < finish && isWhitespace(value.substring(start, start + 1))) {
-            start += 1;
-        }
-
-        while (finish > start && isWhitespace(value.substring(finish - 1, finish))) {
-            finish -= 1;
-        }
-
-        if (start == 0 && finish == value.length()) {
-            return value;
-        }
-
-        return value.substring(start, finish);
-    }
-
-    function settingString(key as String) as String {
-        var value = Properties.getValue(key);
-        if (!(value instanceof String)) {
-            return "";
-        }
-        return trimString(value as String);
-    }
+    (:debug) var _testLastAuthorizationHeader = null;
+    (:debug) var _testLastEndpoint = null;
 
     function realConfigured() as Boolean {
-        return settingString(ENDPOINT_PROPERTY).length() > 0 && settingString(TOKEN_PROPERTY).length() > 0;
+        return FuelGuardConnection.connected();
     }
 
     (:release)
@@ -102,14 +68,11 @@ module FuelGuardApi {
     }
 
     function sendWebRequest(event as Dictionary, eventId as String) as Void {
+        var deviceToken = FuelGuardConnection.token();
         var headers = {
             "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON,
-            "Authorization" => "Bearer " + settingString(TOKEN_PROPERTY)
+            "Authorization" => "Bearer " + deviceToken
         };
-        var bypassSecret = settingString(VERCEL_BYPASS_PROPERTY);
-        if (bypassSecret.length() > 0) {
-            headers["x-vercel-protection-bypass"] = bypassSecret;
-        }
 
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_POST,
@@ -119,7 +82,7 @@ module FuelGuardApi {
         };
 
         Communications.makeWebRequest(
-            settingString(ENDPOINT_PROPERTY),
+            FuelGuardConnection.logEndpoint(),
             event,
             options,
             responseCallback()
@@ -134,6 +97,8 @@ module FuelGuardApi {
     (:debug)
     function dispatchRequest(event as Dictionary, eventId as String) as Void {
         if (!_testTransportEnabled) {
+            _testLastAuthorizationHeader = "Bearer " + FuelGuardConnection.token();
+            _testLastEndpoint = FuelGuardConnection.logEndpoint();
             sendWebRequest(event, eventId);
             return;
         }
@@ -144,6 +109,8 @@ module FuelGuardApi {
 
         _testDispatchCount += 1;
         _testLastEventId = eventId;
+        _testLastAuthorizationHeader = "Bearer " + FuelGuardConnection.token();
+        _testLastEndpoint = FuelGuardConnection.logEndpoint();
 
         var loggedAt = event["logged_at"];
         _testLastLoggedAt = loggedAt instanceof String ? loggedAt as String : null;
@@ -226,6 +193,8 @@ module FuelGuardApi {
         _testLastEventId = null;
         _testLastLoggedAt = null;
         _testQueuedBeforeDispatch = false;
+        _testLastAuthorizationHeader = null;
+        _testLastEndpoint = null;
         _inFlight = false;
         _lastAttempt = 0;
     }
@@ -240,6 +209,8 @@ module FuelGuardApi {
         _testLastEventId = null;
         _testLastLoggedAt = null;
         _testQueuedBeforeDispatch = false;
+        _testLastAuthorizationHeader = null;
+        _testLastEndpoint = null;
         _inFlight = false;
         _lastAttempt = 0;
     }
@@ -267,5 +238,15 @@ module FuelGuardApi {
     (:debug)
     function inFlightForTest() as Boolean {
         return _inFlight;
+    }
+
+    (:debug)
+    function lastAuthorizationHeaderForTest() as String? {
+        return _testLastAuthorizationHeader instanceof String ? _testLastAuthorizationHeader as String : null;
+    }
+
+    (:debug)
+    function lastEndpointForTest() as String? {
+        return _testLastEndpoint instanceof String ? _testLastEndpoint as String : null;
     }
 }

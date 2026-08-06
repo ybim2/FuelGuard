@@ -33,7 +33,10 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
     }
 
     public function onUpdate(dc as Graphics.Dc) as Void {
-        FuelGuardApi.trySync(false);
+        FuelGuardConnection.configure(FuelGuardConnection.APP_ACTIVITY_LOGGER);
+        if (FuelGuardConnection.connected()) {
+            FuelGuardApi.trySync(false);
+        }
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
@@ -50,6 +53,14 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
 
         dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
         dc.drawText(width / 2, smallLayout ? 4 : 8, Graphics.FONT_XTINY, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
+
+        if (!FuelGuardConnection.connected()) {
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.drawText(width / 2, smallLayout ? height / 2 - 10 : height / 2 - 14, Graphics.FONT_XTINY, "Connect in field settings", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(width / 2, smallLayout ? height - 18 : height - 24, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+            return;
+        }
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.drawText(width / 2, smallLayout ? height / 2 - 8 : height / 2 - 12, smallLayout ? Graphics.FONT_XTINY : Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);

@@ -19,7 +19,11 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     public function onShow() as Void {
-        FuelGuardApi.trySync(true);
+        FuelGuardConnection.configure(FuelGuardConnection.APP_QUICK_LOG);
+        FuelGuardConnection.registerForOAuthMessages();
+        if (FuelGuardConnection.connected()) {
+            FuelGuardApi.trySync(true);
+        }
     }
 
     public function onHide() as Void {
@@ -27,15 +31,23 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     public function move(delta as Number) as Void {
-        if (confirming()) {
+        if (confirming() || !FuelGuardConnection.connected()) {
             return;
         }
         _selection = (_selection + delta + ACTION_COUNT) % ACTION_COUNT;
         WatchUi.requestUpdate();
     }
 
+    public function beginConnection() as Void {
+        FuelGuardConnection.beginAuth();
+    }
+
     public function logSelection() as Void {
         if (confirming()) {
+            return;
+        }
+        if (!FuelGuardConnection.connected()) {
+            beginConnection();
             return;
         }
         var eventType = typeForSelection(_selection);
@@ -132,7 +144,9 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     public function onUpdate(dc as Graphics.Dc) as Void {
-        FuelGuardApi.trySync(false);
+        if (FuelGuardConnection.connected()) {
+            FuelGuardApi.trySync(false);
+        }
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
@@ -140,6 +154,17 @@ class FuelGuardQuickLogView extends WatchUi.View {
         var width = dc.getWidth();
         var height = dc.getHeight();
         var center = width / 2;
+
+        if (!FuelGuardConnection.connected()) {
+            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+            dc.drawText(center, 22, Graphics.FONT_SMALL, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.drawText(center, height / 2 - 24, Graphics.FONT_XTINY, "Connect Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(center, height / 2 + 4, Graphics.FONT_XTINY, "ENTER to connect", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(center, height - 32, Graphics.FONT_XTINY, Lang.format("Pending $1$", [FuelGuardQueue.pendingCount()]), Graphics.TEXT_JUSTIFY_CENTER);
+            return;
+        }
 
         if (confirming()) {
             dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
@@ -153,24 +178,25 @@ class FuelGuardQuickLogView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
         dc.drawText(center, 22, Graphics.FONT_SMALL, "Fuel Guard", Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(center, 48, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(center, 48, Graphics.FONT_XTINY, "Connected", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(center, 68, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelText(), Graphics.TEXT_JUSTIFY_CENTER);
 
         var rowWidth = width - 64;
         var rowLeft = (width - rowWidth) / 2;
-        var firstRowY = 90;
-        var rowGap = 40;
-        var rowHeight = 30;
+        var firstRowY = 100;
+        var rowGap = 36;
+        var rowHeight = 28;
         for (var i = 0; i < ACTION_COUNT; i++) {
             var y = firstRowY + (i * rowGap);
             var selected = i == _selection;
             if (selected) {
                 dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-                dc.fillRectangle(rowLeft, y - 16, rowWidth, rowHeight);
+                dc.fillRectangle(rowLeft, y - 15, rowWidth, rowHeight);
                 dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_GREEN);
             } else {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
             }
-            dc.drawText(center, y - 9, Graphics.FONT_XTINY, labelForSelection(i), Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(center, y - 8, Graphics.FONT_XTINY, labelForSelection(i), Graphics.TEXT_JUSTIFY_CENTER);
         }
 
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);

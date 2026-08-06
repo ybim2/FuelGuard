@@ -9,18 +9,20 @@
 7. Upload `build/garmin-beta/fuel-guard-quick-log-beta.iq` as a new version of that existing beta listing.
 8. Keep Apps for beta testing only enabled.
 9. Keep the Quick Log listing private.
-10. Download both beta apps from the developer account to the paired Forerunner 255.
-11. Configure each app through Garmin Connect or Connect IQ settings:
-    - API endpoint: `https://fuel-guard-git-feat-garmin-activ-66c653-theos-projects-9c89a4a9.vercel.app/api/garmin-log`
-    - Garmin beta bearer token
-    - Optional Vercel automation bypass secret
-12. Add Fuel Guard Activity Logger to the Run data screens.
-13. Open Fuel Guard Quick Log from the app list or glance.
-14. Disable Auto Lap on the Run profile used for testing.
-15. Smoke test Quick Log: log one Fuel event and confirm exactly one Fuel Guard row.
-16. Smoke test Activity Logger: press LAP during a Run and confirm exactly one Fuel Guard row.
-17. Smoke test offline retry: record one event offline, reconnect, and confirm exactly one Fuel Guard row.
-18. Do not merge PR #1 until all three smoke tests pass.
+10. Do not create new listings.
+11. Sync/update both apps on the paired Forerunner 255.
+12. No Garmin token, Vercel bypass secret or endpoint entry is required.
+13. Open Fuel Guard Quick Log.
+14. Select Connect Fuel Guard.
+15. Approve on the phone while signed into Fuel Guard.
+16. Verify any pending Quick Log events sync.
+17. Open Activity Logger field settings from the Run activity configuration.
+18. Select Connect Fuel Guard.
+19. Approve on the phone while signed into Fuel Guard.
+20. Disable Auto Lap on the Run profile used for testing.
+21. Smoke test Quick Log: log one Fuel event and confirm exactly one Fuel Guard row.
+22. Smoke test Activity Logger: press LAP during a Run and confirm exactly one Fuel Guard row.
+23. Smoke test offline retry: record one event offline, reconnect, and confirm exactly one Fuel Guard row.
+24. Do not merge PR #1 until all automated and real-watch smoke tests pass.
 
 Do not submit either app for public Store publication during this private beta.
-Do not create new listings for this runtime-fix update.

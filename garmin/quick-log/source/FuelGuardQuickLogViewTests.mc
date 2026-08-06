@@ -4,6 +4,8 @@ import Toybox.Test;
 (:debug)
 function fuelGuardQuickReset(responseCode as Number, data as Dictionary or String or Null) as Void {
     FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setConnectedForTest("device-token-test");
     FuelGuardApi.resetForTest();
     FuelGuardApi.useTestTransport(responseCode, data, false);
 }
@@ -157,4 +159,94 @@ function testFuelGuardQuickLogDirectLogSelectionUsesProductionPath(logger) as Bo
         && FuelGuardApi.dispatchCountForTest() == 1
         && FuelGuardApi.queuedBeforeDispatchForTest()
         && fuelGuardQuickEventMatches(event, FuelGuardEvents.TYPE_HYDRATION);
+}
+
+
+(:test)
+function testFuelGuardQuickLogUnconnectedEnterInitiatesAuth(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.useTestAuthRequestOnly();
+    FuelGuardApi.resetForTest();
+
+    var view = new FuelGuardQuickLogView();
+    var delegate = new FuelGuardQuickLogDelegate(view);
+    delegate.onSelect();
+
+    return FuelGuardQueue.pendingCount() == 0
+        && FuelGuardConnection.authRequestCountForTest() == 1
+        && FuelGuardConnection.lastAuthStateForTest() != null;
+}
+
+(:test)
+function testFuelGuardQuickLogStateMismatchDoesNotStoreToken(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setPendingStateForTest("expected-state");
+    FuelGuardConnection.handleOAuthDataForTest({"code" => "one-time-code", "state" => "wrong-state"});
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardConnection.exchangeRequestCountForTest() == 0
+        && FuelGuardConnection.statusText().equals("Connection state mismatch");
+}
+
+(:test)
+function testFuelGuardQuickLogAuthErrorDoesNotStoreToken(logger) as Boolean {
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setPendingStateForTest("expected-state");
+    FuelGuardConnection.handleOAuthDataForTest({"error" => "access_denied", "state" => "expected-state"});
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardConnection.pendingState().length() == 0
+        && FuelGuardConnection.statusText().equals("Connection denied");
+}
+
+(:test)
+function testFuelGuardQuickLogValidExchangeStoresTokenAndStartsSync(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setPendingStateForTest("expected-state");
+    FuelGuardConnection.useTestExchange(200, {"result" => "ok", "device_token" => "device-token-from-exchange", "token_prefix" => "device-t"});
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, false);
+
+    var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
+    var eventId = FuelGuardQueue.externalEventId(event);
+    FuelGuardQueue.enqueue(event);
+    FuelGuardConnection.handleOAuthDataForTest({"code" => "one-time-code", "state" => "expected-state"});
+
+    return eventId != null
+        && FuelGuardConnection.connected()
+        && FuelGuardConnection.token().equals("device-token-from-exchange")
+        && FuelGuardConnection.pendingState().length() == 0
+        && FuelGuardConnection.exchangeRequestCountForTest() == 1
+        && FuelGuardApi.dispatchCountForTest() == 1
+        && FuelGuardQueue.pendingCount() == 0;
+}
+
+(:test)
+function testFuelGuardQuickLogPairingPreservesPendingEventWhenUploadFails(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setPendingStateForTest("expected-state");
+    FuelGuardConnection.useTestExchange(200, {"result" => "ok", "device_token" => "device-token-from-exchange", "token_prefix" => "device-t"});
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useTestTransport(500, null, false);
+
+    var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION);
+    var eventId = FuelGuardQueue.externalEventId(event);
+    var loggedAt = event["logged_at"];
+    FuelGuardQueue.enqueue(event);
+    FuelGuardConnection.handleOAuthDataForTest({"code" => "one-time-code", "state" => "expected-state"});
+
+    var queued = FuelGuardQueue.peek();
+    return eventId != null
+        && loggedAt instanceof String
+        && queued != null
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardApi.dispatchCountForTest() == 1
+        && FuelGuardApi.lastEventIdForTest() != null
+        && (FuelGuardApi.lastEventIdForTest() as String).equals(eventId as String)
+        && FuelGuardApi.lastLoggedAtForTest() != null
+        && (FuelGuardApi.lastLoggedAtForTest() as String).equals(loggedAt as String);
 }
