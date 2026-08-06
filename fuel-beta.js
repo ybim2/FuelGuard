@@ -178,6 +178,12 @@
   let missedLogStatus = "";
   let missedLogBusy = false;
   let demandPlannerStatus = "";
+  let garminPatternsState = {
+    loaded: false,
+    loading: false,
+    data: null,
+    error: ""
+  };
   let demandPlannerEditingId = "";
 
   const TARGET_FIELDS = [
@@ -2410,6 +2416,7 @@
       gap: '<path d="M4 12h5"/><path d="M15 12h5"/><path d="M9 8v8"/><path d="M15 8v8"/><path d="M7 18h10"/>',
       warning: '<path d="m12 3 9 16H3L12 3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
       energy: '<path d="m13 2-8 12h6l-1 8 8-12h-6l1-8z"/>',
+      heart: '<path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
       score: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="m12 14 4-5"/><path d="M6.5 18h11"/>',
       shield: '<path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/>',
       clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
@@ -4840,6 +4847,199 @@
     `;
   }
 
+  function garminPatternsToken() {
+    return window.fuelGuardCloud?.accessToken?.() || "";
+  }
+
+  async function loadGarminPatterns(force = false) {
+    if (garminPatternsState.loading) return;
+    if (garminPatternsState.loaded && !force) return;
+    const token = garminPatternsToken();
+    const account = window.fuelGuardCloud?.accountView?.() || {};
+    if (!account.signedIn || !token) {
+      garminPatternsState = {
+        loaded: true,
+        loading: false,
+        data: null,
+        error: "Sign in to view Garmin patterns after you connect Quick Log."
+      };
+      return;
+    }
+    garminPatternsState = { ...garminPatternsState, loading: true, error: "" };
+    try {
+      const response = await fetch("/api/garmin/patterns", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.message || data?.error || "Garmin patterns are not available yet.");
+      garminPatternsState = { loaded: true, loading: false, data, error: "" };
+    } catch (error) {
+      garminPatternsState = {
+        loaded: true,
+        loading: false,
+        data: null,
+        error: error?.message || "Garmin patterns are not available yet."
+      };
+    } finally {
+      if (document.getElementById("analysis")?.classList.contains("active")) {
+        renderAnalysis();
+      }
+    }
+  }
+
+  function scheduleGarminPatternsLoad() {
+    requestAnimationFrame(() => loadGarminPatterns(false));
+  }
+
+  function renderGarminCapabilitySummary(data = {}) {
+    const capabilityRow = data?.capabilities || null;
+    const capabilities = capabilityRow?.capabilities || {};
+    const metrics = [
+      ["heart_rate_history", "Heart rate"],
+      ["stress_history", "Stress"],
+      ["body_battery_history", "Body Battery"],
+      ["activity_history", "Activities"],
+      ["resting_heart_rate", "Resting HR"]
+    ];
+    if (!capabilityRow) {
+      return `
+        <div class="beta-garmin-capability-panel">
+          <strong>Watch data status</strong>
+          <p>Turn on health-pattern sharing in Fuel Guard Quick Log settings, then open the watch app to collect supported metrics.</p>
+        </div>
+      `;
+    }
+    const supported = metrics.filter(([key]) => capabilities[key]).map(([, label]) => label);
+    const unsupported = metrics.filter(([key]) => !capabilities[key]).map(([, label]) => label);
+    return `
+      <div class="beta-garmin-capability-panel">
+        <strong>Watch data status</strong>
+        <p>${safeText(supported.length ? `Connected metrics: ${supported.join(", ")}.` : "No supported optional metrics have been reported yet.")}</p>
+        ${unsupported.length ? `<small>Unavailable or not reported on this device: ${safeText(unsupported.join(", "))}.</small>` : ""}
+      </div>
+    `;
+  }
+
+  function renderGarminPatternCards(insights = []) {
+    if (!insights.length) {
+      const message = garminPatternsState.data?.message || garminPatternsState.error || "Garmin patterns need a few repeated days before Fuel Guard shows them.";
+      return `<p class="muted beta-history-empty">${safeText(message)}</p>`;
+    }
+    return `
+      <div class="beta-garmin-pattern-list">
+        ${insights.slice(0, 3).map(insight => `
+          <article class="beta-garmin-pattern-card ${safeText(insight.tone || "neutral")}">
+            <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : "shield"}">${dailyIcon(insight.metric === "heart_rate" ? "heart" : insight.metric === "body_battery" ? "score" : "chart")}</span>
+            <div>
+              <h4>${safeText(insight.text)}</h4>
+              <p>${safeText(insight.detail || "")}</p>
+              ${insight.action ? `<small>${safeText(insight.action)}</small>` : ""}
+              <span class="row-note">${safeText(`${insight.confidence || "limited"} confidence · ${insight.count || 0} matching days`)}</span>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderGarminPatternsSection() {
+    if (!garminPatternsState.loaded && !garminPatternsState.loading) scheduleGarminPatternsLoad();
+    const content = garminPatternsState.loading
+      ? `<p class="muted beta-history-empty">Loading Garmin patterns...</p>`
+      : renderGarminPatternCards(garminPatternsState.data?.insights || []);
+    return `
+      <section class="beta-analysis-card beta-garmin-patterns-section" aria-label="Garmin patterns">
+        <div class="beta-analysis-card-head">
+          <span class="beta-icon-disc shield">${dailyIcon("heart")}</span>
+          <div>
+            <h3>Garmin patterns</h3>
+            <p>Opt-in watch signals compared with your fuelling rhythm. These are behavioural associations, not medical conclusions.</p>
+          </div>
+          <button class="secondary beta-garmin-refresh-button" type="button" data-refresh-garmin-patterns>Refresh</button>
+        </div>
+        ${renderGarminCapabilitySummary(garminPatternsState.data || {})}
+        ${content}
+        <p class="row-note">Fuel Guard uses Connect IQ-local samples only and shows insights after repeated evidence.</p>
+      </section>
+    `;
+  }
+
+  function ratingInput(id, label) {
+    return `
+      <label>${safeText(label)}
+        <input id="${safeText(id)}" type="number" min="1" max="5" step="1" inputmode="numeric" value="3">
+      </label>
+    `;
+  }
+
+  function renderGarminDailyCheckinSection(key = selectedDataDateKey()) {
+    return `
+      <section class="beta-analysis-card beta-garmin-checkin-section" aria-label="Daily check-in">
+        <div class="beta-analysis-card-head">
+          <span class="beta-icon-disc">${dailyIcon("check")}</span>
+          <div>
+            <h3>Daily check-in</h3>
+            <p>Optional 1-5 ratings help compare how your day felt with fuelling rhythm and Garmin patterns.</p>
+          </div>
+        </div>
+        <div class="form-grid beta-settings-grid beta-garmin-checkin-grid" data-garmin-checkin-date="${safeText(key)}">
+          ${ratingInput("garminCheckinEnergy", "Energy")}
+          ${ratingInput("garminCheckinMood", "Mood")}
+          ${ratingInput("garminCheckinSoreness", "Soreness")}
+          ${ratingInput("garminCheckinHunger", "Hunger / appetite")}
+          ${ratingInput("garminCheckinRecovery", "Perceived recovery")}
+        </div>
+        <label class="beta-checkin-note">Optional note<input id="garminCheckinNotes" type="text" maxlength="240" placeholder="Optional context"></label>
+        <div class="button-row beta-settings-actions">
+          <button id="saveGarminDailyCheckinButton" class="secondary" type="button">Save check-in</button>
+        </div>
+        <p id="garminDailyCheckinStatus" class="row-note" aria-live="polite">This is not a clinical assessment; use it as a gentle reflection.</p>
+      </section>
+    `;
+  }
+
+  function checkinNumber(id) {
+    const value = Number(document.getElementById(id)?.value || 0);
+    if (!Number.isInteger(value) || value < 1 || value > 5) throw new Error("Check-in values must be whole numbers from 1 to 5.");
+    return value;
+  }
+
+  async function saveGarminDailyCheckin() {
+    const status = document.getElementById("garminDailyCheckinStatus");
+    const token = garminPatternsToken();
+    if (!token) {
+      if (status) status.textContent = "Sign in to save this check-in.";
+      return;
+    }
+    try {
+      if (status) status.textContent = "Saving check-in...";
+      const payload = {
+        local_date: selectedDataDateKey(),
+        energy: checkinNumber("garminCheckinEnergy"),
+        mood: checkinNumber("garminCheckinMood"),
+        soreness: checkinNumber("garminCheckinSoreness"),
+        hunger_appetite: checkinNumber("garminCheckinHunger"),
+        perceived_recovery: checkinNumber("garminCheckinRecovery"),
+        notes: document.getElementById("garminCheckinNotes")?.value || ""
+      };
+      const response = await fetch("/api/garmin/checkin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.message || data?.error || "Could not save check-in.");
+      if (status) status.textContent = "Check-in saved.";
+      garminPatternsState.loaded = false;
+      loadGarminPatterns(true);
+    } catch (error) {
+      if (status) status.textContent = error?.message || "Could not save check-in.";
+    }
+  }
+
   function renderAnalysis() {
     const target = document.getElementById("fuelAnalysisContent");
     if (!target) return;
@@ -4850,11 +5050,13 @@
       ${renderAnalysisPriorityCard(key, now)}
       ${renderAnalysisTimelineGraph(key, now)}
       ${renderAnalysisKeyResult(key, now)}
+      ${renderGarminPatternsSection()}
       ${renderAnalysisGapGraph(key, now)}
       ${renderAnalysisAdherenceBreakdown(key, now)}
       ${renderAnalysisProgression(key, now)}
       ${renderAnalysisScenario(key, now)}
       ${renderAnalysisWrittenInsights(key, now)}
+      ${renderGarminDailyCheckinSection(key)}
     `;
   }
 
@@ -9455,6 +9657,15 @@
     }
     if (event.target.closest("#saveDailyCheckinButton")) {
       saveDailyCheckin();
+      return;
+    }
+    if (event.target.closest("[data-refresh-garmin-patterns]")) {
+      loadGarminPatterns(true);
+      return;
+    }
+    if (event.target.closest("#saveGarminDailyCheckinButton")) {
+      saveGarminDailyCheckin();
+      return;
     }
   });
   document.addEventListener("click", event => {
@@ -9623,7 +9834,9 @@
     status.textContent = event.detail?.message || "Update status changed.";
   });
   window.addEventListener("fuelguard:cloud-status", () => {
+    garminPatternsState.loaded = false;
     if (document.getElementById("checklist")?.classList.contains("active")) renderSettings();
+    if (document.getElementById("analysis")?.classList.contains("active")) renderAnalysis();
   });
   document.getElementById("checkAppUpdateButton")?.addEventListener("click", async () => {
     const status = document.getElementById("appUpdateStatus");

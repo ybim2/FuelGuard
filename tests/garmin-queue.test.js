@@ -511,3 +511,60 @@ test("Garmin docs prominently warn that Auto Lap must be disabled", () => {
   assert.match(readme, /Disable Auto Lap/i);
   assert.match(activityReadme, /Auto Lap must be disabled/i);
 });
+
+test("Quick Log health sharing is opt-in and Activity Logger stays fuel-only", () => {
+  const quickManifest = readRepoFile("garmin/quick-log/manifest.xml");
+  const quickBetaManifest = readRepoFile("garmin/quick-log/manifest.beta.xml");
+  const activityManifest = readRepoFile("garmin/activity-logger/manifest.xml");
+  const quickProperties = readRepoFile("garmin/quick-log/resources/properties.xml");
+  const quickStrings = readRepoFile("garmin/quick-log/resources/strings.xml");
+
+  assert.match(quickManifest, /id="SensorHistory"/);
+  assert.match(quickManifest, /id="UserProfile"/);
+  assert.match(quickBetaManifest, /id="SensorHistory"/);
+  assert.match(quickBetaManifest, /id="UserProfile"/);
+  assert.doesNotMatch(activityManifest, /id="SensorHistory"/);
+  assert.doesNotMatch(activityManifest, /id="UserProfile"/);
+  assert.match(quickProperties, /property id="shareHealthPatterns" type="boolean">false<\/property>/);
+  assert.match(quickProperties, /property id="clearHealthPatterns" type="boolean">false<\/property>/);
+  assert.match(quickStrings, /Share Garmin health patterns with Fuel Guard/);
+});
+
+test("Quick Log health collector uses runtime detection and avoids sensitive profile fields", () => {
+  const collector = readRepoFile("garmin/quick-log/source/FuelGuardHealthCollector.mc");
+
+  assert.match(collector, /Toybox has :SensorHistory/);
+  assert.match(collector, /SensorHistory has :getHeartRateHistory/);
+  assert.match(collector, /SensorHistory has :getStressHistory/);
+  assert.match(collector, /SensorHistory has :getBodyBatteryHistory/);
+  assert.match(collector, /Toybox has :UserProfile/);
+  assert.match(collector, /UserProfile has :getProfile/);
+  assert.match(collector, /UserProfile has :getUserActivityHistory/);
+  assert.match(collector, /restingHeartRate/);
+  assert.match(collector, /averageRestingHeartRate/);
+  assert.doesNotMatch(collector, /\.gender\b/);
+  assert.doesNotMatch(collector, /\.birthYear\b/);
+  assert.doesNotMatch(collector, /\.height\b/);
+  assert.doesNotMatch(collector, /\.weight\b/);
+  assert.doesNotMatch(collector, /sleepTime|upcomingSleepTime|upcomingWakeTime/);
+  assert.doesNotMatch(collector, /TrainingReadiness|RecoveryTime|HRV|hrv/i);
+});
+
+test("Quick Log health queue is separate, bounded, and lower priority than fuel logs", () => {
+  const queue = readRepoFile("garmin/quick-log/source/FuelGuardHealthQueue.mc");
+  const api = readRepoFile("garmin/quick-log/source/FuelGuardHealthApi.mc");
+  const connection = readRepoFile("garmin/shared/source/FuelGuardConnection.mc");
+  const view = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+
+  assert.match(queue, /QUEUE_KEY = "fg_pending_health_snapshots"/);
+  assert.match(queue, /MAX_QUEUE_SIZE = 3/);
+  assert.match(queue, /function removeAcknowledged\(id as String\)/);
+  assert.match(api, /if \(FuelGuardQueue\.pendingCount\(\) > 0\)/);
+  assert.match(api, /FuelGuardHealthQueue\.peek\(\)/);
+  assert.match(api, /FuelGuardHealthQueue\.removeAcknowledged\(context as String\)/);
+  assert.match(connection, /HEALTH_PATH = "\/api\/garmin\/health"/);
+  assert.match(connection, /function healthEndpoint\(\) as String/);
+  assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("open"\)/);
+  assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("fuel_log"\)/);
+  assert.match(view, /FuelGuardHealth\.maybeCollectAndSync\("refresh"\)/);
+});

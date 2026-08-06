@@ -23,6 +23,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
         FuelGuardConnection.registerForOAuthMessages();
         if (FuelGuardConnection.connected()) {
             FuelGuardApi.trySync(true);
+            FuelGuardHealth.maybeCollectAndSync("open");
         }
     }
 
@@ -57,6 +58,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
         _confirmType = eventType;
         FuelGuardFeedback.vibrate();
         FuelGuardApi.trySync(true);
+        FuelGuardHealth.maybeCollectAndSync("fuel_log");
         startConfirmationTimer();
         WatchUi.requestUpdate();
     }
@@ -146,6 +148,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
     public function onUpdate(dc as Graphics.Dc) as Void {
         if (FuelGuardConnection.connected()) {
             FuelGuardApi.trySync(false);
+            FuelGuardHealth.maybeCollectAndSync("refresh");
         }
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
