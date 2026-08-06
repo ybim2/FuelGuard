@@ -973,6 +973,14 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   font-size: .78rem;
 }
 
+.beta-version-marker a {
+  color: var(--accent);
+  font-size: .78rem;
+  font-weight: 850;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
 .beta-settings-footer {
   margin: 18px 0 6px;
 }
