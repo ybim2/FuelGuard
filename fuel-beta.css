@@ -842,6 +842,50 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   color: #8a5600;
 }
 
+
+.beta-garmin-devices-card[hidden] {
+  display: none;
+}
+
+.beta-garmin-devices-list {
+  display: grid;
+  gap: 10px;
+}
+
+.beta-garmin-device-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+
+.beta-garmin-device-row div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.beta-garmin-device-row strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.beta-garmin-device-row span {
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.25;
+}
+
+@media (max-width: 420px) {
+  .beta-garmin-device-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .beta-account-card,
 .beta-import-card,
 .beta-update-card {

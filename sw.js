@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v82-analysis-system";
-const BUILD_VERSION = "2026-07-25T20:45:00Z";
+const APP_VERSION = "mobile-pwa-v84-garmin-zero-secret";
+const BUILD_VERSION = "2026-08-06T01:30:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v82-analysis-system-20260725T204500Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v84-garmin-zero-secret-20260806T104500Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,6 +12,7 @@ const APP_SHELL = [
   "./fuel-beta.css",
   "./app-state.js",
   "./fuel-supabase.js",
+  "./garmin-connected-devices.js",
   "./app-ui.js",
   "./app-pwa.js",
   "./fuel-beta.js",
