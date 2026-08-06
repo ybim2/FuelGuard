@@ -154,6 +154,84 @@ test("Garmin manifests define two separate fr255 apps", () => {
   );
 });
 
+test("Garmin beta manifests use separate beta UUIDs and preserve production IDs", () => {
+  const activityManifest = readRepoFile("garmin/activity-logger/manifest.xml");
+  const quickLogManifest = readRepoFile("garmin/quick-log/manifest.xml");
+  const activityBetaManifest = readRepoFile("garmin/activity-logger/manifest.beta.xml");
+  const quickLogBetaManifest = readRepoFile("garmin/quick-log/manifest.beta.xml");
+  const uuidLedger = readRepoFile("garmin/private-beta/UUIDS.md");
+
+  const productionIds = [
+    activityManifest.match(/id="([^"]+)"/)[1],
+    quickLogManifest.match(/id="([^"]+)"/)[1]
+  ];
+  const betaIds = [
+    activityBetaManifest.match(/id="([^"]+)"/)[1],
+    quickLogBetaManifest.match(/id="([^"]+)"/)[1]
+  ];
+
+  assert.equal(new Set(productionIds).size, 2);
+  assert.equal(new Set(betaIds).size, 2);
+  for (const betaId of betaIds) {
+    assert.match(betaId, /^[A-F0-9]{32}$/);
+    assert.ok(!productionIds.includes(betaId), `${betaId} should not match a production ID`);
+    assert.match(uuidLedger, new RegExp(betaId));
+  }
+  for (const productionId of productionIds) {
+    assert.match(uuidLedger, new RegExp(productionId));
+  }
+
+  assert.match(activityBetaManifest, /type="datafield"/);
+  assert.match(quickLogBetaManifest, /type="watch-app"/);
+  assert.match(activityBetaManifest, /<iq:product id="fr255"\/>/);
+  assert.match(quickLogBetaManifest, /<iq:product id="fr255"\/>/);
+  assert.match(activityBetaManifest, /<iq:language>eng<\/iq:language>/);
+  assert.match(quickLogBetaManifest, /<iq:language>eng<\/iq:language>/);
+});
+
+test("Garmin private beta packaging assets are dashboard-ready", () => {
+  const buildScript = readRepoFile("scripts/build-garmin-beta.sh");
+  const uploadChecklist = readRepoFile("garmin/private-beta/UPLOAD_CHECKLIST.md");
+  const activityReadme = readRepoFile("garmin/private-beta/activity-logger/README.md");
+  const quickLogReadme = readRepoFile("garmin/private-beta/quick-log/README.md");
+
+  assert.match(buildScript, /set -euo pipefail/);
+  assert.match(buildScript, /-e \\/);
+  assert.match(buildScript, /monkey\.beta\.jungle/);
+  assert.match(buildScript, /output="\$OUT_DIR\/\$output_name\.iq"/);
+  assert.match(buildScript, /fuel-guard-activity-logger-beta/);
+  assert.match(buildScript, /fuel-guard-quick-log-beta/);
+  assert.match(buildScript, /GARMIN_DEVELOPER_KEY is required/);
+  assert.match(buildScript, /developer_key|.*\\.der|.*\\.pem/);
+  assert.doesNotMatch(buildScript, /GARMIN_BETA_TOKEN=["'][A-Za-z0-9+/_=-]{16,}/);
+  assert.doesNotMatch(buildScript, /VERCEL_AUTOMATION_BYPASS_SECRET=["'][A-Za-z0-9+/_=-]{16,}/);
+
+  for (const doc of [uploadChecklist, activityReadme, quickLogReadme]) {
+    assert.match(doc, /Garmin Connect IQ Developer Dashboard/);
+    assert.match(doc, /Beta App/);
+    assert.match(doc, /Forerunner 255/);
+    assert.doesNotMatch(doc, /USB/i);
+    assert.doesNotMatch(doc, /sideload/i);
+  }
+
+  assert.match(activityReadme, /Auto Lap must be disabled/);
+  assert.match(activityReadme, /Pressing LAP logs fuel and also creates a normal Garmin lap/);
+  assert.match(activityReadme, /Structured workout laps/i);
+  assert.match(quickLogReadme, /Fuel, Hydration, or Fuel \+ Hydration/);
+  assert.match(quickLogReadme, /Use UP and DOWN/);
+  assert.match(quickLogReadme, /Press ENTER/);
+  assert.match(quickLogReadme, /queue offline/);
+
+  assert.deepEqual(readPngDimensions("garmin/private-beta/activity-logger/store-icon-500.png"), {
+    width: 500,
+    height: 500
+  });
+  assert.deepEqual(readPngDimensions("garmin/private-beta/quick-log/store-icon-500.png"), {
+    width: 500,
+    height: 500
+  });
+});
+
 test("Activity Logger uses onTimerLap and persists before upload", () => {
   const source = readRepoFile("garmin/activity-logger/source/FuelGuardActivityLoggerField.mc");
 
