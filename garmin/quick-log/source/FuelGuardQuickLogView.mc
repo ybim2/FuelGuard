@@ -57,6 +57,31 @@ class FuelGuardQuickLogView extends WatchUi.View {
         return confirming();
     }
 
+    (:debug)
+    public function selectedTypeForTest() as String {
+        return typeForSelection(_selection);
+    }
+
+    (:debug)
+    public function selectedLabelForTest() as String {
+        return labelForSelection(_selection);
+    }
+
+    (:debug)
+    public function selectedRowCountForTest() as Number {
+        return selectedRowCount();
+    }
+
+    (:debug)
+    public function confirmationTypeForTest() as String {
+        return _confirmType;
+    }
+
+    (:debug)
+    public function confirmationFirstLineForTest() as String {
+        return FuelGuardFeedback.confirmationFirstLine(_confirmType);
+    }
+
     private function confirming() as Boolean {
         return FuelGuardFeedback.confirmationActive(_confirmStartedAt);
     }

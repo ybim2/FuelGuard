@@ -430,8 +430,12 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(apiSource, /if \(_inFlight \|\| !configured\(\)\)/);
   assert.match(apiSource, /FuelGuardQueue\.peek\(\)/);
   assert.match(apiSource, /FuelGuardQueue\.removeAcknowledged\(context as String\)/);
-  assert.match(apiSource, /try \{\s*Communications\.makeWebRequest/s);
+  assert.match(apiSource, /function sendWebRequest\(event as Dictionary, eventId as String\) as Void \{[\s\S]*Communications\.makeWebRequest/);
+  assert.match(apiSource, /try \{\s*dispatchRequest\(event, eventId as String\);/s);
   assert.match(apiSource, /catch \(e\) \{\s*_inFlight = false;/s);
+  assert.match(apiSource, /\(:release\)\s*function dispatchRequest/);
+  assert.match(apiSource, /\(:debug\)\s*function dispatchRequest/);
+  assert.match(apiSource, /\(:debug\)\s*function useTestTransport/);
   assert.match(apiSource, /if \(context instanceof String\)/);
   assert.doesNotMatch(apiSource, /\|\|\s*data\["result"\]/);
   assert.match(apiSource, /VERCEL_BYPASS_PROPERTY = "vercelBypassSecret"/);
