@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#07130f">
+  <meta name="description" content="Fuel Guard Privacy Policy for the private beta web app and Garmin apps.">
+  <title>Fuel Guard Privacy Policy</title>
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f7f2;
+      --panel: #ffffff;
+      --text: #132119;
+      --muted: #4d6257;
+      --line: #d8e5dd;
+      --accent: #126c3f;
+      --accent-soft: #e5f6ed;
+      --shadow: 0 18px 50px rgba(15, 35, 24, .12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(45, 255, 136, .16), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+
+    a {
+      color: var(--accent);
+      font-weight: 800;
+      text-underline-offset: 3px;
+    }
+
+    .policy-shell {
+      width: min(920px, 100%);
+      margin: 0 auto;
+      padding: 18px 14px 48px;
+    }
+
+    .policy-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 2px 18px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .logo {
+      display: inline-grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      border-radius: 12px;
+      background: #0f1f17;
+      color: #2dff88;
+      font-size: .94rem;
+      font-weight: 950;
+      letter-spacing: .03em;
+      box-shadow: 0 12px 30px rgba(15, 31, 23, .2);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: .98rem;
+      line-height: 1.1;
+    }
+
+    .brand span {
+      display: block;
+      color: var(--muted);
+      font-size: .8rem;
+      line-height: 1.2;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .78);
+      color: var(--text);
+      font-size: .84rem;
+      text-decoration: none;
+    }
+
+    .hero {
+      padding: clamp(22px, 5vw, 42px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: linear-gradient(150deg, #ffffff, #f4fbf6 68%, #e7f9ef);
+      box-shadow: var(--shadow);
+    }
+
+    .kicker {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--text);
+      font-size: clamp(2rem, 7vw, 4rem);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 720px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2.6vw, 1.15rem);
+    }
+
+    .dates {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 22px;
+    }
+
+    .date-pill {
+      display: inline-flex;
+      padding: 7px 10px;
+      border: 1px solid rgba(18, 108, 63, .22);
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #174f32;
+      font-size: .82rem;
+      font-weight: 800;
+    }
+
+    .content {
+      display: grid;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    section {
+      padding: clamp(18px, 4vw, 28px);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: 0 10px 30px rgba(19, 33, 25, .06);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: clamp(1.18rem, 3vw, 1.55rem);
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 18px 0 6px;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 1.1rem;
+      color: var(--muted);
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    strong {
+      color: var(--text);
+    }
+
+    .notice {
+      border-color: rgba(18, 108, 63, .22);
+      background: #f5fbf7;
+    }
+
+    .two-col {
+      display: grid;
+      gap: 14px;
+    }
+
+    .mini-card {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfdfb;
+    }
+
+    .mini-card h3 {
+      margin-top: 0;
+    }
+
+    footer {
+      padding: 22px 4px 0;
+      color: var(--muted);
+      font-size: .86rem;
+      text-align: center;
+    }
+
+    @media (min-width: 740px) {
+      .policy-shell {
+        padding: 28px 22px 64px;
+      }
+
+      .two-col {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="policy-shell">
+    <header class="policy-top">
+      <a class="brand" href="/" aria-label="Fuel Guard home">
+        <span class="logo" aria-hidden="true">FG</span>
+        <span>
+          <strong>Fuel Guard</strong>
+          <span>Private beta notice</span>
+        </span>
+      </a>
+      <a class="back-link" href="/">Back to app</a>
+    </header>
+
+    <main>
+      <article class="hero">
+        <p class="kicker">Privacy Policy</p>
+        <h1>Fuel Guard Privacy Policy</h1>
+        <p>Fuel Guard helps you notice fuelling and hydration rhythm. This notice explains what the private beta web app and Garmin apps process, how that information is used, and how to ask for access, correction or deletion.</p>
+        <div class="dates" aria-label="Policy dates">
+          <span class="date-pill">Effective date: 6 August 2026</span>
+          <span class="date-pill">Last updated: 6 August 2026</span>
+        </div>
+      </article>
+
+      <div class="content">
+        <section class="notice" aria-labelledby="beta-status">
+          <h2 id="beta-status">Private beta status</h2>
+          <p>Fuel Guard is currently a private beta. This policy will be updated if the app's data practices materially change.</p>
+        </section>
+
+        <section aria-labelledby="operator-contact">
+          <h2 id="operator-contact">Who operates Fuel Guard</h2>
+          <p>Fuel Guard is operated by the Fuel Guard developer for the private beta. It is not a medical service and it is not designed to diagnose, treat or monitor a health condition.</p>
+          <h3>How to contact Fuel Guard</h3>
+          <p>For privacy or deletion requests, use the developer contact email displayed on the Fuel Guard Connect IQ Store listing. Do not include passwords, access tokens or health information in your initial message.</p>
+        </section>
+
+        <section aria-labelledby="scope">
+          <h2 id="scope">Scope of this notice</h2>
+          <p>This notice covers the Fuel Guard web app, the Supabase-backed account and sync features, the private beta Garmin Activity Logger and Quick Log apps, and the server endpoint used by those Garmin apps.</p>
+        </section>
+
+        <section aria-labelledby="web-app-info">
+          <h2 id="web-app-info">Information collected by the web app</h2>
+          <p>The web app can process the information you enter or generate while using Fuel Guard, including:</p>
+          <ul>
+            <li>Account email address and sign-in session information handled through Supabase Auth.</li>
+            <li>Fuel, hydration and fuel-plus-hydration log events, including timestamp, type, source, day type, training session and notes or check-in markers used by the app.</li>
+            <li>Preferences such as fuelling and hydration thresholds, daily targets and fuelling-window settings.</li>
+            <li>Planning data you choose to enter, such as demand blocks, work breaks, training sessions and related notes.</li>
+            <li>Local cache data stored in the browser so the app can keep working while signed out, offline or waiting to sync.</li>
+          </ul>
+          <p>Fuel Guard does not add calories, food weights, macros, body weight or food-quality judgements to the log model unless you type that information into an optional note yourself.</p>
+        </section>
+
+        <section aria-labelledby="garmin-info">
+          <h2 id="garmin-info">Information collected through the Garmin apps</h2>
+          <p>The private beta Garmin apps may transmit these fields to the Fuel Guard endpoint:</p>
+          <ul>
+            <li>Fuel, hydration or fuel-plus-hydration event type.</li>
+            <li>Timestamp for the event.</li>
+            <li>Garmin source value.</li>
+            <li>Device identifier.</li>
+            <li>Stable external event ID used for retries and duplicate prevention.</li>
+            <li>The Fuel Guard account identifier assigned server-side for the private beta account.</li>
+          </ul>
+          <p>App-setting credentials authenticate the request. They are not stored as fuel-log database fields.</p>
+        </section>
+
+        <section aria-labelledby="garmin-not-collected">
+          <h2 id="garmin-not-collected">Information not collected by the Garmin apps</h2>
+          <p>Based on the private beta source code, the Garmin apps do not intentionally transmit GPS routes, precise location, heart-rate data, body weight, passwords, calorie totals or detailed descriptions of food.</p>
+        </section>
+
+        <section aria-labelledby="use-info">
+          <h2 id="use-info">How the information is used</h2>
+          <p>Fuel Guard uses the information to:</p>
+          <ul>
+            <li>Create and secure your account.</li>
+            <li>Save and sync your logs across devices.</li>
+            <li>Show history, trends, planning prompts and timing insights based on your own records.</li>
+            <li>Keep the app usable when network access is unavailable.</li>
+            <li>Prevent duplicate Garmin beta events when retries happen.</li>
+            <li>Respond to privacy, deletion or support requests.</li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="auth-security">
+          <h2 id="auth-security">Authentication and security credentials</h2>
+          <p>Web account sign-up, login, password reset and session handling are managed through Supabase Auth. Fuel Guard's browser code uses the public Supabase anon or publishable key, not a Supabase service-role key.</p>
+          <p>The Garmin beta uses an API endpoint plus a beta bearer token. Server-side credentials such as the Supabase secret key are used only by the backend endpoint and must not be placed in browser code, Garmin code or public files.</p>
+        </section>
+
+        <section aria-labelledby="lawful-purposes">
+          <h2 id="lawful-purposes">Lawful purposes for processing</h2>
+          <p>Fuel Guard processes information so it can provide the beta service you use, keep records synced, maintain account and endpoint security, prevent duplicate submissions, handle requests, and understand whether the private beta is working as intended.</p>
+        </section>
+
+        <section aria-labelledby="providers">
+          <h2 id="providers">Service providers and recipients</h2>
+          <div class="two-col">
+            <div class="mini-card">
+              <h3>Supabase</h3>
+              <p>Supabase provides authentication and database storage for account-backed Fuel Guard data. Row Level Security policies are used so authenticated users can access only their own app tables.</p>
+            </div>
+            <div class="mini-card">
+              <h3>Vercel</h3>
+              <p>Vercel hosts the web app and serverless endpoint used by the Garmin private beta. The endpoint stores Garmin events in Supabase after validating the request.</p>
+            </div>
+            <div class="mini-card">
+              <h3>Garmin / Connect IQ</h3>
+              <p>Garmin and Connect IQ provide the watch platform and app distribution path for the private beta Garmin apps. Garmin Connect or Connect IQ settings may be used to configure the endpoint and beta token on the watch.</p>
+            </div>
+            <div class="mini-card">
+              <h3>Your browser or device</h3>
+              <p>The web app can keep local cache data in your browser to support offline use, refresh recovery and syncing when you sign back in.</p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="transfers">
+          <h2 id="transfers">International data transfers</h2>
+          <p>Fuel Guard relies on cloud providers that may process information in countries where they operate infrastructure or support services. Data transfer details can vary by provider account configuration and service region.</p>
+        </section>
+
+        <section aria-labelledby="retention">
+          <h2 id="retention">Data retention</h2>
+          <p>Fuel Guard keeps account-backed logs, targets and planning data while your account is active or until you delete entries, clear supported local data, or ask for account and associated-data deletion. Local browser cache may remain on a device until you clear app data, browser storage or the app's local data controls.</p>
+        </section>
+
+        <section aria-labelledby="security">
+          <h2 id="security">Security</h2>
+          <p>Fuel Guard uses practical security controls for the private beta, including Supabase Auth, Row Level Security on user-owned tables, server-side handling of elevated Supabase credentials, and Garmin event idempotency checks. No internet-connected service can guarantee absolute security.</p>
+        </section>
+
+        <section aria-labelledby="rights">
+          <h2 id="rights">User privacy rights</h2>
+          <p>Depending on where you live, you may have rights to ask for access to your information, correction of inaccurate information, deletion of information, or objection to certain processing. Fuel Guard will review privacy requests in light of applicable law and the private beta's technical capabilities.</p>
+          <h3>Access, correction, deletion and objection requests</h3>
+          <p>Use the contact method above for account-level privacy requests. To help verify the account, contact Fuel Guard from the email address used for your Fuel Guard account where possible. Do not send passwords, access tokens or detailed health information in your request.</p>
+          <h3>How to delete individual fuel logs</h3>
+          <p>Where the app shows delete or undo controls for a log, you can remove individual entries from the app. If you are signed in and online, cloud deletion is sent to Supabase. If you are offline, deletion can be queued locally and synced later.</p>
+          <h3>How to request account and associated-data deletion</h3>
+          <p>Use the contact method above to request deletion of your Fuel Guard account and associated cloud data. The request may require account verification before account-backed data is removed.</p>
+        </section>
+
+        <section aria-labelledby="children">
+          <h2 id="children">Children's privacy</h2>
+          <p>Fuel Guard is not intended for children. The private beta should be used only by people who are old enough to manage their own app account and understand this notice.</p>
+        </section>
+
+        <section aria-labelledby="changes">
+          <h2 id="changes">Changes to this policy</h2>
+          <p>Fuel Guard may update this policy as the beta changes. The effective date and last updated date at the top of this page show when this version applies.</p>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      Fuel Guard Privacy Policy - effective 6 August 2026.
+    </footer>
+  </div>
+</body>
+</html>
