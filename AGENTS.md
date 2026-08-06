@@ -56,3 +56,15 @@ Deprecated files
 ----------------
 
 Old or unused frontend files belong in `deprecated_old_frontends/`. They must not be imported by `index.html`, included in `sw.js`, or targeted by deployment.
+
+Garmin release and worktree rules
+---------------------------------
+
+- Temporary worktrees under `/private/tmp`, `/tmp`, or another disposable path may be used only as scratch space.
+- Final commits must be pushed to GitHub before a temporary worktree is treated as preserved.
+- Final Garmin IQ release artifacts must be exported to persistent local storage, not left only inside a temporary worktree.
+- Never leave the only usable Garmin beta build under `/private/tmp` or `/tmp`.
+- Always report both the source build paths and the permanent exported IQ paths.
+- Never reset, clean, modify, or discard unrelated dirty local worktrees while integrating Garmin work.
+- After merging a Garmin release to `main`, synchronize from `origin/main` and rebuild final IQ packages from that merged main commit.
+- Do not commit secrets, Garmin developer keys, Vercel secrets, Supabase service keys, token values, generated `.prg` files, or generated `.iq` packages.

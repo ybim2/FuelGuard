@@ -27,7 +27,11 @@ Use UP and DOWN to select the log type. Press ENTER to log the selected event. E
 
 ## Privacy and data use
 
-This beta records timestamped Fuel Guard fuel and hydration events from the watch. It sends the event type, timestamp, Garmin source, device identifier, and stable external event ID to the paired Fuel Guard account. The app stores a revocable device token locally on the watch after phone approval. Fuel Guard stores only a hashed version of that token server-side. It does not collect passwords, email addresses from the watch, location tracks, heart-rate data, calories, weight, or nutrition details.
+This beta records timestamped Fuel Guard fuel and hydration events from the watch. It sends the event type, timestamp, Garmin source, device identifier, and stable external event ID to the paired Fuel Guard account. The app stores a revocable device token locally on the watch after phone approval. Fuel Guard stores only a hashed version of that token server-side.
+
+Optional Garmin health-pattern sharing is disabled by default. If the tester enables it in Quick Log settings, the app may share bounded recent Connect IQ-local heart-rate history, stress history, Body Battery history, Garmin resting-heart-rate values, average resting-heart-rate values and high-level recent activity summaries when the Forerunner 255 supports those APIs. This is used for personal fuelling-pattern associations only and is not a medical interpretation.
+
+This beta does not collect passwords, email addresses from the watch, GPS routes, precise location, raw beat-to-beat intervals, sleep stages, HRV Status, Training Readiness, Recovery Time, calories, body weight or nutrition details.
 
 ## Forerunner 255 support note
 

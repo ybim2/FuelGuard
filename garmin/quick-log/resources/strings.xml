@@ -1,3 +1,5 @@
 <resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
     <string id="AppName">FG Quick Log</string>
+    <string id="ShareHealthPatternsTitle">Share Garmin health patterns with Fuel Guard</string>
+    <string id="ClearHealthPatternsTitle">Clear shared health cache</string>
 </resources>

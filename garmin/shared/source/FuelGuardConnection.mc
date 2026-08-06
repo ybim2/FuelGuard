@@ -49,6 +49,7 @@ module FuelGuardConnection {
     const CONNECT_URL = PRODUCTION_BASE_URL + "/garmin/connect/";
     const RESULT_URL = "connectiq://oauth";
     const LOG_PATH = "/api/garmin/log";
+    const HEALTH_PATH = "/api/garmin/health";
     const EXCHANGE_PATH = "/api/garmin/auth/exchange";
     const REVOKE_PATH = "/api/garmin/devices/revoke";
     const TOKEN_KEY = "fg_device_token";
@@ -152,6 +153,10 @@ module FuelGuardConnection {
 
     function logEndpoint() as String {
         return PRODUCTION_BASE_URL + LOG_PATH;
+    }
+
+    function healthEndpoint() as String {
+        return PRODUCTION_BASE_URL + HEALTH_PATH;
     }
 
     function exchangeEndpoint() as String {
