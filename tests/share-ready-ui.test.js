@@ -204,16 +204,16 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the athlete code linking flow", () => {
+test("PWA cache and asset versions are bumped for the coach daily workflow", () => {
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v104-athlete-code-links";
+  const version = "mobile-pwa-v105-coach-daily-workflow";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260808T000500Z/);
+  assert.match(sw, /20260807T173501Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /fuel-guard-domain\.js/);
 });
