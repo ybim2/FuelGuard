@@ -64,7 +64,7 @@
   function friendlyError(error) {
     const message = String(error?.message || error || "Something went wrong.");
     if (/fuel_user_profiles|fuel_coach_athletes|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
-      return "Coach Beta database setup is not applied yet. Apply supabase/fuel_coach_beta.sql in the Fuel Guard Supabase project.";
+      return "Coach sharing is still warming up. Refresh and try again in a moment.";
     }
     return message;
   }
