@@ -113,7 +113,7 @@ package_app() {
   fi
 }
 
-package_app "garmin/activity-logger" "fuel-guard-activity-logger-beta"
-package_app "garmin/quick-log" "fuel-guard-quick-log-beta"
+package_app "garmin/FuelGuard/activity-logger" "fuel-guard-activity-logger-beta"
+package_app "garmin/FuelGuard/quick-log" "fuel-guard-quick-log-beta"
 
 echo "Built Garmin beta IQ packages in $OUT_DIR"

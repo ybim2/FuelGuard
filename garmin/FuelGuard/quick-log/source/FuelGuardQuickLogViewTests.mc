@@ -288,37 +288,41 @@ function testFuelGuardQuickLogPairingPreservesPendingEventWhenUploadFails(logger
 (:test)
 function testFuelGuardQuickLogGlanceShowsRecentLocalFuel(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
-    FuelGuardEvents.setLastFuelSecondsForTest(FuelGuardEvents.nowSeconds() - ((2 * 60 * 60) + (37 * 60)));
+    FuelGuardGlanceState.resetForTest();
+    var now = FuelGuardEvents.nowSeconds();
+    FuelGuardGlanceState.recordFuel(now - 60);
+    FuelGuardGlanceState.setTodayFuelCountForTest(3, FuelGuardGlanceState.localDateKeyForTest(now));
 
     var glance = new FuelGuardQuickLogGlance();
 
-    return glance.metricForTest().equals("2h 37m")
-        && glance.labelForTest().equals("since fuel")
-        && glance.pendingTextForTest() == null;
+    return glance.metricForTest().equals("1m since fuel")
+        && glance.labelForTest().equals("3 logs today");
 }
 
 (:test)
 function testFuelGuardQuickLogGlanceShowsNoLogFallback(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
-    FuelGuardEvents.setLastFuelSecondsForTest(null);
+    FuelGuardGlanceState.resetForTest();
 
     var glance = new FuelGuardQuickLogGlance();
 
-    return glance.metricForTest().equals("Ready")
-        && glance.labelForTest().equals("to log")
-        && glance.pendingTextForTest() == null;
+    return glance.metricForTest().equals("No fuel today")
+        && glance.labelForTest().equals("Press START to log");
 }
 
 (:test)
-function testFuelGuardQuickLogGlanceShowsPendingIndicator(logger) as Boolean {
+function testFuelGuardQuickLogGlanceCountsFuelButNotHydration(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
-    FuelGuardEvents.setLastFuelSecondsForTest(null);
-    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL));
+    FuelGuardGlanceState.resetForTest();
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION);
+    var hydrationOnlyCount = FuelGuardGlanceState.todayFuelCountForTest();
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL_HYDRATION);
+    var fuelHydrationCount = FuelGuardGlanceState.todayFuelCountForTest();
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
 
-    var glance = new FuelGuardQuickLogGlance();
-
-    return glance.pendingTextForTest() != null
-        && (glance.pendingTextForTest() as String).equals("1 pending");
+    return hydrationOnlyCount == 0
+        && fuelHydrationCount == 1
+        && FuelGuardGlanceState.todayFuelCountForTest() == 2;
 }
 
 (:test)

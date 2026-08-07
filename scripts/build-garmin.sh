@@ -101,7 +101,7 @@ build_app() {
   )
 }
 
-build_app "garmin/activity-logger" "fuel-guard-activity-logger-fr255"
-build_app "garmin/quick-log" "fuel-guard-quick-log-fr255"
+build_app "garmin/FuelGuard/activity-logger" "fuel-guard-activity-logger-fr255"
+build_app "garmin/FuelGuard/quick-log" "fuel-guard-quick-log-fr255"
 
 echo "Built Garmin PRG files in $OUT_DIR"

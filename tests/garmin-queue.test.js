@@ -366,8 +366,8 @@ test("Garmin batch sync presentation handles longest expected pending values", (
 });
 
 test("Garmin manifests define two separate fr255 apps", () => {
-  const activityManifest = readRepoFile("garmin/activity-logger/manifest.xml");
-  const quickLogManifest = readRepoFile("garmin/quick-log/manifest.xml");
+  const activityManifest = readRepoFile("garmin/FuelGuard/activity-logger/manifest.xml");
+  const quickLogManifest = readRepoFile("garmin/FuelGuard/quick-log/manifest.xml");
 
   assert.match(activityManifest, /type="datafield"/);
   assert.match(activityManifest, /<iq:product id="fr255"\/>/);
@@ -382,11 +382,11 @@ test("Garmin manifests define two separate fr255 apps", () => {
 });
 
 test("Garmin beta manifests use separate beta UUIDs and preserve production IDs", () => {
-  const activityManifest = readRepoFile("garmin/activity-logger/manifest.xml");
-  const quickLogManifest = readRepoFile("garmin/quick-log/manifest.xml");
-  const activityBetaManifest = readRepoFile("garmin/activity-logger/manifest.beta.xml");
-  const quickLogBetaManifest = readRepoFile("garmin/quick-log/manifest.beta.xml");
-  const uuidLedger = readRepoFile("garmin/private-beta/UUIDS.md");
+  const activityManifest = readRepoFile("garmin/FuelGuard/activity-logger/manifest.xml");
+  const quickLogManifest = readRepoFile("garmin/FuelGuard/quick-log/manifest.xml");
+  const activityBetaManifest = readRepoFile("garmin/FuelGuard/activity-logger/manifest.beta.xml");
+  const quickLogBetaManifest = readRepoFile("garmin/FuelGuard/quick-log/manifest.beta.xml");
+  const uuidLedger = readRepoFile("garmin/FuelGuard/private-beta/UUIDS.md");
 
   const productionIds = [
     activityManifest.match(/id="([^"]+)"/)[1],
@@ -418,9 +418,9 @@ test("Garmin beta manifests use separate beta UUIDs and preserve production IDs"
 
 test("Garmin private beta packaging assets are dashboard-ready", () => {
   const buildScript = readRepoFile("scripts/build-garmin-beta.sh");
-  const uploadChecklist = readRepoFile("garmin/private-beta/UPLOAD_CHECKLIST.md");
-  const activityReadme = readRepoFile("garmin/private-beta/activity-logger/README.md");
-  const quickLogReadme = readRepoFile("garmin/private-beta/quick-log/README.md");
+  const uploadChecklist = readRepoFile("garmin/FuelGuard/private-beta/UPLOAD_CHECKLIST.md");
+  const activityReadme = readRepoFile("garmin/FuelGuard/private-beta/activity-logger/README.md");
+  const quickLogReadme = readRepoFile("garmin/FuelGuard/private-beta/quick-log/README.md");
 
   assert.match(buildScript, /set -euo pipefail/);
   assert.match(buildScript, /-e \\/);
@@ -449,18 +449,18 @@ test("Garmin private beta packaging assets are dashboard-ready", () => {
   assert.match(quickLogReadme, /Press ENTER/);
   assert.match(quickLogReadme, /queue offline/);
 
-  assert.deepEqual(readPngDimensions("garmin/private-beta/activity-logger/store-icon-500.png"), {
+  assert.deepEqual(readPngDimensions("garmin/FuelGuard/private-beta/activity-logger/store-icon-500.png"), {
     width: 500,
     height: 500
   });
-  assert.deepEqual(readPngDimensions("garmin/private-beta/quick-log/store-icon-500.png"), {
+  assert.deepEqual(readPngDimensions("garmin/FuelGuard/private-beta/quick-log/store-icon-500.png"), {
     width: 500,
     height: 500
   });
 });
 
 test("Activity Logger uses onTimerLap and persists before upload", () => {
-  const source = readRepoFile("garmin/activity-logger/source/FuelGuardActivityLoggerField.mc");
+  const source = readRepoFile("garmin/FuelGuard/activity-logger/source/FuelGuardActivityLoggerField.mc");
 
   assert.match(source, /function onTimerLap\(\)/);
   assert.doesNotMatch(source, /onTimerLap2/);
@@ -472,7 +472,7 @@ test("Activity Logger uses onTimerLap and persists before upload", () => {
 });
 
 test("Quick Log supports all event types and persists before upload", () => {
-  const source = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+  const source = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
   const logSelection = sourceBlock(source, "function logSelection()", "public function onUpdate");
 
   assert.match(source, /FuelGuardEvents\.TYPE_FUEL/);
@@ -483,15 +483,15 @@ test("Quick Log supports all event types and persists before upload", () => {
 });
 
 test("Garmin sources avoid unsupported String.trim", () => {
-  const apiSource = readRepoFile("garmin/shared/source/FuelGuardApi.mc");
-  const connectionSource = readRepoFile("garmin/shared/source/FuelGuardConnection.mc");
+  const apiSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardApi.mc");
+  const connectionSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
 
   assert.doesNotMatch(apiSource + connectionSource, /\.trim\(/);
   assert.match(connectionSource, /function trimString\(value as String\) as String/);
 });
 
 test("Garmin event timestamps use numeric-safe UTC components", () => {
-  const source = readRepoFile("garmin/shared/source/FuelGuardEvents.mc");
+  const source = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardEvents.mc");
 
   assert.match(source, /Gregorian\.utcInfo\(new Time\.Moment\(seconds\), Time\.FORMAT_SHORT\)/);
   assert.doesNotMatch(source, /FORMAT_MEDIUM/);
@@ -506,19 +506,19 @@ test("Garmin event timestamps use numeric-safe UTC components", () => {
 });
 
 test("Garmin launcher icons match the fr255 40x40 requirement", () => {
-  assert.deepEqual(readPngDimensions("garmin/activity-logger/resources/icon.png"), {
+  assert.deepEqual(readPngDimensions("garmin/FuelGuard/activity-logger/resources/icon.png"), {
     width: 40,
     height: 40
   });
-  assert.deepEqual(readPngDimensions("garmin/quick-log/resources/icon.png"), {
+  assert.deepEqual(readPngDimensions("garmin/FuelGuard/quick-log/resources/icon.png"), {
     width: 40,
     height: 40
   });
 });
 
 test("Garmin API sends serially and removes only the acknowledged event", () => {
-  const apiSource = readRepoFile("garmin/shared/source/FuelGuardApi.mc");
-  const queueSource = readRepoFile("garmin/shared/source/FuelGuardQueue.mc");
+  const apiSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardApi.mc");
+  const queueSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardQueue.mc");
 
   assert.match(apiSource, /var _inFlight = false;/);
   assert.match(apiSource, /if \(_inFlight \|\| !configured\(\)\)/);
@@ -548,21 +548,28 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
 });
 
 test("Quick Log glance shows local fuel status without lifecycle network sync", () => {
-  const appSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogApp.mc");
-  const glanceSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogGlance.mc");
+  const appSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogApp.mc");
+  const glanceSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogGlance.mc");
+  const glanceStateSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardGlanceState.mc");
   const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
 
+  assert.doesNotMatch(onStart, /FuelGuardConnection\.configure/);
+  assert.doesNotMatch(onStart, /registerForOAuthMessages/);
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric\(\)/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelLabel\(\)/);
-  assert.match(glanceSource, /FuelGuardQueue\.pendingCount\(\)/);
+  assert.doesNotMatch(glanceSource, /FuelGuardFeedback/);
+  assert.doesNotMatch(glanceSource, /FuelGuardQueue/);
+  assert.doesNotMatch(glanceSource, /FuelGuardHealth/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.metric\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.label\(\)/);
   assert.match(glanceSource, /getTextWidthInPixels/);
+  assert.match(glanceStateSource, /TODAY_FUEL_COUNT_KEY/);
+  assert.match(glanceStateSource, /recordFuel\(timestamp as Number\)/);
   assert.doesNotMatch(glanceSource, /Open to log/);
 });
 
 test("Quick Log wearable copy uses short safe labels", () => {
-  const source = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+  const source = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
 
   assert.match(source, /Press START/);
   assert.match(source, /Log fuel/);
@@ -574,10 +581,10 @@ test("Quick Log wearable copy uses short safe labels", () => {
 });
 
 test("Garmin settings remove all manual endpoint, token and bypass fields", () => {
-  const activityProperties = readRepoFile("garmin/activity-logger/resources/properties.xml");
-  const quickLogProperties = readRepoFile("garmin/quick-log/resources/properties.xml");
-  const activityStrings = readRepoFile("garmin/activity-logger/resources/strings.xml");
-  const quickLogStrings = readRepoFile("garmin/quick-log/resources/strings.xml");
+  const activityProperties = readRepoFile("garmin/FuelGuard/activity-logger/resources/properties.xml");
+  const quickLogProperties = readRepoFile("garmin/FuelGuard/quick-log/resources/properties.xml");
+  const activityStrings = readRepoFile("garmin/FuelGuard/activity-logger/resources/strings.xml");
+  const quickLogStrings = readRepoFile("garmin/FuelGuard/quick-log/resources/strings.xml");
 
   for (const source of [activityProperties, quickLogProperties, activityStrings, quickLogStrings]) {
     assert.doesNotMatch(source, /apiEndpoint/);
@@ -590,7 +597,7 @@ test("Garmin settings remove all manual endpoint, token and bypass fields", () =
 });
 
 test("Garmin zero-secret connection uses Authentication OAuth and production endpoints", () => {
-  const source = readRepoFile("garmin/shared/source/FuelGuardConnection.mc");
+  const source = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
 
   assert.match(source, /import Toybox\.Authentication;/);
   assert.match(source, /Authentication\.registerForOAuthMessages/);
@@ -617,18 +624,18 @@ test("Garmin scripts no longer depend on alpha token or Vercel bypass helpers", 
 
 test("Garmin docs prominently warn that Auto Lap must be disabled", () => {
   const readme = readRepoFile("garmin/README.md");
-  const activityReadme = readRepoFile("garmin/activity-logger/README.md");
+  const activityReadme = readRepoFile("garmin/FuelGuard/activity-logger/README.md");
 
   assert.match(readme, /Disable Auto Lap/i);
   assert.match(activityReadme, /Auto Lap must be disabled/i);
 });
 
 test("Quick Log health sharing is opt-in and Activity Logger stays fuel-only", () => {
-  const quickManifest = readRepoFile("garmin/quick-log/manifest.xml");
-  const quickBetaManifest = readRepoFile("garmin/quick-log/manifest.beta.xml");
-  const activityManifest = readRepoFile("garmin/activity-logger/manifest.xml");
-  const quickProperties = readRepoFile("garmin/quick-log/resources/properties.xml");
-  const quickStrings = readRepoFile("garmin/quick-log/resources/strings.xml");
+  const quickManifest = readRepoFile("garmin/FuelGuard/quick-log/manifest.xml");
+  const quickBetaManifest = readRepoFile("garmin/FuelGuard/quick-log/manifest.beta.xml");
+  const activityManifest = readRepoFile("garmin/FuelGuard/activity-logger/manifest.xml");
+  const quickProperties = readRepoFile("garmin/FuelGuard/quick-log/resources/properties.xml");
+  const quickStrings = readRepoFile("garmin/FuelGuard/quick-log/resources/strings.xml");
 
   assert.match(quickManifest, /id="SensorHistory"/);
   assert.match(quickManifest, /id="UserProfile"/);
@@ -642,7 +649,7 @@ test("Quick Log health sharing is opt-in and Activity Logger stays fuel-only", (
 });
 
 test("Quick Log health collector uses runtime detection and avoids sensitive profile fields", () => {
-  const collector = readRepoFile("garmin/quick-log/source/FuelGuardHealthCollector.mc");
+  const collector = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardHealthCollector.mc");
 
   assert.match(collector, /Toybox has :SensorHistory/);
   assert.match(collector, /SensorHistory has :getHeartRateHistory/);
@@ -662,10 +669,10 @@ test("Quick Log health collector uses runtime detection and avoids sensitive pro
 });
 
 test("Quick Log health queue is separate, bounded, and lower priority than fuel logs", () => {
-  const queue = readRepoFile("garmin/quick-log/source/FuelGuardHealthQueue.mc");
-  const api = readRepoFile("garmin/quick-log/source/FuelGuardHealthApi.mc");
-  const connection = readRepoFile("garmin/shared/source/FuelGuardConnection.mc");
-  const view = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
+  const queue = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardHealthQueue.mc");
+  const api = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardHealthApi.mc");
+  const connection = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
+  const view = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
 
   assert.match(queue, /QUEUE_KEY = "fg_pending_health_snapshots"/);
   assert.match(queue, /MAX_QUEUE_SIZE = 3/);

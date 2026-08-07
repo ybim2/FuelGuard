@@ -196,8 +196,8 @@ run_tests() {
   echo "$label Run No Evil: passed=$passed failed=$failed errors=$errors"
 }
 
-build_test_app "garmin/quick-log" "fuel-guard-quick-log-fr255-tests"
-build_test_app "garmin/activity-logger" "fuel-guard-activity-logger-fr255-tests"
+build_test_app "garmin/FuelGuard/quick-log" "fuel-guard-quick-log-fr255-tests"
+build_test_app "garmin/FuelGuard/activity-logger" "fuel-guard-activity-logger-fr255-tests"
 
 run_tests "Quick Log" "$OUT_DIR/fuel-guard-quick-log-fr255-tests.prg"
 run_tests "Activity Logger" "$OUT_DIR/fuel-guard-activity-logger-fr255-tests.prg"
