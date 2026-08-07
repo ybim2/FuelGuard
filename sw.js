@@ -1,15 +1,19 @@
-const APP_VERSION = "mobile-pwa-v96-log-instrument-panel";
-const BUILD_VERSION = "2026-08-07T11:03:25Z";
+const APP_VERSION = "mobile-pwa-v97-coach-beta";
+const BUILD_VERSION = "2026-08-07T17:15:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v96-log-instrument-panel-20260807T110325Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v97-coach-beta-20260807T171500Z";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./coach/index.html",
+  "./coach/coach-beta.css",
+  "./coach/coach-beta.js",
   "./build-info.js",
   "./styles.css",
   "./mobile-pwa.css",
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
+  "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
   "./garmin-connected-devices.js",
@@ -74,15 +78,16 @@ self.addEventListener("fetch", event => {
   if (requestUrl.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
+    const shell = requestUrl.pathname.startsWith("/coach") ? "./coach/index.html" : "./index.html";
     event.respondWith(
       fetch(request)
         .then(response => {
           if (!response || response.status !== 200 || response.type !== "basic") return response;
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy));
+          caches.open(CACHE_NAME).then(cache => cache.put(shell, copy));
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.match(shell).then(response => response || caches.match("./index.html")))
     );
     return;
   }

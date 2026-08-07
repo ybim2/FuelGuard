@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07130f" />
+  <meta name="description" content="Fuel Guard Coach Beta helps coaches notice athlete fuelling rhythm signals." />
+  <title>Fuel Guard Coach Beta</title>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v97-coach-beta" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v97-coach-beta" />
+</head>
+<body class="coach-beta">
+  <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
+    <a class="coach-logo" href="../" aria-label="Open Fuel Guard athlete app">FG</a>
+    <div>
+      <strong>Coach Beta</strong>
+      <span>Behavioural fuelling signals</span>
+    </div>
+  </header>
+
+  <main class="coach-shell">
+    <section id="coachAuthPanel" class="coach-card coach-auth-card">
+      <div class="coach-card-heading">
+        <span class="coach-icon">FG</span>
+        <div>
+          <h1>Coach Beta</h1>
+          <p>Sign in with Supabase to review athletes who have explicitly shared Fuel Guard timing data with you.</p>
+        </div>
+      </div>
+      <div class="coach-form-grid">
+        <label>Email<input id="coachEmail" type="email" autocomplete="email" placeholder="coach@example.com"></label>
+        <label>Password<input id="coachPassword" type="password" autocomplete="current-password" placeholder="Password"></label>
+      </div>
+      <div class="coach-button-row">
+        <button id="coachSignInButton" class="primary" type="button">Log in</button>
+        <button id="coachSignUpButton" class="secondary" type="button">Create account</button>
+      </div>
+      <p id="coachAuthStatus" class="coach-note" aria-live="polite"></p>
+    </section>
+
+    <section id="coachAppShell" hidden>
+      <nav class="coach-tabbar" aria-label="Coach navigation">
+        <button class="active" type="button" data-coach-tab="dashboard">Dashboard</button>
+        <button type="button" data-coach-tab="athletes">Athletes</button>
+        <button type="button" data-coach-tab="settings">Settings</button>
+      </nav>
+
+      <section id="coachDashboardPanel" class="coach-panel active" aria-label="Coach dashboard">
+        <div id="coachNeedsAttention"></div>
+        <div id="coachRoster"></div>
+      </section>
+
+      <section id="coachAthletesPanel" class="coach-panel" aria-label="Athletes">
+        <section class="coach-card coach-search-card">
+          <div class="coach-card-heading compact">
+            <div>
+              <h2>Athletes</h2>
+              <p>Search assigned athletes and open a read-only daily view.</p>
+            </div>
+          </div>
+          <label class="coach-search-label">Search athletes<input id="coachAthleteSearch" type="search" placeholder="Name or email"></label>
+        </section>
+        <div id="coachAthleteList"></div>
+        <div id="coachAthleteDetail"></div>
+      </section>
+
+      <section id="coachSettingsPanel" class="coach-panel" aria-label="Coach settings">
+        <section class="coach-card">
+          <div class="coach-card-heading compact">
+            <div>
+              <h2>Coach Profile</h2>
+              <p>This account can only read athletes with an active sharing relationship.</p>
+            </div>
+          </div>
+          <div class="coach-form-grid">
+            <label>Display name<input id="coachDisplayName" type="text" maxlength="80" placeholder="Coach name"></label>
+            <label>Coach user ID<input id="coachUserId" type="text" readonly></label>
+          </div>
+          <div class="coach-button-row">
+            <button id="coachSaveProfileButton" class="secondary" type="button">Save profile</button>
+            <button id="coachSignOutButton" class="secondary" type="button">Log out</button>
+          </div>
+          <p id="coachProfileStatus" class="coach-note" aria-live="polite"></p>
+        </section>
+
+        <section class="coach-card">
+          <div class="coach-card-heading compact">
+            <div>
+              <h2>Team Relationships</h2>
+              <p>Add an athlete user ID to request sharing. Data appears only after the athlete explicitly approves sharing.</p>
+            </div>
+          </div>
+          <div class="coach-form-grid">
+            <label>Athlete user ID<input id="coachInviteAthleteId" type="text" inputmode="text" placeholder="Supabase user UUID"></label>
+            <label>Roster label<input id="coachInviteAthleteLabel" type="text" maxlength="80" placeholder="Optional display label"></label>
+          </div>
+          <div class="coach-button-row">
+            <button id="coachInviteButton" class="secondary" type="button">Request sharing</button>
+          </div>
+          <div id="coachRelationshipList" class="coach-relationship-list"></div>
+          <p id="coachRelationshipStatus" class="coach-note" aria-live="polite"></p>
+        </section>
+      </section>
+    </section>
+
+    <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
+  </main>
+
+  <script src="../api/supabase-config.js?v=mobile-pwa-v97-coach-beta"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v97-coach-beta"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v97-coach-beta"></script>
+</body>
+</html>

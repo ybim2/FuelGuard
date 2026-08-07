@@ -4,6 +4,8 @@
   const TARGETS_TABLE = "fuel_targets";
   const DEMAND_BLOCKS_TABLE = "fuel_demand_blocks";
   const WORK_BREAKS_TABLE = "fuel_work_breaks";
+  const TARGET_SELECT_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,maximum_fuel_gap_minutes,updated_at,created_at";
+  const TARGET_SELECT_LEGACY_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at";
   const STATUS_EVENT = "fuelguard:cloud-status";
   const SYNCED = "synced";
   const PENDING = "pending";
@@ -20,6 +22,7 @@
   let syncInProgress = false;
   let recoveryMode = false;
   let lastStatus = "Cloud sync is not configured yet.";
+  let targetMaximumGapColumnAvailable = true;
 
   function config() {
     return window.FUEL_GUARD_SUPABASE_CONFIG || {};
@@ -622,15 +625,30 @@
     ].some(value => Number.isInteger(value) && value > 0));
   }
 
+  function maximumFuelGapNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    const rounded = Math.round(number);
+    return rounded >= 120 && rounded <= 240 ? rounded : null;
+  }
+
+  function maximumFuelGapFromState() {
+    return maximumFuelGapNumber(gapState()?.maximumFuelGapMinutes);
+  }
+
+  function targetMaximumGapColumnMissing(error) {
+    return /maximum_fuel_gap_minutes|schema cache|does not exist|column/i.test(String(error?.message || ""));
+  }
+
   function targetUpdatedAt(targets) {
     const time = Date.parse(targets?.updatedAt || "");
     return Number.isFinite(time) ? time : 0;
   }
 
-  function targetRowFromState(currentUser) {
+  function targetRowFromState(currentUser, includeMaximumGap = targetMaximumGapColumnAvailable) {
     const localTargets = targetsState();
     if (!currentUser?.id || !localTargets) return null;
-    return {
+    const row = {
       user_id: currentUser.id,
       daily_fuel_logs: targetNumber(localTargets.dailyFuelLogs),
       daily_hydration_logs: targetNumber(localTargets.dailyHydrationLogs),
@@ -638,6 +656,8 @@
       weekly_hydration_logs: targetNumber(localTargets.weeklyHydrationLogs),
       updated_at: localTargets.updatedAt || new Date().toISOString()
     };
+    if (includeMaximumGap) row.maximum_fuel_gap_minutes = maximumFuelGapFromState();
+    return row;
   }
 
   function applyTargetRow(row) {
@@ -649,6 +669,9 @@
     localTargets.weeklyFuelLogs = targetNumber(row.weekly_fuel_logs);
     localTargets.weeklyHydrationLogs = targetNumber(row.weekly_hydration_logs);
     localTargets.updatedAt = row.updated_at || localTargets.updatedAt || "";
+    const maxGap = maximumFuelGapNumber(row.maximum_fuel_gap_minutes);
+    const gap = gapState();
+    if (maxGap && gap) gap.maximumFuelGapMinutes = maxGap;
   }
 
   async function fetchTargetRow() {
@@ -656,9 +679,13 @@
     if (!client || !currentUser) return null;
     const { data, error } = await client
       .from(TARGETS_TABLE)
-      .select("user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at")
+      .select(targetMaximumGapColumnAvailable ? TARGET_SELECT_COLUMNS : TARGET_SELECT_LEGACY_COLUMNS)
       .eq("user_id", currentUser.id)
       .maybeSingle();
+    if (error && targetMaximumGapColumnAvailable && targetMaximumGapColumnMissing(error)) {
+      targetMaximumGapColumnAvailable = false;
+      return fetchTargetRow();
+    }
     if (error) throw error;
     return data || null;
   }
@@ -670,8 +697,12 @@
     const { data, error } = await client
       .from(TARGETS_TABLE)
       .upsert(row, { onConflict: "user_id" })
-      .select("user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at")
+      .select(targetMaximumGapColumnAvailable ? TARGET_SELECT_COLUMNS : TARGET_SELECT_LEGACY_COLUMNS)
       .single();
+    if (error && targetMaximumGapColumnAvailable && targetMaximumGapColumnMissing(error)) {
+      targetMaximumGapColumnAvailable = false;
+      return upsertTargets();
+    }
     if (error) throw error;
     applyTargetRow(data);
     return data;

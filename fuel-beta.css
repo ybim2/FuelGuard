@@ -7924,6 +7924,49 @@ body.beta-mvp .beta-maximum-gap-card {
   gap: 12px;
 }
 
+body.beta-mvp .beta-coach-sharing-card {
+  display: grid;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-coach-sharing-list,
+body.beta-mvp .beta-coach-sharing-items {
+  display: grid;
+  gap: 8px;
+}
+
+body.beta-mvp .beta-coach-sharing-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .72);
+}
+
+body.beta-mvp .beta-coach-sharing-item strong,
+body.beta-mvp .beta-coach-sharing-item small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+body.beta-mvp .beta-coach-sharing-item span {
+  color: var(--fg-muted);
+  font-size: .76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+@media (max-width: 560px) {
+  body.beta-mvp .beta-coach-sharing-item {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   body.beta-mvp #dashboard {
     padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));

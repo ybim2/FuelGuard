@@ -8,10 +8,12 @@ The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders
 
 Settings is still part of the canonical app, but it opens from the sticky header settings icon instead of the bottom navigation.
 
+The initial coach-facing beta is a separate route at `/coach/`. It is not a tab inside the athlete Log experience. Keep coach dashboard, roster, and relationship-management UI in the coach route unless the user explicitly asks to merge it elsewhere.
+
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v94-sleepy-log
+Canonical app: mobile-pwa-v97-coach-beta
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
@@ -54,6 +56,8 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `fuel-beta.js`: canonical mobile PWA behavior for Log and header-accessible Settings
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `day-type-overrides.js`: day type and training session support
+- `fuel-guard-domain.js`: shared Fuel Guard log/status helpers used by the athlete app shell and Coach Beta
+- `coach/index.html`, `coach/coach-beta.js`, `coach/coach-beta.css`: separate coach-facing beta dashboard
 - `manifest.webmanifest`: PWA manifest
 - `sw.js`: service worker and app shell cache
 - `app-pwa.js`: service worker registration/update handling
@@ -133,7 +137,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v94-sleepy-log`.
+The current canonical version is `mobile-pwa-v97-coach-beta`.
 
 ## Future Frontend Changes
 

@@ -171,6 +171,12 @@
   let selectedLogPatternType = "fuel";
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
+  let coachSharingBusy = false;
+  let coachSharingState = {
+    loadedFor: "",
+    relationships: [],
+    status: ""
+  };
   let csvImportBusy = false;
   let csvImportPreview = null;
   let csvImportStatus = "";
@@ -195,6 +201,8 @@
     "weeklyFuelLogs",
     "weeklyHydrationLogs"
   ];
+  const COACH_RELATIONSHIPS_TABLE = "fuel_coach_athletes";
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -221,6 +229,55 @@
       ...(state.account || {})
     };
     return state.account;
+  }
+
+  function coachSharingClient() {
+    return window.fuelGuardCloud?.client || null;
+  }
+
+  function coachSharingUser() {
+    return window.fuelGuardCloud?.user || null;
+  }
+
+  function setCoachSharingStatus(message) {
+    coachSharingState.status = message || "";
+    const status = document.getElementById("coachSharingStatus");
+    if (status) status.textContent = coachSharingState.status;
+  }
+
+  function coachSharingSetupError(error) {
+    return /fuel_coach_athletes|does not exist|schema cache/i.test(String(error?.message || ""));
+  }
+
+  async function loadCoachSharingRelationships(force = false) {
+    const client = coachSharingClient();
+    const user = coachSharingUser();
+    if (!client || !user?.id) return;
+    if (!force && (coachSharingBusy || coachSharingState.loadedFor === user.id)) return;
+    coachSharingBusy = true;
+    try {
+      const { data, error } = await client
+        .from(COACH_RELATIONSHIPS_TABLE)
+        .select("id,coach_id,athlete_id,status,athlete_label,created_at,accepted_at,revoked_at,updated_at")
+        .eq("athlete_id", user.id)
+        .in("status", ["pending", "active"])
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      coachSharingState.relationships = data || [];
+      coachSharingState.loadedFor = user.id;
+      coachSharingState.status = coachSharingState.relationships.length
+        ? "Coach sharing is ready."
+        : "No coach sharing relationships yet.";
+    } catch (error) {
+      coachSharingState.relationships = [];
+      coachSharingState.loadedFor = user.id;
+      coachSharingState.status = coachSharingSetupError(error)
+        ? "Coach sharing setup is not applied yet."
+        : `Coach sharing could not load: ${error?.message || "unknown error"}`;
+    } finally {
+      coachSharingBusy = false;
+      renderCoachSharing();
+    }
   }
 
   function authCooldownRemainingMs(kind) {
@@ -701,6 +758,7 @@
     gap.thresholds.greenMinutes = Math.max(30, safeMinutes - 30);
     gap.thresholds.redMinutes = safeMinutes;
     gap.thresholds.crashMinutes = safeMinutes + 40;
+    gap.targets.updatedAt = new Date().toISOString();
     if (typeof addActivityEntry === "function") {
       addActivityEntry("maximumFuelGapConfigured", `Maximum fuel gap set to ${duration(safeMinutes)}.`, { dedupeDaily: true });
     }
@@ -2315,6 +2373,50 @@
     }
   }
 
+  function renderCoachSharing() {
+    const card = document.getElementById("coachSharingCard");
+    if (!card) return;
+    const cloud = window.fuelGuardCloud?.accountView?.() || null;
+    const user = coachSharingUser();
+    card.hidden = !cloud?.signedIn || !user?.id;
+    if (card.hidden) return;
+
+    const input = document.getElementById("coachShareCoachId");
+    const button = document.getElementById("coachShareButton");
+    const list = document.getElementById("coachSharingList");
+    const status = document.getElementById("coachSharingStatus");
+    if (button) button.disabled = coachSharingBusy || !coachSharingClient();
+    if (status) status.textContent = coachSharingBusy ? "Loading coach sharing..." : coachSharingState.status;
+
+    if (!coachSharingState.loadedFor || coachSharingState.loadedFor !== user.id) {
+      loadCoachSharingRelationships();
+    }
+
+    if (input && document.activeElement !== input && coachSharingState.status === "Shared with coach.") {
+      input.value = "";
+    }
+
+    if (!list) return;
+    if (!coachSharingState.relationships.length) {
+      list.innerHTML = `<p class="muted">No coaches currently have access. Add a coach user ID only when you want to share timing data.</p>`;
+      return;
+    }
+    list.innerHTML = `
+      <div class="beta-coach-sharing-items">
+        ${coachSharingState.relationships.map(relationship => `
+          <article class="beta-coach-sharing-item">
+            <div>
+              <strong>${safeText(relationship.athlete_label || `Coach ${String(relationship.coach_id || "").slice(0, 8)}`)}</strong>
+              <small>${safeText(relationship.coach_id || "")}</small>
+            </div>
+            <span>${safeText(relationship.status === "active" ? "Sharing active" : "Waiting")}</span>
+            <button class="secondary danger-secondary" type="button" data-revoke-coach-sharing="${safeText(relationship.id)}">Stop sharing</button>
+          </article>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function renderSettings() {
     const buildInfo = window.FUEL_GUARD_BUILD || {};
     const canonical = document.getElementById("canonicalAppVersion");
@@ -2394,6 +2496,7 @@
           ? `${cloud.status}${pending}`
         : "Cloud sync needs Supabase public URL/key configuration.";
     }
+    renderCoachSharing();
     renderCsvImportPanel();
   }
 
@@ -10113,6 +10216,91 @@
     }
     const downloadCard = event.target.closest("[data-download-trend-card]");
     if (downloadCard) shareTrendCard(downloadCard.dataset.downloadTrendCard, true);
+  });
+
+  async function shareWithCoach() {
+    if (coachSharingBusy) return;
+    const client = coachSharingClient();
+    const user = coachSharingUser();
+    const coachId = document.getElementById("coachShareCoachId")?.value.trim() || "";
+    if (!client || !user?.id) {
+      setCoachSharingStatus("Sign in before sharing with a coach.");
+      return;
+    }
+    if (!UUID_RE.test(coachId)) {
+      setCoachSharingStatus("Enter a valid coach user ID.");
+      return;
+    }
+    if (coachId === user.id) {
+      setCoachSharingStatus("Use a different coach user ID.");
+      return;
+    }
+
+    coachSharingBusy = true;
+    setCoachSharingStatus("Saving coach sharing...");
+    try {
+      const now = new Date().toISOString();
+      const { error } = await client
+        .from(COACH_RELATIONSHIPS_TABLE)
+        .upsert({
+          coach_id: coachId,
+          athlete_id: user.id,
+          status: "active",
+          accepted_at: now,
+          revoked_at: null,
+          updated_at: now
+        }, { onConflict: "coach_id,athlete_id" });
+      if (error) throw error;
+      document.getElementById("coachShareCoachId").value = "";
+      coachSharingState.loadedFor = "";
+      coachSharingState.status = "Shared with coach.";
+      await loadCoachSharingRelationships(true);
+    } catch (error) {
+      setCoachSharingStatus(coachSharingSetupError(error)
+        ? "Coach sharing setup is not applied yet."
+        : `Coach sharing failed: ${error?.message || "unknown error"}`);
+    } finally {
+      coachSharingBusy = false;
+      renderCoachSharing();
+    }
+  }
+
+  async function revokeCoachSharing(id) {
+    if (coachSharingBusy || !id) return;
+    const client = coachSharingClient();
+    const user = coachSharingUser();
+    if (!client || !user?.id) {
+      setCoachSharingStatus("Sign in before changing coach sharing.");
+      return;
+    }
+    coachSharingBusy = true;
+    setCoachSharingStatus("Stopping coach sharing...");
+    try {
+      const { error } = await client
+        .from(COACH_RELATIONSHIPS_TABLE)
+        .update({
+          status: "revoked",
+          revoked_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id)
+        .eq("athlete_id", user.id);
+      if (error) throw error;
+      coachSharingState.loadedFor = "";
+      coachSharingState.status = "Coach sharing stopped.";
+      await loadCoachSharingRelationships(true);
+    } catch (error) {
+      setCoachSharingStatus(`Could not stop sharing: ${error?.message || "unknown error"}`);
+    } finally {
+      coachSharingBusy = false;
+      renderCoachSharing();
+    }
+  }
+
+  document.getElementById("coachShareButton")?.addEventListener("click", shareWithCoach);
+  document.addEventListener("click", event => {
+    const revoke = event.target.closest("[data-revoke-coach-sharing]");
+    if (revoke) revokeCoachSharing(revoke.dataset.revokeCoachSharing);
   });
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
   document.getElementById("fuelCsvImportButton")?.addEventListener("click", () => {

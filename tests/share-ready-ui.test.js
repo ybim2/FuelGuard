@@ -183,16 +183,20 @@ test("Settings keeps only essential production sections", () => {
 
   const intro = indexOfRequired(settings, "Settings");
   const account = indexOfRequired(settings, "Account &amp; Sync");
+  const coachSharing = indexOfRequired(settings, "Coach sharing");
   const garmin = indexOfRequired(settings, "Connected Garmin Apps");
   const maximum = indexOfRequired(settings, "Maximum Fuel Gap");
   const importAndClear = indexOfRequired(settings, "Data import and clearing");
   const version = indexOfRequired(settings, "App version and privacy");
 
   assert.ok(intro < account);
-  assert.ok(account < garmin);
+  assert.ok(account < coachSharing);
+  assert.ok(coachSharing < garmin);
   assert.ok(garmin < maximum);
   assert.ok(maximum < importAndClear);
   assert.ok(importAndClear < version);
+  assert.match(settings, /id="coachShareCoachId"/);
+  assert.match(settings, /id="coachShareButton"/);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
@@ -202,10 +206,12 @@ test("PWA cache and asset versions are bumped for the beta Log instrument panel"
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v96-log-instrument-panel";
+  const version = "mobile-pwa-v97-coach-beta";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T110325Z/);
+  assert.match(sw, /20260807T171500Z/);
+  assert.match(sw, /coach\/index\.html/);
+  assert.match(sw, /fuel-guard-domain\.js/);
 });

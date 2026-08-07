@@ -7,6 +7,7 @@ create table if not exists public.fuel_targets (
   daily_hydration_logs integer,
   weekly_fuel_logs integer,
   weekly_hydration_logs integer,
+  maximum_fuel_gap_minutes integer,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
@@ -16,6 +17,7 @@ alter table public.fuel_targets
   add column if not exists daily_hydration_logs integer,
   add column if not exists weekly_fuel_logs integer,
   add column if not exists weekly_hydration_logs integer,
+  add column if not exists maximum_fuel_gap_minutes integer,
   add column if not exists updated_at timestamptz not null default now(),
   add column if not exists created_at timestamptz not null default now();
 
@@ -23,13 +25,15 @@ alter table public.fuel_targets
   drop constraint if exists fuel_targets_daily_fuel_logs_check,
   drop constraint if exists fuel_targets_daily_hydration_logs_check,
   drop constraint if exists fuel_targets_weekly_fuel_logs_check,
-  drop constraint if exists fuel_targets_weekly_hydration_logs_check;
+  drop constraint if exists fuel_targets_weekly_hydration_logs_check,
+  drop constraint if exists fuel_targets_maximum_fuel_gap_minutes_check;
 
 alter table public.fuel_targets
   add constraint fuel_targets_daily_fuel_logs_check check (daily_fuel_logs is null or daily_fuel_logs >= 1),
   add constraint fuel_targets_daily_hydration_logs_check check (daily_hydration_logs is null or daily_hydration_logs >= 1),
   add constraint fuel_targets_weekly_fuel_logs_check check (weekly_fuel_logs is null or weekly_fuel_logs >= 1),
-  add constraint fuel_targets_weekly_hydration_logs_check check (weekly_hydration_logs is null or weekly_hydration_logs >= 1);
+  add constraint fuel_targets_weekly_hydration_logs_check check (weekly_hydration_logs is null or weekly_hydration_logs >= 1),
+  add constraint fuel_targets_maximum_fuel_gap_minutes_check check (maximum_fuel_gap_minutes is null or (maximum_fuel_gap_minutes between 120 and 240));
 
 create index if not exists fuel_targets_updated_at_idx on public.fuel_targets (updated_at desc);
 
