@@ -75,13 +75,14 @@ test("Log has three visible primary sections and timeline-owned actions", () => 
   const lowEnergySource = functionBody(js, "isLowEnergyCheckinLog", "isSleepyLog");
 
   assert.ok(status < patterns, "Status should be the first Log section");
-  assert.ok(patterns < timeline, "Fuelling Patterns should sit between Status and Today’s Timeline");
+  assert.ok(patterns < timeline, "Today’s Patterns should sit between Status and Today’s Timeline");
   assert.ok(timeline < dailyLog, "Timeline entries should appear inside the Today’s Timeline card");
   assert.ok(dailyLog < logFuel, "Log Fuel should sit below the timeline entries");
   assert.ok(logFuel < logHydration, "Log Hydration should sit beside Log Fuel");
   assert.ok(logHydration < logSleepy, "Sleepy should replace the old combined quick action as the third option");
   assert.ok(logSleepy < undo, "Undo should sit at the bottom of the timeline action area");
   assert.match(dashboard, />Sleepy<\/span>/);
+  assert.doesNotMatch(dashboard, /Zz|ZZ|Zzz|beta-log-button-icon/);
   assert.match(dashboard, /aria-label="Log fuel, hydration, or sleepy"/);
   assert.doesNotMatch(dashboard, /Fuel \+ Hydration|Fuel \+ hydration/);
   assert.match(sleepyRecorder, /checkinType:\s*SLEEPY_CHECKIN_TYPE/);
@@ -104,22 +105,34 @@ test("Log has three visible primary sections and timeline-owned actions", () => 
   assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
 });
 
-test("Fuelling Patterns uses today's fuel logs in a simple time-of-day count chart", () => {
+test("Today’s Patterns switches between fuel, hydration and sleepy event counts", () => {
   const js = read("fuel-beta.js");
   const selectedDayRender = functionBody(js, "renderSelectedDayCard", "renderLogEvent");
   const logsSource = functionBody(js, "fuellingPatternLogs", "fuellingPatternBucketCounts");
+  const matchSource = functionBody(js, "logMatchesPattern", "fuellingPatternLogs");
   const chartSource = functionBody(js, "renderFuellingPatternBarChart", "renderFuellingPatternGraphs");
   const patternsSource = functionBody(js, "renderFuellingPatternGraphs", "renderInsightsWeeklySummary");
+  const patternTypes = js.slice(indexOfRequired(js, "const LOG_PATTERN_TYPES"), indexOfRequired(js, "function normalizeLogPatternType"));
 
   assert.match(selectedDayRender, /renderFuellingPatternGraphs\(todayKey\)/);
   assert.match(logsSource, /logsForDay\(key\)/);
-  assert.match(logsSource, /\.filter\(isFuelLog\)/);
+  assert.match(logsSource, /\.filter\(log => logMatchesPattern\(log, patternType\)\)/);
+  assert.match(matchSource, /isFuelLog\(log\)/);
+  assert.match(matchSource, /isHydrationLog\(log\)/);
+  assert.match(matchSource, /isSleepyLog\(log\)/);
   assert.doesNotMatch(logsSource, /trendComparisonData|archiveEntries|currentEntries|previousEntries/);
   assert.match(js, /FUELLING_PATTERN_BUCKETS/);
-  assert.match(chartSource, /Y: fuelling count/);
+  assert.match(chartSource, /Y: event count/);
   assert.match(chartSource, /X: time of day/);
-  assert.match(chartSource, /No fuel logs today yet/);
-  assert.match(patternsSource, /Where today’s fuel logs have landed across the day/);
+  assert.match(chartSource, /pattern\.empty/);
+  assert.match(patternsSource, /Today’s patterns/);
+  assert.match(patternsSource, /data-log-pattern-type/);
+  assert.match(patternTypes, /label:\s*"Fuel"/);
+  assert.match(patternTypes, /label:\s*"Hydration"/);
+  assert.match(patternTypes, /label:\s*"Sleepy"/);
+  assert.match(js, /No fuel logged today/);
+  assert.match(js, /No hydration logged today/);
+  assert.match(js, /No sleepy events logged today/);
 });
 
 test("Settings hides preference controls while preserving internal defaults", () => {
@@ -167,10 +180,10 @@ test("PWA cache and asset versions are bumped for the simplified navigation and 
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v94-sleepy-log";
+  const version = "mobile-pwa-v95-todays-patterns";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T092157Z/);
+  assert.match(sw, /20260807T101629Z/);
 });

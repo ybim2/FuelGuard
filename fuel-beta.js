@@ -168,6 +168,7 @@
   let selectedTrendPeriod = "week";
   let selectedTrendSegment = "overview";
   let selectedPlanSubtab = "today";
+  let selectedLogPatternType = "fuel";
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let csvImportBusy = false;
@@ -2459,7 +2460,7 @@
       gap: '<path d="M4 12h5"/><path d="M15 12h5"/><path d="M9 8v8"/><path d="M15 8v8"/><path d="M7 18h10"/>',
       warning: '<path d="m12 3 9 16H3L12 3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
       energy: '<path d="m13 2-8 12h6l-1 8 8-12h-6l1-8z"/>',
-      sleepy: '<path d="M18 4a7.5 7.5 0 1 0 2 14.5A8.5 8.5 0 0 1 18 4z"/><path d="M6 8h4l-4 4h4"/><path d="M13 7h3l-3 3h3"/>',
+      sleepy: '<path d="M18 4a7.5 7.5 0 1 0 2 14.5A8.5 8.5 0 0 1 18 4z"/>',
       heart: '<path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
       score: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="m12 14 4-5"/><path d="M6.5 18h11"/>',
       shield: '<path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/>',
@@ -2781,7 +2782,7 @@
   function pointStyleForLog(log) {
     const type = logType(log);
     if (type === "hydration") return { className: "hydration", label: "H" };
-    if (isSleepyLog(log)) return { className: "sleepy", label: "Zz" };
+    if (isSleepyLog(log)) return { className: "sleepy", label: "S" };
     if (type === "checkin") return { className: "checkin", label: "C" };
     if (type === "crash") return { className: "crash", label: "!" };
     if (type === "fuel_hydration") return { className: "combined", label: "F+H" };
@@ -9084,9 +9085,55 @@
     { label: "21-24", tick: "21:00", startHour: 21, endHour: 24 }
   ];
 
-  function fuellingPatternLogs(key = todayViewKey()) {
+  const LOG_PATTERN_TYPES = [
+    {
+      id: "fuel",
+      label: "Fuel",
+      icon: "fuel",
+      noun: "fuel log",
+      nounPlural: "fuel logs",
+      empty: "No fuel logged today",
+      question: "When have I fuelled today?"
+    },
+    {
+      id: "hydration",
+      label: "Hydration",
+      icon: "hydration",
+      noun: "hydration log",
+      nounPlural: "hydration logs",
+      empty: "No hydration logged today",
+      question: "When have I hydrated today?"
+    },
+    {
+      id: "sleepy",
+      label: "Sleepy",
+      icon: "sleepy",
+      noun: "sleepy event",
+      nounPlural: "sleepy events",
+      empty: "No sleepy events logged today",
+      question: "When during the day have I felt sleepy?"
+    }
+  ];
+
+  function normalizeLogPatternType(value) {
+    return LOG_PATTERN_TYPES.some(type => type.id === value) ? value : "fuel";
+  }
+
+  function logPatternDefinition(value = selectedLogPatternType) {
+    const id = normalizeLogPatternType(value);
+    return LOG_PATTERN_TYPES.find(type => type.id === id) || LOG_PATTERN_TYPES[0];
+  }
+
+  function logMatchesPattern(log, type) {
+    if (type === "hydration") return isHydrationLog(log);
+    if (type === "sleepy") return isSleepyLog(log);
+    return isFuelLog(log);
+  }
+
+  function fuellingPatternLogs(key = todayViewKey(), type = selectedLogPatternType) {
+    const patternType = normalizeLogPatternType(type);
     return logsForDay(key)
-      .filter(isFuelLog)
+      .filter(log => logMatchesPattern(log, patternType))
       .map(log => ({ ...log, minute: minutesIntoDay(log.date) }))
       .filter(log => Number.isFinite(log.minute) && log.minute >= 0 && log.minute < 1440)
       .sort((a, b) => a.minute - b.minute);
@@ -9114,8 +9161,9 @@
     return ticks;
   }
 
-  function renderFuellingPatternBarChart(key = todayViewKey()) {
-    const logs = fuellingPatternLogs(key);
+  function renderFuellingPatternBarChart(key = todayViewKey(), type = selectedLogPatternType) {
+    const pattern = logPatternDefinition(type);
+    const logs = fuellingPatternLogs(key, pattern.id);
     const buckets = fuellingPatternBucketCounts(logs);
     const maxCount = Math.max(...buckets.map(bucket => bucket.count), 1);
     const ticks = integerTicks(maxCount);
@@ -9132,15 +9180,15 @@
     const yFor = value => bottom - (Math.max(0, value) / yMax) * plotHeight;
     const topBucket = buckets.reduce((top, bucket) => bucket.count > top.count ? bucket : top, buckets[0]);
     const summary = logs.length
-      ? `Most fuel logs cluster around ${topBucket.label}.`
-      : "No fuel logs today yet.";
+      ? `Most ${pattern.nounPlural} cluster around ${topBucket.label}.`
+      : pattern.empty;
     return `
       <article class="beta-fuelling-pattern-chart-card">
         <div class="beta-fuelling-pattern-axis-copy">
-          <span>Y: fuelling count</span>
+          <span>Y: event count</span>
           <span>X: time of day</span>
         </div>
-        <div class="beta-fuelling-pattern-chart" role="img" aria-label="Fuelling count by time of day">
+        <div class="beta-fuelling-pattern-chart ${safeText(pattern.id)}" role="img" aria-label="${safeText(pattern.label)} event count by time of day">
           <svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
             <line class="axis" x1="${padding.left}" y1="${bottom}" x2="${padding.left + plotWidth}" y2="${bottom}"></line>
             <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${bottom}"></line>
@@ -9156,8 +9204,8 @@
               const barHeight = bucket.count ? Math.max(4, bottom - yFor(bucket.count)) : 0;
               const y = bottom - barHeight;
               const title = bucket.count
-                ? `${bucket.label}: ${bucket.count} fuel log${bucket.count === 1 ? "" : "s"}${bucket.times.length ? ` (${bucket.times.join(", ")})` : ""}`
-                : `${bucket.label}: 0 fuel logs`;
+                ? `${bucket.label}: ${bucket.count} ${bucket.count === 1 ? pattern.noun : pattern.nounPlural}${bucket.times.length ? ` (${bucket.times.join(", ")})` : ""}`
+                : `${bucket.label}: 0 ${pattern.nounPlural}`;
               return `
                 <rect class="bar" x="${(x - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="8">
                   <title>${safeText(title)}</title>
@@ -9173,16 +9221,23 @@
   }
 
   function renderFuellingPatternGraphs(key = todayViewKey()) {
+    selectedLogPatternType = normalizeLogPatternType(selectedLogPatternType);
+    const pattern = logPatternDefinition(selectedLogPatternType);
     return `
-      <section class="beta-trend-habit-section beta-fuelling-patterns-section" aria-label="Fuelling patterns">
+      <section class="beta-trend-habit-section beta-fuelling-patterns-section" aria-label="Today’s patterns">
         <div class="beta-weekly-section-head">
-          <span class="beta-icon-disc amber">${dailyIcon("fuel")}</span>
+          <span class="beta-icon-disc amber">${dailyIcon(pattern.icon)}</span>
           <div>
-            <h3>Fuelling patterns</h3>
-            <p>Where today’s fuel logs have landed across the day.</p>
+            <h3>Today’s patterns</h3>
+            <p>${safeText(pattern.question)}</p>
           </div>
         </div>
-        ${renderFuellingPatternBarChart(key)}
+        <nav class="beta-log-pattern-tabs" aria-label="Today’s pattern type">
+          ${LOG_PATTERN_TYPES.map(type => `
+            <button class="${type.id === selectedLogPatternType ? "active" : ""}" type="button" data-log-pattern-type="${safeText(type.id)}" aria-pressed="${type.id === selectedLogPatternType ? "true" : "false"}">${safeText(type.label)}</button>
+          `).join("")}
+        </nav>
+        ${renderFuellingPatternBarChart(key, selectedLogPatternType)}
       </section>
     `;
   }
@@ -9807,6 +9862,13 @@
     }
   });
   document.addEventListener("click", event => {
+    const logPatternType = event.target.closest("[data-log-pattern-type]");
+    if (logPatternType) {
+      selectedLogPatternType = normalizeLogPatternType(logPatternType.dataset.logPatternType);
+      const target = document.getElementById("fuelLogPatterns");
+      if (target) target.innerHTML = renderFuellingPatternGraphs(todayViewKey());
+      return;
+    }
     const hydrationButton = event.target.closest("#graphLogHydrationButton");
     if (hydrationButton) {
       event.preventDefault();

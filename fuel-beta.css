@@ -6313,13 +6313,6 @@ body.beta-mvp .beta-sleepy-button {
   color: #493917;
 }
 
-body.beta-mvp .beta-log-button-icon {
-  font-size: .78em;
-  font-weight: 900;
-  line-height: 1;
-  opacity: .78;
-}
-
 body.beta-mvp button:focus-visible,
 body.beta-mvp input:focus-visible,
 body.beta-mvp select:focus-visible,
@@ -7555,6 +7548,35 @@ body.beta-mvp .beta-fuelling-pattern-axis-copy {
   font-weight: 850;
 }
 
+body.beta-mvp .beta-log-pattern-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--fg-card-border);
+  border-radius: 15px;
+  background: rgba(255,255,255,.78);
+}
+
+body.beta-mvp .beta-log-pattern-tabs button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 6px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--fg-text-muted);
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+body.beta-mvp .beta-log-pattern-tabs button.active {
+  border-color: rgba(var(--fg-brand-dark-rgb), .12);
+  background: #ffffff;
+  color: var(--fg-text-strong);
+  box-shadow: 0 8px 18px rgba(var(--fg-brand-dark-rgb), .08);
+}
+
 body.beta-mvp .beta-fuelling-pattern-chart {
   width: 100%;
   min-height: 220px;
@@ -7580,6 +7602,14 @@ body.beta-mvp .beta-fuelling-pattern-chart .grid {
 
 body.beta-mvp .beta-fuelling-pattern-chart .bar {
   fill: rgba(var(--fg-fuel-rgb), .7);
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart.hydration .bar {
+  fill: rgba(var(--fg-hydration-rgb), .74);
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart.sleepy .bar {
+  fill: rgba(177, 135, 54, .76);
 }
 
 body.beta-mvp .beta-fuelling-pattern-chart .x-label,

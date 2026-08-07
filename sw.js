@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v94-sleepy-log";
-const BUILD_VERSION = "2026-08-07T09:21:57Z";
+const APP_VERSION = "mobile-pwa-v95-todays-patterns";
+const BUILD_VERSION = "2026-08-07T10:16:29Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v94-sleepy-log-20260807T092157Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v95-todays-patterns-20260807T101629Z";
 const APP_SHELL = [
   "./",
   "./index.html",
