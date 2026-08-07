@@ -97,6 +97,9 @@ module FuelGuardFeedback {
         if (type.equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
             return "FUEL + WATER|LOGGED";
         }
+        if (type.equals(FuelGuardEvents.TYPE_SLEEPY)) {
+            return "SLEEPY|LOGGED";
+        }
         return "FUEL|LOGGED";
     }
 
@@ -106,6 +109,9 @@ module FuelGuardFeedback {
         }
         if (type.equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
             return "FUEL + WATER";
+        }
+        if (type.equals(FuelGuardEvents.TYPE_SLEEPY)) {
+            return "SLEEPY";
         }
         return "FUEL";
     }

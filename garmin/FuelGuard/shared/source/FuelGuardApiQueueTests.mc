@@ -63,7 +63,7 @@ function testFuelGuardApiSuccessRemovesOnlyAcknowledgedEvent(logger) as Boolean 
 function testFuelGuardApiDuplicateResponseAcknowledgesMatchingEvent(logger) as Boolean {
     fuelGuardApiTestReset(200, {"result" => "duplicate"}, false);
 
-    var event = fuelGuardApiTestEnqueue(FuelGuardEvents.TYPE_FUEL_HYDRATION);
+    var event = fuelGuardApiTestEnqueue(FuelGuardEvents.TYPE_SLEEPY);
     var eventId = FuelGuardQueue.externalEventId(event);
     FuelGuardApi.trySync(true);
 

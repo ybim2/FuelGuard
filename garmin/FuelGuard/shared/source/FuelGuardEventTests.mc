@@ -56,7 +56,7 @@ function testFuelGuardIsoUtcMalformedShapeFailsTest(logger) as Boolean {
 function testFuelGuardCreateAllEventTypes(logger) as Boolean {
     var fuel = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
     var hydration = FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION);
-    var fuelHydration = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL_HYDRATION);
+    var sleepy = FuelGuardEvents.create(FuelGuardEvents.TYPE_SLEEPY);
 
     if (!(fuel["type"] as String).equals(FuelGuardEvents.TYPE_FUEL)) {
         return false;
@@ -64,15 +64,15 @@ function testFuelGuardCreateAllEventTypes(logger) as Boolean {
     if (!(hydration["type"] as String).equals(FuelGuardEvents.TYPE_HYDRATION)) {
         return false;
     }
-    if (!(fuelHydration["type"] as String).equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
+    if (!(sleepy["type"] as String).equals(FuelGuardEvents.TYPE_SLEEPY)) {
         return false;
     }
 
     var fuelLoggedAt = fuel["logged_at"] as String;
     var hydrationLoggedAt = hydration["logged_at"] as String;
-    var fuelHydrationLoggedAt = fuelHydration["logged_at"] as String;
+    var sleepyLoggedAt = sleepy["logged_at"] as String;
 
     return fuelGuardIsoStrictShape(fuelLoggedAt)
         && fuelGuardIsoStrictShape(hydrationLoggedAt)
-        && fuelGuardIsoStrictShape(fuelHydrationLoggedAt);
+        && fuelGuardIsoStrictShape(sleepyLoggedAt);
 }

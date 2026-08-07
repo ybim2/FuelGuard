@@ -137,7 +137,7 @@ function testFuelGuardQuickLogNavigationAndDelegateMovement(logger) as Boolean {
     var view = new FuelGuardQuickLogView();
     var delegate = new FuelGuardQuickLogDelegate(view);
 
-    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Log fuel")) {
+    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Fuel")) {
         return false;
     }
 
@@ -147,17 +147,17 @@ function testFuelGuardQuickLogNavigationAndDelegateMovement(logger) as Boolean {
     }
 
     delegate.onNextPage();
-    if (!fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + water")) {
+    if (!fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_SLEEPY, "Sleepy")) {
         return false;
     }
 
     view.move(1);
-    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Log fuel")) {
+    if (!fuelGuardQuickAssertSelection(view, 0, FuelGuardEvents.TYPE_FUEL, "Fuel")) {
         return false;
     }
 
     delegate.onPreviousPage();
-    return fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "Fuel + water");
+    return fuelGuardQuickAssertSelection(view, 2, FuelGuardEvents.TYPE_SLEEPY, "Sleepy");
 }
 
 (:test)
@@ -171,8 +171,8 @@ function testFuelGuardQuickLogEnterHydrationPersistsAndConfirms(logger) as Boole
 }
 
 (:test)
-function testFuelGuardQuickLogEnterFuelHydrationPersistsAndConfirms(logger) as Boolean {
-    return fuelGuardQuickLogSelectedType(2, FuelGuardEvents.TYPE_FUEL_HYDRATION, "FUEL + WATER");
+function testFuelGuardQuickLogEnterSleepyPersistsAndConfirms(logger) as Boolean {
+    return fuelGuardQuickLogSelectedType(2, FuelGuardEvents.TYPE_SLEEPY, "SLEEPY");
 }
 
 (:test)
@@ -316,12 +316,15 @@ function testFuelGuardQuickLogGlanceCountsFuelButNotHydration(logger) as Boolean
     FuelGuardGlanceState.resetForTest();
     FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION);
     var hydrationOnlyCount = FuelGuardGlanceState.todayFuelCountForTest();
-    FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL_HYDRATION);
-    var fuelHydrationCount = FuelGuardGlanceState.todayFuelCountForTest();
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_SLEEPY);
+    var sleepyCount = FuelGuardGlanceState.todayFuelCountForTest();
     FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
+    var fuelCount = FuelGuardGlanceState.todayFuelCountForTest();
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL_HYDRATION);
 
     return hydrationOnlyCount == 0
-        && fuelHydrationCount == 1
+        && sleepyCount == 0
+        && fuelCount == 1
         && FuelGuardGlanceState.todayFuelCountForTest() == 2;
 }
 

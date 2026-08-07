@@ -155,7 +155,7 @@ function sanitizeQueue(items) {
 
 class QuickLogHarness {
   constructor() {
-    this.actions = ["fuel", "hydration", "fuel_hydration"];
+    this.actions = ["fuel", "hydration", "sleepy"];
     this.selection = 0;
     this.confirming = false;
     this.queue = [];
@@ -220,7 +220,7 @@ test("Garmin queue removes only the acknowledged event", () => {
 test("Garmin queue treats duplicate acknowledgement as success for only that event", () => {
   const harness = new GarminQueueHarness();
   const first = harness.record("fuel", 1000);
-  const second = harness.record("fuel_hydration", 1001);
+  const second = harness.record("sleepy", 1001);
 
   harness.finish({ duplicate: true });
 
@@ -295,7 +295,7 @@ test("Garmin queue sends multiple pending events serially", () => {
   const harness = new GarminQueueHarness();
   harness.record("fuel", 1000);
   harness.record("hydration", 1001);
-  harness.record("fuel_hydration", 1002);
+  harness.record("sleepy", 1002);
 
   assert.equal(harness.sent.length, 1);
   assert.equal(harness.inFlight, true);
@@ -311,7 +311,7 @@ test("Garmin batch sync presentation keeps one stable visible count", () => {
   const harness = new GarminQueueHarness();
   harness.enqueueOnly("fuel", 1000);
   harness.enqueueOnly("hydration", 1001);
-  harness.enqueueOnly("fuel_hydration", 1002);
+  harness.enqueueOnly("sleepy", 1002);
   harness.enqueueOnly("fuel", 1003);
   harness.enqueueOnly("hydration", 1004);
   harness.syncNext();
@@ -327,7 +327,7 @@ test("Garmin batch sync presentation shows final success summary", () => {
   const harness = new GarminQueueHarness();
   harness.enqueueOnly("fuel", 1000);
   harness.enqueueOnly("hydration", 1001);
-  harness.enqueueOnly("fuel_hydration", 1002);
+  harness.enqueueOnly("sleepy", 1002);
   harness.syncNext();
 
   harness.finish({ ok: true });
@@ -342,7 +342,7 @@ test("Garmin batch sync presentation shows partial failure summary and keeps eve
   const harness = new GarminQueueHarness();
   harness.enqueueOnly("fuel", 1000);
   harness.enqueueOnly("hydration", 1001);
-  harness.enqueueOnly("fuel_hydration", 1002);
+  harness.enqueueOnly("sleepy", 1002);
   harness.syncNext();
 
   harness.finish({ ok: true });
@@ -444,7 +444,7 @@ test("Garmin private beta packaging assets are dashboard-ready", () => {
   assert.match(activityReadme, /Auto Lap must be disabled/);
   assert.match(activityReadme, /Pressing LAP logs fuel and also creates a normal Garmin lap/);
   assert.match(activityReadme, /Structured workout laps/i);
-  assert.match(quickLogReadme, /Fuel, Hydration, or Fuel \+ Hydration/);
+  assert.match(quickLogReadme, /Fuel, Hydrate, or Sleepy/);
   assert.match(quickLogReadme, /Use UP and DOWN/);
   assert.match(quickLogReadme, /Press ENTER/);
   assert.match(quickLogReadme, /queue offline/);
@@ -471,13 +471,14 @@ test("Activity Logger uses onTimerLap and persists before upload", () => {
   assert.match(source, /FuelGuardEvents\.TYPE_FUEL/);
 });
 
-test("Quick Log supports all event types and persists before upload", () => {
+test("Quick Log supports fuel, hydration and sleepy actions and persists before upload", () => {
   const source = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
   const logSelection = sourceBlock(source, "function logSelection()", "public function onUpdate");
 
   assert.match(source, /FuelGuardEvents\.TYPE_FUEL/);
   assert.match(source, /FuelGuardEvents\.TYPE_HYDRATION/);
-  assert.match(source, /FuelGuardEvents\.TYPE_FUEL_HYDRATION/);
+  assert.match(source, /FuelGuardEvents\.TYPE_SLEEPY/);
+  assert.doesNotMatch(source, /FuelGuardEvents\.TYPE_FUEL_HYDRATION/);
   assert.match(source, /function onUpdate\(dc as Graphics\.Dc\) as Void/);
   assertSourceOrder(logSelection, "FuelGuardQueue.enqueue(event);", "FuelGuardApi.trySync(true);");
 });
@@ -572,9 +573,10 @@ test("Quick Log wearable copy uses short safe labels", () => {
   const source = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
 
   assert.match(source, /Press START/);
-  assert.match(source, /Log fuel/);
+  assert.match(source, /Fuel/);
   assert.match(source, /Hydrate/);
-  assert.match(source, /Fuel \+ water/);
+  assert.match(source, /Sleepy/);
+  assert.doesNotMatch(source, /Fuel \+ water|Fuel \+ Hydrate|Fuel \+ Hydration/);
   assert.match(source, /getTextWidthInPixels/);
   assert.doesNotMatch(source, /ENTER logs/);
   assert.doesNotMatch(source, /Pending \$1\$  ENTER logs/);

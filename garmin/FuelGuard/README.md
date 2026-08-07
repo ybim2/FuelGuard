@@ -10,7 +10,7 @@ This folder contains two separate Garmin Connect IQ apps for the Forerunner 255 
 
 2. Fuel Guard Quick Log
    - Watch App with a Glance.
-   - Logs `fuel`, `hydration` or `fuel_hydration` outside an activity.
+   - Logs `fuel`, `hydration` or `sleepy` outside an activity.
    - Optionally collects bounded Connect IQ-local Garmin health-pattern snapshots after explicit opt-in.
 
 Both apps pair to a Fuel Guard account through Garmin mobile authentication. After pairing, they send events to:
@@ -178,7 +178,7 @@ Run `scripts/build-garmin-beta-release.sh` to build both beta IQ packages and ex
 3. Select Connect Fuel Guard.
 4. Approve the connection on the phone while signed into Fuel Guard.
 5. Fuel is selected by default after pairing.
-6. Use UP/DOWN to select Fuel, Hydration or Fuel + Water.
+6. Use UP/DOWN to select Fuel, Hydrate or Sleepy.
 7. Press ENTER to log.
 8. ESC exits normally.
 
@@ -193,7 +193,7 @@ Existing pending events are preserved when pairing, disconnecting or reconnectin
 1. Deploy Fuel Guard production from main with the zero-secret Garmin routes.
 2. Apply `supabase/fuel_logs.sql` and `supabase/garmin_zero_secret_auth.sql` to the linked Supabase project.
 3. Set the server-side Vercel variables: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `GARMIN_TOKEN_PEPPER`.
-4. Run `scripts/build-garmin-beta-release.sh` and upload each exported 0.4.1 IQ package as a new version of its existing beta listing.
+4. Run `scripts/build-garmin-beta-release.sh` and upload each exported IQ package as a new version of its existing beta listing.
 5. Do not create new listings.
 6. Keep Apps for beta testing only enabled.
 7. Sync/update both apps on the Forerunner 255.

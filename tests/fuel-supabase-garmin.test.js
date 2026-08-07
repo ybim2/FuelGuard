@@ -119,3 +119,23 @@ test("Sleepy check-ins round-trip as observational cloud logs", () => {
   assert.equal(log.checkin.checkinType, "sleepy");
   assert.equal(log.checkin.arousalLevel, "sleepy");
 });
+
+test("Garmin Sleepy rows load as the same observational Sleepy event", () => {
+  const api = loadFuelSupabase();
+  const log = api.rowToLog({
+    id: "11111111-1111-4111-8111-111111111111",
+    user_id: "22222222-2222-4222-8222-222222222222",
+    logged_at: "2026-07-18T15:45:00.000Z",
+    type: "fuel",
+    source: "garmin",
+    external_event_id: "fr255-sleepy-1",
+    notes: 'fuel_guard_checkin:{"version":1,"checkinType":"sleepy","context":"general_day","arousalLevel":"sleepy"}',
+    created_at: "2026-07-18T15:45:01.000Z"
+  });
+
+  assert.equal(log.source, "garmin");
+  assert.equal(log.externalEventId, "fr255-sleepy-1");
+  assert.equal(log.type, "checkin");
+  assert.equal(log.label, "Sleepy");
+  assert.equal(log.checkin.checkinType, "sleepy");
+});

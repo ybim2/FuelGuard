@@ -6,11 +6,11 @@ Fuel Guard Quick Log
 
 ## Concise description
 
-Private Fuel Guard watch app and glance for quick fuel and hydration logging on Forerunner 255.
+Private Fuel Guard watch app and glance for quick fuel, hydration and Sleepy logging on Forerunner 255.
 
 ## Longer description
 
-Fuel Guard Quick Log is a private beta Connect IQ watch app with glance support for the Forerunner 255. It lets the tester choose Fuel, Hydration, or Fuel + Hydration and send the event to the paired Fuel Guard account.
+Fuel Guard Quick Log is a private beta Connect IQ watch app with glance support for the Forerunner 255. It lets the tester choose Fuel, Hydrate, or Sleepy and send the event to the paired Fuel Guard account.
 
 Use UP and DOWN to select the log type. Press ENTER to log the selected event. Events are persisted locally before upload, queue offline, and retry later with the same external event ID so duplicate requests do not create duplicate Fuel Guard rows.
 
@@ -22,12 +22,12 @@ Use UP and DOWN to select the log type. Press ENTER to log the selected event. E
 4. Approve the connection on the phone while signed into Fuel Guard.
 5. Use UP or DOWN to select Fuel.
 6. Press ENTER and confirm one Fuel Guard row appears with source `garmin`.
-7. Repeat for Hydration and Fuel + Hydration.
+7. Repeat for Hydrate and Sleepy.
 8. Test one queued event while network access is unavailable, then reconnect and confirm it syncs once.
 
 ## Privacy and data use
 
-This beta records timestamped Fuel Guard fuel and hydration events from the watch. It sends the event type, timestamp, Garmin source, device identifier, and stable external event ID to the paired Fuel Guard account. The app stores a revocable device token locally on the watch after phone approval. Fuel Guard stores only a hashed version of that token server-side.
+This beta records timestamped Fuel Guard fuel, hydration and Sleepy events from the watch. It sends the event type, timestamp, Garmin source, device identifier, and stable external event ID to the paired Fuel Guard account. The app stores a revocable device token locally on the watch after phone approval. Fuel Guard stores only a hashed version of that token server-side.
 
 Optional Garmin health-pattern sharing is disabled by default. If the tester enables it in Quick Log settings, the app may share bounded recent Connect IQ-local heart-rate history, stress history, Body Battery history, Garmin resting-heart-rate values, average resting-heart-rate values and high-level recent activity summaries when the Forerunner 255 supports those APIs. This is used for personal fuelling-pattern associations only and is not a medical interpretation.
 
@@ -42,7 +42,7 @@ This beta targets Garmin product ID `fr255`. The launcher resource is a valid 40
 - App list entry for Fuel Guard Quick Log.
 - Glance entry for Fuel Guard Quick Log.
 - Connect Fuel Guard screen before pairing.
-- Selection screen showing Fuel, Hydration, and Fuel + Hydration options after pairing.
+- Selection screen showing Fuel, Hydrate, and Sleepy options after pairing.
 - Confirmation state after pressing ENTER.
 - Fuel Guard History row showing one synced Garmin event.
 

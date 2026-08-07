@@ -260,6 +260,28 @@ test("Garmin user_id cannot be forged and logs map to the approving user", async
   assert.equal(fake.logs[0].type, "fuel");
 }));
 
+test("Garmin Sleepy logs persist as the canonical PWA Sleepy check-in", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  const event = {
+    ...VALID_EVENT,
+    external_event_id: "fr255-sleepy-1",
+    type: "sleepy"
+  };
+  const first = await call(auth.garminLogHandler, { token: paired.deviceToken, body: event });
+  const second = await call(auth.garminLogHandler, { token: paired.deviceToken, body: event });
+
+  assert.equal(first.statusCode, 201);
+  assert.equal(second.statusCode, 200);
+  assert.equal(second.json.result, "duplicate");
+  assert.equal(fake.logs.length, 1);
+  assert.equal(fake.logs[0].user_id, USERS["user-token-a"].id);
+  assert.equal(fake.logs[0].source, "garmin");
+  assert.equal(fake.logs[0].type, "fuel");
+  assert.match(fake.logs[0].notes, /^fuel_guard_checkin:/);
+  assert.match(fake.logs[0].notes, /"checkinType":"sleepy"/);
+  assert.match(fake.logs[0].notes, /"arousalLevel":"sleepy"/);
+}));
+
 test("Garmin exchange rejects returned state mismatches", async () => withFake(async () => {
   const approve = await call(auth.approveAuthHandler, { token: "user-token-a", body: { app_id: "quick_log", state: "state-good" } });
   const code = new URL(approve.json.redirect_url).searchParams.get("code");

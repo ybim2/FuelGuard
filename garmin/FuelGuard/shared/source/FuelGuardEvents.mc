@@ -7,6 +7,7 @@ module FuelGuardEvents {
     const TYPE_FUEL = "fuel";
     const TYPE_HYDRATION = "hydration";
     const TYPE_FUEL_HYDRATION = "fuel_hydration";
+    const TYPE_SLEEPY = "sleepy";
     const DEVICE_ID = "fr255";
     const COUNTER_KEY = "fg_event_counter";
     const LAST_FUEL_KEY = "fg_last_fuel_at";
@@ -17,6 +18,9 @@ module FuelGuardEvents {
         }
         if (type.equals(TYPE_FUEL_HYDRATION)) {
             return TYPE_FUEL_HYDRATION;
+        }
+        if (type.equals(TYPE_SLEEPY)) {
+            return TYPE_SLEEPY;
         }
         return TYPE_FUEL;
     }

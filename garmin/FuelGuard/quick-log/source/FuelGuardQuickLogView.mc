@@ -7,7 +7,7 @@ import Toybox.WatchUi;
 class FuelGuardQuickLogView extends WatchUi.View {
     private const ACTION_COUNT = 3;
     private const ACTION_HYDRATION = 1;
-    private const ACTION_FUEL_HYDRATION = 2;
+    private const ACTION_SLEEPY = 2;
 
     private var _selection as Number = 0;
     private var _confirmStartedAt as Number?;
@@ -155,10 +155,10 @@ class FuelGuardQuickLogView extends WatchUi.View {
         if (index == ACTION_HYDRATION) {
             return "Hydrate";
         }
-        if (index == ACTION_FUEL_HYDRATION) {
-            return "Fuel + water";
+        if (index == ACTION_SLEEPY) {
+            return "Sleepy";
         }
-        return "Log fuel";
+        return "Fuel";
     }
 
     private function contentWidth(dc as Graphics.Dc) as Number {
@@ -203,8 +203,8 @@ class FuelGuardQuickLogView extends WatchUi.View {
         if (index == ACTION_HYDRATION) {
             return FuelGuardEvents.TYPE_HYDRATION;
         }
-        if (index == ACTION_FUEL_HYDRATION) {
-            return FuelGuardEvents.TYPE_FUEL_HYDRATION;
+        if (index == ACTION_SLEEPY) {
+            return FuelGuardEvents.TYPE_SLEEPY;
         }
         return FuelGuardEvents.TYPE_FUEL;
     }
