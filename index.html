@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v95-todays-patterns" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v95-todays-patterns" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v95-todays-patterns" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v96-log-instrument-panel" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v96-log-instrument-panel" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v96-log-instrument-panel" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -123,7 +123,20 @@
         <article class="card fuel-gap-card beta-today-shell">
           <section id="fuelTodayStatus"></section>
 
-          <section id="fuelLogPatterns"></section>
+          <section class="beta-rhythm-section-card beta-log-entry-card beta-quick-actions-card" aria-label="Quick actions">
+            <div class="section-heading-row beta-quick-actions-heading">
+              <div>
+                <h3>Quick actions</h3>
+                <p class="muted">Tap when fuel, hydration, or sleepiness happens.</p>
+              </div>
+            </div>
+            <div class="beta-status-log-actions beta-log-actions beta-timeline-log-actions" aria-label="Log fuel, hydration, or sleepy">
+              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Fuel</span></button>
+              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Hydrate</span></button>
+              <button id="graphLogSleepyButton" class="secondary beta-sleepy-button" type="button"><span>Sleepy</span></button>
+            </div>
+            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" role="status" aria-live="polite"></div>
+          </section>
 
           <section class="beta-rhythm-section-card beta-today-log" aria-label="Today’s timeline">
             <div class="section-heading-row beta-timeline-static-heading">
@@ -134,13 +147,27 @@
               <span id="todayTimelineLatest" class="row-note"></span>
             </div>
             <div id="fuelDailyLog" class="beta-today-timeline-panel"></div>
-            <div class="beta-status-log-actions beta-log-actions beta-timeline-log-actions" aria-label="Log fuel, hydration, or sleepy">
-              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
-              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
-              <button id="graphLogSleepyButton" class="secondary beta-sleepy-button" type="button"><span>Log</span><span>Sleepy</span></button>
-            </div>
-            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
             <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
+          </section>
+
+          <section id="fuelLogPatterns"></section>
+
+          <section class="beta-rhythm-section-card beta-day-context-card" aria-label="Day context">
+            <div class="section-heading-row">
+              <div>
+                <h3>Day context</h3>
+                <p class="muted">Optional. Set once for today so patterns make more sense later.</p>
+              </div>
+            </div>
+            <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+              <label>Day type<select id="fuelDayType">
+                <option value="">Normal</option>
+                <option value="work">Working</option>
+                <option value="holiday">Holiday</option>
+                <option value="competition">Competition</option>
+              </select></label>
+            </div>
+            <p id="fuelDayTypeSaved" class="row-note" aria-live="polite"></p>
           </section>
         </article>
 
@@ -212,6 +239,22 @@
           <p id="garminDevicesStatus" class="row-note" aria-live="polite"></p>
         </article>
 
+        <article class="card beta-maximum-gap-card">
+          <h2>Maximum Fuel Gap</h2>
+          <p class="muted">Choose how long you want to allow between fuel logs. This powers the Log-page countdown and status.</p>
+          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>Maximum gap<select id="maximumFuelGapPreset">
+              <option value="150">2h 30m</option>
+              <option value="180">3h</option>
+              <option value="210">3h 30m</option>
+              <option value="240">4h</option>
+              <option value="custom">Custom</option>
+            </select></label>
+            <label id="maximumFuelGapCustomWrap">Custom minutes<input id="maximumFuelGapCustom" type="number" min="120" max="240" step="5" inputmode="numeric"></label>
+          </div>
+          <p id="maximumFuelGapStatus" class="row-note" aria-live="polite"></p>
+        </article>
+
         <article class="card beta-import-card">
           <h2>Data import and clearing</h2>
           <details class="beta-settings-disclosure">
@@ -261,7 +304,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v95-todays-patterns</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v96-log-instrument-panel</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -277,16 +320,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v95-todays-patterns"></script>
+  <script src="build-info.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v96-log-instrument-panel"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="app-ui.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v95-todays-patterns"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v95-todays-patterns"></script>
+  <script src="app-state.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="app-ui.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v96-log-instrument-panel"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v96-log-instrument-panel"></script>
 </body>
 </html>

@@ -662,6 +662,9 @@
     if (gap.thresholds.hydrationCrashMinutes <= gap.thresholds.hydrationRedMinutes) gap.thresholds.hydrationCrashMinutes = gap.thresholds.hydrationRedMinutes + 15;
     gap.fuelWindowMinutes = clamp(Number(gap.fuelWindowMinutes || 720), 240, 1200);
     gap.maximumFuelGapMinutes = clamp(Number(gap.maximumFuelGapMinutes || gap.thresholds.redMinutes || DEFAULT_THRESHOLDS.redMinutes), 120, 240);
+    gap.thresholds.greenMinutes = Math.max(30, gap.maximumFuelGapMinutes - 30);
+    gap.thresholds.redMinutes = gap.maximumFuelGapMinutes;
+    gap.thresholds.crashMinutes = Math.max(gap.maximumFuelGapMinutes + 40, gap.maximumFuelGapMinutes + 15);
     if (!gap.targets || typeof gap.targets !== "object" || Array.isArray(gap.targets)) gap.targets = {};
     TARGET_FIELDS.forEach(key => {
       gap.targets[key] = normalizeTargetNumber(gap.targets[key]);
@@ -686,9 +689,28 @@
     return betaState().maximumFuelGapMinutes;
   }
 
+  function maximumFuelGapPresetValue(minutes = maximumFuelGapMinutes()) {
+    const safeMinutes = Number(minutes);
+    return [150, 180, 210, 240].includes(safeMinutes) ? String(safeMinutes) : "custom";
+  }
+
+  function applyMaximumFuelGapGoal(minutes) {
+    const safeMinutes = clamp(Math.round(Number(minutes || DEFAULT_THRESHOLDS.redMinutes)), 120, 240);
+    const gap = betaState();
+    gap.maximumFuelGapMinutes = safeMinutes;
+    gap.thresholds.greenMinutes = Math.max(30, safeMinutes - 30);
+    gap.thresholds.redMinutes = safeMinutes;
+    gap.thresholds.crashMinutes = safeMinutes + 40;
+    if (typeof addActivityEntry === "function") {
+      addActivityEntry("maximumFuelGapConfigured", `Maximum fuel gap set to ${duration(safeMinutes)}.`, { dedupeDaily: true });
+    }
+    save();
+    renderAll();
+  }
+
   function fuelStatusLimits() {
     const goal = maximumFuelGapMinutes();
-    const approach = Math.max(30, Math.min(goal - 15, Math.round(goal * 0.8)));
+    const approach = Math.max(30, goal - 30);
     const crash = Math.max(goal + 40, Number(thresholds().crashMinutes || DEFAULT_THRESHOLDS.crashMinutes));
     return {
       greenMinutes: approach,
@@ -1086,6 +1108,9 @@
     });
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
+    if (typeof addActivityEntry === "function") {
+      addActivityEntry("dayTypeSelected", `Day context set to ${nextValue ? dayTypeLabel(nextValue) : "Normal"}.`, { dedupeDaily: true });
+    }
   }
 
   function setTrainingSession(key, value) {
@@ -1898,7 +1923,7 @@
         : type === SLEEPY_CHECKIN_TYPE
           ? "Sleepy logged"
         : "Fuel logged";
-    quickLogConfirmation = `${label} · ${formatClock(date)}`;
+    quickLogConfirmation = `${label} - ${formatClock(date)}`;
     if (quickLogConfirmationTimer && typeof clearTimeout === "function") clearTimeout(quickLogConfirmationTimer);
     quickLogConfirmationTimer = typeof setTimeout === "function" ? setTimeout(() => {
       quickLogConfirmation = "";
@@ -2246,9 +2271,8 @@
     if (sessionSelect && sessionSelect.value !== session) sessionSelect.value = session;
     const saved = document.getElementById("fuelDayTypeSaved");
     if (saved) {
-      const dayText = dayType ? dayTypeLabel(dayType) : "day type not set";
-      const sessionText = session ? trainingSessionLabel(session) : "session not set";
-      saved.textContent = `Saved: ${dayText}; ${sessionText}.`;
+      const dayText = dayType ? dayTypeLabel(dayType) : "Normal";
+      saved.textContent = `Saved: ${dayText}.`;
     }
   }
 
@@ -2304,6 +2328,18 @@
     if (currentBuild) currentBuild.textContent = buildText;
     if (updateStatus && !updateStatus.dataset.userMessage) {
       updateStatus.textContent = "Update status: ready. User logs are stored separately and will not be cleared.";
+    }
+    const maxGapPreset = document.getElementById("maximumFuelGapPreset");
+    const maxGapCustom = document.getElementById("maximumFuelGapCustom");
+    const maxGapCustomWrap = document.getElementById("maximumFuelGapCustomWrap");
+    const maxGapStatus = document.getElementById("maximumFuelGapStatus");
+    const maxGapMinutes = maximumFuelGapMinutes();
+    const maxGapPresetValue = maximumFuelGapPresetValue(maxGapMinutes);
+    if (maxGapPreset && document.activeElement !== maxGapPreset) maxGapPreset.value = maxGapPresetValue;
+    if (maxGapCustom && document.activeElement !== maxGapCustom) maxGapCustom.value = String(maxGapMinutes);
+    if (maxGapCustomWrap) maxGapCustomWrap.hidden = maxGapPresetValue !== "custom";
+    if (maxGapStatus) {
+      maxGapStatus.textContent = `Current goal: ${duration(maxGapMinutes)}. Eat soon starts ${duration(30)} before that target.`;
     }
     const account = accountState();
     const cloud = window.fuelGuardCloud?.accountView?.() || null;
@@ -2434,8 +2470,8 @@
     const key = todayViewKey();
     const logs = logsForDay(key)
       .filter(log => ["fuel", "hydration", "fuel_hydration"].includes(logType(log)) || isSleepyLog(log))
-      .sort((a, b) => (logDate(a) || 0) - (logDate(b) || 0));
-    const latest = logs[logs.length - 1] || null;
+      .sort((a, b) => (logDate(b) || 0) - (logDate(a) || 0));
+    const latest = logs[0] || null;
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} log${logs.length === 1 ? "" : "s"} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
     if (latestEl) latestEl.textContent = latest ? `${logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "No logs yet";
     target.hidden = false;
@@ -4228,28 +4264,81 @@
     return "Recovery needed. Add fuel when you can and use the next hour as a support window.";
   }
 
+  function fuelGapGoalCopy(snapshot) {
+    const goal = maximumFuelGapMinutes();
+    const elapsed = Number(snapshot?.minutesSinceFuel);
+    if (!Number.isFinite(elapsed)) {
+      return {
+        primary: `Your ${duration(goal)} fuel-gap target starts after your first fuel log.`,
+        secondary: "Log fuel when the day starts so Fuel Guard can track the window.",
+        progress: 0
+      };
+    }
+    const remaining = Math.round(goal - elapsed);
+    const progress = clamp((elapsed / goal) * 100, 0, 100);
+    if (remaining > 0) {
+      return {
+        primary: `${duration(remaining)} until your ${duration(goal)} fuel-gap target`,
+        secondary: remaining <= 30 ? "Eat soon is showing because you are inside the final 30 minutes." : "You are still inside your chosen fuel-gap window.",
+        progress
+      };
+    }
+    return {
+      primary: `Fuel gap ${duration(elapsed)}`,
+      secondary: `Your ${duration(goal)} fuel-gap target has been reached.`,
+      progress: 100
+    };
+  }
+
+  function currentStatusSupportCopy(status, hasFuel) {
+    if (!hasFuel) return "Ready when your first fuel log is recorded.";
+    if (status === "green") return "You look steady right now.";
+    if (status === "amber") return "You are approaching your fuel-gap target.";
+    if (status === "red") return "Your fuel-gap target has been reached.";
+    return "This gap has gone well beyond your target. Add fuel when you can.";
+  }
+
   function renderCurrentFuellingStatus(key = todayViewKey(), now = new Date()) {
     const snapshot = fuelGapSnapshot(now);
     const hydrationSince = timeSinceLogForDay(key, isHydrationLog, now);
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const event = nextRelevantPlanEvent(key, now);
     const tone = snapshot.status === "green" ? "steady" : snapshot.status === "amber" ? "warning" : snapshot.status === "red" ? "urgent" : "recovery";
     const statusLabel = riskStatusLabel(snapshot.status);
+    const goalCopy = fuelGapGoalCopy(snapshot);
+    const lastFuel = lastLogForDay(key, isFuelLog);
+    const lastHydration = lastLogForDay(key, isHydrationLog);
+    const hasFuel = Boolean(lastFuel);
+    const progressStyle = stylePercent(goalCopy.progress);
     return `
       <section class="beta-today-status-card beta-primary-card ${safeText(tone)}" aria-label="Current fuelling status">
         <div class="beta-today-status-main">
-          <strong class="beta-status-title">Status: ${safeText(statusLabel)}</strong>
-          <p>${safeText(todayRecommendation(snapshot.status, event))}</p>
+          <span class="beta-status-kicker">Status</span>
+          <strong class="beta-status-title beta-status-title-large">${safeText(statusLabel.toUpperCase())}</strong>
+          <p>${safeText(currentStatusSupportCopy(snapshot.status, hasFuel))}</p>
+        </div>
+        <div class="beta-live-status-panel">
+          <div class="beta-live-gap-grid">
+            <div>
+              <span>Last fuel</span>
+              <strong>${safeText(snapshot.timeSinceFuel === "No fuel logged" ? "Not logged yet" : `${snapshot.timeSinceFuel} ago`)}</strong>
+            </div>
+            <div>
+              <span>Last hydration</span>
+              <strong>${safeText(hydrationSince === "Not logged yet" ? hydrationSince : `${hydrationSince} ago`)}</strong>
+            </div>
+          </div>
+          <strong class="beta-gap-countdown">${safeText(goalCopy.primary)}</strong>
+          <div class="beta-gap-progress" aria-hidden="true"><span style="width:${progressStyle}"></span></div>
+          <small>${safeText(goalCopy.secondary)}</small>
         </div>
         <div class="beta-today-status-grid">
-          ${dailyMetricCard("Last fuel", snapshot.timeSinceFuel, snapshot.lastFuelled === "No fuel logged" ? "No fuel logged yet" : `Logged at ${snapshot.lastFuelled}`, "fuel")}
-          ${dailyMetricCard("Last hydration", hydrationSince, lastLogForDay(key, isHydrationLog) ? `Logged at ${formatClock(lastLogForDay(key, isHydrationLog).date)}` : "No hydration logged yet", "hydration")}
+          ${dailyMetricCard("Last fuel", lastFuel ? formatClock(lastFuel.date) : "Not logged", hasFuel ? `${snapshot.timeSinceFuel} ago` : "No fuel logged yet", "fuel")}
+          ${dailyMetricCard("Last hydration", lastHydration ? formatClock(lastHydration.date) : "Not logged", lastHydration ? `${hydrationSince} ago` : "No hydration logged yet", "hydration")}
           ${dailyMetricCard("Fuel logs", String(fuelLogs.length), "Logged on the selected day.", "fuel")}
           ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
         </div>
-        <p class="row-note">Maximum fuelling gap: ${safeText(duration(maximumFuelGapMinutes()))}.</p>
       </section>
     `;
   }
@@ -9622,15 +9711,21 @@
 
     const button = document.getElementById("graphLogFoodButton");
     if (button) {
-      button.innerHTML = "<span>Log</span><span>Fuel</span>";
+      button.innerHTML = "<span>Fuel</span>";
       button.disabled = cooldown > 0;
     }
 
     const hydrationButton = document.getElementById("graphLogHydrationButton");
-    if (hydrationButton) hydrationButton.disabled = false;
+    if (hydrationButton) {
+      hydrationButton.innerHTML = "<span>Hydrate</span>";
+      hydrationButton.disabled = false;
+    }
 
     const sleepyButton = document.getElementById("graphLogSleepyButton");
-    if (sleepyButton) sleepyButton.disabled = false;
+    if (sleepyButton) {
+      sleepyButton.innerHTML = "<span>Sleepy</span>";
+      sleepyButton.disabled = false;
+    }
 
     const undo = document.getElementById("undoLatestFoodLog");
     if (undo) undo.disabled = !logsForDay(todayViewKey()).length;
@@ -9955,6 +10050,18 @@
     save();
     renderAll();
     window.fuelGuardCloud?.syncLogsForDay(key);
+  });
+  document.getElementById("maximumFuelGapPreset")?.addEventListener("change", event => {
+    const value = event.target.value;
+    if (value === "custom") {
+      renderSettings();
+      document.getElementById("maximumFuelGapCustom")?.focus();
+      return;
+    }
+    applyMaximumFuelGapGoal(Number(value));
+  });
+  document.getElementById("maximumFuelGapCustom")?.addEventListener("change", event => {
+    applyMaximumFuelGapGoal(Number(event.target.value));
   });
   document.getElementById("fuelDataDate")?.addEventListener("change", event => {
     setSelectedDataDate(event.target.value);

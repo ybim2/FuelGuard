@@ -50,14 +50,16 @@ test("primary navigation has only Log, with Settings in the header", () => {
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
-test("Log has three visible primary sections and timeline-owned actions", () => {
+test("Log is a status-first beta instrument panel", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const dashboard = section(html, "dashboard", "checklist");
+  const goalCopySource = functionBody(js, "fuelGapGoalCopy", "currentStatusSupportCopy");
   const statusRender = functionBody(js, "renderCurrentFuellingStatus", "hydrationSuggestionForDay");
   const progressRender = functionBody(js, "renderTodayProgress", "renderCompactDailySummary");
 
   const status = indexOfRequired(dashboard, 'id="fuelTodayStatus"');
+  const actions = indexOfRequired(dashboard, "Quick actions");
   const patterns = indexOfRequired(dashboard, 'id="fuelLogPatterns"');
   const timeline = indexOfRequired(dashboard, "Today’s timeline");
   const dailyLog = indexOfRequired(dashboard, 'id="fuelDailyLog"');
@@ -65,6 +67,7 @@ test("Log has three visible primary sections and timeline-owned actions", () => 
   const logHydration = indexOfRequired(dashboard, 'id="graphLogHydrationButton"');
   const logSleepy = indexOfRequired(dashboard, 'id="graphLogSleepyButton"');
   const undo = indexOfRequired(dashboard, 'id="undoLatestFoodLog"');
+  const dayContext = indexOfRequired(dashboard, "Day context");
   const sleepyRecorder = functionBody(js, "recordSleepy", "logById");
   const checkinRecorder = functionBody(js, "recordCheckinEvent", "undoLatestRhythmLog");
   const undoStart = indexOfRequired(js, "function undoLatestRhythmLog");
@@ -73,17 +76,24 @@ test("Log has three visible primary sections and timeline-owned actions", () => 
   const timelineSource = functionBody(js, "renderEventTimeline", "renderDailyLog");
   const dailyLogSource = functionBody(js, "renderDailyLog", "gapZoneReached");
   const lowEnergySource = functionBody(js, "isLowEnergyCheckinLog", "isSleepyLog");
+  const dayTypeControls = functionBody(js, "renderDayTypeControls", "setCsvImportStatus");
 
-  assert.ok(status < patterns, "Status should be the first Log section");
-  assert.ok(patterns < timeline, "Today’s Patterns should sit between Status and Today’s Timeline");
+  assert.ok(status < actions, "Status should be the first Log section");
+  assert.ok(actions < timeline, "Quick actions should sit directly after status");
   assert.ok(timeline < dailyLog, "Timeline entries should appear inside the Today’s Timeline card");
-  assert.ok(dailyLog < logFuel, "Log Fuel should sit below the timeline entries");
-  assert.ok(logFuel < logHydration, "Log Hydration should sit beside Log Fuel");
+  assert.ok(logFuel < logHydration, "Hydrate should sit beside Fuel");
   assert.ok(logHydration < logSleepy, "Sleepy should replace the old combined quick action as the third option");
-  assert.ok(logSleepy < undo, "Undo should sit at the bottom of the timeline action area");
+  assert.ok(dailyLog < undo, "Undo should sit inside the Today’s Timeline card");
+  assert.ok(timeline < patterns, "Today’s Patterns should sit below Today’s Timeline");
+  assert.ok(patterns < dayContext, "Day context should be the optional final Log section");
+  assert.match(dashboard, />Fuel<\/span>/);
+  assert.match(dashboard, />Hydrate<\/span>/);
   assert.match(dashboard, />Sleepy<\/span>/);
   assert.doesNotMatch(dashboard, /Zz|ZZ|Zzz|beta-log-button-icon/);
   assert.match(dashboard, /aria-label="Log fuel, hydration, or sleepy"/);
+  assert.match(dashboard, /id="fuelDayType"/);
+  assert.match(dashboard, /id="fuelDayTypeSaved"/);
+  assert.match(dayTypeControls, /Saved:/);
   assert.doesNotMatch(dashboard, /Fuel \+ Hydration|Fuel \+ hydration/);
   assert.match(sleepyRecorder, /checkinType:\s*SLEEPY_CHECKIN_TYPE/);
   assert.match(sleepyRecorder, /arousalLevel:\s*SLEEPY_CHECKIN_TYPE/);
@@ -96,13 +106,18 @@ test("Log has three visible primary sections and timeline-owned actions", () => 
   assert.match(lowEnergySource, /SLEEPY_CHECKIN_TYPE\) return false/);
   assert.doesNotMatch(dashboard, /fuelTodayProgress|Today’s progress|Quick logging|\+ Add a missed log|Today’s context|todayTimelineToggle|missedLogPanel/);
   assert.match(progressRender, /return "";/);
-  assert.match(statusRender, /Status:/);
+  assert.match(statusRender, /beta-status-kicker/);
+  assert.match(statusRender, /beta-status-title-large/);
+  assert.match(statusRender, /beta-gap-countdown/);
+  assert.match(goalCopySource, /fuel-gap target/);
+  assert.match(goalCopySource, /goal - elapsed/);
+  assert.match(statusRender, /beta-gap-progress/);
   assert.match(statusRender, /Last fuel/);
   assert.match(statusRender, /Last hydration/);
   assert.match(statusRender, /Fuel logs/);
   assert.match(statusRender, /Hydration logs/);
-  assert.match(statusRender, /Maximum fuelling gap/);
   assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
+  assert.ok(js.includes('quickLogConfirmation = `${label} - ${formatClock(date)}`;'));
 });
 
 test("Today’s Patterns switches between fuel, hydration and sleepy event counts", () => {
@@ -141,12 +156,17 @@ test("Settings hides preference controls while preserving internal defaults", ()
   const state = read("app-state.js");
   const settings = section(html, "checklist");
 
-  assert.doesNotMatch(settings, /Preferences|Fuel gap goal|Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
-  assert.doesNotMatch(settings, /id="maximumFuelGapPreset"|id="dailyFuelTarget"|id="fuelWindowPreset"|id="fuelGreenHours"/);
+  assert.match(settings, /Maximum Fuel Gap/);
+  assert.match(settings, /id="maximumFuelGapPreset"/);
+  assert.match(settings, /id="maximumFuelGapCustom"/);
+  assert.doesNotMatch(settings, /Preferences|Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
+  assert.doesNotMatch(settings, /id="dailyFuelTarget"|id="fuelWindowPreset"|id="fuelGreenHours"/);
   assert.match(js, /function maximumFuelGapMinutes/);
+  assert.match(js, /function applyMaximumFuelGapGoal/);
   assert.match(js, /function fuelStatusLimits/);
   assert.match(state, /maximumFuelGapMinutes: 180/);
   assert.match(state, /const goalMinutes = Math\.min\(240, Math\.max\(120, Number\(fuelGapState\(\)\.maximumFuelGapMinutes/);
+  assert.match(state, /const greenMinutes = Math\.max\(30, goalMinutes - 30\)/);
 });
 
 test("History page and navigation are removed", () => {
@@ -164,26 +184,28 @@ test("Settings keeps only essential production sections", () => {
   const intro = indexOfRequired(settings, "Settings");
   const account = indexOfRequired(settings, "Account &amp; Sync");
   const garmin = indexOfRequired(settings, "Connected Garmin Apps");
+  const maximum = indexOfRequired(settings, "Maximum Fuel Gap");
   const importAndClear = indexOfRequired(settings, "Data import and clearing");
   const version = indexOfRequired(settings, "App version and privacy");
 
   assert.ok(intro < account);
   assert.ok(account < garmin);
-  assert.ok(garmin < importAndClear);
+  assert.ok(garmin < maximum);
+  assert.ok(maximum < importAndClear);
   assert.ok(importAndClear < version);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
-  assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Fuel gap goal|Support thresholds/);
+  assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the simplified navigation and settings cleanup", () => {
+test("PWA cache and asset versions are bumped for the beta Log instrument panel", () => {
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v95-todays-patterns";
+  const version = "mobile-pwa-v96-log-instrument-panel";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T101629Z/);
+  assert.match(sw, /20260807T110325Z/);
 });

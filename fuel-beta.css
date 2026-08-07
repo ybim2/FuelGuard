@@ -7784,3 +7784,162 @@ body.beta-mvp .beta-fuelling-pattern-bars i {
     align-items: center;
   }
 }
+
+/* v96 beta Log page: status-first live instrument panel */
+body.beta-mvp .beta-today-shell {
+  gap: 14px;
+}
+
+body.beta-mvp .beta-today-status-card {
+  gap: 14px;
+}
+
+body.beta-mvp .beta-status-kicker {
+  color: var(--fg-muted);
+  font-size: .72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+body.beta-mvp .beta-today-status-main .beta-status-title-large {
+  font-size: clamp(2.25rem, 12vw, 4rem);
+  line-height: .92;
+}
+
+body.beta-mvp .beta-live-status-panel {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(var(--fg-fuel-rgb), .22);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(var(--fg-fuel-rgb), .12), rgba(255, 255, 255, .94) 52%),
+    #ffffff;
+}
+
+body.beta-mvp .beta-live-gap-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-live-gap-grid div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-live-gap-grid span,
+body.beta-mvp .beta-live-status-panel small {
+  color: var(--fg-muted);
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-live-gap-grid strong,
+body.beta-mvp .beta-gap-countdown {
+  color: var(--fg-text-strong);
+  font-weight: 950;
+  line-height: 1.18;
+}
+
+body.beta-mvp .beta-gap-countdown {
+  font-size: clamp(1.05rem, 4.8vw, 1.45rem);
+}
+
+body.beta-mvp .beta-gap-progress {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(var(--fg-brand-dark-rgb), .08);
+  overflow: hidden;
+}
+
+body.beta-mvp .beta-gap-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--fg-fuel), #efb84f);
+}
+
+body.beta-mvp .beta-today-status-card.warning .beta-gap-progress span {
+  background: linear-gradient(90deg, #efb84f, #d9822b);
+}
+
+body.beta-mvp .beta-today-status-card.urgent .beta-gap-progress span,
+body.beta-mvp .beta-today-status-card.recovery .beta-gap-progress span {
+  background: linear-gradient(90deg, #d9822b, #b94f35);
+}
+
+body.beta-mvp .beta-today-status-card .beta-today-status-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-quick-actions-card {
+  gap: 10px;
+}
+
+body.beta-mvp .beta-quick-actions-card .section-heading-row {
+  margin-bottom: 0;
+}
+
+body.beta-mvp .beta-quick-actions-card .beta-log-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-quick-actions-card #graphLogFoodButton,
+body.beta-mvp .beta-quick-actions-card #graphLogHydrationButton,
+body.beta-mvp .beta-quick-actions-card #graphLogSleepyButton {
+  min-height: 52px;
+  padding: 10px 8px;
+  font-size: .88rem;
+}
+
+body.beta-mvp .beta-quick-actions-card .fuel-cooldown-message {
+  min-height: 0;
+  margin: 0;
+  color: var(--fg-brand-fuel-deep);
+  font-size: .82rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-today-log {
+  gap: 10px;
+}
+
+body.beta-mvp .beta-today-log #undoLatestFoodLog {
+  margin-top: 0;
+  justify-self: stretch;
+}
+
+body.beta-mvp .beta-day-context-card {
+  gap: 12px;
+}
+
+body.beta-mvp .beta-maximum-gap-card {
+  display: grid;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  body.beta-mvp #dashboard {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.beta-mvp .beta-quick-actions-card {
+    position: sticky;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
+  }
+
+  body.beta-mvp .beta-today-status-card .beta-today-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.beta-mvp .beta-live-gap-grid {
+    grid-template-columns: 1fr;
+  }
+}

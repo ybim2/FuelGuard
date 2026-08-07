@@ -328,7 +328,7 @@ function minutesSinceLastFuel(now = new Date()) {
 function fuelGapStatus(minutes) {
   const thresholds = fuelGapState().thresholds || DEFAULT_STATE.fuelGap.thresholds;
   const goalMinutes = Math.min(240, Math.max(120, Number(fuelGapState().maximumFuelGapMinutes || thresholds.redMinutes || FUEL_RED_LIMIT_MINUTES)));
-  const greenMinutes = Math.max(30, Math.min(goalMinutes - 15, Math.round(goalMinutes * 0.8)));
+  const greenMinutes = Math.max(30, goalMinutes - 30);
   const redMinutes = goalMinutes;
   const crashMinutes = Math.max(Number(thresholds.crashMinutes || FUEL_CRASH_LIMIT_MINUTES), redMinutes + 15);
   if (!Number.isFinite(minutes)) return "red";
