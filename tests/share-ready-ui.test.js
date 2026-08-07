@@ -207,14 +207,21 @@ test("Settings keeps only essential production sections", () => {
 
 test("PWA cache and asset versions are bumped for the integrated Coach intelligence release", () => {
   const html = read("index.html");
+  const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
+  const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v109-coach-intelligence-integrated";
+  const version = "mobile-pwa-v110-coach-qa-hardening";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
+  assert.match(buildInfo, /serviceWorkerUrl: "\/sw\.js/);
+  assert.match(buildInfo, /serviceWorkerScope: "\/"/);
+  assert.match(pwa, /scope: SERVICE_WORKER_SCOPE/);
+  assert.match(coachHtml, /\.\.\/build-info\.js/);
+  assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T175451Z/);
+  assert.match(sw, /20260807T181022Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

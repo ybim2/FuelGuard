@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const root = path.join(__dirname, "..");
 const domain = require("../fuel-guard-domain.js");
-const migrationPath = "supabase/migrations/20260807172002_coach_daily_workflow.sql";
+const migrationPath = "supabase/migrations/20260807172300_coach_daily_workflow.sql";
 
 function read(file) {
   return fs.readFileSync(path.join(root, file), "utf8");
