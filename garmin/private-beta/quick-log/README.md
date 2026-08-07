@@ -10,7 +10,7 @@ Private Fuel Guard watch app and glance for quick fuel and hydration logging on 
 
 ## Longer description
 
-Fuel Guard Quick Log is a private beta Connect IQ watch app with glance support for the Forerunner 255. It lets the tester choose Fuel, Hydration, or Fuel + Hydration and send the event to the paired Fuel Guard account.
+Fuel Guard Quick Log is a private beta Connect IQ watch app with glance support for the Forerunner 255. The glance shows time since fuel and today's local fuel-log count before opening the app. It lets the tester choose Fuel, Hydration, or Fuel + Hydration and send the event to the paired Fuel Guard account.
 
 Use UP and DOWN to select the log type. Press ENTER to log the selected event. Events are persisted locally before upload, queue offline, and retry later with the same external event ID so duplicate requests do not create duplicate Fuel Guard rows.
 

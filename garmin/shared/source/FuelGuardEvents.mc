@@ -2,6 +2,7 @@ import Toybox.Application.Storage;
 import Toybox.Lang;
 import Toybox.Time;
 import Toybox.Time.Gregorian;
+import Toybox.WatchUi;
 
 module FuelGuardEvents {
     const TYPE_FUEL = "fuel";
@@ -65,6 +66,8 @@ module FuelGuardEvents {
         };
         if (normalizedType.equals(TYPE_FUEL) || normalizedType.equals(TYPE_FUEL_HYDRATION)) {
             Storage.setValue(LAST_FUEL_KEY, timestamp);
+            FuelGuardGlanceState.recordFuel(timestamp);
+            WatchUi.requestUpdate();
         }
         return event;
     }
@@ -78,8 +81,10 @@ module FuelGuardEvents {
     function setLastFuelSecondsForTest(seconds as Number?) as Void {
         if (seconds == null) {
             Storage.deleteValue(LAST_FUEL_KEY);
+            FuelGuardGlanceState.resetForTest();
         } else {
             Storage.setValue(LAST_FUEL_KEY, seconds as Number);
+            FuelGuardGlanceState.setLastFuelSecondsForTest(seconds as Number);
         }
     }
 }

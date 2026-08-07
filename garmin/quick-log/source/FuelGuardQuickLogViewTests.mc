@@ -5,6 +5,7 @@ import Toybox.Test;
 (:debug)
 function fuelGuardQuickReset(responseCode as Number, data as Dictionary or String or Null) as Void {
     FuelGuardQueue.saveQueue([]);
+    FuelGuardGlanceState.resetForTest();
     FuelGuardConnection.resetForTest();
     FuelGuardConnection.setConnectedForTest("device-token-test");
     FuelGuardApi.resetForTest();
@@ -288,37 +289,87 @@ function testFuelGuardQuickLogPairingPreservesPendingEventWhenUploadFails(logger
 (:test)
 function testFuelGuardQuickLogGlanceShowsRecentLocalFuel(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
-    FuelGuardEvents.setLastFuelSecondsForTest(FuelGuardEvents.nowSeconds() - ((2 * 60 * 60) + (37 * 60)));
+    var now = FuelGuardEvents.nowSeconds();
+    FuelGuardGlanceState.setLastFuelSecondsForTest(now - ((2 * 60 * 60) + (37 * 60)));
+    FuelGuardGlanceState.setTodayFuelCountForTest(3, FuelGuardGlanceState.localDateKeyForTest(now));
 
     var glance = new FuelGuardQuickLogGlance();
 
     return glance.metricForTest().equals("2h 37m")
         && glance.labelForTest().equals("since fuel")
-        && glance.pendingTextForTest() == null;
+        && glance.countLabelForTest().equals("3 today");
 }
 
 (:test)
 function testFuelGuardQuickLogGlanceShowsNoLogFallback(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
-    FuelGuardEvents.setLastFuelSecondsForTest(null);
+    FuelGuardGlanceState.resetForTest();
 
     var glance = new FuelGuardQuickLogGlance();
 
-    return glance.metricForTest().equals("Ready")
-        && glance.labelForTest().equals("to log")
-        && glance.pendingTextForTest() == null;
+    return glance.metricForTest().equals("Ready to log")
+        && glance.labelForTest().equals("")
+        && glance.countLabelForTest().equals("");
 }
 
 (:test)
-function testFuelGuardQuickLogGlanceShowsPendingIndicator(logger) as Boolean {
+function testFuelGuardQuickLogGlanceCountsFuelButNotHydration(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
-    FuelGuardEvents.setLastFuelSecondsForTest(null);
-    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL));
+    FuelGuardGlanceState.resetForTest();
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION);
+    FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL_HYDRATION);
 
     var glance = new FuelGuardQuickLogGlance();
 
-    return glance.pendingTextForTest() != null
-        && (glance.pendingTextForTest() as String).equals("1 pending");
+    return FuelGuardGlanceState.todayFuelCountForTest() == 2
+        && glance.metricForTest().length() > 0
+        && glance.labelForTest().equals("since fuel")
+        && glance.countLabelForTest().equals("2 today");
+}
+
+(:test)
+function testFuelGuardQuickLogSuccessfulSyncDoesNotEraseGlanceHistory(logger) as Boolean {
+    fuelGuardQuickReset(201, {"result" => "ok"});
+
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return FuelGuardQueue.pendingCount() == 0
+        && FuelGuardGlanceState.todayFuelCountForTest() == 1
+        && glance.countLabelForTest().equals("1 today");
+}
+
+(:test)
+function testFuelGuardQuickLogOfflineLogsStillUpdateGlanceHistory(logger) as Boolean {
+    fuelGuardQuickReset(500, null);
+
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL));
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL_HYDRATION));
+    FuelGuardApi.trySync(true);
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return FuelGuardQueue.pendingCount() == 2
+        && FuelGuardGlanceState.todayFuelCountForTest() == 2
+        && glance.countLabelForTest().equals("2 today");
+}
+
+(:test)
+function testFuelGuardQuickLogGlanceResetsCountOnLocalDayRollover(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    var yesterday = FuelGuardEvents.nowSeconds() - (30 * 60 * 60);
+    FuelGuardGlanceState.setLastFuelSecondsForTest(yesterday);
+    FuelGuardGlanceState.setTodayFuelCountForTest(9, FuelGuardGlanceState.localDateKeyForTest(yesterday));
+
+    var glance = new FuelGuardQuickLogGlance();
+
+    return glance.metricForTest().equals("Ready to log")
+        && glance.labelForTest().equals("")
+        && glance.countLabelForTest().equals("")
+        && FuelGuardGlanceState.todayFuelCountForTest() == 0;
 }
 
 (:test)

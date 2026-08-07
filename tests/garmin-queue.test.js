@@ -550,15 +550,44 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
 test("Quick Log glance shows local fuel status without lifecycle network sync", () => {
   const appSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogGlance.mc");
+  const glanceStateSource = readRepoFile("garmin/quick-log/source/FuelGuardGlanceState.mc");
   const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
+  const onShowSource = readRepoFile("garmin/quick-log/source/FuelGuardQuickLogView.mc");
 
+  assert.doesNotMatch(onStart, /FuelGuardConnection\.configure/);
+  assert.doesNotMatch(onStart, /registerForOAuthMessages/);
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelMetric\(\)/);
-  assert.match(glanceSource, /FuelGuardFeedback\.elapsedFuelLabel\(\)/);
-  assert.match(glanceSource, /FuelGuardQueue\.pendingCount\(\)/);
-  assert.match(glanceSource, /getTextWidthInPixels/);
+  assert.match(onShowSource, /FuelGuardConnection\.configure\(FuelGuardConnection\.APP_QUICK_LOG\)/);
+  assert.match(onShowSource, /FuelGuardConnection\.registerForOAuthMessages\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.metric\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.label\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.countLabel\(\)/);
+  assert.doesNotMatch(glanceSource, /FuelGuardFeedback/);
+  assert.doesNotMatch(glanceSource, /FuelGuardQueue/);
+  assert.doesNotMatch(glanceSource, /FuelGuardConnection|FuelGuardHealth|Communications|Authentication/);
+  assert.doesNotMatch(glanceSource, /getTextWidthInPixels/);
   assert.doesNotMatch(glanceSource, /Open to log/);
+  assert.match(glanceStateSource, /\(:glance\)\s*module FuelGuardGlanceState/);
+  assert.match(glanceStateSource, /LAST_FUEL_KEY = "fg_last_fuel_at"/);
+  assert.match(glanceStateSource, /TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count"/);
+  assert.match(glanceStateSource, /TODAY_FUEL_DATE_KEY = "fg_today_fuel_date"/);
+  assert.match(glanceStateSource, /Ready to log/);
+  assert.match(glanceStateSource, /since fuel/);
+  assert.match(glanceStateSource, /\$1\$ today/);
+  assert.doesNotMatch(glanceStateSource, /FuelGuardQueue|FuelGuardConnection|FuelGuardApi|FuelGuardHealth|Communications|Authentication/);
+});
+
+test("Garmin fuel events update local glance state without counting hydration-only events", () => {
+  const eventsSource = readRepoFile("garmin/shared/source/FuelGuardEvents.mc");
+  const apiSource = readRepoFile("garmin/shared/source/FuelGuardApi.mc");
+
+  assert.match(eventsSource, /FuelGuardGlanceState\.recordFuel\(timestamp\)/);
+  assert.match(eventsSource, /WatchUi\.requestUpdate\(\)/);
+  assertSourceOrder(eventsSource, "var normalizedType = normalizeType(type);", "FuelGuardGlanceState.recordFuel(timestamp);");
+  assert.match(eventsSource, /normalizedType\.equals\(TYPE_FUEL\) \|\| normalizedType\.equals\(TYPE_FUEL_HYDRATION\)/);
+  assert.doesNotMatch(eventsSource, /normalizedType\.equals\(TYPE_HYDRATION\)[\s\S]{0,120}FuelGuardGlanceState\.recordFuel/);
+  assert.doesNotMatch(apiSource, /TODAY_FUEL_COUNT_KEY|TODAY_FUEL_DATE_KEY|fg_today_fuel_count|fg_today_fuel_date/);
 });
 
 test("Quick Log wearable copy uses short safe labels", () => {
