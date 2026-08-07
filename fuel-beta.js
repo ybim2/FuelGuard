@@ -30,6 +30,7 @@
   const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
   const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
   const LOG_HABIT_METRIC_IDS = new Set(["logs"]);
+  const SLEEPY_CHECKIN_TYPE = "sleepy";
   const DEMAND_BLOCK_TYPES = new Set(["training", "work"]);
   const TRAINING_DEMAND_TYPES = [
     { value: "run", label: "Run" },
@@ -910,6 +911,7 @@
     if (type === "concentration") return "Concentration check-in";
     if (type === "hunger") return "Hunger check-in";
     if (type === "fatigue") return "Fatigue check-in";
+    if (type === SLEEPY_CHECKIN_TYPE) return "Sleepy";
     if (type === "work") return "Work check-in";
     if (type === "training") return "Training check-in";
     if (type === "daily") return "Daily check-in";
@@ -929,10 +931,15 @@
     const payload = logOrPayload?.checkinType ? logOrPayload : checkinPayload(logOrPayload);
     if (!payload) return "";
     const parts = [];
+    if (String(payload.checkinType || "").toLowerCase() === SLEEPY_CHECKIN_TYPE) {
+      parts.push("Noticeable sleepiness / low arousal");
+    }
     const energy = levelLabel(payload.energyLevel, ENERGY_LEVELS);
     const concentration = levelLabel(payload.concentrationLevel, CONCENTRATION_LEVELS);
     if (energy) parts.push(`Energy: ${energy}`);
     if (concentration) parts.push(`Concentration: ${concentration}`);
+    const arousal = simpleLevelLabel(payload.arousalLevel);
+    if (arousal && String(payload.checkinType || "").toLowerCase() !== SLEEPY_CHECKIN_TYPE) parts.push(`Arousal: ${arousal}`);
     const hunger = simpleLevelLabel(payload.hungerLevel);
     const fatigue = simpleLevelLabel(payload.fatigueLevel);
     if (hunger) parts.push(`Hunger: ${hunger === "High" ? "Noted" : hunger}`);
@@ -951,8 +958,14 @@
     if (isCrashLog(log)) return true;
     const payload = checkinPayload(log);
     if (!payload) return false;
+    if (String(payload.checkinType || "").toLowerCase() === SLEEPY_CHECKIN_TYPE) return false;
     const level = String(payload.energyLevel || "").toLowerCase();
     return ["low", "very_low"].includes(level);
+  }
+
+  function isSleepyLog(log) {
+    const payload = checkinPayload(log);
+    return String(payload?.checkinType || "").toLowerCase() === SLEEPY_CHECKIN_TYPE;
   }
 
   function isPoorConcentrationCheckinLog(log) {
@@ -1881,6 +1894,8 @@
       ? "Hydration logged"
       : type === "fuel_hydration"
         ? "Fuel + hydration logged"
+        : type === SLEEPY_CHECKIN_TYPE
+          ? "Sleepy logged"
         : "Fuel logged";
     quickLogConfirmation = `${label} · ${formatClock(date)}`;
     if (quickLogConfirmationTimer && typeof clearTimeout === "function") clearTimeout(quickLogConfirmationTimer);
@@ -1953,6 +1968,14 @@
 
   function recordHydration() {
     recordRhythmLog("hydration", { source: "manual" });
+  }
+
+  function recordSleepy() {
+    recordCheckinEvent({
+      checkinType: SLEEPY_CHECKIN_TYPE,
+      context: "general_day",
+      arousalLevel: SLEEPY_CHECKIN_TYPE
+    });
   }
 
   function logById(id) {
@@ -2102,6 +2125,7 @@
       concentrationLevel: String(input.concentrationLevel || "").toLowerCase(),
       hungerLevel: String(input.hungerLevel || "").toLowerCase(),
       fatigueLevel: String(input.fatigueLevel || "").toLowerCase(),
+      arousalLevel: String(input.arousalLevel || "").toLowerCase(),
       breakTaken: String(input.breakTaken || "").toLowerCase(),
       fuelledDuringBreak: String(input.fuelledDuringBreak || "").toLowerCase(),
       recoveryFuelCompleted: String(input.recoveryFuelCompleted || "").toLowerCase(),
@@ -2140,6 +2164,7 @@
     if (typeof addActivityEntry === "function") {
       addActivityEntry("checkinLogged", `${checkinTypeLabel(payload)} saved.`, { dedupeDaily: false });
     }
+    if (payload.checkinType === SLEEPY_CHECKIN_TYPE) setQuickLogConfirmation(SLEEPY_CHECKIN_TYPE, loggedAt);
     save();
     renderAll();
     window.fuelGuardCloud?.saveLog(log);
@@ -2368,7 +2393,7 @@
   } = {}) {
     const normalizedLogs = (Array.isArray(logs) ? logs : [])
       .map(log => ({ ...log, date: logDate(log) }))
-      .filter(log => log.date && ["fuel", "hydration", "fuel_hydration"].includes(logType(log)))
+      .filter(log => log.date && (["fuel", "hydration", "fuel_hydration"].includes(logType(log)) || isSleepyLog(log)))
       .sort((a, b) => a.date - b.date);
     if (!normalizedLogs.length) {
       return `<p class="muted fuel-daily-empty">${safeText(emptyCopy)}</p>`;
@@ -2377,15 +2402,16 @@
       <div class="beta-event-timeline" role="list">
         ${normalizedLogs.map(log => {
           const type = logType(log);
+          const displayType = isSleepyLog(log) ? "sleepy" : type;
           const id = String(log?.id || log?.localId || log?.cloudId || "");
           const selected = allowEditing && id && selectedId === id;
-          const iconType = type === "hydration" ? "hydration" : "fuel";
+          const iconType = isSleepyLog(log) ? "sleepy" : type === "hydration" ? "hydration" : "fuel";
           const canEdit = allowEditing && ["fuel", "hydration", "fuel_hydration"].includes(type);
           return `
-            <article class="beta-event-timeline-item ${safeText(type)} ${selected ? "selected" : ""}" role="listitem">
+            <article class="beta-event-timeline-item ${safeText(displayType)} ${selected ? "selected" : ""}" role="listitem">
               <button class="beta-event-timeline-main" type="button" data-toggle-log-actions="${safeText(id)}" aria-expanded="${selected ? "true" : "false"}">
                 <time>${safeText(formatClock(log.date))}</time>
-                <span class="beta-event-timeline-dot ${safeText(type)}" aria-hidden="true">${dailyIcon(iconType)}</span>
+                <span class="beta-event-timeline-dot ${safeText(displayType)}" aria-hidden="true">${dailyIcon(iconType)}</span>
                 <span class="beta-event-timeline-copy">
                   <strong>${safeText(logTypeLabel(log))}</strong>
                   <small>${showSource ? safeText(timelineSourceLabel(log)) : ""}</small>
@@ -2406,14 +2432,14 @@
     if (!target) return;
     const key = todayViewKey();
     const logs = logsForDay(key)
-      .filter(log => ["fuel", "hydration", "fuel_hydration"].includes(logType(log)))
+      .filter(log => ["fuel", "hydration", "fuel_hydration"].includes(logType(log)) || isSleepyLog(log))
       .sort((a, b) => (logDate(a) || 0) - (logDate(b) || 0));
     const latest = logs[logs.length - 1] || null;
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} log${logs.length === 1 ? "" : "s"} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
     if (latestEl) latestEl.textContent = latest ? `${logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "No logs yet";
     target.hidden = false;
     target.innerHTML = renderEventTimeline(logs, {
-      emptyCopy: "No fuel or hydration logged yet today. Your first log will appear here.",
+      emptyCopy: "No fuel, hydration, or sleepy logs yet today. Your first log will appear here.",
       allowEditing: false,
       selectedId: selectedTodayTimelineLogId
     });
@@ -2433,6 +2459,7 @@
       gap: '<path d="M4 12h5"/><path d="M15 12h5"/><path d="M9 8v8"/><path d="M15 8v8"/><path d="M7 18h10"/>',
       warning: '<path d="m12 3 9 16H3L12 3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
       energy: '<path d="m13 2-8 12h6l-1 8 8-12h-6l1-8z"/>',
+      sleepy: '<path d="M18 4a7.5 7.5 0 1 0 2 14.5A8.5 8.5 0 0 1 18 4z"/><path d="M6 8h4l-4 4h4"/><path d="M13 7h3l-3 3h3"/>',
       heart: '<path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
       score: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="m12 14 4-5"/><path d="M6.5 18h11"/>',
       shield: '<path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/>',
@@ -2754,6 +2781,7 @@
   function pointStyleForLog(log) {
     const type = logType(log);
     if (type === "hydration") return { className: "hydration", label: "H" };
+    if (isSleepyLog(log)) return { className: "sleepy", label: "Zz" };
     if (type === "checkin") return { className: "checkin", label: "C" };
     if (type === "crash") return { className: "crash", label: "!" };
     if (type === "fuel_hydration") return { className: "combined", label: "F+H" };
@@ -5728,15 +5756,16 @@
     const date = logDate(log.timestamp || log);
     const displayNote = noteOverride || displayNoteForLog(log);
     const type = logType(log);
+    const displayType = isSleepyLog(log) ? "sleepy" : type;
     const id = String(log?.id || log?.localId || log?.cloudId || "");
     const note = displayNote ? `<small>${safeText(displayNote)}</small>` : "";
     const method = log.entryMethod && log.entryMethod !== "live" ? `<small>${safeText(log.entryMethod)}</small>` : "";
     const source = log.source && log.source !== "manual" ? `<small>${safeText(log.source)}</small>` : "";
     const canEdit = ["fuel", "hydration", "fuel_hydration"].includes(type);
-    const iconType = type === "hydration" ? "hydration" : type === "checkin" || type === "crash" ? "energy" : "fuel";
+    const iconType = isSleepyLog(log) ? "sleepy" : type === "hydration" ? "hydration" : type === "checkin" || type === "crash" ? "energy" : "fuel";
     const iconClass = type === "hydration" ? "shield" : type === "checkin" || type === "crash" ? "amber" : "";
     return `
-      <article class="beta-history-log-event ${safeText(type)}">
+      <article class="beta-history-log-event ${safeText(displayType)}">
         <span class="beta-icon-disc ${safeText(iconClass)}">${dailyIcon(iconType)}</span>
         <div>
           <strong>${date ? formatClock(date) : "--"}</strong>
@@ -9545,6 +9574,9 @@
     const hydrationButton = document.getElementById("graphLogHydrationButton");
     if (hydrationButton) hydrationButton.disabled = false;
 
+    const sleepyButton = document.getElementById("graphLogSleepyButton");
+    if (sleepyButton) sleepyButton.disabled = false;
+
     const undo = document.getElementById("undoLatestFoodLog");
     if (undo) undo.disabled = !logsForDay(todayViewKey()).length;
 
@@ -9779,6 +9811,12 @@
     if (hydrationButton) {
       event.preventDefault();
       recordHydration();
+      return;
+    }
+    const sleepyButton = event.target.closest("#graphLogSleepyButton");
+    if (sleepyButton) {
+      event.preventDefault();
+      recordSleepy();
       return;
     }
     const timelineLogToggle = event.target.closest("[data-toggle-log-actions]");

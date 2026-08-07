@@ -590,8 +590,16 @@
   border-radius: 13px;
 }
 
+.beta-sleepy-button {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  border-radius: 13px;
+}
+
 .beta-log-entry-card #graphLogFoodButton,
-.beta-log-entry-card #graphLogHydrationButton {
+.beta-log-entry-card #graphLogHydrationButton,
+.beta-log-entry-card #graphLogSleepyButton {
   min-height: 44px;
   margin-top: 0;
   padding: 8px 7px;
@@ -607,7 +615,8 @@
 }
 
 .beta-log-entry-card #graphLogFoodButton span,
-.beta-log-entry-card #graphLogHydrationButton span {
+.beta-log-entry-card #graphLogHydrationButton span,
+.beta-log-entry-card #graphLogSleepyButton span {
   display: block;
 }
 
@@ -4217,6 +4226,11 @@ body.beta-mvp .beta-event-timeline-dot.hydration {
   background: rgba(59,130,246,.12);
 }
 
+body.beta-mvp .beta-event-timeline-dot.sleepy {
+  color: #8a5b08;
+  background: rgba(255, 220, 135, .32);
+}
+
 body.beta-mvp .beta-event-timeline-dot svg {
   width: 17px;
   height: 17px;
@@ -5673,7 +5687,7 @@ body.beta-mvp .beta-history-demand-row small {
 
 body.beta-mvp .beta-log-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 150px));
+  grid-template-columns: repeat(3, minmax(0, 118px));
   gap: 10px;
   align-items: stretch;
   width: 100%;
@@ -5683,7 +5697,8 @@ body.beta-mvp .beta-log-actions {
 }
 
 body.beta-mvp .beta-log-entry-card #graphLogFoodButton,
-body.beta-mvp .beta-log-entry-card #graphLogHydrationButton {
+body.beta-mvp .beta-log-entry-card #graphLogHydrationButton,
+body.beta-mvp .beta-log-entry-card #graphLogSleepyButton {
   min-height: 58px;
   border-radius: 16px;
   font-size: .94rem;
@@ -6289,6 +6304,20 @@ body.beta-mvp .beta-hydration-button {
   border-color: rgba(var(--fg-hydration-rgb), .26);
   background: linear-gradient(135deg, rgba(var(--fg-hydration-rgb), .16), #ffffff);
   color: #063f46;
+}
+
+body.beta-mvp #graphLogSleepyButton,
+body.beta-mvp .beta-sleepy-button {
+  border-color: rgba(147, 113, 43, .22);
+  background: linear-gradient(135deg, rgba(255, 220, 135, .34), #ffffff);
+  color: #493917;
+}
+
+body.beta-mvp .beta-log-button-icon {
+  font-size: .78em;
+  font-weight: 900;
+  line-height: 1;
+  opacity: .78;
 }
 
 body.beta-mvp button:focus-visible,

@@ -136,6 +136,7 @@
     if (type === "concentration") return "Concentration check-in";
     if (type === "hunger") return "Hunger check-in";
     if (type === "fatigue") return "Fatigue check-in";
+    if (type === "sleepy") return "Sleepy";
     if (type === "work") return "Work check-in";
     if (type === "training") return "Training check-in";
     if (type === "daily") return "Daily check-in";
@@ -1187,6 +1188,7 @@
     _test: {
       normalizeSource,
       normalizeType,
+      rowForLog,
       rowToLog
     }
   };
