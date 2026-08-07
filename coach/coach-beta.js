@@ -1,6 +1,7 @@
 // Fuel Guard Coach Beta. Read-only coach views over explicitly shared athlete data.
 (() => {
   const domain = window.FuelGuardDomain;
+  const adherence = window.FuelGuardAdherence;
   const TABLES = {
     profiles: "fuel_user_profiles",
     relationships: "fuel_coach_athletes",
@@ -21,7 +22,10 @@
     savedGroupMembers: "fuel_saved_group_members",
     trainingSessions: "fuel_training_sessions",
     trainingAssignments: "fuel_training_session_athletes",
-    trainingContext: "fuel_training_operational_context"
+    trainingContext: "fuel_training_operational_context",
+    dailyContexts: "fuel_daily_contexts",
+    gapBarriers: "fuel_gap_barriers",
+    demandBlocks: "fuel_demand_blocks"
   };
   const PATTERN_TYPES = [
     { id: "fuel", label: "Fuel", empty: "No fuel logged today", noun: "fuel log" },
@@ -71,6 +75,9 @@
     trainingContext: [],
     organisationFeaturesReady: true,
     selectedGroupId: "",
+    dailyContexts: [],
+    gapBarriers: [],
+    exactTrainingSessions: [],
     roster: [],
     weeklyBrief: null,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -245,6 +252,41 @@
       };
       return map;
     }, {});
+  }
+
+  function adherenceSchemaMissing(error) {
+    return /fuel_daily_contexts|fuel_gap_barriers|fuel_demand_blocks|fuel_training_sessions|fuel_training_session_athletes|schema cache|does not exist|42p01|pgrst205/i.test(`${error?.code || ""} ${error?.message || ""}`);
+  }
+
+  function adherenceRowsForAthlete(athleteId) {
+    const userId = String(athleteId || "");
+    return {
+      dailyContexts: state.dailyContexts.filter(row => String(row.user_id || row.userId || "") === userId),
+      barrierResponses: state.gapBarriers.filter(row => String(row.user_id || row.userId || "") === userId),
+      exactSessions: state.exactTrainingSessions.filter(row => String(row.athlete_id || row.user_id || "") === userId)
+    };
+  }
+
+  function adherenceForAthlete(athleteId, logs, { includeOngoing = true, referenceTime = new Date() } = {}) {
+    if (!adherence) return { gaps: [], summary: null };
+    const athleteLogs = (logs || state.logs).filter(log => String(log.userId || log.user_id || "") === String(athleteId || ""));
+    const context = adherenceRowsForAthlete(athleteId);
+    const target = targetsByUser()[athleteId]?.maximumFuelGapMinutes;
+    const gaps = adherence.enrichGaps(adherence.fuelGapEpisodes({
+      logs: athleteLogs,
+      targetMinutes: target,
+      referenceTime,
+      includeOngoing
+    }), context);
+    return {
+      gaps,
+      summary: adherence.summarizeAdherence({
+        gaps,
+        sleepyLogs: athleteLogs,
+        dailyContexts: context.dailyContexts
+      }),
+      ...context
+    };
   }
 
   function rebuildRoster() {
@@ -938,12 +980,13 @@
       contexts: report.contexts,
       executiveSummary: report.executiveSummary,
       comparison: report.comparison,
-      weekly: report.weekly
+      weekly: report.weekly,
+      adherence: report.adherence || null
     };
   }
 
   function reportMetricRows(report) {
-    return [
+    const rows = [
       ["Logging coverage", `${report.coverage.loggedDays} / ${report.coverage.totalDays} days`, pct(report.coverage.loggedPct)],
       ["Fuel logs / active day", metricNumber(report.consistency.avgFuelLogsPerActiveDay), "Average"],
       ["Hydration logs / active day", metricNumber(report.consistency.avgHydrationLogsPerActiveDay), "Average"],
@@ -958,6 +1001,17 @@
       ["Most common Sleepy window", report.sleepy.commonWindow?.label || "Not enough Sleepy data yet.", "Recurring Sleepy time"],
       ["Sleepy after long gap", report.sleepy.total ? `${report.sleepy.afterLongGapCount} / ${report.sleepy.total}` : "No Sleepy events", `>${domain.duration(report.sleepy.targetMinutes || 0)} target gap`]
     ];
+    if (report.adherence) {
+      rows.push(
+        ["Behavioural gaps analysed", String(report.adherence.behaviouralGapCount), `${report.adherence.loggingUncertainCount} timing-uncertain excluded`],
+        ["Target exceedances", String(report.adherence.targetExceedanceCount), `${report.adherence.daysWithinTarget} days within target`],
+        ["Average exceedance", domain.duration(report.adherence.averageExceededMinutes), `Median ${domain.duration(report.adherence.medianExceededMinutes)}`],
+        ["Training overlap", `${report.adherence.trainingOverlapCount} / ${report.adherence.trainingOverlapDenominator}`, "Exact sessions preferred; periods are labelled as fallback"],
+        ["Most common barrier", report.adherence.mostCommonBarrier?.label || "Not enough responses", report.adherence.mostCommonBarrier ? `${report.adherence.mostCommonBarrier.count} occurrence${report.adherence.mostCommonBarrier.count === 1 ? "" : "s"}` : ""],
+        ["Data quality", `${report.adherence.loggingUncertainCount} timing-uncertain`, `${report.adherence.loggingUncertainPct}% of meaningful recorded gaps`]
+      );
+    }
+    return rows;
   }
 
   function timeFromMinutes(minutes) {
@@ -1017,6 +1071,41 @@
     `;
   }
 
+  function renderAdherenceReportSection(report) {
+    const metrics = report.adherence;
+    if (!metrics) return "";
+    const barrierRows = metrics.barrierCounts?.length
+      ? metrics.barrierCounts.map(item => `<li><span>${safe(item.label)}</span><strong>${safe(item.count)}</strong></li>`).join("")
+      : `<li><span>No athlete-reported barriers yet</span><strong>--</strong></li>`;
+    const period = metrics.trainingPeriodCounts?.[0];
+    return `
+      <section class="coach-report-section">
+        <h3>Target Adherence and Context</h3>
+        <div class="coach-report-adherence-groups">
+          <article>
+            <h4>Target Adherence</h4>
+            <p><strong>${safe(Number.isFinite(metrics.targetAdherencePct) ? `${metrics.targetAdherencePct}%` : "Not enough data")}</strong> days within the configured gap target.</p>
+            <p>${safe(metrics.targetExceedanceCount)} confirmed exceedance${metrics.targetExceedanceCount === 1 ? "" : "s"}; average ${safe(domain.duration(metrics.averageExceededMinutes))}, median ${safe(domain.duration(metrics.medianExceededMinutes))} over.</p>
+          </article>
+          <article>
+            <h4>Training Relationship</h4>
+            <p><strong>${safe(metrics.trainingOverlapCount)} / ${safe(metrics.trainingOverlapDenominator)}</strong> confirmed excessive gaps overlapped known training timing or a period fallback.</p>
+            <p>${safe(period ? `${period.label} was the most represented fallback period (${period.count}).` : "No repeated manual training-period pattern yet.")}</p>
+          </article>
+          <article>
+            <h4>Reported Barriers</h4>
+            <ul class="coach-report-compact-list">${barrierRows}</ul>
+          </article>
+          <article>
+            <h4>Data Quality</h4>
+            <p><strong>${safe(metrics.behaviouralGapCount)}</strong> behavioural gap${metrics.behaviouralGapCount === 1 ? "" : "s"} analysed.</p>
+            <p><strong>${safe(metrics.loggingUncertainCount)}</strong> timing-uncertain gap${metrics.loggingUncertainCount === 1 ? "" : "s"} excluded. Missing logs are not treated as proven missed fuelling.</p>
+          </article>
+        </div>
+      </section>
+    `;
+  }
+
   function renderReport(report) {
     if (!report) return `<section class="coach-card"><div class="coach-empty">Generate a review to preview structured report sections.</div></section>`;
     return `
@@ -1064,6 +1153,8 @@
             `).join("")}
           </div>
         </section>
+
+        ${renderAdherenceReportSection(report)}
 
         <section class="coach-report-section">
           <h3>Sleepy Patterns</h3>
@@ -1317,6 +1408,85 @@
     `;
   }
 
+  function sleepyEventsNearGap(gap, logs) {
+    const followUp = new Date(gap.end.getTime() + 120 * 60000);
+    return (logs || []).filter(log => domain.isSleepyLog(log)).filter(log => {
+      const date = domain.logDate(log);
+      return date && date >= gap.start && date <= followUp;
+    });
+  }
+
+  function trainingGapText(gap) {
+    if (gap.training?.precision === "exact" && gap.training.sessions.length) {
+      return gap.training.sessions.map(session => `${domain.formatClock(session.start)}-${domain.formatClock(session.end)}`).join(", ");
+    }
+    if (gap.training?.precision === "period" && gap.training.periods.length) {
+      return `${gap.training.periods.map(period => period.label).join(" + ")} (period only)`;
+    }
+    return gap.training?.precision === "exact" ? "No overlap with known exact session" : "No training overlap recorded";
+  }
+
+  function renderAdherenceGapCard(gap, logs) {
+    const sleepy = sleepyEventsNearGap(gap, logs);
+    const response = gap.barrier;
+    const uncertain = response?.dataQualityStatus === "timing_uncertain";
+    return `
+      <article class="coach-adherence-gap ${uncertain ? "uncertain" : ""}">
+        <div class="coach-adherence-gap-heading">
+          <div>
+            <span>${safe(domain.formatClock(gap.start))} to ${safe(domain.formatClock(gap.end))}</span>
+            <strong>${safe(domain.duration(gap.actualMinutes))}</strong>
+          </div>
+          <span class="coach-status-chip ${uncertain ? "steady" : "urgent"}">${safe(uncertain ? "Timing uncertain" : gap.ongoing ? "Ongoing" : "Target exceeded")}</span>
+        </div>
+        <div class="coach-adherence-gap-grid">
+          <div><span>Target</span><strong>${safe(domain.duration(gap.targetMinutes))}</strong></div>
+          <div><span>Exceeded by</span><strong>${safe(domain.duration(gap.exceededMinutes))}</strong></div>
+          <div><span>Training</span><strong>${safe(trainingGapText(gap))}</strong></div>
+          <div><span>Athlete response</span><strong>${safe(response?.barrierLabel || (gap.ongoing ? "Not asked for an ongoing gap" : "Not answered"))}</strong></div>
+        </div>
+        ${response?.note ? `<p class="coach-note">Athlete note: ${safe(response.note)}</p>` : ""}
+        ${uncertain ? `<p class="coach-data-quality-note">The athlete reported fuelling without an exact log. Keep the recorded timeline, but exclude this episode from confirmed behavioural-adherence calculations.</p>` : ""}
+        ${sleepy.length ? `<p class="coach-note">Sleepy was recorded ${sleepy.map(log => domain.formatClock(domain.logDate(log))).join(", ")} during or within two hours after this gap. This is an observed timing association, not a causal conclusion.</p>` : ""}
+      </article>
+    `;
+  }
+
+  function renderAdherenceDetail(item) {
+    if (!adherence) return "";
+    const athleteId = item.athlete.userId;
+    const athleteLogs = state.logs.filter(log => String(log.userId || "") === String(athleteId));
+    const result = adherenceForAthlete(athleteId, athleteLogs);
+    const relevant = result.gaps
+      .filter(gap => gap.isMeaningful || gap.barrier || sleepyEventsNearGap(gap, athleteLogs).length)
+      .sort((a, b) => b.end - a.end)
+      .slice(0, 6);
+    const summary = result.summary;
+    return `
+      <section class="coach-card coach-adherence-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Fuel-gap adherence</h2>
+            <p>Meaningful timing gaps only, with schedule, athlete response, and data-quality context.</p>
+          </div>
+        </div>
+        ${summary ? `
+          <div class="coach-detail-grid">
+            <article class="coach-metric"><span>Days within target</span><strong>${safe(Number.isFinite(summary.targetAdherencePct) ? `${summary.targetAdherencePct}%` : "Not enough data")}</strong></article>
+            <article class="coach-metric"><span>Target exceedances</span><strong>${safe(summary.targetExceedanceCount)}</strong></article>
+            <article class="coach-metric"><span>Average exceedance</span><strong>${safe(domain.duration(summary.averageExceededMinutes))}</strong></article>
+            <article class="coach-metric"><span>Training overlap</span><strong>${safe(`${summary.trainingOverlapCount} / ${summary.trainingOverlapDenominator}`)}</strong></article>
+          </div>
+        ` : ""}
+        <div class="coach-adherence-gap-list">
+          ${relevant.length ? relevant.map(gap => renderAdherenceGapCard(gap, athleteLogs)).join("") : `<div class="coach-empty compact">No meaningful excessive fuel gaps in the loaded period.</div>`}
+        </div>
+        ${summary?.loggingUncertainCount ? `<p class="coach-data-quality-note">${safe(summary.loggingUncertainCount)} recorded gap${summary.loggingUncertainCount === 1 ? " was" : "s were"} marked as timing-uncertain and excluded from confirmed behavioural-gap metrics.</p>` : ""}
+        ${relevant.length ? `<button class="secondary coach-adherence-intervention" type="button" data-open-intervention-builder="${safe(athleteId)}">Record an intervention from this evidence</button>` : ""}
+      </section>
+    `;
+  }
+
   function renderAthleteDetail() {
     const target = $("coachAthleteDetail");
     if (!target) return;
@@ -1352,6 +1522,8 @@
           </article>
         </div>
       </section>
+
+      ${renderAdherenceDetail(item)}
 
       <section class="coach-card">
         <div class="coach-card-heading compact">
@@ -1858,6 +2030,9 @@
         state.attentionItems = [];
         state.schedules = [];
         resetOrganisationData();
+        state.dailyContexts = [];
+        state.gapBarriers = [];
+        state.exactTrainingSessions = [];
         state.roster = [];
         state.weeklyBrief = null;
         state.coachLoading = false;
@@ -1887,6 +2062,9 @@
       state.nudges = [];
       state.dataHealthRows = [];
       state.schedules = [];
+      state.dailyContexts = [];
+      state.gapBarriers = [];
+      state.exactTrainingSessions = [];
 
       if (athleteIds.length) {
         const { data: profiles, error: profilesError } = await state.client
@@ -1930,6 +2108,78 @@
           throw targetsError;
         } else {
           state.targets = targets || [];
+        }
+
+        const [dailyContextsResult, gapBarriersResult, demandBlocksResult] = await Promise.all([
+          state.client
+            .from(TABLES.dailyContexts)
+            .select("id,user_id,context_date,environment_context,training_periods,created_at,updated_at")
+            .in("user_id", athleteIds)
+            .gte("context_date", dashboardPeriod.startKey)
+            .lte("context_date", dashboardPeriod.endKey)
+            .order("context_date", { ascending: true }),
+          state.client
+            .from(TABLES.gapBarriers)
+            .select("id,user_id,gap_key,preceding_fuel_log_id,following_fuel_log_id,gap_start,gap_end,target_minutes,actual_minutes,exceeded_minutes,barrier_reason,note,response_status,data_quality_status,was_ongoing,training_overlap_kind,training_reference_type,training_reference_id,created_at,updated_at")
+            .in("user_id", athleteIds)
+            .gte("gap_start", dashboardBounds.start.toISOString())
+            .lt("gap_start", dashboardBounds.endExclusive.toISOString())
+            .order("gap_start", { ascending: true }),
+          state.client
+            .from(TABLES.demandBlocks)
+            .select("id,user_id,date,type,start_time,end_time,title,session_type,created_at,updated_at")
+            .in("user_id", athleteIds)
+            .eq("type", "training")
+            .gte("start_time", dashboardBounds.start.toISOString())
+            .lt("start_time", dashboardBounds.endExclusive.toISOString())
+            .order("start_time", { ascending: true })
+        ]);
+        for (const result of [dailyContextsResult, gapBarriersResult, demandBlocksResult]) {
+          if (result.error && !adherenceSchemaMissing(result.error)) throw result.error;
+        }
+        state.dailyContexts = dailyContextsResult.error ? [] : dailyContextsResult.data || [];
+        state.gapBarriers = gapBarriersResult.error ? [] : gapBarriersResult.data || [];
+        state.exactTrainingSessions = (demandBlocksResult.error ? [] : demandBlocksResult.data || []).map(row => ({
+          ...row,
+          athlete_id: row.user_id,
+          source: "demand_block"
+        }));
+
+        const garminTimingResult = await state.client.rpc("fuel_coach_training_activity_timing", {
+          p_athlete_ids: athleteIds,
+          p_start: dashboardBounds.start.toISOString(),
+          p_end: dashboardBounds.endExclusive.toISOString()
+        });
+        if (garminTimingResult.error && !adherenceSchemaMissing(garminTimingResult.error)) throw garminTimingResult.error;
+        state.exactTrainingSessions.push(...(garminTimingResult.data || []).map(row => ({
+          id: row.activity_id,
+          athlete_id: row.athlete_id,
+          starts_at: row.starts_at,
+          ends_at: row.ends_at,
+          activity_type: row.activity_type,
+          source: "garmin"
+        })));
+
+        const assignmentsResult = await state.client
+          .from(TABLES.trainingAssignments)
+          .select("session_id,athlete_id")
+          .in("athlete_id", athleteIds);
+        if (assignmentsResult.error && !adherenceSchemaMissing(assignmentsResult.error)) throw assignmentsResult.error;
+        const assignments = assignmentsResult.error ? [] : assignmentsResult.data || [];
+        const sessionIds = [...new Set(assignments.map(row => row.session_id).filter(Boolean))];
+        if (sessionIds.length) {
+          const sessionsResult = await state.client
+            .from(TABLES.trainingSessions)
+            .select("id,session_date,starts_at,ends_at,session_type,session_name,source,source_provider,external_session_id")
+            .in("id", sessionIds)
+            .gte("starts_at", dashboardBounds.start.toISOString())
+            .lt("starts_at", dashboardBounds.endExclusive.toISOString());
+          if (sessionsResult.error && !adherenceSchemaMissing(sessionsResult.error)) throw sessionsResult.error;
+          const sessionsById = new Map((sessionsResult.data || []).map(row => [row.id, row]));
+          state.exactTrainingSessions.push(...assignments.map(assignment => {
+            const session = sessionsById.get(assignment.session_id);
+            return session ? { ...session, athlete_id: assignment.athlete_id, source: session.source || "team_schedule" } : null;
+          }).filter(Boolean));
         }
 
         const { data: reports, error: reportsError } = await state.client
@@ -2647,6 +2897,79 @@
     return (data || []).map(domain.normalizeLog).filter(Boolean);
   }
 
+  async function fetchAthleteAdherenceContext(athleteId, period) {
+    if (!adherence) return { dailyContexts: [], barrierResponses: [], exactSessions: [] };
+    const bounds = domain.periodQueryBounds(period, state.timeZone);
+    const [contexts, barriers, demandBlocks, assignments] = await Promise.all([
+      state.client
+        .from(TABLES.dailyContexts)
+        .select("id,user_id,context_date,environment_context,training_periods,created_at,updated_at")
+        .eq("user_id", athleteId)
+        .gte("context_date", period.startKey)
+        .lte("context_date", period.endKey),
+      state.client
+        .from(TABLES.gapBarriers)
+        .select("id,user_id,gap_key,preceding_fuel_log_id,following_fuel_log_id,gap_start,gap_end,target_minutes,actual_minutes,exceeded_minutes,barrier_reason,note,response_status,data_quality_status,was_ongoing,training_overlap_kind,training_reference_type,training_reference_id,created_at,updated_at")
+        .eq("user_id", athleteId)
+        .gte("gap_start", bounds.start.toISOString())
+        .lt("gap_start", bounds.endExclusive.toISOString()),
+      state.client
+        .from(TABLES.demandBlocks)
+        .select("id,user_id,date,type,start_time,end_time,title,session_type,created_at,updated_at")
+        .eq("user_id", athleteId)
+        .eq("type", "training")
+        .gte("start_time", bounds.start.toISOString())
+        .lt("start_time", bounds.endExclusive.toISOString()),
+      state.client
+        .from(TABLES.trainingAssignments)
+        .select("session_id,athlete_id")
+        .eq("athlete_id", athleteId)
+    ]);
+    for (const result of [contexts, barriers, demandBlocks, assignments]) {
+      if (result.error && !adherenceSchemaMissing(result.error)) throw result.error;
+    }
+    const exactSessions = (demandBlocks.data || []).map(row => ({ ...row, athlete_id: athleteId, source: "demand_block" }));
+    const garminTiming = await state.client.rpc("fuel_coach_training_activity_timing", {
+      p_athlete_ids: [athleteId],
+      p_start: bounds.start.toISOString(),
+      p_end: bounds.endExclusive.toISOString()
+    });
+    if (garminTiming.error && !adherenceSchemaMissing(garminTiming.error)) throw garminTiming.error;
+    exactSessions.push(...(garminTiming.data || []).map(row => ({
+      id: row.activity_id,
+      athlete_id: row.athlete_id,
+      starts_at: row.starts_at,
+      ends_at: row.ends_at,
+      activity_type: row.activity_type,
+      source: "garmin"
+    })));
+    const sessionIds = [...new Set((assignments.data || []).map(row => row.session_id).filter(Boolean))];
+    if (sessionIds.length) {
+      const sessions = await state.client
+        .from(TABLES.trainingSessions)
+        .select("id,session_date,starts_at,ends_at,session_type,session_name,source,source_provider,external_session_id")
+        .in("id", sessionIds)
+        .gte("starts_at", bounds.start.toISOString())
+        .lt("starts_at", bounds.endExclusive.toISOString());
+      if (sessions.error && !adherenceSchemaMissing(sessions.error)) throw sessions.error;
+      exactSessions.push(...(sessions.data || []).map(row => ({ ...row, athlete_id: athleteId, source: row.source || "team_schedule" })));
+    }
+    return {
+      dailyContexts: contexts.error ? [] : contexts.data || [],
+      barrierResponses: barriers.error ? [] : barriers.data || [],
+      exactSessions
+    };
+  }
+
+  function reportAdherence(logs, context, targets) {
+    const gaps = adherence.enrichGaps(adherence.fuelGapEpisodes({
+      logs,
+      targetMinutes: targets?.maximumFuelGapMinutes || targets?.maximum_fuel_gap_minutes,
+      includeOngoing: false
+    }), context);
+    return adherence.summarizeAdherence({ gaps, sleepyLogs: logs, dailyContexts: context.dailyContexts });
+  }
+
   async function assembleReportDraft(period) {
     const user = coachUser();
     if (!user) throw new Error("Sign in first.");
@@ -2656,6 +2979,7 @@
     const previous = domain.previousPeriodRange(reportPeriod);
     const currentLogs = await fetchAthleteLogs(item.athlete.userId, reportPeriod.startKey, reportPeriod.endKey);
     const previousLogs = await fetchAthleteLogs(item.athlete.userId, previous.startKey, previous.endKey);
+    const currentAdherenceContext = await fetchAthleteAdherenceContext(item.athlete.userId, reportPeriod);
     const interventions = recordsForAthlete(state.interventions, item);
     const report = domain.buildAthleteReviewReport({
       athlete: item.athlete,
@@ -2670,6 +2994,19 @@
       generatedAt: new Date(),
       timeZone: state.timeZone
     });
+    report.adherence = adherence ? reportAdherence(currentLogs, currentAdherenceContext, targetForAthlete(item.athlete.userId)) : null;
+    if (report.adherence?.targetExceedanceCount) {
+      report.executiveSummary.push(`${report.adherence.targetExceedanceCount} confirmed excessive fuel gap${report.adherence.targetExceedanceCount === 1 ? " was" : "s were"} recorded; average exceedance was ${domain.duration(report.adherence.averageExceededMinutes)}.`);
+    }
+    if (report.adherence?.trainingOverlapDenominator) {
+      report.executiveSummary.push(`${report.adherence.trainingOverlapCount} of ${report.adherence.trainingOverlapDenominator} confirmed excessive gaps overlapped known training timing or an athlete-selected training period.`);
+    }
+    if (report.adherence?.mostCommonBarrier) {
+      report.executiveSummary.push(`${report.adherence.mostCommonBarrier.label} was the most commonly reported barrier (${report.adherence.mostCommonBarrier.count} occurrence${report.adherence.mostCommonBarrier.count === 1 ? "" : "s"}).`);
+    }
+    if (report.adherence?.loggingUncertainCount) {
+      report.executiveSummary.push(`${report.adherence.loggingUncertainCount} recorded gap${report.adherence.loggingUncertainCount === 1 ? " was" : "s were"} marked "Fuelled but forgot to log" and excluded from confirmed behavioural-adherence metrics.`);
+    }
     report.sourceLogs = currentLogs.concat(previousLogs);
     state.generatedReport = report;
     state.reportSaved = false;
@@ -2880,6 +3217,14 @@
     state.selectedReportAthleteId = athleteId || state.selectedReportAthleteId;
     state.currentTab = "reports";
     render();
+    const evidence = adherenceForAthlete(state.selectedReportAthleteId, state.logs).gaps
+      .filter(gap => gap.isMeaningful && gap.barrier?.dataQualityStatus !== "timing_uncertain")
+      .sort((a, b) => b.end - a.end)[0];
+    const observation = $("coachInterventionObservation");
+    if (observation && evidence && !observation.value) {
+      const training = evidence.training?.overlaps ? ` It ${evidence.training.precision === "exact" ? "overlapped known training timing" : "matched an athlete-selected training period"}.` : "";
+      observation.value = `Recorded ${domain.duration(evidence.actualMinutes)} fuel gap exceeded the ${domain.duration(evidence.targetMinutes)} target by ${domain.duration(evidence.exceededMinutes)}.${training}`;
+    }
     $("coachInterventionObservation")?.focus();
   }
 
@@ -2906,6 +3251,18 @@
       ["sleepy", "most_common_sleepy_window", report.sleepy.commonWindow?.label || "", ""],
       ["sleepy", "sleepy_after_long_gap", report.sleepy.afterLongGapCount, `${report.sleepy.afterLongGapPct || 0}%`]
     ];
+    if (report.adherence) {
+      rows.push(
+        ["target_adherence", "days_within_target_percent", report.adherence.targetAdherencePct ?? "", `${report.adherence.daysWithinTarget} / ${report.adherence.measurableDayCount} measured days`],
+        ["target_adherence", "target_exceedances", report.adherence.targetExceedanceCount, "Confirmed recorded intervals"],
+        ["target_adherence", "average_exceeded_minutes", round1(report.adherence.averageExceededMinutes), ""],
+        ["target_adherence", "median_exceeded_minutes", round1(report.adherence.medianExceededMinutes), ""],
+        ["training_relationship", "overlapping_excessive_gaps", report.adherence.trainingOverlapCount, `${report.adherence.trainingOverlapCount} / ${report.adherence.trainingOverlapDenominator}`],
+        ["data_quality", "behavioural_gaps_analysed", report.adherence.behaviouralGapCount, ""],
+        ["data_quality", "timing_uncertain_gaps_excluded", report.adherence.loggingUncertainCount, "Fuelled but forgot to log"]
+      );
+      (report.adherence.barrierCounts || []).forEach(item => rows.push(["reported_barriers", item.label, item.count, "Athlete reported"]));
+    }
     report.contexts.forEach(context => rows.push(["context", context.label, `${context.adherencePct}%`, `${context.metricDays} metric days`]));
     report.comparison.forEach(item => rows.push(["comparison", item.label, item.trendLabel, comparisonDelta(item)]));
     report.executiveSummary.forEach((point, index) => rows.push(["executive_summary", `point_${index + 1}`, point, ""]));
@@ -2986,6 +3343,7 @@
         <ul>${report.executiveSummary.map(point => `<li>${safe(point)}</li>`).join("")}</ul>
         <h2>Consistency and Fuelling Behaviour</h2>
         <table><tbody>${reportMetricRows(report).map(row => `<tr><th>${safe(row[0])}</th><td>${safe(row[1])}</td><td>${safe(row[2])}</td></tr>`).join("")}</tbody></table>
+        ${renderAdherenceReportSection(report)}
         <h2>Sleepy Patterns</h2>
         <p>${safe(report.sleepy.total ? `${report.sleepy.total} Sleepy event${report.sleepy.total === 1 ? " was" : "s were"} recorded in this period.` : "No Sleepy events were recorded in this period.")}</p>
         <p>${safe(report.sleepy.commonWindow ? `Most common Sleepy window: ${report.sleepy.commonWindow.label}.` : "Not enough Sleepy data to identify a recurring window yet.")}</p>

@@ -12,6 +12,147 @@
   --coach-urgent: #b94f35;
 }
 
+.coach-adherence-gap-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.coach-adherence-gap {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgba(185, 79, 53, .2);
+  border-radius: 8px;
+  background: rgba(255, 249, 241, .9);
+}
+
+.coach-adherence-gap.uncertain {
+  border-color: rgba(65, 103, 133, .24);
+  background: rgba(242, 248, 252, .92);
+}
+
+.coach-adherence-gap-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.coach-adherence-gap-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.coach-adherence-gap-heading span,
+.coach-adherence-gap-grid span {
+  color: var(--coach-muted);
+  font-size: .76rem;
+  font-weight: 800;
+}
+
+.coach-adherence-gap-heading strong {
+  color: var(--coach-text);
+  font-size: 1.25rem;
+}
+
+.coach-adherence-gap-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.coach-adherence-gap-grid > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .8);
+}
+
+.coach-adherence-gap-grid strong {
+  overflow-wrap: anywhere;
+  color: var(--coach-text);
+  font-size: .88rem;
+  line-height: 1.35;
+}
+
+.coach-data-quality-note {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 3px solid #416785;
+  background: rgba(65, 103, 133, .08);
+  color: #2d506b;
+  font-size: .82rem;
+  font-weight: 720;
+  line-height: 1.42;
+}
+
+.coach-adherence-intervention {
+  min-height: 42px;
+  margin-top: 12px;
+  border: 1px solid rgba(16, 32, 25, .14);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--coach-text);
+  font: inherit;
+  font-weight: 850;
+}
+
+.coach-report-adherence-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.coach-report-adherence-groups article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--coach-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.coach-report-adherence-groups h4,
+.coach-report-adherence-groups p {
+  margin: 0;
+}
+
+.coach-report-adherence-groups h4 {
+  margin-bottom: 7px;
+  color: var(--coach-text);
+  font-size: .9rem;
+}
+
+.coach-report-adherence-groups p + p {
+  margin-top: 6px;
+}
+
+.coach-report-compact-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coach-report-compact-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .coach-adherence-gap-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coach-report-adherence-groups {
+    grid-template-columns: 1fr;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

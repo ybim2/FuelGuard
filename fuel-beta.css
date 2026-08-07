@@ -8098,3 +8098,96 @@ body.beta-mvp .beta-coach-nudge-item span {
     grid-template-columns: 1fr;
   }
 }
+
+body.beta-mvp .beta-training-today {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+body.beta-mvp .beta-training-today legend {
+  margin-bottom: 4px;
+  color: var(--text, #102019);
+  font-size: .82rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-training-today p {
+  margin: 0;
+  font-size: .82rem;
+}
+
+body.beta-mvp .beta-training-periods,
+body.beta-mvp .beta-gap-barrier-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.beta-mvp .beta-training-periods button,
+body.beta-mvp .beta-gap-barrier-options button {
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid rgba(16, 32, 25, .16);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text, #102019);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 800;
+}
+
+body.beta-mvp .beta-training-periods button[aria-pressed="true"],
+body.beta-mvp .beta-gap-barrier-options button[aria-pressed="true"] {
+  border-color: #176b45;
+  background: #e3f2e9;
+  color: #0b4a2d;
+}
+
+body.beta-mvp .beta-gap-barrier-card {
+  border-color: rgba(192, 112, 30, .32);
+  background: #fffaf2;
+}
+
+body.beta-mvp .beta-gap-barrier-card[hidden] {
+  display: none !important;
+}
+
+body.beta-mvp .beta-gap-barrier-note {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--text, #102019);
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+body.beta-mvp .beta-gap-barrier-note textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 32, 25, .16);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text, #102019);
+  font: inherit;
+  resize: vertical;
+}
+
+body.beta-mvp .beta-gap-barrier-actions {
+  margin-top: 12px;
+}
+
+@media (min-width: 640px) {
+  body.beta-mvp .beta-training-periods {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  body.beta-mvp .beta-gap-barrier-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

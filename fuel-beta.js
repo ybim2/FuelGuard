@@ -23,10 +23,12 @@
   const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
     { value: "work", label: "Working Day" },
+    { value: "shift", label: "Shift" },
+    { value: "travel", label: "Travel" },
     { value: "holiday", label: "Holiday" },
     { value: "competition", label: "Competition Day" }
   ];
-  const DEPRECATED_DAY_TYPES = new Set(["travel"]);
+  const DEPRECATED_DAY_TYPES = new Set();
   const GAP_INSIGHT_METRIC_IDS = new Set(["fuel-gap", "hydration-gap", "low-energy"]);
   const GAP_DURATION_METRIC_IDS = new Set(["fuel-gap", "hydration-gap"]);
   const LOG_HABIT_METRIC_IDS = new Set(["logs"]);
@@ -128,8 +130,8 @@
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "race": "competition",
-    "shift": "work",
-    "shift day": "work",
+    "shift": "shift",
+    "shift day": "shift",
     "training + work day": "work",
     "training-work": "work",
     "work day": "work",
@@ -153,7 +155,8 @@
     "training-work": "Working Day",
     training: "Not set",
     race: "Competition Day",
-    shift: "Working Day",
+    shift: "Shift",
+    travel: "Travel",
     rest: "Not set",
     "double-training": "Not set",
     "standalone-training": "Not set",
@@ -169,6 +172,8 @@
   let selectedTrendSegment = "overview";
   let selectedPlanSubtab = "today";
   let selectedLogPatternType = "fuel";
+  let pendingGapBarrier = null;
+  let selectedGapBarrierReason = "";
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let coachSharingBusy = false;
@@ -780,6 +785,9 @@
     if (!gap.archive || Array.isArray(gap.archive)) gap.archive = {};
     if (!Array.isArray(gap.demandBlocks)) gap.demandBlocks = [];
     if (!Array.isArray(gap.workBreaks)) gap.workBreaks = [];
+    if (!Array.isArray(gap.dailyContexts)) gap.dailyContexts = [];
+    if (!Array.isArray(gap.gapBarriers)) gap.gapBarriers = [];
+    if (!Array.isArray(gap.garminActivities)) gap.garminActivities = [];
     if (!Array.isArray(gap.ridePlans)) gap.ridePlans = [];
     if (!Array.isArray(gap.rideTemplates)) gap.rideTemplates = [];
     if (!gap.activeRide || typeof gap.activeRide !== "object" || Array.isArray(gap.activeRide)) gap.activeRide = null;
@@ -1248,6 +1256,11 @@
       if (date && dateKey(date) === key) log.dayType = nextValue || "";
     });
 
+    const context = dailyContextForKey(key, true);
+    context.environmentContext = nextValue || "";
+    context.updatedAt = new Date().toISOString();
+    context.syncStatus = "pending";
+
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
     if (typeof addActivityEntry === "function") {
       addActivityEntry("dayTypeSelected", `Day context set to ${nextValue ? dayTypeLabel(nextValue) : "Normal"}.`, { dedupeDaily: true });
@@ -1265,6 +1278,146 @@
     });
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
+  }
+
+  function dailyContextForKey(key, create = false) {
+    const gap = betaState();
+    let context = gap.dailyContexts.find(item => String(item.date || item.contextDate || item.context_date || "") === key) || null;
+    if (!context && create) {
+      const localId = uid();
+      context = {
+        id: localId,
+        localId,
+        date: key,
+        contextDate: key,
+        environmentContext: dayTypeForKey(key) || "",
+        trainingPeriods: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        syncStatus: "pending"
+      };
+      gap.dailyContexts.push(context);
+    }
+    return context;
+  }
+
+  function trainingPeriodsForKey(key) {
+    const context = dailyContextForKey(key);
+    return window.FuelGuardAdherence?.normalizePeriods(context?.trainingPeriods || context?.training_periods || []) || [];
+  }
+
+  function setTrainingPeriodsForKey(key, periods) {
+    const context = dailyContextForKey(key, true);
+    context.trainingPeriods = window.FuelGuardAdherence?.normalizePeriods(periods) || [];
+    context.updatedAt = new Date().toISOString();
+    context.syncStatus = "pending";
+    save();
+    renderAll();
+    window.fuelGuardCloud?.saveAdherenceContext?.(context);
+  }
+
+  function exactTrainingSessionsForAdherence() {
+    const demandSessions = betaState().demandBlocks.filter(block => block?.type === "training").map(block => ({
+      id: block.cloudId || block.id || "",
+      start_time: block.startTime || block.start_time,
+      end_time: block.endTime || block.end_time,
+      source: block.source || "manual_exact",
+      session_type: block.sessionType || block.session_type || block.title || "Training"
+    }));
+    const garminSessions = betaState().garminActivities.map(activity => {
+      const start = logDate(activity.startedAt || activity.started_at);
+      const durationSeconds = Number(activity.durationSeconds || activity.duration_seconds || 0);
+      return start && durationSeconds > 0 ? {
+        id: activity.id || activity.sourceActivityId || "",
+        start_time: start.toISOString(),
+        end_time: new Date(start.getTime() + durationSeconds * 1000).toISOString(),
+        source: "garmin",
+        session_type: activity.activityType || activity.activity_type || "Training"
+      } : null;
+    }).filter(Boolean);
+    return [...garminSessions, ...demandSessions];
+  }
+
+  function adherenceGaps({ includeOngoing = true, referenceTime = new Date() } = {}) {
+    const adherence = window.FuelGuardAdherence;
+    if (!adherence) return [];
+    const gaps = adherence.fuelGapEpisodes({
+      logs: betaState().logs,
+      targetMinutes: maximumFuelGapMinutes(),
+      referenceTime,
+      includeOngoing
+    });
+    return adherence.enrichGaps(gaps, {
+      exactSessions: exactTrainingSessionsForAdherence(),
+      dailyContexts: betaState().dailyContexts,
+      barrierResponses: betaState().gapBarriers
+    });
+  }
+
+  function detectBarrierGapForFuelLog(log) {
+    const id = String(log?.cloudId || log?.id || log?.localId || "");
+    if (!id) return null;
+    return adherenceGaps({ includeOngoing: false })
+      .filter(gap => gap.isMeaningful && gap.followingFuelEventId === id && !gap.barrier)
+      .sort((a, b) => b.end - a.end)[0] || null;
+  }
+
+  function renderGapBarrierPrompt() {
+    const card = document.getElementById("fuelGapBarrierPrompt");
+    if (!card) return;
+    card.hidden = !pendingGapBarrier;
+    if (!pendingGapBarrier) return;
+
+    const summary = document.getElementById("fuelGapBarrierSummary");
+    if (summary) summary.textContent = `You exceeded your fuel-gap target by ${duration(Math.round(pendingGapBarrier.exceededMinutes))}. What got in the way?`;
+    const options = document.getElementById("fuelGapBarrierOptions");
+    if (options) {
+      options.innerHTML = (window.FuelGuardAdherence?.BARRIER_OPTIONS || []).map(option => `
+        <button type="button" data-gap-barrier-reason="${safeText(option.id)}" aria-pressed="${selectedGapBarrierReason === option.id ? "true" : "false"}">${safeText(option.label)}</button>
+      `).join("");
+    }
+    const noteLabel = document.getElementById("fuelGapBarrierNoteLabel");
+    if (noteLabel) noteLabel.hidden = selectedGapBarrierReason !== "other";
+    const saveButton = document.getElementById("fuelGapBarrierSave");
+    if (saveButton) {
+      saveButton.hidden = selectedGapBarrierReason !== "other";
+      saveButton.disabled = selectedGapBarrierReason !== "other";
+    }
+  }
+
+  async function saveGapBarrierResponse(reason, note = "") {
+    const gap = pendingGapBarrier;
+    const adherence = window.FuelGuardAdherence;
+    if (!gap || !adherence) return;
+    const status = document.getElementById("fuelGapBarrierStatus");
+    if (status) status.textContent = "Saving context...";
+    const record = adherence.barrierRecordFromGap(gap, {
+      reason,
+      note,
+      userId: window.fuelGuardCloud?.user?.id || ""
+    });
+    const localId = uid();
+    record.id = localId;
+    record.localId = localId;
+    betaState().gapBarriers = betaState().gapBarriers.filter(item => String(item.gapKey || item.gap_key || "") !== gap.gapKey);
+    betaState().gapBarriers.push(record);
+    pendingGapBarrier = null;
+    selectedGapBarrierReason = "";
+    save();
+    renderAll();
+    await window.fuelGuardCloud?.saveGapBarrier?.(record);
+  }
+
+  function removeBarrierResponsesForLog(log) {
+    const ids = new Set([log?.id, log?.localId, log?.cloudId].filter(Boolean).map(String));
+    if (!ids.size) return [];
+    const removed = betaState().gapBarriers.filter(item => ids.has(String(item.precedingFuelEventId || item.preceding_fuel_log_id || ""))
+      || ids.has(String(item.followingFuelEventId || item.following_fuel_log_id || "")));
+    if (removed.length) {
+      betaState().gapBarriers = betaState().gapBarriers.filter(item => !removed.includes(item));
+      removed.forEach(item => window.fuelGuardCloud?.deleteGapBarrier?.(item));
+    }
+    return removed;
   }
 
   function cooldownRemainingSeconds(now = Date.now()) {
@@ -2109,6 +2262,10 @@
       syncStatus: "pending"
     };
     betaState().logs.push(log);
+    if (includesFuel) {
+      pendingGapBarrier = detectBarrierGapForFuelLog(log);
+      selectedGapBarrierReason = "";
+    }
     if (includesFuel && !options.bypassCooldown) setCooldown();
     if (includesFuel) applyOpportunityMatchesForDay(key);
     storeArchive(key);
@@ -2271,6 +2428,7 @@
     if (index < 0) return;
     if (!window.confirm("Delete this log?")) return;
     const removed = betaState().logs.splice(index, 1)[0];
+    removeBarrierResponsesForLog(removed);
     const removedDate = logDate(removed);
     if (removedDate && isFuelLog(removed)) applyOpportunityMatchesForDay(dateKey(removedDate));
     refreshLogDatesAfterChange(logDate(removed), null);
@@ -2355,6 +2513,7 @@
     });
     if (latestIndex < 0) return;
     const removed = betaState().logs.splice(latestIndex, 1)[0];
+    removeBarrierResponsesForLog(removed);
     if (latestType === "fuel" || latestType === "fuel_hydration") clearCooldown();
     if (latestType === "fuel" || latestType === "fuel_hydration") applyOpportunityMatchesForDay(key);
     storeArchive(key);
@@ -2413,8 +2572,26 @@
     const saved = document.getElementById("fuelDayTypeSaved");
     if (saved) {
       const dayText = dayType ? dayTypeLabel(dayType) : "Normal";
-      saved.textContent = `Saved: ${dayText}.`;
+      const periods = trainingPeriodsForKey(key);
+      const exactForDay = exactTrainingSessionsForAdherence()
+        .map(session => window.FuelGuardAdherence?.normalizeExactTrainingSession(session))
+        .filter(session => session && dateKey(session.start) === key);
+      const garminForDay = exactForDay.filter(session => session.source.includes("garmin"));
+      const trainingText = periods.length
+        ? periods.map(period => window.FuelGuardAdherence?.TRAINING_PERIODS.find(item => item.id === period)?.label || period).join(" + ")
+        : "No Training";
+      saved.textContent = garminForDay.length
+        ? `Saved: ${dayText}. Garmin activity timing is available; manual periods stay as fallback only.`
+        : exactForDay.length
+          ? `Saved: ${dayText}. Exact scheduled training timing is available; manual periods stay as fallback only.`
+          : `Saved: ${dayText}. Training: ${trainingText}.`;
     }
+    const selectedPeriods = new Set(trainingPeriodsForKey(key));
+    document.querySelectorAll("[data-training-period]").forEach(button => {
+      const period = button.dataset.trainingPeriod;
+      const pressed = period === "none" ? selectedPeriods.size === 0 : selectedPeriods.has(period);
+      button.setAttribute("aria-pressed", pressed ? "true" : "false");
+    });
   }
 
   function setCsvImportStatus(message) {
@@ -9978,6 +10155,7 @@
     if (dashboardActive) {
       renderCoachNudges();
       renderDayTypeControls();
+      renderGapBarrierPrompt();
       renderSelectedDayCard();
       renderDailyLog();
     }
@@ -10017,6 +10195,9 @@
     gap.archive = {};
     gap.dayTypes = {};
     gap.trainingSessions = {};
+    gap.dailyContexts = [];
+    gap.gapBarriers = [];
+    gap.garminActivities = [];
     gap.graphMode = "risk";
     gap.thresholds = { ...DEFAULT_THRESHOLDS };
     gap.dayEndedDate = "";
@@ -10280,7 +10461,38 @@
     setDayType(key, event.target.value);
     save();
     renderAll();
+    window.fuelGuardCloud?.saveAdherenceContext?.(dailyContextForKey(key, true));
     window.fuelGuardCloud?.syncLogsForDay(key);
+  });
+  document.querySelector?.(".beta-training-periods")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-training-period]");
+    if (!button) return;
+    const key = selectedDataDateKey();
+    const selected = new Set(trainingPeriodsForKey(key));
+    const period = button.dataset.trainingPeriod;
+    if (period === "none") selected.clear();
+    else if (selected.has(period)) selected.delete(period);
+    else selected.add(period);
+    setTrainingPeriodsForKey(key, [...selected]);
+  });
+  document.getElementById("fuelGapBarrierOptions")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-gap-barrier-reason]");
+    if (!button || !pendingGapBarrier) return;
+    const reason = button.dataset.gapBarrierReason;
+    selectedGapBarrierReason = reason;
+    if (reason === "other") {
+      renderGapBarrierPrompt();
+      document.getElementById("fuelGapBarrierNote")?.focus();
+      return;
+    }
+    saveGapBarrierResponse(reason);
+  });
+  document.getElementById("fuelGapBarrierSave")?.addEventListener("click", () => {
+    if (selectedGapBarrierReason !== "other") return;
+    saveGapBarrierResponse("other", document.getElementById("fuelGapBarrierNote")?.value || "");
+  });
+  document.getElementById("fuelGapBarrierSkip")?.addEventListener("click", () => {
+    saveGapBarrierResponse("unknown");
   });
   document.getElementById("fuelTrainingSession")?.addEventListener("change", event => {
     const key = selectedDataDateKey();

@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v110-coach-qa-hardening";
-const BUILD_VERSION = "2026-08-07T18:10:22Z";
+const APP_VERSION = "mobile-pwa-v111-fuelling-adherence-context";
+const BUILD_VERSION = "2026-08-07T22:28:46Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v110-coach-qa-hardening-20260807T181022Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v111-fuelling-adherence-context-20260807T222846Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -28,6 +28,7 @@ const APP_SHELL = [
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
   "./fuel-guard-domain.js",
+  "./fuel-adherence-context.js",
   "./app-state.js",
   "./fuel-supabase.js",
   "./garmin-connected-devices.js",

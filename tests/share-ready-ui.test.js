@@ -205,13 +205,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the integrated Coach intelligence release", () => {
+test("PWA cache and asset versions are bumped for the fuelling adherence release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v110-coach-qa-hardening";
+  const version = "mobile-pwa-v111-fuelling-adherence-context";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -221,9 +221,10 @@ test("PWA cache and asset versions are bumped for the integrated Coach intellige
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T181022Z/);
+  assert.match(sw, /20260807T222846Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
   assert.match(sw, /fuel-guard-domain\.js/);
+  assert.match(sw, /fuel-adherence-context\.js/);
 });

@@ -4,6 +4,9 @@
   const TARGETS_TABLE = "fuel_targets";
   const DEMAND_BLOCKS_TABLE = "fuel_demand_blocks";
   const WORK_BREAKS_TABLE = "fuel_work_breaks";
+  const DAILY_CONTEXTS_TABLE = "fuel_daily_contexts";
+  const GAP_BARRIERS_TABLE = "fuel_gap_barriers";
+  const GARMIN_ACTIVITIES_TABLE = "garmin_activity_summaries";
   const TARGET_SELECT_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,maximum_fuel_gap_minutes,updated_at,created_at";
   const TARGET_SELECT_LEGACY_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at";
   const STATUS_EVENT = "fuelguard:cloud-status";
@@ -72,6 +75,8 @@
         pendingDeleteIds: [],
         pendingDemandDeleteIds: [],
         pendingWorkBreakDeleteIds: [],
+        pendingDailyContextDeleteIds: [],
+        pendingGapBarrierDeleteIds: [],
         lastSyncedAt: "",
         lastError: ""
       };
@@ -79,8 +84,13 @@
     if (!Array.isArray(gap.cloud.pendingDeleteIds)) gap.cloud.pendingDeleteIds = [];
     if (!Array.isArray(gap.cloud.pendingDemandDeleteIds)) gap.cloud.pendingDemandDeleteIds = [];
     if (!Array.isArray(gap.cloud.pendingWorkBreakDeleteIds)) gap.cloud.pendingWorkBreakDeleteIds = [];
+    if (!Array.isArray(gap.cloud.pendingDailyContextDeleteIds)) gap.cloud.pendingDailyContextDeleteIds = [];
+    if (!Array.isArray(gap.cloud.pendingGapBarrierDeleteIds)) gap.cloud.pendingGapBarrierDeleteIds = [];
     if (!Array.isArray(gap.demandBlocks)) gap.demandBlocks = [];
     if (!Array.isArray(gap.workBreaks)) gap.workBreaks = [];
+    if (!Array.isArray(gap.dailyContexts)) gap.dailyContexts = [];
+    if (!Array.isArray(gap.gapBarriers)) gap.gapBarriers = [];
+    if (!Array.isArray(gap.garminActivities)) gap.garminActivities = [];
     return gap;
   }
 
@@ -616,6 +626,233 @@
     }
   }
 
+  function adherenceTableMissing(error) {
+    const text = `${error?.code || ""} ${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+    return text.includes("42p01")
+      || text.includes("pgrst205")
+      || text.includes("fuel_daily_contexts")
+      || text.includes("fuel_gap_barriers")
+      || text.includes("schema cache")
+      || text.includes("does not exist");
+  }
+
+  function dailyContextRowFromState(context, currentUser) {
+    const normalized = window.FuelGuardAdherence?.normalizeDailyContext(context);
+    if (!normalized?.date || !currentUser?.id) return null;
+    return {
+      user_id: currentUser.id,
+      context_date: normalized.date,
+      environment_context: normalized.environmentContext || null,
+      training_periods: normalized.trainingPeriods,
+      updated_at: normalized.updatedAt || new Date().toISOString()
+    };
+  }
+
+  function rowToDailyContext(row) {
+    return {
+      id: row.id,
+      cloudId: row.id,
+      userId: row.user_id,
+      date: row.context_date,
+      contextDate: row.context_date,
+      environmentContext: row.environment_context || "",
+      trainingPeriods: window.FuelGuardAdherence?.normalizePeriods(row.training_periods || []) || [],
+      createdAt: row.created_at || "",
+      updatedAt: row.updated_at || "",
+      syncStatus: SYNCED
+    };
+  }
+
+  function gapBarrierRowFromState(item, currentUser) {
+    if (!item?.gapKey || !currentUser?.id) return null;
+    const trainingReferenceId = isUuid(item.trainingReferenceId) ? item.trainingReferenceId : null;
+    return {
+      user_id: currentUser.id,
+      gap_key: String(item.gapKey),
+      preceding_fuel_log_id: isUuid(item.precedingFuelEventId) ? item.precedingFuelEventId : null,
+      following_fuel_log_id: isUuid(item.followingFuelEventId) ? item.followingFuelEventId : null,
+      gap_start: item.gapStart,
+      gap_end: item.gapEnd,
+      target_minutes: Math.round(Number(item.targetMinutes || 0)),
+      actual_minutes: Math.round(Number(item.actualMinutes || 0)),
+      exceeded_minutes: Math.round(Number(item.exceededMinutes || 0)),
+      barrier_reason: item.barrierReason || "unknown",
+      note: String(item.note || "").trim() || null,
+      response_status: item.responseStatus || "answered",
+      data_quality_status: item.dataQualityStatus || "confirmed",
+      was_ongoing: Boolean(item.wasOngoing),
+      training_overlap_kind: item.trainingOverlapKind || "unknown",
+      training_reference_type: trainingReferenceId ? item.trainingReferenceType || "manual_exact" : null,
+      training_reference_id: trainingReferenceId,
+      updated_at: item.updatedAt || new Date().toISOString()
+    };
+  }
+
+  function rowToGapBarrier(row) {
+    return {
+      id: row.id,
+      cloudId: row.id,
+      userId: row.user_id,
+      gapKey: row.gap_key,
+      precedingFuelEventId: row.preceding_fuel_log_id || "",
+      followingFuelEventId: row.following_fuel_log_id || "",
+      gapStart: row.gap_start,
+      gapEnd: row.gap_end,
+      targetMinutes: row.target_minutes,
+      actualMinutes: row.actual_minutes,
+      exceededMinutes: row.exceeded_minutes,
+      barrierReason: row.barrier_reason,
+      note: row.note || "",
+      responseStatus: row.response_status,
+      dataQualityStatus: row.data_quality_status,
+      wasOngoing: Boolean(row.was_ongoing),
+      trainingOverlapKind: row.training_overlap_kind,
+      trainingReferenceType: row.training_reference_type || "",
+      trainingReferenceId: row.training_reference_id || "",
+      createdAt: row.created_at || "",
+      updatedAt: row.updated_at || "",
+      syncStatus: SYNCED
+    };
+  }
+
+  function mergeAdherenceRows(contextRows, barrierRows) {
+    const gap = gapState();
+    if (!gap) return;
+    const cloudContexts = contextRows.map(rowToDailyContext);
+    const cloudContextDates = new Set(cloudContexts.map(item => item.date));
+    const pendingContexts = gap.dailyContexts.filter(item => item.syncStatus !== SYNCED && !cloudContextDates.has(String(item.date || item.contextDate || "")));
+    gap.dailyContexts = [...cloudContexts, ...pendingContexts].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    const cloudBarriers = barrierRows.map(rowToGapBarrier);
+    const cloudGapKeys = new Set(cloudBarriers.map(item => item.gapKey));
+    const pendingBarriers = gap.gapBarriers.filter(item => item.syncStatus !== SYNCED && !cloudGapKeys.has(String(item.gapKey || "")));
+    gap.gapBarriers = [...cloudBarriers, ...pendingBarriers].sort((a, b) => String(a.gapStart || "").localeCompare(String(b.gapStart || "")));
+  }
+
+  async function flushAdherenceDeletes() {
+    const gap = gapState();
+    const currentUser = user();
+    if (!gap || !client || !currentUser) return;
+    const gapKeys = [...new Set(gap.cloud.pendingGapBarrierDeleteIds.map(String).filter(Boolean))];
+    if (gapKeys.length) {
+      const { error } = await client
+        .from(GAP_BARRIERS_TABLE)
+        .delete()
+        .eq("user_id", currentUser.id)
+        .in("gap_key", gapKeys);
+      if (error) throw error;
+      gap.cloud.pendingGapBarrierDeleteIds = gap.cloud.pendingGapBarrierDeleteIds.filter(key => !gapKeys.includes(String(key)));
+    }
+  }
+
+  async function syncAdherenceData() {
+    const gap = gapState();
+    const currentUser = user();
+    if (!gap || !client || !currentUser) return;
+    await flushAdherenceDeletes();
+
+    const pendingContexts = gap.dailyContexts
+      .filter(item => item.syncStatus !== SYNCED)
+      .map(item => dailyContextRowFromState(item, currentUser))
+      .filter(Boolean);
+    if (pendingContexts.length) {
+      const { error } = await client
+        .from(DAILY_CONTEXTS_TABLE)
+        .upsert(pendingContexts, { onConflict: "user_id,context_date" });
+      if (error) throw error;
+    }
+
+    const pendingBarriers = gap.gapBarriers
+      .filter(item => item.syncStatus !== SYNCED)
+      .map(item => gapBarrierRowFromState(item, currentUser))
+      .filter(Boolean);
+    if (pendingBarriers.length) {
+      const { error } = await client
+        .from(GAP_BARRIERS_TABLE)
+        .upsert(pendingBarriers, { onConflict: "user_id,gap_key" });
+      if (error) throw error;
+    }
+
+    const activityStart = new Date();
+    activityStart.setDate(activityStart.getDate() - 120);
+    const [contexts, barriers, activities] = await Promise.all([
+      client.from(DAILY_CONTEXTS_TABLE).select("id,user_id,context_date,environment_context,training_periods,created_at,updated_at").eq("user_id", currentUser.id).order("context_date", { ascending: true }),
+      client.from(GAP_BARRIERS_TABLE).select("id,user_id,gap_key,preceding_fuel_log_id,following_fuel_log_id,gap_start,gap_end,target_minutes,actual_minutes,exceeded_minutes,barrier_reason,note,response_status,data_quality_status,was_ongoing,training_overlap_kind,training_reference_type,training_reference_id,created_at,updated_at").eq("user_id", currentUser.id).order("gap_start", { ascending: true }),
+      client.from(GARMIN_ACTIVITIES_TABLE).select("id,user_id,source,source_activity_id,activity_type,started_at,duration_seconds").eq("user_id", currentUser.id).gte("started_at", activityStart.toISOString()).order("started_at", { ascending: true })
+    ]);
+    if (contexts.error) throw contexts.error;
+    if (barriers.error) throw barriers.error;
+    if (activities.error && !adherenceTableMissing(activities.error)) throw activities.error;
+    mergeAdherenceRows(contexts.data || [], barriers.data || []);
+    gap.garminActivities = (activities.data || []).map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      source: row.source,
+      sourceActivityId: row.source_activity_id || "",
+      activityType: row.activity_type,
+      startedAt: row.started_at,
+      durationSeconds: row.duration_seconds
+    }));
+  }
+
+  async function saveAdherenceContext(context) {
+    if (!context) return;
+    context.syncStatus = PENDING;
+    if (typeof save === "function") save();
+    if (!configured() || !user() || !isOnline()) {
+      status(user() ? "Training context cached for later sync." : "Training context saved locally. Sign in to sync.");
+      return;
+    }
+    try {
+      await syncAdherenceData();
+      status("Training context synced to Supabase.");
+      persistAndRender();
+    } catch (error) {
+      context.syncStatus = ERROR;
+      status(adherenceTableMissing(error)
+        ? "Training context saved locally until the Supabase adherence migration is applied."
+        : `Training context saved locally. Sync failed: ${error?.message || "unknown error"}`);
+      if (typeof save === "function") save();
+    }
+  }
+
+  async function saveGapBarrier(item) {
+    if (!item) return;
+    item.syncStatus = PENDING;
+    if (typeof save === "function") save();
+    if (!configured() || !user() || !isOnline()) {
+      status(user() ? "Gap context cached for later sync." : "Gap context saved locally. Sign in to sync.");
+      return;
+    }
+    try {
+      await syncAdherenceData();
+      status("Gap context synced to Supabase.");
+      persistAndRender();
+    } catch (error) {
+      item.syncStatus = ERROR;
+      status(adherenceTableMissing(error)
+        ? "Gap context saved locally until the Supabase adherence migration is applied."
+        : `Gap context saved locally. Sync failed: ${error?.message || "unknown error"}`);
+      if (typeof save === "function") save();
+    }
+  }
+
+  async function deleteGapBarrier(item) {
+    const gap = gapState();
+    const gapKey = String(item?.gapKey || item?.gap_key || "");
+    if (!gapKey || !gap) return;
+    if (!configured() || !user() || !isOnline()) {
+      if (!gap.cloud.pendingGapBarrierDeleteIds.includes(gapKey)) gap.cloud.pendingGapBarrierDeleteIds.push(gapKey);
+      if (typeof save === "function") save();
+      return;
+    }
+    const { error } = await client.from(GAP_BARRIERS_TABLE).delete().eq("user_id", user().id).eq("gap_key", gapKey);
+    if (error) {
+      if (!gap.cloud.pendingGapBarrierDeleteIds.includes(gapKey)) gap.cloud.pendingGapBarrierDeleteIds.push(gapKey);
+      if (typeof save === "function") save();
+    }
+  }
+
   function hasAnyTarget(targets) {
     return Boolean(targets && [
       targets.dailyFuelLogs,
@@ -928,11 +1165,19 @@
           ? " Demand planning stayed cached locally until the Supabase demand-planning SQL is applied."
           : ` Demand planning stayed cached locally: ${planningError?.message || "planning sync failed"}.`;
       }
+      let adherenceWarning = "";
+      try {
+        await syncAdherenceData();
+      } catch (adherenceError) {
+        adherenceWarning = adherenceTableMissing(adherenceError)
+          ? " Adherence context stayed cached locally until the Supabase adherence migration is applied."
+          : ` Adherence context stayed cached locally: ${adherenceError?.message || "context sync failed"}.`;
+      }
       if (gap) {
         gap.cloud.lastSyncedAt = new Date().toISOString();
         gap.cloud.lastError = "";
       }
-      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.${targetWarning}${planningWarning}`);
+      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.${targetWarning}${planningWarning}${adherenceWarning}`);
       persistAndRender();
     } catch (error) {
       if (gap) gap.cloud.lastError = error?.message || "Sync failed.";
@@ -1193,6 +1438,10 @@
     syncLogsForDay,
     saveDemandPlanning,
     syncDemandPlanning,
+    saveAdherenceContext,
+    saveGapBarrier,
+    deleteGapBarrier,
+    syncAdherenceData,
     deleteLog,
     clearCloudLogs,
     saveTargets,

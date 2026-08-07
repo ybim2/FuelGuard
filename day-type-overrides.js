@@ -1,14 +1,14 @@
 // Fuel Guard day type compatibility layer.
 // Keeps older saved day-type entries safe while training session remains separate.
 (() => {
-  const ALLOWED_VALUES = new Set(["competition", "work", "holiday"]);
-  const DEPRECATED_VALUES = new Set(["travel"]);
+  const ALLOWED_VALUES = new Set(["competition", "work", "shift", "travel", "holiday"]);
+  const DEPRECATED_VALUES = new Set();
   const LEGACY_DAY_TYPE_MAP = {
     "competition/race day": "competition",
     "competition day": "competition",
     race: "competition",
-    shift: "work",
-    "shift day": "work",
+    shift: "shift",
+    "shift day": "shift",
     "training + work day": "work",
     "training-work": "work",
     "work day": "work",
@@ -27,6 +27,8 @@
   const LABELS = {
     competition: "Competition Day",
     work: "Working Day",
+    shift: "Shift",
+    travel: "Travel",
     holiday: "Holiday"
   };
   let applying = false;
@@ -136,9 +138,9 @@
         .replace(/race day/g, "competition day")
         .replace(/Rest day/g, "day")
         .replace(/rest day/g, "day")
-        .replace(/Shift Day/g, "Working Day")
-        .replace(/Shift day/g, "Working Day")
-        .replace(/shift day/g, "working day")
+        .replace(/Shift Day/g, "Shift")
+        .replace(/Shift day/g, "Shift")
+        .replace(/shift day/g, "shift")
         .replace(/Work Day/g, "Working Day")
         .replace(/Work day/g, "Working Day")
         .replace(/similar work days/g, "similar working days")

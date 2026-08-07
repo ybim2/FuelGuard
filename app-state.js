@@ -17,6 +17,9 @@ const DEFAULT_STATE = {
     trainingSessions: {},
     demandBlocks: [],
     workBreaks: [],
+    dailyContexts: [],
+    gapBarriers: [],
+    garminActivities: [],
     planRealism: {},
     graphMode: "fuel",
     fuelWindowMinutes: 720,
@@ -44,6 +47,8 @@ const DEFAULT_STATE = {
       pendingDeleteIds: [],
       pendingDemandDeleteIds: [],
       pendingWorkBreakDeleteIds: [],
+      pendingDailyContextDeleteIds: [],
+      pendingGapBarrierDeleteIds: [],
       lastSyncedAt: "",
       lastError: ""
     }
@@ -93,6 +98,9 @@ function load() {
         trainingSessions: isPlainObject(parsedFuelGap.trainingSessions) ? parsedFuelGap.trainingSessions : {},
         demandBlocks: Array.isArray(parsedFuelGap.demandBlocks) ? parsedFuelGap.demandBlocks : [],
         workBreaks: Array.isArray(parsedFuelGap.workBreaks) ? parsedFuelGap.workBreaks : [],
+        dailyContexts: Array.isArray(parsedFuelGap.dailyContexts) ? parsedFuelGap.dailyContexts : [],
+        gapBarriers: Array.isArray(parsedFuelGap.gapBarriers) ? parsedFuelGap.gapBarriers : [],
+        garminActivities: Array.isArray(parsedFuelGap.garminActivities) ? parsedFuelGap.garminActivities : [],
         planRealism: isPlainObject(parsedFuelGap.planRealism) ? parsedFuelGap.planRealism : {},
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)
@@ -119,6 +127,12 @@ function load() {
             : [],
           pendingWorkBreakDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingWorkBreakDeleteIds)
             ? parsedFuelGap.cloud.pendingWorkBreakDeleteIds
+            : [],
+          pendingDailyContextDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingDailyContextDeleteIds)
+            ? parsedFuelGap.cloud.pendingDailyContextDeleteIds
+            : [],
+          pendingGapBarrierDeleteIds: Array.isArray(parsedFuelGap.cloud?.pendingGapBarrierDeleteIds)
+            ? parsedFuelGap.cloud.pendingGapBarrierDeleteIds
             : []
         }
       },
@@ -205,6 +219,9 @@ function fuelGapState() {
   if (!isPlainObject(state.fuelGap.trainingSessions)) state.fuelGap.trainingSessions = {};
   if (!Array.isArray(state.fuelGap.demandBlocks)) state.fuelGap.demandBlocks = [];
   if (!Array.isArray(state.fuelGap.workBreaks)) state.fuelGap.workBreaks = [];
+  if (!Array.isArray(state.fuelGap.dailyContexts)) state.fuelGap.dailyContexts = [];
+  if (!Array.isArray(state.fuelGap.gapBarriers)) state.fuelGap.gapBarriers = [];
+  if (!Array.isArray(state.fuelGap.garminActivities)) state.fuelGap.garminActivities = [];
   if (!isPlainObject(state.fuelGap.planRealism)) state.fuelGap.planRealism = {};
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
     state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
@@ -234,6 +251,12 @@ function fuelGapState() {
       : [],
     pendingWorkBreakDeleteIds: Array.isArray(state.fuelGap.cloud.pendingWorkBreakDeleteIds)
       ? state.fuelGap.cloud.pendingWorkBreakDeleteIds
+      : [],
+    pendingDailyContextDeleteIds: Array.isArray(state.fuelGap.cloud.pendingDailyContextDeleteIds)
+      ? state.fuelGap.cloud.pendingDailyContextDeleteIds
+      : [],
+    pendingGapBarrierDeleteIds: Array.isArray(state.fuelGap.cloud.pendingGapBarrierDeleteIds)
+      ? state.fuelGap.cloud.pendingGapBarrierDeleteIds
       : []
   };
   return state.fuelGap;
