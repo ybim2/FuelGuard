@@ -49,7 +49,7 @@ language sql
 volatile
 set search_path = public
 as $$
-  select 'FG-' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6));
+  select 'FG-' || upper(substr(encode(extensions.gen_random_bytes(4), 'hex'), 1, 6));
 $$;
 
 create or replace function public.fuel_user_profiles_set_athlete_code()
@@ -338,18 +338,20 @@ begin
     athlete_profile.user_id,
     coalesce(nullif(athlete_profile.display_name, ''), 'Fuel Guard Athlete') as display_name,
     athlete_profile.athlete_code,
-    coalesce((
-      select relationship.status
-      from public.fuel_coach_athletes relationship
-      where relationship.coach_id = caller_id
-        and relationship.athlete_id = athlete_profile.user_id
-        and relationship.status in ('pending', 'active', 'declined')
-      order by relationship.updated_at desc
-      limit 1
-    ), 'not_connected') as relationship_status
+    case
+      when athlete_profile.user_id = caller_id then 'self'
+      else coalesce((
+        select relationship.status
+        from public.fuel_coach_athletes relationship
+        where relationship.coach_id = caller_id
+          and relationship.athlete_id = athlete_profile.user_id
+          and relationship.status in ('pending', 'active', 'declined')
+        order by relationship.updated_at desc
+        limit 1
+      ), 'not_connected')
+    end as relationship_status
   from public.fuel_user_profiles athlete_profile
   where lower(athlete_profile.athlete_code) = lower(normalized_code)
-    and athlete_profile.user_id <> caller_id
   limit 1;
 end;
 $$;
@@ -357,6 +359,31 @@ $$;
 revoke all on function public.fuel_coach_find_athlete_by_code(text) from public;
 revoke execute on function public.fuel_coach_find_athlete_by_code(text) from anon;
 grant execute on function public.fuel_coach_find_athlete_by_code(text) to authenticated;
+
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to authenticated;
+
+create or replace function private.fuel_user_is_coach(check_user_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select
+    check_user_id = (select auth.uid())
+    and exists (
+      select 1
+      from public.fuel_user_profiles coach_profile
+      where coach_profile.user_id = check_user_id
+        and (coach_profile.coach_enabled is true or coach_profile.role = 'coach')
+    );
+$$;
+
+revoke all on function private.fuel_user_is_coach(uuid) from public;
+revoke execute on function private.fuel_user_is_coach(uuid) from anon;
+grant execute on function private.fuel_user_is_coach(uuid) to authenticated;
 
 alter table public.fuel_user_profiles enable row level security;
 alter table public.fuel_coach_athletes enable row level security;
@@ -419,12 +446,7 @@ create policy fuel_coach_athletes_insert_by_participant
   with check (
     (select auth.uid()) = coach_id
     and status = 'pending'
-    and exists (
-      select 1
-      from public.fuel_user_profiles coach_profile
-      where coach_profile.user_id = (select auth.uid())
-        and (coach_profile.coach_enabled is true or coach_profile.role = 'coach')
-    )
+    and (select private.fuel_user_is_coach((select auth.uid())))
   );
 
 drop policy if exists fuel_coach_athletes_update_by_participant on public.fuel_coach_athletes;

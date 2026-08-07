@@ -71,6 +71,10 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   assert.match(coachHtml, /id="coachFindAthleteButton"/);
   assert.match(coachHtml, /id="coachAthleteCodeResult"/);
   assert.match(coachJs, /fuel_coach_find_athlete_by_code/);
+  assert.match(coachJs, /Athlete code not found/);
+  assert.match(coachJs, /Check the code and try again/);
+  assert.match(coachJs, /This is your Athlete Code/);
+  assert.match(coachJs, /You can't add your own athlete account as a coached athlete/);
   assert.match(coachJs, /function findAthleteByCode/);
   assert.match(coachJs, /function requestSharing/);
   assert.match(coachJs, /status:\s*"pending"/);
@@ -165,9 +169,17 @@ test("Coach migration uses database-level active relationship access controls", 
   assert.match(sql, /fuel_user_profiles_athlete_code_idx/);
   assert.match(sql, /fuel_user_profiles_athlete_code_format_check/);
   assert.match(sql, /create or replace function public\.fuel_coach_find_athlete_by_code/);
+  assert.match(sql, /extensions\.gen_random_bytes\(4\)/);
+  assert.match(sql, /when athlete_profile\.user_id = caller_id then 'self'/);
+  assert.doesNotMatch(sql, /athlete_profile\.user_id <> caller_id/);
   assert.match(sql, /revoke all on function public\.fuel_coach_find_athlete_by_code\(text\) from public/);
   assert.match(sql, /revoke execute on function public\.fuel_coach_find_athlete_by_code\(text\) from anon/);
   assert.match(sql, /grant execute on function public\.fuel_coach_find_athlete_by_code\(text\) to authenticated/);
+  assert.match(sql, /create schema if not exists private/);
+  assert.match(sql, /create or replace function private\.fuel_user_is_coach/);
+  assert.match(sql, /check_user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /select private\.fuel_user_is_coach\(\(select auth\.uid\(\)\)\)/);
+  assert.match(sql, /revoke all on function private\.fuel_user_is_coach\(uuid\) from public/);
   assert.match(sql, /coach_profile\.coach_enabled is true or coach_profile\.role = 'coach'/);
   assert.match(sql, /set coach_enabled = true/);
   assert.match(sql, /create table if not exists public\.fuel_coach_athletes/);
@@ -201,6 +213,8 @@ test("Coach migration uses database-level active relationship access controls", 
   assert.match(sql, /relationship\.status = 'active'/);
   assert.match(sql, /with check \(\(select auth\.uid\(\)\) = user_id\)/);
   assert.match(sql, /status in \('pending', 'active', 'declined', 'revoked'\)/);
+  assert.match(sql, /fuel_coach_athletes_distinct_users_check/);
+  assert.match(sql, /check \(coach_id <> athlete_id\)/);
   assert.match(sql, /status in \('active', 'declined', 'revoked'\)/);
   assert.match(sql, /status = 'pending'/);
   assert.match(sql, /status in \('active', 'reviewed', 'closed'\)/);

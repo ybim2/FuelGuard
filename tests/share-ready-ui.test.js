@@ -199,21 +199,22 @@ test("Settings keeps only essential production sections", () => {
   assert.match(settings, /id="coachCopyAthleteCodeButton"/);
   assert.match(settings, /id="coachShareAthleteCodeButton"/);
   assert.match(settings, /id="coachConnectionRequests"/);
+  assert.match(settings, /Give this code to your coach so they can send you a connection request\./);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the athlete code linking flow", () => {
+test("PWA cache and asset versions are bumped for the athlete code lookup flow", () => {
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v104-athlete-code-links";
+  const version = "mobile-pwa-v105-athlete-code-lookup";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260808T000500Z/);
+  assert.match(sw, /20260807T170507Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /fuel-guard-domain\.js/);
 });

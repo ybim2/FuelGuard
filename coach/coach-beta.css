@@ -195,6 +195,20 @@ body.coach-beta {
   gap: 8px;
 }
 
+.coach-code-message {
+  padding: 12px 0 2px;
+}
+
+.coach-code-message strong {
+  display: block;
+  color: #111827;
+}
+
+.coach-code-message p {
+  margin: 4px 0 0;
+  color: #4b5563;
+}
+
 .coach-code-match {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
