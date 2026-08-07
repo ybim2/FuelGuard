@@ -14,7 +14,7 @@ Settings opens from the sticky top header.
 
 Do not use, recreate, or rebuild from the old web PWA design. Do not edit archived or deprecated frontend versions. Do not create a new frontend unless the user explicitly asks for one.
 
-All UI work must be applied to the canonical mobile PWA. Account/login setup belongs inside Settings unless explicitly changed. Weekly insights, Garmin signals, and historical review belong inside the existing mobile PWA design, not in a new desktop-style frontend.
+All UI work must be applied to the canonical mobile PWA. Account/login setup belongs inside Settings unless explicitly changed. Fuelling-pattern insights, Garmin signals when evidence exists, and Fuel Window / Gap Window review belong inside the existing mobile PWA design, not in a new desktop-style frontend.
 
 Before making UI changes, confirm the canonical entry point and active components. Keep the current mobile-first design style.
 
@@ -28,6 +28,8 @@ These old parked features have been removed from the active app and must not be 
 - Body & Mind
 - Nutrition Diary
 - Future Ideas Parked
+- Log tab missed-log card
+- Log tab Today’s Context card
 
 Mobile PWA update rules
 -----------------------
@@ -47,8 +49,8 @@ Canonical files
 - App/root component: the static `body.beta-mvp` app shell in `index.html`
 - Routing/navigation: `index.html` nav buttons, base `switchScreen` in `app-ui.js`, and mobile PWA overrides in `fuel-beta.js`
 - Log screen: `#dashboard` in `index.html`, behavior in `fuel-beta.js`, support state in `app-state.js`, styling in `fuel-beta.css`, `mobile-pwa.css`, and `mobile-ux-overrides.css`
-- Insights screen: `#insights` in `index.html`, weekly insight behavior in `fuel-beta.js`
-- History screen: `#history` in `index.html`, archive/history behavior in `fuel-beta.js`
+- Insights screen: `#insights` in `index.html`, fuelling-pattern and weekly insight behavior in `fuel-beta.js`
+- History screen: `#history` in `index.html`, Fuel Window / Gap Window history behavior in `fuel-beta.js`
 - Settings screen: `#checklist` in `index.html`, behavior in `fuel-beta.js` and `fuel-beta-ui-polish.js`
 - PWA manifest: `manifest.webmanifest`
 - Service worker/PWA config: `sw.js` and registration in `app-pwa.js`

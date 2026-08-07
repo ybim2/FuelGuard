@@ -13,16 +13,16 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v87-three-screen-core
+Canonical app: mobile-pwa-v88-simplified-three-tabs
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 ## Current Screen Ownership
 
-- Log: default opening screen; current fuel/hydration status, quick fuel and hydration logging, Today’s progress, a collapsed Today’s timeline, the collapsed missed-log form, and a compact optional “Add today’s context” disclosure.
-- Insights: the renamed former Trends screen. It owns weekly summary, the most important actionable pattern, personalised insights, opt-in Garmin signals, and collapsed supporting charts/details.
-- History: compact factual daily summaries with full day detail after opening a day.
+- Log: default opening screen with exactly three primary sections: current fuel/hydration status with log actions, Today’s progress, and an expanded Today’s timeline.
+- Insights: the renamed former Trends screen. It owns compact period controls, Morning/Afternoon/Evening fuelling-pattern graphs, Fuel Gap Windows, Log Windows, the most useful actionable patterns, opt-in Garmin signals only when evidence exists, and collapsed supporting charts/details.
+- History: compact day selection plus Fuel Window and Gap Window review for the selected day.
 - Settings: account and sync, connected Garmin apps and Garmin sharing information, preferences, advanced thresholds/window/targets, legacy CSV import, destructive actions, app update, app version, and privacy.
 
 Analysis and Plan are no longer visible product screens. Dormant planning/demand and analysis helper code may remain only where it supports existing records, migrations, Garmin-derived insights, or calculations used by the active screens.
@@ -41,6 +41,8 @@ These old parked features have been removed from the active app, service worker 
 - Food Runway
 - Analysis primary screen
 - Plan primary screen
+- Log tab missed-log card
+- Log tab Today’s Context card
 
 Do not reintroduce them unless the user explicitly asks for them.
 
@@ -135,7 +137,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v87-three-screen-core`.
+The current canonical version is `mobile-pwa-v88-simplified-three-tabs`.
 
 ## Future Frontend Changes
 

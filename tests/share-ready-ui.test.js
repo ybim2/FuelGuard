@@ -42,24 +42,21 @@ test("primary navigation has exactly Log, Insights, and History", () => {
   assert.doesNotMatch(desktopNav + mobileNav, />Analysis<|>Plan<|>Trends</);
 });
 
-test("Log owns status, quick logging, progress, collapsed timeline, missed logs, and optional context", () => {
+test("Log is simplified to status, progress, and an expanded timeline", () => {
   const html = read("index.html");
+  const js = read("fuel-beta.js");
   const dashboard = section(html, "dashboard", "history");
 
   const status = indexOfRequired(dashboard, 'id="fuelTodayStatus"');
-  const logging = indexOfRequired(dashboard, "Quick logging");
   const progress = indexOfRequired(dashboard, 'id="fuelTodayProgress"');
   const timeline = indexOfRequired(dashboard, "Today’s timeline");
-  const missed = indexOfRequired(dashboard, "+ Add a missed log");
-  const context = indexOfRequired(dashboard, "Add today’s context");
 
-  assert.ok(status < logging, "current status should come before quick logging");
-  assert.ok(logging < progress, "today progress should follow quick logging");
+  assert.ok(status < progress, "today progress should follow current status");
   assert.ok(progress < timeline, "timeline should follow today progress");
-  assert.ok(timeline < missed, "missed-log flow should stay after the timeline");
-  assert.ok(missed < context, "optional context should not compete with the core logging flow");
-  assert.match(dashboard, /id="fuelDailyLog"[^>]*hidden/);
-  assert.match(dashboard, /id="missedLogPanel"[^>]*hidden/);
+  assert.doesNotMatch(dashboard, /Quick logging|\+ Add a missed log|Add today’s context|todayTimelineToggle|missedLogPanel|fuelDataDate/);
+  assert.doesNotMatch(dashboard, /id="fuelDailyLog"[^>]*hidden/);
+  assert.match(js, /beta-status-log-actions[\s\S]*graphLogFoodButton[\s\S]*graphLogHydrationButton/);
+  assert.match(js, /target\.hidden = false/);
 });
 
 test("old Analysis and Plan screens are not mounted or routable through normal navigation", () => {
@@ -83,14 +80,35 @@ test("Insights replaces Trends and keeps Garmin evidence in the focused screen",
 
   assert.match(insights, />Insights</);
   assert.doesNotMatch(insights, />Trends</);
+  assert.match(renderTrends, /renderFuellingPatternGraphs/);
+  assert.match(js, /Morning fuelling/);
+  assert.match(js, /Afternoon fuelling/);
+  assert.match(js, /Evening fuelling/);
+  assert.match(js, /Fuel Gap Windows/);
+  assert.match(js, /Log Windows/);
   assert.match(renderTrends, /renderInsightsWeeklySummary/);
   assert.match(renderTrends, /renderTrendPriorityInsight/);
   assert.match(renderTrends, /renderPersonalisedInsights/);
   assert.match(renderTrends, /renderGarminSignalsSummary/);
   assert.match(renderTrends, /renderInsightsSupportingDetails/);
   assert.doesNotMatch(renderTrends, /renderTrendSegmentTabs/);
+  assert.doesNotMatch(js, /Fuel Guard needs more repeated days|No Garmin signals yet|Sign in and connect Quick Log/);
   assert.match(js, /renderGarminMetricsSection/);
   assert.match(js, /renderGarminPatternsSection/);
+  assert.ok(indexOfRequired(insights, 'id="fuelAveragesSummary"') < indexOfRequired(insights, "Share insights"));
+});
+
+test("History focuses day detail on Fuel Window and Gap Window", () => {
+  const js = read("fuel-beta.js");
+  const renderHistoryDetailStart = indexOfRequired(js, "function renderHistoryDetail()");
+  const renderHistoryDetailEnd = indexOfRequired(js.slice(renderHistoryDetailStart), "\n  function renderHistoryScreen") + renderHistoryDetailStart;
+  const renderHistoryDetail = js.slice(renderHistoryDetailStart, renderHistoryDetailEnd);
+
+  assert.match(js, /function renderHistoryFuelWindowCard/);
+  assert.match(js, /function renderHistoryGapWindowCard/);
+  assert.match(renderHistoryDetail, /renderHistoryFuelWindowCard/);
+  assert.match(renderHistoryDetail, /renderHistoryGapWindowCard/);
+  assert.doesNotMatch(renderHistoryDetail, /renderTodayTimeline|renderHistoryLogGroup|renderHistoryDemandDetail|renderDailyTargetProgress/);
 });
 
 test("Settings follows the simplified hierarchy and keeps advanced controls available", () => {
@@ -119,10 +137,10 @@ test("PWA cache and asset versions are bumped for the three-screen core", () => 
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v87-three-screen-core";
+  const version = "mobile-pwa-v88-simplified-three-tabs";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260806T195203Z/);
+  assert.match(sw, /20260807T061420Z/);
 });

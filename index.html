@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v87-three-screen-core" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v87-three-screen-core" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v87-three-screen-core" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v88-simplified-three-tabs" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v88-simplified-three-tabs" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v88-simplified-three-tabs" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -125,90 +125,19 @@
         <article class="card fuel-gap-card beta-today-shell">
           <section id="fuelTodayStatus"></section>
 
-          <section class="beta-rhythm-section-card beta-log-entry-card" aria-label="Quick logging controls">
-            <div class="beta-graph-section-heading beta-log-heading">
-              <h3>Quick logging</h3>
-              <p>Tap once when you fuel or hydrate.</p>
-            </div>
-            <div class="beta-log-actions" aria-label="Log fuel or hydration">
-              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
-              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
-            </div>
-            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
-          </section>
-
           <section id="fuelTodayProgress"></section>
 
           <section class="beta-rhythm-section-card beta-today-log" aria-label="Today’s timeline">
-            <button id="todayTimelineToggle" class="beta-timeline-toggle" type="button" aria-expanded="false" aria-controls="fuelDailyLog">
-              <span>
-                <strong>Today’s timeline</strong>
-                <small id="fuelDailyLogDate"></small>
-              </span>
+            <div class="section-heading-row beta-timeline-static-heading">
+              <div>
+                <h3>Today’s timeline</h3>
+                <p id="fuelDailyLogDate" class="muted"></p>
+              </div>
               <span id="todayTimelineLatest" class="row-note"></span>
-              <span class="beta-timeline-chevron" aria-hidden="true">⌄</span>
-            </button>
-            <div id="fuelDailyLog" class="beta-today-timeline-panel" hidden></div>
+            </div>
+            <div id="fuelDailyLog" class="beta-today-timeline-panel"></div>
             <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
           </section>
-
-          <section class="beta-rhythm-section-card beta-missed-log-card">
-            <div class="section-heading-row">
-              <div>
-                <h3>Add missed log</h3>
-                <p class="muted">Add fuel or hydration after the fact so the day stays accurate.</p>
-              </div>
-              <button id="showMissedLogButton" class="secondary" type="button">+ Add a missed log</button>
-            </div>
-            <div id="missedLogPanel" class="beta-missed-log-panel" hidden>
-              <div class="form-grid beta-settings-grid">
-                <label>Log type<select id="missedLogType">
-                  <option value="fuel">Fuel</option>
-                  <option value="hydration">Hydration</option>
-                </select></label>
-                <label>Date<input id="missedLogDate" type="date"></label>
-                <label>Time<input id="missedLogTime" type="time"></label>
-              </div>
-              <div class="button-row beta-settings-actions">
-                <button id="saveMissedLogButton" class="primary" type="button">Save</button>
-                <button id="cancelMissedLogButton" class="secondary" type="button">Cancel</button>
-              </div>
-              <p id="missedLogStatus" class="row-note" aria-live="polite"></p>
-            </div>
-          </section>
-
-          <details class="beta-rhythm-section-card beta-context-disclosure-card">
-            <summary>Add today’s context</summary>
-            <p class="muted">Optional. Use this when day type or training context helps explain your patterns.</p>
-            <div class="fuel-day-type-row beta-day-type-row">
-              <label class="day-type-field beta-history-date">
-                <span>Context date</span>
-                <input id="fuelDataDate" type="date">
-              </label>
-              <label class="day-type-field">
-                <span>Day type</span>
-                <select id="fuelDayType">
-                  <option value="">Select day type</option>
-                  <option value="work">Working Day</option>
-                  <option value="holiday">Holiday</option>
-                  <option value="competition">Competition Day</option>
-                </select>
-              </label>
-              <label class="day-type-field" id="trainingSessionField">
-                <span>Training session</span>
-                <select id="fuelTrainingSession">
-                  <option value="">Select session</option>
-                  <option value="run">Run</option>
-                  <option value="bike">Bike</option>
-                  <option value="swim">Swim</option>
-                  <option value="strength">Strength</option>
-                  <option value="brick">Brick</option>
-                  <option value="rest">No training</option>
-                </select>
-              </label>
-              <span id="fuelDayTypeSaved" class="row-note"></span>
-            </div>
-          </details>
         </article>
 
         <article class="card insight dismissible beta-hidden-feature" id="dashboardTip" aria-hidden="true">
@@ -249,13 +178,13 @@
                 <button id="trendNextWeekButton" class="secondary" type="button">Next</button>
               </div>
             </div>
-            <div class="button-row beta-trends-share-actions">
-              <button id="shareTrendsButton" class="secondary" type="button">Share insights</button>
-              <button id="downloadTrendsButton" class="secondary" type="button">Download insights</button>
-            </div>
-            <p id="trendsShareStatus" class="row-note" aria-live="polite"></p>
           </div>
           <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
+          <div class="button-row beta-trends-share-actions beta-insights-secondary-actions">
+            <button id="shareTrendsButton" class="secondary" type="button">Share insights</button>
+            <button id="downloadTrendsButton" class="secondary" type="button">Download insights</button>
+          </div>
+          <p id="trendsShareStatus" class="row-note" aria-live="polite"></p>
         </article>
       </section>
 
@@ -433,7 +362,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v87-three-screen-core</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v88-simplified-three-tabs</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -457,16 +386,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="build-info.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="app-ui.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v87-three-screen-core"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v87-three-screen-core"></script>
+  <script src="app-state.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="app-ui.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
 </body>
 </html>

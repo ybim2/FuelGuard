@@ -177,7 +177,6 @@
   let missedLogEditingId = "";
   let missedLogStatus = "";
   let missedLogBusy = false;
-  let todayTimelineExpanded = false;
   let selectedTodayTimelineLogId = "";
   let quickLogConfirmation = "";
   let quickLogConfirmationTimer = 0;
@@ -2014,7 +2013,7 @@
     const panel = document.getElementById("missedLogPanel");
     const button = document.getElementById("showMissedLogButton");
     if (panel) panel.hidden = !open;
-    if (button) button.textContent = open ? "Editing log" : "+ Add a missed log";
+    if (button) button.textContent = open ? "Editing log" : "Edit log";
     missedLogEditingId = log ? String(log.id || log.localId || log.cloudId || "") : "";
     if (open) setMissedLogDefaults(log);
     if (!open) missedLogStatus = "";
@@ -2460,7 +2459,6 @@
   function renderDailyLog() {
     const dateEl = document.getElementById("fuelDailyLogDate");
     const latestEl = document.getElementById("todayTimelineLatest");
-    const toggle = document.getElementById("todayTimelineToggle");
     const target = document.getElementById("fuelDailyLog");
     if (!target) return;
     const key = todayViewKey();
@@ -2469,17 +2467,13 @@
       .sort((a, b) => (logDate(a) || 0) - (logDate(b) || 0));
     const latest = logs[logs.length - 1] || null;
     if (dateEl) dateEl.textContent = logs.length ? `${logs.length} log${logs.length === 1 ? "" : "s"} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
-    if (latestEl) latestEl.textContent = latest ? `${logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "Collapsed";
-    if (toggle) toggle.setAttribute("aria-expanded", todayTimelineExpanded ? "true" : "false");
-    target.hidden = !todayTimelineExpanded;
-    target.innerHTML = todayTimelineExpanded
-      ? renderEventTimeline(logs, {
-        emptyCopy: "No fuel or hydration logged yet today. Your first log will appear here.",
-        allowEditing: true,
-        selectedId: selectedTodayTimelineLogId
-      })
-      : "";
-    renderMissedLogPanel();
+    if (latestEl) latestEl.textContent = latest ? `${logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "No logs yet";
+    target.hidden = false;
+    target.innerHTML = renderEventTimeline(logs, {
+      emptyCopy: "No fuel or hydration logged yet today. Your first log will appear here.",
+      allowEditing: false,
+      selectedId: selectedTodayTimelineLogId
+    });
   }
 
   function gapZoneReached(entry) {
@@ -4274,10 +4268,14 @@
           <strong class="beta-status-title">Status: ${safeText(statusLabel)}</strong>
           <p>${safeText(todayRecommendation(snapshot.status, event))}</p>
         </div>
+        <div class="beta-status-log-actions beta-log-actions" aria-label="Log fuel or hydration">
+          <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
+          <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
+        </div>
+        <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
         <div class="beta-today-status-grid">
           ${dailyMetricCard("Last fuel", snapshot.timeSinceFuel, snapshot.lastFuelled === "No fuel logged" ? "No fuel logged yet" : `Logged at ${snapshot.lastFuelled}`, "fuel")}
           ${dailyMetricCard("Last hydration", hydrationSince, lastLogForDay(key, isHydrationLog) ? `Logged at ${formatClock(lastLogForDay(key, isHydrationLog).date)}` : "No hydration logged yet", "hydration")}
-          ${dailyMetricCard("Next useful window", event ? (event.end ? `${formatClock(event.time)}-${formatClock(event.end)}` : formatClock(event.time)) : "No context set", event ? event.label : "Add today’s context if it helps.", event ? "fuel" : "neutral")}
         </div>
       </section>
     `;
@@ -5301,10 +5299,6 @@
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const score = calculateDailyFuelScore(key, { now });
-    const opportunities = activeOpportunities(score.opportunities);
-    const completed = opportunities.filter(item => item.completedAt).length;
-    const hasPlannedDay = demandBlocksForDay(key).length > 0;
     const fuelGap = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
     const hydrationGap = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
     return `
@@ -5320,7 +5314,6 @@
           ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
           ${dailyMetricCard("Longest fuel gap", fuelGap, "From the fuel logs available today.", fuelGap === "Not enough data yet" ? "neutral" : "warning")}
           ${dailyMetricCard("Longest hydration gap", hydrationGap, "From the hydration logs available today.", hydrationGap === "Not enough data yet" ? "neutral" : "hydration")}
-          ${dailyMetricCard("Suggested moments", hasPlannedDay && opportunities.length ? `${completed} of ${opportunities.length}` : "No context set", hasPlannedDay && opportunities.length ? "Protected fuelling moments completed today." : "Add today’s context if it helps explain the day.", "fuel")}
         </div>
       </section>
     `;
@@ -5952,6 +5945,53 @@
     `;
   }
 
+  function renderHistoryFuelWindowCard(key, fuelLogs) {
+    const window = fuellingWindowStatusForDay(key, fuelLogs);
+    return `
+      <section class="beta-rhythm-section-card beta-history-window-card beta-history-fuel-window-card" aria-label="Fuel Window">
+        <div class="section-heading-row">
+          <div>
+            <h3>Fuel Window</h3>
+            <p class="muted">${safeText(window.message)}</p>
+          </div>
+        </div>
+        <div class="beta-daily-status-groups">
+          ${renderDailyMetricGroup("Fuel Window", [
+            dailyMetricCard("First fuel", window.firstFuel || "Not logged", window.started ? "The first fuel log started this window." : "The window starts with the first fuel log.", "fuel"),
+            dailyMetricCard("Window length", window.length, "Set in Settings.", "fuel"),
+            dailyMetricCard("Closes at", window.closesAt || "Not started", window.started ? "Calculated from the first fuel log." : "Waiting for first fuel log.", "fuel"),
+            dailyMetricCard("Remaining", window.remaining, "For the selected local day.", window.remaining === "Window ended" ? "warning" : "fuel")
+          ])}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderHistoryGapWindowCard(entry, fuelLogs, hydrationLogs) {
+    const fuelGap = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
+    const hydrationGap = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
+    const windowLabel = impactWindowLabel(entry);
+    const zone = gapZoneReached(entry);
+    return `
+      <section class="beta-rhythm-section-card beta-history-window-card beta-history-gap-window-card" aria-label="Gap Window">
+        <div class="section-heading-row">
+          <div>
+            <h3>Gap Window</h3>
+            <p class="muted">The clearest timing window where longer gaps showed up on this day.</p>
+          </div>
+        </div>
+        <div class="beta-daily-status-groups">
+          ${renderDailyMetricGroup("Gap Window", [
+            dailyMetricCard("Longest fuel gap", fuelGap, "Longest time between fuel logs.", fuelGap === "Not enough data yet" ? "neutral" : "warning"),
+            dailyMetricCard("Longest hydration gap", hydrationGap, "Longest time between hydration logs.", hydrationGap === "Not enough data yet" ? "neutral" : "hydration"),
+            dailyMetricCard("Window", windowLabel || "Not clear yet", "Based on the strongest available gap signal.", "fuel"),
+            dailyMetricCard("Status", zone, "Highest support level reached on this day.", riskToneFromText(zone))
+          ])}
+        </div>
+      </section>
+    `;
+  }
+
   function renderHistoryDetail() {
     const target = document.getElementById("fuelHistoryDetail");
     if (!target) return;
@@ -5964,39 +6004,9 @@
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
-    const lowEnergyLogs = logs.filter(isLowEnergyCheckinLog);
-    const checkinLogs = logs.filter(isSubjectiveCheckinLog);
     target.innerHTML = `
-      <section class="beta-rhythm-section-card beta-history-detail-card" aria-label="History day detail">
-        <div class="section-heading-row">
-          <div>
-            <h3>${safeText(entry.dateLabel || formatDateKey(key))}</h3>
-            <p class="muted">${safeText(entry.plainSummary || "Detailed day review.")}</p>
-          </div>
-          <span class="row-note">${safeText(entry.dayTypeLabel || "Day type not set")}</span>
-        </div>
-        <div class="beta-daily-status-groups">
-          ${renderDailyMetricGroup("At a glance", [
-            dailyMetricCard("Fuel logs", String(fuelLogs.length), "Total fuel logs.", "fuel"),
-            dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Total hydration logs.", "hydration"),
-            dailyMetricCard("Longest fuel gap", entry.longestGap || durationText(entry.longestGapMinutes || 0), "Longest time between fuel logs.", "fuel"),
-            dailyMetricCard("Longest hydration gap", entry.longestHydrationGap || durationText(entry.longestHydrationGapMinutes || 0), "Longest time between hydration logs.", "hydration")
-          ])}
-        </div>
-      </section>
-      ${renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length, targets(), key)}
-      ${renderHistoryDemandDetail(key)}
-      ${renderTodayTimeline(key)}
-      <section class="beta-rhythm-section-card beta-history-log-detail-card">
-        <div class="section-heading-row">
-          <h3>Logs</h3>
-        </div>
-        <div class="beta-history-log-groups">
-          ${renderHistoryLogGroup("Fuel logs", fuelLogs, "No fuel logs for this day.")}
-          ${renderHistoryLogGroup("Hydration logs", hydrationLogs, "No hydration logs for this day.")}
-          ${renderHistoryLogGroup("Check-ins", checkinLogs, "No energy or concentration check-ins for this day.")}
-        </div>
-      </section>
+      ${renderHistoryFuelWindowCard(key, fuelLogs)}
+      ${renderHistoryGapWindowCard(entry, fuelLogs, hydrationLogs)}
     `;
   }
 
@@ -7689,17 +7699,16 @@
         <div class="beta-weekly-section-head">
           <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
           <div>
-            <h3>Habit insights</h3>
+            <h3>Fuel Gap Windows &amp; Log Windows</h3>
             <p>${safeText(data.range.label)} compared with ${safeText(data.range.previousLabelText)}.</p>
           </div>
         </div>
         ${hasData ? `
           <div class="beta-trend-habit-groups">
-            ${renderTrendHabitGroup("Daily logging window", [insights["first-log"], insights["final-log"]], data)}
-            ${renderTrendHabitGroup("Common gap windows", [insights["fuel-gap-window"], insights["hydration-gap-window"]], data)}
-            ${renderTrendHabitGroup("Common logging hours", [insights["fuel-hour"], insights["hydration-hour"]], data)}
+            ${renderTrendHabitGroup("Fuel Gap Windows", [insights["fuel-gap-window"], insights["hydration-gap-window"]], data)}
+            ${renderTrendHabitGroup("Log Windows", [insights["first-log"], insights["final-log"], insights["fuel-hour"], insights["hydration-hour"]], data)}
           </div>
-        ` : `<p class="muted beta-history-empty">Not enough data yet.</p>`}
+        ` : `<p class="muted beta-history-empty">Not enough log-window data yet.</p>`}
       </section>
     `;
   }
@@ -8430,8 +8439,9 @@
   }
 
   function renderPersonalisedInsights(data) {
-    const { context, candidates } = personalisedInsightCandidates(data);
+    const { candidates } = personalisedInsightCandidates(data);
     const insights = selectPersonalisedInsights(candidates);
+    if (!insights.length) return "";
     return `
       <section class="beta-trend-habit-section beta-personalised-insights-section" aria-label="Personalised Insights">
         <div class="beta-weekly-section-head">
@@ -8441,20 +8451,18 @@
             <p>Repeated patterns from your logs, work/training plans and fuel suggestions.</p>
           </div>
         </div>
-        ${insights.length ? `
-          <div class="beta-personalised-insight-list">
-            ${insights.map(insight => `
-              <article class="beta-personalised-insight-card ${safeText(insight.tone)}">
-                <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : insight.tone === "protected" ? "shield" : ""}">${dailyIcon(insight.icon)}</span>
-                <div>
-                  <p>${safeText(insight.text)}</p>
-                  ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
-                  <span class="beta-evidence-label">${safeText(personalisedInsightEvidenceLabel(insight))}</span>
-                </div>
-              </article>
-            `).join("")}
-          </div>
-        ` : `<p class="muted beta-history-empty">Add a few repeated training, work or fuel-log days to build personalised patterns. Snapshot observations can appear sooner when there is enough recent log detail.</p>`}
+        <div class="beta-personalised-insight-list">
+          ${insights.map(insight => `
+            <article class="beta-personalised-insight-card ${safeText(insight.tone)}">
+              <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : insight.tone === "protected" ? "shield" : ""}">${dailyIcon(insight.icon)}</span>
+              <div>
+                <p>${safeText(insight.text)}</p>
+                ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
+                <span class="beta-evidence-label">${safeText(personalisedInsightEvidenceLabel(insight))}</span>
+              </div>
+            </article>
+          `).join("")}
+        </div>
         <p class="row-note">Insights need repeated evidence and use behavioural wording only. They are not medical or nutrition assessments.</p>
       </section>
     `;
@@ -9361,14 +9369,91 @@
     `;
   }
 
+  const FUELLING_PATTERN_WINDOWS = [
+    { id: "morning", title: "Morning fuelling", startHour: 5, endHour: 12 },
+    { id: "afternoon", title: "Afternoon fuelling", startHour: 12, endHour: 17 },
+    { id: "evening", title: "Evening fuelling", startHour: 17, endHour: 22 }
+  ];
+
+  function fuellingPatternLogs(entries, windowDef) {
+    const start = windowDef.startHour * 60;
+    const end = windowDef.endHour * 60;
+    return entries
+      .flatMap(entry => entryLogsWithDates(entry).filter(isFuelLog))
+      .map(log => ({ ...log, minute: minutesIntoDay(log.date) }))
+      .filter(log => log.minute >= start && log.minute < end)
+      .sort((a, b) => a.minute - b.minute);
+  }
+
+  function mostCommonPatternHour(logs) {
+    const counts = new Map();
+    logs.forEach(log => {
+      const hour = Math.floor(log.minute / 60);
+      counts.set(hour, (counts.get(hour) || 0) + 1);
+    });
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+    if (!top) return null;
+    return { hour: top[0], count: top[1] };
+  }
+
+  function renderFuellingPatternGraph(windowDef, entries) {
+    const logs = fuellingPatternLogs(entries, windowDef);
+    const start = windowDef.startHour * 60;
+    const span = Math.max(1, (windowDef.endHour - windowDef.startHour) * 60);
+    const common = mostCommonPatternHour(logs);
+    const markers = logs.map((log, index) => {
+      const left = ((log.minute - start) / span) * 100;
+      const lane = (index % 3) - 1;
+      const tooltip = `${formatClock(log.date)} fuel log${log.source ? ` · ${log.source}` : ""}`;
+      return `<span class="beta-fuelling-pattern-marker" style="left:${stylePercent(left)};--lane:${lane}" title="${safeText(tooltip)}" tabindex="0" aria-label="${safeText(tooltip)}"></span>`;
+    }).join("");
+    const hourBars = Array.from({ length: windowDef.endHour - windowDef.startHour }, (_, index) => {
+      const hour = windowDef.startHour + index;
+      const count = logs.filter(log => Math.floor(log.minute / 60) === hour).length;
+      const height = logs.length ? Math.max(8, (count / Math.max(common?.count || 1, 1)) * 44) : 0;
+      return `<i style="height:${height.toFixed(1)}px" title="${safeText(`${hourClockLabel(hour)}: ${count} fuel log${count === 1 ? "" : "s"}`)}"></i>`;
+    }).join("");
+    const summary = common
+      ? `Most common: ${hourRangeLabel(common.hour)} · ${common.count} log${common.count === 1 ? "" : "s"}`
+      : "No fuel logs in this window yet.";
+    return `
+      <article class="beta-fuelling-pattern-card ${safeText(windowDef.id)}">
+        <div class="beta-fuelling-pattern-head">
+          <h4>${safeText(windowDef.title)}</h4>
+          <span>${safeText(`${hourClockLabel(windowDef.startHour)}-${hourClockLabel(windowDef.endHour)}`)}</span>
+        </div>
+        <div class="beta-fuelling-pattern-track" aria-hidden="true">${markers}</div>
+        <div class="beta-fuelling-pattern-bars" aria-hidden="true">${hourBars}</div>
+        <small>${safeText(summary)}</small>
+      </article>
+    `;
+  }
+
+  function renderFuellingPatternGraphs(data) {
+    const entries = data.currentEntries.filter(entry => entryLogsWithDates(entry).some(isFuelLog));
+    return `
+      <section class="beta-trend-habit-section beta-fuelling-patterns-section" aria-label="Fuelling patterns">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc amber">${dailyIcon("fuel")}</span>
+          <div>
+            <h3>Fuelling patterns</h3>
+            <p>When fuel logs usually happen in the selected ${safeText(data.range.period)}.</p>
+          </div>
+        </div>
+        <div class="beta-fuelling-pattern-grid">
+          ${FUELLING_PATTERN_WINDOWS.map(windowDef => renderFuellingPatternGraph(windowDef, entries)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderInsightsWeeklySummary(data) {
     const loggedDays = data.currentEntries.filter(entry => (entry.logs || []).length || Number(entry.fuelLogCount || 0) || Number(entry.hydrationLogCount || 0));
+    if (!loggedDays.length) return "";
     const fuelLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0);
     const hydrationLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0);
     const longestFuel = data.currentEntries.reduce((max, entry) => Math.max(max, Number(entry.longestGapMinutes || 0)), 0);
-    const summaryCopy = loggedDays.length
-      ? `You logged ${fuelLogs} fuel and ${hydrationLogs} hydration moment${fuelLogs + hydrationLogs === 1 ? "" : "s"} across ${loggedDays.length} day${loggedDays.length === 1 ? "" : "s"} in this ${data.range.period}.`
-      : `No logged days yet for ${data.range.label}.`;
+    const summaryCopy = `You logged ${fuelLogs} fuel and ${hydrationLogs} hydration moment${fuelLogs + hydrationLogs === 1 ? "" : "s"} across ${loggedDays.length} day${loggedDays.length === 1 ? "" : "s"} in this ${data.range.period}.`;
     return `
       <section class="beta-trend-habit-section beta-insights-summary-section" aria-label="Weekly summary">
         <div class="beta-weekly-section-head">
@@ -9390,33 +9475,9 @@
 
   function renderGarminSignalsSummary() {
     if (!garminPatternsState.loaded && !garminPatternsState.loading) scheduleGarminPatternsLoad();
-    const account = window.fuelGuardCloud?.accountView?.() || {};
     const insights = garminPatternsState.data?.insights || [];
-    const features = garminFeatureRows();
-    let body = "";
-    if (garminPatternsState.loading) {
-      body = `<p class="muted beta-history-empty">Loading Garmin signals...</p>`;
-    } else if (!account.signedIn) {
-      body = `<p class="muted beta-history-empty">Sign in and connect Quick Log to compare opt-in watch signals with your fuelling rhythm.</p>`;
-    } else if (garminPatternsState.error) {
-      body = `<p class="muted beta-history-empty">${safeText(garminPatternsState.error)}</p>`;
-    } else if (insights.length) {
-      const insight = insights[0];
-      body = `
-        <article class="beta-personalised-insight-card ${safeText(insight.tone || "neutral")}">
-          <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : "shield"}">${dailyIcon(insight.metric === "heart_rate" ? "heart" : insight.metric === "body_battery" ? "score" : "chart")}</span>
-          <div>
-            <p>${safeText(insight.text)}</p>
-            ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
-            <span class="beta-evidence-label">${safeText(`${insight.confidence || "limited"} confidence · ${insight.count || 0} matching days`)}</span>
-          </div>
-        </article>
-      `;
-    } else if (features.length) {
-      body = `<p class="muted beta-history-empty">Garmin samples are connected. Fuel Guard needs more repeated days before highlighting a relationship.</p>`;
-    } else {
-      body = `<p class="muted beta-history-empty">No Garmin signals yet. Turn on health-pattern sharing in Quick Log if you want these comparisons.</p>`;
-    }
+    if (!insights.length) return "";
+    const insight = insights[0];
     return `
       <section class="beta-trend-habit-section beta-garmin-signals-summary" aria-label="Garmin signals">
         <div class="beta-weekly-section-head">
@@ -9427,7 +9488,14 @@
           </div>
           <button class="secondary beta-garmin-refresh-button" type="button" data-refresh-garmin-patterns>Refresh</button>
         </div>
-        ${body}
+        <article class="beta-personalised-insight-card ${safeText(insight.tone || "neutral")}">
+          <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : "shield"}">${dailyIcon(insight.metric === "heart_rate" ? "heart" : insight.metric === "body_battery" ? "score" : "chart")}</span>
+          <div>
+            <p>${safeText(insight.text)}</p>
+            ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
+            <span class="beta-evidence-label">${safeText(`${insight.confidence || "limited"} confidence · ${insight.count || 0} matching days`)}</span>
+          </div>
+        </article>
       </section>
     `;
   }
@@ -9438,8 +9506,6 @@
         <summary>View supporting trend details</summary>
         <div class="beta-trend-detail-stack">
           ${renderGapInsights(data)}
-          ${renderTrendHabitInsights(data)}
-          ${renderLogHabits(data)}
           ${renderTrendCards(data, ["fuel-gap", "hydration-gap", "low-energy", "logs"])}
           ${renderFuelScoreTrends(data)}
           ${renderDemandAdherenceInsights(data)}
@@ -9497,10 +9563,12 @@
     const data = trendComparisonData();
     updateTrendControls(data.range);
     summaryTarget.innerHTML = `
-      ${renderInsightsWeeklySummary(data)}
-      ${renderTrendPriorityInsight(data)}
+      ${renderFuellingPatternGraphs(data)}
+      ${renderTrendHabitInsights(data)}
       ${renderPersonalisedInsights(data)}
+      ${renderTrendPriorityInsight(data)}
       ${renderGarminSignalsSummary()}
+      ${renderInsightsWeeklySummary(data)}
       ${renderInsightsSupportingDetails(data)}
     `;
   }
@@ -9823,7 +9891,7 @@
       renderDailyLog();
     }
     if (target === "history") renderHistoryScreen();
-    if (target === "trends") renderTrends();
+    if (target === "insights") renderTrends();
     if (target === "checklist") renderSettings();
   };
 
@@ -10035,7 +10103,6 @@
   });
 
   document.getElementById("undoLatestFoodLog")?.addEventListener("click", undoLatestRhythmLog);
-  document.getElementById("graphLogHydrationButton")?.addEventListener("click", recordHydration);
   document.getElementById("showMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(true));
   document.getElementById("cancelMissedLogButton")?.addEventListener("click", () => setMissedLogPanel(false));
   document.getElementById("saveMissedLogButton")?.addEventListener("click", saveMissedLog);
@@ -10107,11 +10174,10 @@
     }
   });
   document.addEventListener("click", event => {
-    const todayTimelineToggle = event.target.closest("#todayTimelineToggle");
-    if (todayTimelineToggle) {
-      todayTimelineExpanded = !todayTimelineExpanded;
-      if (!todayTimelineExpanded) selectedTodayTimelineLogId = "";
-      renderDailyLog();
+    const hydrationButton = event.target.closest("#graphLogHydrationButton");
+    if (hydrationButton) {
+      event.preventDefault();
+      recordHydration();
       return;
     }
     const timelineLogToggle = event.target.closest("[data-toggle-log-actions]");
