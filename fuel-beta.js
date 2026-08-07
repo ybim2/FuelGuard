@@ -4259,6 +4259,9 @@
   function renderCurrentFuellingStatus(key = todayViewKey(), now = new Date()) {
     const snapshot = fuelGapSnapshot(now);
     const hydrationSince = timeSinceLogForDay(key, isHydrationLog, now);
+    const logs = logsForDay(key);
+    const fuelLogs = logs.filter(isFuelLog);
+    const hydrationLogs = logs.filter(isHydrationLog);
     const event = nextRelevantPlanEvent(key, now);
     const tone = snapshot.status === "green" ? "steady" : snapshot.status === "amber" ? "warning" : snapshot.status === "red" ? "urgent" : "recovery";
     const statusLabel = riskStatusLabel(snapshot.status);
@@ -4271,6 +4274,8 @@
         <div class="beta-today-status-grid">
           ${dailyMetricCard("Last fuel", snapshot.timeSinceFuel, snapshot.lastFuelled === "No fuel logged" ? "No fuel logged yet" : `Logged at ${snapshot.lastFuelled}`, "fuel")}
           ${dailyMetricCard("Last hydration", hydrationSince, lastLogForDay(key, isHydrationLog) ? `Logged at ${formatClock(lastLogForDay(key, isHydrationLog).date)}` : "No hydration logged yet", "hydration")}
+          ${dailyMetricCard("Fuel logs", String(fuelLogs.length), "Logged on the selected day.", "fuel")}
+          ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
         </div>
       </section>
     `;
@@ -5291,24 +5296,13 @@
   }
 
   function renderTodayProgress(key = todayViewKey(), now = new Date()) {
-    const logs = logsForDay(key);
-    const fuelLogs = logs.filter(isFuelLog);
-    const hydrationLogs = logs.filter(isHydrationLog);
-    const fuelGap = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
-    const hydrationGap = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
     return `
       <section class="beta-rhythm-section-card beta-today-progress-card" aria-label="Today’s progress">
         <div class="section-heading-row">
           <div>
             <h3>Today’s progress</h3>
-            <p class="muted">A quick read on today’s fuel and hydration rhythm.</p>
+            <p class="muted">Daily counts now sit with your Status so this section stays light.</p>
           </div>
-        </div>
-        <div class="beta-target-progress-grid beta-today-progress-grid">
-          ${dailyMetricCard("Fuel logs", String(fuelLogs.length), "Logged on the selected day.", "fuel")}
-          ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
-          ${dailyMetricCard("Longest fuel gap", fuelGap, "From the fuel logs available today.", fuelGap === "Not enough data yet" ? "neutral" : "warning")}
-          ${dailyMetricCard("Longest hydration gap", hydrationGap, "From the hydration logs available today.", hydrationGap === "Not enough data yet" ? "neutral" : "hydration")}
         </div>
       </section>
     `;
@@ -5779,6 +5773,7 @@
     const todayStatusTarget = document.getElementById("fuelTodayStatus");
     const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
     const todayProgressTarget = document.getElementById("fuelTodayProgress");
+    const logPatternsTarget = document.getElementById("fuelLogPatterns");
     renderPlanSubtabs();
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
@@ -5786,6 +5781,7 @@
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
     if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
     if (todayProgressTarget) todayProgressTarget.innerHTML = renderTodayProgress(todayKey);
+    if (logPatternsTarget) logPatternsTarget.innerHTML = renderFuellingPatternGraphs(trendComparisonData());
     if (windowTarget) windowTarget.innerHTML = "";
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
@@ -9454,7 +9450,9 @@
     const loggedDays = data.currentEntries.filter(entry => (entry.logs || []).length || Number(entry.fuelLogCount || 0) || Number(entry.hydrationLogCount || 0));
     const fuelLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0);
     const hydrationLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0);
-    const longestFuel = data.currentEntries.reduce((max, entry) => Math.max(max, Number(entry.longestGapMinutes || 0)), 0);
+    const insights = trendHabitInsightMap(data);
+    const fuelGapWindow = insights["fuel-gap-window"]?.current || { value: "Not enough gap data yet.", detail: "Needs recurring significant gaps." };
+    const fuellingWindow = insights["fuel-hour"]?.current || { value: "Not enough data yet", detail: "Needs matching logs" };
     const summaryCopy = loggedDays.length
       ? `You logged ${fuelLogs} fuel and ${hydrationLogs} hydration moment${fuelLogs + hydrationLogs === 1 ? "" : "s"} across ${loggedDays.length} day${loggedDays.length === 1 ? "" : "s"} in this ${data.range.period}.`
       : `No fuel or hydration logs in this ${data.range.period} yet.`;
@@ -9468,10 +9466,10 @@
           </div>
         </div>
         <div class="beta-trend-habit-grid beta-insights-summary-grid">
-          ${renderWeeklyMetricCard("Logged days", String(loggedDays.length), `Based on ${safeText(data.range.label)}.`)}
           ${renderWeeklyMetricCard("Fuel logs", String(fuelLogs), "Fuel moments recorded in this period.")}
           ${renderWeeklyMetricCard("Hydration logs", String(hydrationLogs), "Hydration moments recorded in this period.")}
-          ${renderWeeklyMetricCard("Longest fuel gap", longestFuel ? duration(longestFuel) : "Not enough data", "Largest daily fuel gap in this period.")}
+          ${renderWeeklyMetricCard("Most common fuel-gap window", fuelGapWindow.value, fuelGapWindow.detail)}
+          ${renderWeeklyMetricCard("Most common fuelling window", fuellingWindow.value, fuellingWindow.detail)}
         </div>
       </section>
     `;
@@ -9552,7 +9550,6 @@
     summaryTarget.innerHTML = `
       ${renderInsightsWeeklySummary(data)}
       ${renderPersonalisedInsights(data)}
-      ${renderFuellingPatternGraphs(data)}
       ${renderTrendHabitInsights(data)}
       ${renderGarminSignalsSummary()}
     `;

@@ -14,7 +14,7 @@ Settings opens from the sticky top header.
 
 Do not use, recreate, or rebuild from the old web PWA design. Do not edit archived or deprecated frontend versions. Do not create a new frontend unless the user explicitly asks for one.
 
-All UI work must be applied to the canonical mobile PWA. Account/login setup belongs inside Settings unless explicitly changed. Weekly Summary, Personalised Insights, fuelling-pattern insights and Garmin signals when evidence exists belong in Insights; period navigation plus Fuel Window / Gap Window review belong in History, not in a new desktop-style frontend.
+All UI work must be applied to the canonical mobile PWA. Account/login setup belongs inside Settings unless explicitly changed. Fuelling-pattern insights belong on Log below Today’s Progress; Weekly Summary, Personalised Insights and Garmin signals when evidence exists belong in Insights; period navigation plus Fuel Window / Gap Window review belong in History, not in a new desktop-style frontend.
 
 Before making UI changes, confirm the canonical entry point and active components. Keep the current mobile-first design style.
 
@@ -48,8 +48,8 @@ Canonical files
 - Main entry point: `index.html`
 - App/root component: the static `body.beta-mvp` app shell in `index.html`
 - Routing/navigation: `index.html` nav buttons, base `switchScreen` in `app-ui.js`, and mobile PWA overrides in `fuel-beta.js`
-- Log screen: `#dashboard` in `index.html`, behavior in `fuel-beta.js`, support state in `app-state.js`, styling in `fuel-beta.css`, `mobile-pwa.css`, and `mobile-ux-overrides.css`; the fuel/hydration actions live inside Today’s Timeline.
-- Insights screen: `#insights` in `index.html`, Weekly Summary, Personalised Insights, fuelling-pattern and weekly insight behavior in `fuel-beta.js`
+- Log screen: `#dashboard` in `index.html`, behavior in `fuel-beta.js`, support state in `app-state.js`, styling in `fuel-beta.css`, `mobile-pwa.css`, and `mobile-ux-overrides.css`; the fuel/hydration actions live inside Today’s Timeline and Fuelling Patterns sits below Today’s Progress.
+- Insights screen: `#insights` in `index.html`, Weekly Summary, Personalised Insights and weekly insight behavior in `fuel-beta.js`
 - History screen: `#history` in `index.html`, compact week/month navigation plus Fuel Window / Gap Window history behavior in `fuel-beta.js`
 - Settings screen: `#checklist` in `index.html`, behavior in `fuel-beta.js` and `fuel-beta-ui-polish.js`
 - PWA manifest: `manifest.webmanifest`
