@@ -1,0 +1,14 @@
+/* Shared layout boundary for independently registered Coach feature modules. */
+.coach-feature-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.coach-feature-stack:empty,
+.coach-feature:empty {
+  display: none;
+}
+
+.coach-feature {
+  min-width: 0;
+}

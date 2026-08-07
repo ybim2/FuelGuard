@@ -52,6 +52,16 @@
     status: ""
   };
 
+  const platformController = window.FuelGuardCoachPlatformBridge?.connect({
+    readState: () => state,
+    getClient: () => state.client,
+    refresh: ({ reason } = {}) => loadCoachData({ reason }),
+    selectAthlete: athleteId => selectCoachAthlete(athleteId)
+  }) || null;
+  try {
+    delete window.FuelGuardCoachPlatformBridge;
+  } catch (_error) {}
+
   function $(id) {
     return document.getElementById(id);
   }
@@ -177,13 +187,17 @@
   }
 
   function rebuildRoster() {
+    const previousAthleteId = state.selectedAthleteId;
     state.roster = domain.buildCoachRoster({
       athletes: athleteRows(),
       logs: state.logs,
       targetsByUser: targetsByUser(),
       now: new Date()
     });
-    if (!state.selectedAthleteId && state.roster[0]) state.selectedAthleteId = state.roster[0].athlete.userId;
+    if (!state.roster.some(item => item.athlete.userId === state.selectedAthleteId)) {
+      state.selectedAthleteId = state.roster[0]?.athlete.userId || "";
+    }
+    return previousAthleteId !== state.selectedAthleteId;
   }
 
   function currentStatusCopy(item) {
@@ -367,6 +381,15 @@
 
   function selectedAthleteStatus() {
     return state.roster.find(item => item.athlete.userId === state.selectedAthleteId) || state.roster[0] || null;
+  }
+
+  function selectCoachAthlete(athleteId) {
+    const id = String(athleteId || "");
+    if (!state.roster.some(item => item.athlete.userId === id)) return false;
+    state.selectedAthleteId = id;
+    state.currentTab = "athletes";
+    render();
+    return true;
   }
 
   function eventIcon(log) {
@@ -1031,7 +1054,7 @@
     return state.profile;
   }
 
-  async function loadCoachData({ enableCoach = false } = {}) {
+  async function loadCoachData({ enableCoach = false, reason = "coach-data" } = {}) {
     const user = coachUser();
     if (!state.client || !user) return;
     state.authResolved = true;
@@ -1053,6 +1076,7 @@
         state.interventions = [];
         state.roster = [];
         state.coachLoading = false;
+        platformController?.reset();
         setStatus("This account is signed in, but Coach Beta is not enabled for it yet.");
         render();
         return;
@@ -1130,10 +1154,12 @@
         state.interventions = interventions || [];
       }
 
-      rebuildRoster();
+      const selectionChanged = rebuildRoster();
       state.coachLoading = false;
       setStatus(`Loaded ${state.roster.length} active athlete${state.roster.length === 1 ? "" : "s"}.`);
       render();
+      platformController?.publishData(reason);
+      if (selectionChanged && state.selectedAthleteId) platformController?.athleteSelected(state.selectedAthleteId);
     } catch (error) {
       state.coachLoading = false;
       throw error;
@@ -1174,7 +1200,7 @@
       state.authResolved = true;
       state.coachLoading = true;
       renderAuth();
-      await loadCoachData();
+      await loadCoachData({ reason: "sign-in" });
     });
   }
 
@@ -1200,7 +1226,7 @@
         state.authResolved = true;
         state.coachLoading = true;
         renderAuth();
-        await loadCoachData({ enableCoach: true });
+        await loadCoachData({ enableCoach: true, reason: "coach-sign-up" });
       }
     });
   }
@@ -1234,6 +1260,7 @@
     state.athleteCodeQuery = "";
     state.athleteCodeResult = null;
     state.athleteCodeStatus = "";
+    platformController?.reset();
     setStatus("Signed out.");
     render();
   }
@@ -1258,6 +1285,7 @@
       state.profile = data;
       setStatus("Coach profile saved.");
       renderSettings();
+      platformController?.publishData("profile-saved");
     });
   }
 
@@ -1318,7 +1346,7 @@
       state.athleteCodeResult = { ...result, relationship_status: "pending" };
       state.athleteCodeStatus = "Connection request sent. Athlete data stays private until they approve.";
       setStatus(state.athleteCodeStatus);
-      await loadCoachData();
+      await loadCoachData({ reason: "sharing-requested" });
       renderAthleteCodeResult();
     });
   }
@@ -1331,7 +1359,7 @@
         .eq("id", id);
       if (error) throw error;
       setStatus("Relationship removed.");
-      await loadCoachData();
+      await loadCoachData({ reason: "relationship-revoked" });
     });
   }
 
@@ -1404,7 +1432,7 @@
       state.generatedReport = report;
       setStatus("Athlete review report generated.");
       renderReportPreview();
-      await loadCoachData();
+      await loadCoachData({ reason: "report-created" });
     });
   }
 
@@ -1440,7 +1468,7 @@
       setStatus("Intervention created.");
       if ($("coachInterventionObservation")) $("coachInterventionObservation").value = "";
       if ($("coachInterventionAction")) $("coachInterventionAction").value = "";
-      await loadCoachData();
+      await loadCoachData({ reason: "intervention-created" });
     });
   }
 
@@ -1622,7 +1650,7 @@
       const enableCoach = coachSignupIntent(state.session.user);
       state.coachLoading = true;
       renderAuth();
-      await loadCoachData({ enableCoach }).catch(error => {
+      await loadCoachData({ enableCoach, reason: "initial-auth" }).catch(error => {
         state.coachLoading = false;
         setStatus(friendlyError(error));
         render();
@@ -1642,7 +1670,7 @@
         const enableCoach = coachSignupIntent(session.user);
         state.coachLoading = true;
         renderAuth();
-        loadCoachData({ enableCoach }).catch(error => {
+        loadCoachData({ enableCoach, reason: "auth-state-change" }).catch(error => {
           state.coachLoading = false;
           setStatus(friendlyError(error));
           render();
@@ -1651,6 +1679,7 @@
       else {
         state.coachLoading = false;
         state.coachAccessBlocked = false;
+        platformController?.reset();
         render();
       }
     });
@@ -1666,9 +1695,9 @@
 
     const openAthlete = event.target.closest("[data-open-athlete]");
     if (openAthlete) {
-      state.selectedAthleteId = openAthlete.dataset.openAthlete;
-      state.currentTab = "athletes";
-      render();
+      if (selectCoachAthlete(openAthlete.dataset.openAthlete)) {
+        platformController?.athleteSelected(state.selectedAthleteId);
+      }
       return;
     }
 
