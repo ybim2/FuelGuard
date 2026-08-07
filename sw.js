@@ -1,13 +1,27 @@
-const APP_VERSION = "mobile-pwa-v104-athlete-code-links";
-const BUILD_VERSION = "2026-08-08T00:05:00Z";
+const APP_VERSION = "mobile-pwa-v105-coach-platform";
+const BUILD_VERSION = "2026-08-07T17:25:40Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v104-athlete-code-links-20260808T000500Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v105-coach-platform-20260807T172540Z";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./coach/index.html",
   "./coach/coach-beta.css",
   "./coach/coach-beta.js",
+  "./coach/coach-platform.css",
+  "./coach/coach-platform.js",
+  "./coach/coach-attention.css",
+  "./coach/coach-attention.js",
+  "./coach/coach-intervention-workflow.css",
+  "./coach/coach-intervention-workflow.js",
+  "./coach/coach-team-intelligence.css",
+  "./coach/coach-team-intelligence.js",
+  "./coach/coach-review-scheduling.css",
+  "./coach/coach-review-scheduling.js",
+  "./coach/coach-team-structure.css",
+  "./coach/coach-team-structure.js",
+  "./coach/coach-training-schedule.css",
+  "./coach/coach-training-schedule.js",
   "./build-info.js",
   "./styles.css",
   "./mobile-pwa.css",
