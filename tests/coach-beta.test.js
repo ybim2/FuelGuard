@@ -14,6 +14,17 @@ function checkinNote(type = "sleepy") {
   return `fuel_guard_checkin:${JSON.stringify({ version: 1, checkinType: type, context: "general_day", arousalLevel: type })}`;
 }
 
+function localLog(userId, key, hour, minute, type = "fuel", extra = {}) {
+  const date = new Date(`${key}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`);
+  return domain.normalizeLog({
+    user_id: userId,
+    logged_at: date.toISOString(),
+    type,
+    source: "manual",
+    ...extra
+  });
+}
+
 test("Coach Beta is a separate route and athlete Log navigation remains simple", () => {
   const athleteHtml = read("index.html");
   const athleteJs = read("fuel-beta.js");
@@ -21,12 +32,29 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   const coachJs = read("coach/coach-beta.js");
 
   assert.match(coachHtml, /Fuel Guard Coach Beta/);
+  assert.match(coachHtml, /Fuel Guard Coach/);
   assert.match(coachHtml, /data-coach-tab="dashboard"/);
   assert.match(coachHtml, /data-coach-tab="athletes"/);
+  assert.match(coachHtml, /data-coach-tab="reports"/);
   assert.match(coachHtml, /data-coach-tab="settings"/);
+  assert.match(coachHtml, /id="coachAccessPanel"/);
+  assert.match(coachHtml, /Create coach account/);
+  assert.match(coachHtml, /Forgot password\?/);
+  assert.match(coachHtml, /Enable Coach Beta/);
+  assert.match(coachHtml, /id="coachReportsPanel"/);
   assert.match(coachHtml, /fuel-guard-domain\.js/);
   assert.match(coachHtml, /api\/supabase-config\.js/);
-  assert.match(coachJs, /TABLES = \{[\s\S]*profiles:[\s\S]*relationships:[\s\S]*logs:[\s\S]*targets:/);
+  assert.match(coachJs, /TABLES = \{[\s\S]*profiles:[\s\S]*relationships:[\s\S]*logs:[\s\S]*targets:[\s\S]*reports:[\s\S]*interventions:/);
+  assert.match(coachJs, /function isCoachEnabled/);
+  assert.match(coachJs, /coach_enabled/);
+  assert.match(coachJs, /signInWithPassword/);
+  assert.match(coachJs, /resetPasswordForEmail/);
+  assert.match(coachJs, /function enableCoachAccess/);
+  assert.doesNotMatch(coachJs, /update\(\{\s*role:\s*"coach"/);
+  assert.match(coachJs, /data-open-report-builder/);
+  assert.match(coachJs, /data-open-intervention-builder/);
+  assert.match(coachJs, /data-export-report-pdf/);
+  assert.match(coachJs, /data-export-report-csv/);
 
   assert.doesNotMatch(athleteHtml, /data-coach-tab|Coach Beta|coachDashboardPanel/);
   assert.match(athleteHtml, /data-mobile-screen="dashboard"[\s\S]*<span>Log<\/span>/);
@@ -101,17 +129,128 @@ test("Coach migration uses database-level active relationship access controls", 
   const noComments = sql.replace(/^--.*$/gm, "");
 
   assert.match(sql, /create table if not exists public\.fuel_user_profiles/);
+  assert.match(sql, /coach_enabled boolean not null default false/);
+  assert.match(sql, /set coach_enabled = true/);
   assert.match(sql, /create table if not exists public\.fuel_coach_athletes/);
+  assert.match(sql, /create table if not exists public\.fuel_coach_reports/);
+  assert.match(sql, /create table if not exists public\.fuel_coach_interventions/);
   assert.match(sql, /alter table public\.fuel_user_profiles enable row level security/);
   assert.match(sql, /alter table public\.fuel_coach_athletes enable row level security/);
+  assert.match(sql, /alter table public\.fuel_coach_reports enable row level security/);
+  assert.match(sql, /alter table public\.fuel_coach_interventions enable row level security/);
   assert.match(sql, /fuel_coach_athletes_coach_athlete_idx/);
+  assert.match(sql, /fuel_coach_reports_coach_athlete_date_idx/);
+  assert.match(sql, /fuel_coach_reports_period_idx/);
+  assert.match(sql, /fuel_coach_interventions_coach_athlete_status_idx/);
+  assert.match(sql, /fuel_coach_interventions_review_idx/);
+  assert.match(sql, /fuel_user_profiles_coach_enabled_idx/);
   assert.match(sql, /fuel_logs_select_own_or_assigned_coach/);
   assert.match(sql, /fuel_targets_select_own_or_assigned_coach/);
+  assert.match(sql, /fuel_coach_reports_insert_assigned_coach/);
+  assert.match(sql, /fuel_coach_interventions_insert_assigned_coach/);
+  assert.match(sql, /period_start date/);
+  assert.match(sql, /period_end date/);
+  assert.match(sql, /coach_notes text/);
+  assert.match(sql, /organisation_name text/);
+  assert.match(sql, /previous_metrics jsonb/);
+  assert.match(sql, /category text/);
+  assert.match(sql, /observation text/);
+  assert.match(sql, /intervention_date date/);
+  assert.match(sql, /review_date date/);
   assert.match(sql, /relationship\.coach_id = \(select auth\.uid\(\)\)/);
   assert.match(sql, /relationship\.status = 'active'/);
   assert.match(sql, /with check \(\(select auth\.uid\(\)\) = user_id\)/);
   assert.match(sql, /status in \('pending', 'active', 'revoked'\)/);
+  assert.match(sql, /status in \('active', 'reviewed', 'closed'\)/);
   assert.doesNotMatch(noComments, /service_role|auth\.role\(\)/);
+});
+
+test("Athlete review report calculates coverage, gap metrics, Sleepy associations and comparison", () => {
+  const athleteId = "athlete-review-a";
+  const period = domain.reviewPeriodRange({
+    preset: "custom",
+    customStart: "2026-07-01",
+    customEnd: "2026-07-07",
+    now: new Date("2026-07-07T12:00:00")
+  });
+  const previous = domain.previousPeriodRange(period);
+  const currentLogs = [
+    localLog(athleteId, "2026-07-01", 8, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-01", 10, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-01", 13, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-01", 16, 45, "fuel", { day_type: "Working", notes: checkinNote("sleepy") }),
+    localLog(athleteId, "2026-07-01", 17, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-02", 8, 10, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-02", 10, 5, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-02", 13, 5, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-02", 16, 50, "fuel", { day_type: "Working", notes: checkinNote("sleepy") }),
+    localLog(athleteId, "2026-07-02", 17, 20, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-03", 9, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-03", 12, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-03", 10, 0, "hydration", { day_type: "Working" }),
+    localLog(athleteId, "2026-07-03", 14, 0, "hydration", { day_type: "Working" })
+  ];
+  const previousLogs = [
+    localLog(athleteId, previous.startKey, 8, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, previous.startKey, 13, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, previous.startKey, 17, 30, "fuel", { day_type: "Working" }),
+    localLog(athleteId, domain.dateKey(domain.endOfLocalDay(previous.endKey)), 8, 0, "fuel", { day_type: "Working" }),
+    localLog(athleteId, domain.dateKey(domain.endOfLocalDay(previous.endKey)), 17, 0, "fuel", { day_type: "Working" })
+  ];
+
+  const report = domain.buildAthleteReviewReport({
+    athlete: { userId: athleteId, displayName: "Review Athlete" },
+    coach: { displayName: "Coach A" },
+    organisationName: "Fuel Guard Test Team",
+    logs: currentLogs,
+    previousLogs,
+    targets: { maximumFuelGapMinutes: 180 },
+    period,
+    interventions: [{ intervention_date: "2026-07-04", category: "fuelling_routine", action_text: "Carry snack", status: "active" }],
+    coachNotes: "Travel days need calmer routines.",
+    generatedAt: new Date("2026-07-07T12:00:00")
+  });
+
+  assert.equal(report.coverage.totalDays, 7);
+  assert.equal(report.coverage.loggedDays, 3);
+  assert.equal(report.coverage.metricDays, 3);
+  assert.equal(report.consistency.daysExceedingTarget, 2);
+  assert.equal(report.consistency.targetAdherencePct, 33);
+  assert.equal(report.fuelling.commonGapWindow.label, "13:00-18:00");
+  assert.equal(report.fuelling.commonFuellingWindow.label, "08:00-10:00");
+  assert.equal(report.sleepy.total, 2);
+  assert.equal(report.sleepy.commonWindow.label, "16:00-18:00");
+  assert.equal(report.sleepy.afterLongGapCount, 2);
+  assert.equal(report.sleepy.afterLongGapPct, 100);
+  assert.equal(report.contexts[0].label, "Shift");
+  assert.equal(report.contexts[0].adherencePct, 33);
+  assert.equal(report.coachNotes, "Travel days need calmer routines.");
+  assert.equal(report.comparison.find(item => item.id === "target_adherence").trendLabel, "Improved");
+  assert.match(report.executiveSummary.join(" "), /Fuel-gap target was met on 33%/);
+});
+
+test("Intervention comparison reports before and after changes without causal claims", () => {
+  const athleteId = "athlete-intervention-a";
+  const logs = [
+    localLog(athleteId, "2026-06-02", 8, 0),
+    localLog(athleteId, "2026-06-02", 17, 0),
+    localLog(athleteId, "2026-06-09", 8, 0),
+    localLog(athleteId, "2026-06-09", 16, 0),
+    localLog(athleteId, "2026-07-02", 8, 0),
+    localLog(athleteId, "2026-07-02", 11, 0),
+    localLog(athleteId, "2026-07-09", 8, 0),
+    localLog(athleteId, "2026-07-09", 11, 0)
+  ];
+  const comparison = domain.interventionComparison({
+    intervention: { intervention_date: "2026-07-01" },
+    logs,
+    targets: { maximumFuelGapMinutes: 180 },
+    weeks: 4
+  });
+
+  assert.equal(comparison.direction, "improved");
+  assert.match(comparison.label, /lower after this intervention/);
+  assert.doesNotMatch(comparison.label, /caused|proved|under-fuel/i);
 });
 
 test("Coach Beta avoids medical or body-composition framing", () => {

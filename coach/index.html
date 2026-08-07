@@ -8,8 +8,8 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v97-coach-beta" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v98-coach-db-ready" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v101-coach-auth-flow" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v101-coach-auth-flow" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -25,7 +25,7 @@
       <div class="coach-card-heading">
         <span class="coach-icon">FG</span>
         <div>
-          <h1>Coach Beta</h1>
+          <h1>Fuel Guard Coach</h1>
           <p>Sign in with Supabase to review athletes who have explicitly shared Fuel Guard timing data with you.</p>
         </div>
       </div>
@@ -35,15 +35,34 @@
       </div>
       <div class="coach-button-row">
         <button id="coachSignInButton" class="primary" type="button">Log in</button>
-        <button id="coachSignUpButton" class="secondary" type="button">Create account</button>
+        <button id="coachSignUpButton" class="secondary" type="button">Create coach account</button>
+        <button id="coachForgotPasswordButton" class="secondary" type="button">Forgot password?</button>
       </div>
       <p id="coachAuthStatus" class="coach-note" aria-live="polite"></p>
+    </section>
+
+    <section id="coachAccessPanel" class="coach-card coach-auth-card" hidden>
+      <div class="coach-card-heading">
+        <span class="coach-icon">FG</span>
+        <div>
+          <h1>Coach access</h1>
+          <p>This Supabase account is signed in, but Coach Beta is not enabled for it yet.</p>
+        </div>
+      </div>
+      <p class="coach-note">You can keep using Fuel Guard as an athlete. Enable Coach Beta only if this account should also review athletes who explicitly share data with you.</p>
+      <div class="coach-button-row">
+        <button id="coachEnableAccessButton" class="primary" type="button">Enable Coach Beta</button>
+        <a class="coach-link-button" href="../">Open athlete app</a>
+        <button id="coachAccessSignOutButton" class="secondary" type="button">Log out</button>
+      </div>
+      <p id="coachAccessStatus" class="coach-note" aria-live="polite"></p>
     </section>
 
     <section id="coachAppShell" hidden>
       <nav class="coach-tabbar" aria-label="Coach navigation">
         <button class="active" type="button" data-coach-tab="dashboard">Dashboard</button>
         <button type="button" data-coach-tab="athletes">Athletes</button>
+        <button type="button" data-coach-tab="reports">Reports</button>
         <button type="button" data-coach-tab="settings">Settings</button>
       </nav>
 
@@ -64,6 +83,47 @@
         </section>
         <div id="coachAthleteList"></div>
         <div id="coachAthleteDetail"></div>
+      </section>
+
+      <section id="coachReportsPanel" class="coach-panel" aria-label="Athlete review reports">
+        <section class="coach-card">
+          <div class="coach-card-heading compact">
+            <div>
+              <h2>Reports</h2>
+              <p>Generate structured behavioural evidence for a selected athlete and review period.</p>
+            </div>
+          </div>
+          <div class="coach-form-grid">
+            <label>Athlete<select id="coachReportAthlete"></select></label>
+            <label>Review period<select id="coachReportPeriod">
+              <option value="4_weeks">4 Weeks</option>
+              <option value="8_weeks">8 Weeks</option>
+              <option value="12_weeks" selected>12 Weeks</option>
+              <option value="season">Season</option>
+              <option value="custom">Custom</option>
+            </select></label>
+            <label>Custom start<input id="coachReportStart" type="date"></label>
+            <label>Custom end<input id="coachReportEnd" type="date"></label>
+            <label>Team / organisation<input id="coachOrganisationName" type="text" maxlength="120" placeholder="Optional"></label>
+            <label>Intervention category<select id="coachInterventionCategory">
+              <option value="fuelling_routine">Fuelling routine</option>
+              <option value="training_day_plan">Training day plan</option>
+              <option value="travel_routine">Travel routine</option>
+              <option value="shift_support">Shift support</option>
+              <option value="other">Other</option>
+            </select></label>
+            <label>Intervention date<input id="coachInterventionDate" type="date"></label>
+            <label>Review date<input id="coachInterventionReviewDate" type="date"></label>
+          </div>
+          <label class="coach-textarea-label">Coach observations<textarea id="coachReportNotes" rows="4" maxlength="2000" placeholder="Add factual coach observations for this report."></textarea></label>
+          <label class="coach-textarea-label">Intervention observation<textarea id="coachInterventionObservation" rows="3" maxlength="1200" placeholder="What pattern are you responding to?"></textarea></label>
+          <label class="coach-textarea-label">Intervention action<textarea id="coachInterventionAction" rows="3" maxlength="1200" placeholder="What practical support step will you review later?"></textarea></label>
+          <div class="coach-button-row">
+            <button id="coachGenerateReviewButton" class="primary" type="button">Generate review</button>
+            <button id="coachCreateInterventionButton" class="secondary" type="button">Create intervention</button>
+          </div>
+        </section>
+        <div id="coachReportPreview"></div>
       </section>
 
       <section id="coachSettingsPanel" class="coach-panel" aria-label="Coach settings">
@@ -108,9 +168,9 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../api/supabase-config.js?v=mobile-pwa-v97-coach-beta"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v101-coach-auth-flow"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v97-coach-beta"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v98-coach-db-ready"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v101-coach-auth-flow"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v101-coach-auth-flow"></script>
 </body>
 </html>

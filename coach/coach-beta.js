@@ -5,7 +5,9 @@
     profiles: "fuel_user_profiles",
     relationships: "fuel_coach_athletes",
     logs: "fuel_logs",
-    targets: "fuel_targets"
+    targets: "fuel_targets",
+    reports: "fuel_coach_reports",
+    interventions: "fuel_coach_interventions"
   };
   const PATTERN_TYPES = [
     { id: "fuel", label: "Fuel", empty: "No fuel logged today", noun: "fuel log" },
@@ -20,6 +22,7 @@
     { label: "18:00", start: 18, end: 21 },
     { label: "21:00", start: 21, end: 24 }
   ];
+  const COACH_SIGNUP_EMAIL_KEY = "fuel_guard_coach_signup_email";
 
   const state = {
     client: null,
@@ -29,12 +32,19 @@
     athleteProfiles: [],
     logs: [],
     targets: [],
+    reports: [],
+    interventions: [],
     roster: [],
     currentTab: "dashboard",
     selectedAthleteId: "",
+    selectedReportAthleteId: "",
+    reportPeriod: "12_weeks",
+    generatedReport: null,
     selectedPattern: "fuel",
     search: "",
     busy: false,
+    authBusyAction: "",
+    coachAccessBlocked: false,
     status: ""
   };
 
@@ -55,18 +65,48 @@
     return state.session?.user || null;
   }
 
+  function isCoachEnabled(profile = state.profile) {
+    const role = String(profile?.role || "").toLowerCase();
+    return Boolean(profile?.coach_enabled) || role === "coach";
+  }
+
   function setStatus(message) {
     state.status = message || "";
     const target = $("coachGlobalStatus");
     if (target) target.textContent = state.status;
+    const authStatus = $("coachAuthStatus");
+    if (authStatus && !authStatus.hidden) authStatus.textContent = state.status;
+    const accessStatus = $("coachAccessStatus");
+    if (accessStatus && !accessStatus.hidden) accessStatus.textContent = state.status;
   }
 
   function friendlyError(error) {
     const message = String(error?.message || error || "Something went wrong.");
-    if (/fuel_user_profiles|fuel_coach_athletes|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
+    if (/invalid login credentials/i.test(message)) return "Those login details did not work. Check the email and password, then try again.";
+    if (/email not confirmed|confirm/i.test(message)) return "Please confirm your email address before logging in.";
+    if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
+    if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
+    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach sharing is still warming up. Refresh and try again in a moment.";
     }
     return message;
+  }
+
+  function rememberCoachSignup(email) {
+    try {
+      window.localStorage?.setItem(COACH_SIGNUP_EMAIL_KEY, String(email || "").toLowerCase());
+    } catch (_error) {}
+  }
+
+  function consumeCoachSignup(user) {
+    try {
+      const saved = window.localStorage?.getItem(COACH_SIGNUP_EMAIL_KEY) || "";
+      const matches = saved && String(user?.email || "").toLowerCase() === saved;
+      if (matches) window.localStorage?.removeItem(COACH_SIGNUP_EMAIL_KEY);
+      return matches;
+    } catch (_error) {
+      return false;
+    }
   }
 
   function profileName(profile, relation) {
@@ -340,6 +380,341 @@
     `;
   }
 
+  function recordsForAthlete(records, item) {
+    const athleteId = String(item?.athlete?.userId || "");
+    return (records || [])
+      .filter(record => String(record.athlete_id || "") === athleteId)
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  }
+
+  function nextActionText(item) {
+    if (item.beyondFuelGapMinutes !== null) return "Check in and plan a gentle fuel moment before the next long gap.";
+    if (item.flags.some(flag => flag.id === "sleepy_cluster")) return "Ask whether Sleepy events are clustering around a particular work, training, or rest window.";
+    if (item.remainingFuelGapMinutes !== null) return "Support the athlete to fuel before the current gap reaches their target.";
+    return "Keep observing the shared rhythm and agree the next practical support step.";
+  }
+
+  function round1(value) {
+    return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+  }
+
+  function pct(value) {
+    return Number.isFinite(value) ? `${Math.round(value)}%` : "Not enough data";
+  }
+
+  function metricNumber(value, suffix = "") {
+    return Number.isFinite(value) ? `${round1(value)}${suffix}` : "Not enough data";
+  }
+
+  function reportPeriodFromControls() {
+    return domain.reviewPeriodRange({
+      preset: $("coachReportPeriod")?.value || state.reportPeriod,
+      customStart: $("coachReportStart")?.value,
+      customEnd: $("coachReportEnd")?.value,
+      now: new Date()
+    });
+  }
+
+  function selectedReportAthlete() {
+    const id = state.selectedReportAthleteId || state.selectedAthleteId || state.roster[0]?.athlete.userId || "";
+    return state.roster.find(item => item.athlete.userId === id) || state.roster[0] || null;
+  }
+
+  function reportPayload(report) {
+    return {
+      coverage: report.coverage,
+      consistency: report.consistency,
+      fuelling: {
+        averageFirstFuel: timeFromMinutes(report.fuelling.averageFirstFuelMinutes),
+        averageFinalFuel: timeFromMinutes(report.fuelling.averageFinalFuelMinutes),
+        averageGapMinutes: report.fuelling.averageGapMinutes,
+        longestGapMinutes: report.fuelling.longestGapMinutes,
+        gapsExceedingTarget: report.fuelling.gapsExceedingTarget,
+        commonGapWindow: report.fuelling.commonGapWindow?.label || null,
+        commonFuellingWindow: report.fuelling.commonFuellingWindow?.label || null
+      },
+      sleepy: report.sleepy,
+      contexts: report.contexts,
+      executiveSummary: report.executiveSummary,
+      comparison: report.comparison,
+      weekly: report.weekly
+    };
+  }
+
+  function reportMetricRows(report) {
+    return [
+      ["Logging coverage", `${report.coverage.loggedDays} / ${report.coverage.totalDays} days`, pct(report.coverage.loggedPct)],
+      ["Fuel logs / active day", metricNumber(report.consistency.avgFuelLogsPerActiveDay), "Average"],
+      ["Hydration logs / active day", metricNumber(report.consistency.avgHydrationLogsPerActiveDay), "Average"],
+      ["Days within gap target", pct(report.consistency.targetAdherencePct), `${report.consistency.daysExceedingTarget} days exceeded`],
+      ["Average first fuel", timeFromMinutes(report.fuelling.averageFirstFuelMinutes), "Period average"],
+      ["Average final fuel", timeFromMinutes(report.fuelling.averageFinalFuelMinutes), "Period average"],
+      ["Average fuel gap", domain.duration(report.fuelling.averageGapMinutes), "Between fuel logs"],
+      ["Longest fuel gap", domain.duration(report.fuelling.longestGapMinutes), "Longest meaningful gap"],
+      ["Most common gap window", report.fuelling.commonGapWindow?.label || "Not enough gap data yet.", "Recurring gap"],
+      ["Most common fuelling window", report.fuelling.commonFuellingWindow?.label || "Not enough log data yet.", "Recurring fuel time"],
+      ["Sleepy events", String(report.sleepy.total), `${metricNumber(report.sleepy.averagePerActiveWeek, " / week")}`],
+      ["Most common Sleepy window", report.sleepy.commonWindow?.label || "Not enough Sleepy data yet.", "Recurring Sleepy time"],
+      ["Sleepy after long gap", report.sleepy.total ? `${report.sleepy.afterLongGapCount} / ${report.sleepy.total}` : "No Sleepy events", `>${domain.duration(report.sleepy.targetMinutes || 0)} target gap`]
+    ];
+  }
+
+  function timeFromMinutes(minutes) {
+    if (!Number.isFinite(minutes)) return "Not enough data";
+    const date = domain.startOfLocalDay();
+    date.setMinutes(Math.round(minutes));
+    return domain.formatClock(date);
+  }
+
+  function reportTrendClass(direction) {
+    if (direction === "improved") return "improved";
+    if (direction === "declined") return "declined";
+    return "stable";
+  }
+
+  function comparisonValue(item, value) {
+    if (!Number.isFinite(value)) return "Not enough data";
+    if (item.unit === "%") return `${Math.round(value)}%`;
+    if (item.unit === "minutes") return domain.duration(value);
+    return String(Math.round(value));
+  }
+
+  function comparisonDelta(item) {
+    if (!Number.isFinite(item.difference)) return "";
+    if (item.unit === "minutes") return `${item.difference > 0 ? "+" : ""}${domain.duration(Math.abs(item.difference))}`;
+    if (item.unit === "%") return `${item.difference > 0 ? "+" : ""}${Math.round(item.difference)} percentage points`;
+    return `${item.difference > 0 ? "+" : ""}${Math.round(item.difference)}`;
+  }
+
+  function renderMiniTrendChart(report) {
+    const width = 620;
+    const height = 220;
+    const padding = { top: 20, right: 18, bottom: 42, left: 48 };
+    const weekly = report.weekly || [];
+    if (!weekly.length) return `<div class="coach-empty">Not enough weekly data to chart yet.</div>`;
+    const gapValues = weekly.map(point => point.averageGapMinutes).filter(Number.isFinite);
+    const maxGap = Math.max(60, ...gapValues, report.sleepy.total || 0);
+    const xFor = index => padding.left + (weekly.length === 1 ? 0 : index * ((width - padding.left - padding.right) / (weekly.length - 1)));
+    const yForGap = value => height - padding.bottom - (Math.max(0, value) / maxGap) * (height - padding.top - padding.bottom);
+    const path = weekly.map((point, index) => Number.isFinite(point.averageGapMinutes) ? `${index ? "L" : "M"} ${xFor(index).toFixed(1)} ${yForGap(point.averageGapMinutes).toFixed(1)}` : "").filter(Boolean).join(" ");
+    return `
+      <div class="coach-report-chart" role="img" aria-label="Weekly average fuel gap trend">
+        <svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+          <line class="axis" x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}"></line>
+          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}"></line>
+          <text class="axis-title" x="${padding.left}" y="14">Average fuel gap</text>
+          <path class="trend-line" d="${safe(path)}"></path>
+          ${weekly.map((point, index) => Number.isFinite(point.averageGapMinutes) ? `
+            <circle class="trend-point" cx="${xFor(index).toFixed(1)}" cy="${yForGap(point.averageGapMinutes).toFixed(1)}" r="5">
+              <title>${safe(`${point.label}: ${domain.duration(point.averageGapMinutes)}`)}</title>
+            </circle>
+            <text x="${xFor(index).toFixed(1)}" y="${height - 17}" text-anchor="middle">${safe(point.label.replace(/ .*$/, ""))}</text>
+          ` : "").join("")}
+        </svg>
+      </div>
+    `;
+  }
+
+  function renderReport(report) {
+    if (!report) return `<section class="coach-card"><div class="coach-empty">Generate a review to preview structured report sections.</div></section>`;
+    return `
+      <section class="coach-report-document coach-card" data-report-document>
+        <div class="coach-report-header">
+          <div>
+            <p class="coach-kicker">Athlete Review</p>
+            <h2>${safe(report.title)}</h2>
+            <p>${safe(report.period.display)}</p>
+          </div>
+          <div class="coach-report-meta">
+            <span>Coach: ${safe(report.coachName)}</span>
+            <span>Team: ${safe(report.organisationName || "Not set")}</span>
+            <span>Generated: ${safe(domain.formatClock(report.generatedAt))} · ${safe(domain.dateKey(report.generatedAt))}</span>
+          </div>
+        </div>
+
+        <section class="coach-report-section">
+          <h3>Executive Summary</h3>
+          <ul class="coach-report-list">
+            ${report.executiveSummary.map(point => `<li>${safe(point)}</li>`).join("")}
+          </ul>
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Data Coverage</h3>
+          <div class="coach-detail-grid">
+            <article class="coach-metric"><span>Total days</span><strong>${safe(report.coverage.totalDays)}</strong></article>
+            <article class="coach-metric"><span>Logged days</span><strong>${safe(report.coverage.loggedDays)}</strong></article>
+            <article class="coach-metric"><span>Coverage</span><strong>${safe(pct(report.coverage.loggedPct))}</strong></article>
+            <article class="coach-metric"><span>Gap metric days</span><strong>${safe(report.coverage.metricDays)}</strong></article>
+          </div>
+          ${report.coverage.limited ? `<p class="coach-limited-note">Limited data coverage - interpret this period cautiously.</p>` : ""}
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Consistency and Fuelling Behaviour</h3>
+          <div class="coach-report-table">
+            ${reportMetricRows(report).map(row => `
+              <div class="coach-report-row">
+                <span>${safe(row[0])}</span>
+                <strong>${safe(row[1])}</strong>
+                <em>${safe(row[2])}</em>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Sleepy Patterns</h3>
+          <p>${safe(report.sleepy.total ? `${report.sleepy.total} Sleepy event${report.sleepy.total === 1 ? " was" : "s were"} recorded in this period.` : "No Sleepy events were recorded in this period.")}</p>
+          <p>${safe(report.sleepy.commonWindow ? `Most common Sleepy window: ${report.sleepy.commonWindow.label}.` : "Not enough Sleepy data to identify a recurring window yet.")}</p>
+          ${report.sleepy.total ? `<p>${safe(`${report.sleepy.afterLongGapCount} of ${report.sleepy.total} Sleepy events occurred following fuel gaps longer than ${domain.duration(report.sleepy.targetMinutes || 0)}.`)}</p>` : ""}
+          <p class="coach-note">Sleepy logs are observational markers. Fuel Guard does not infer a medical cause.</p>
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Context</h3>
+          ${report.contexts.length ? `
+            <div class="coach-context-bars">
+              ${report.contexts.map(context => `
+                <div class="coach-context-bar">
+                  <span>${safe(context.label)}</span>
+                  <div><i style="width:${safe(context.adherencePct)}%"></i></div>
+                  <strong>${safe(context.adherencePct)}%</strong>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<div class="coach-empty compact">Not enough context-specific data yet.</div>`}
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Previous Period Comparison</h3>
+          <p class="coach-note">Current ${safe(report.period.display)} compared with ${safe(report.previousPeriod.display)}.</p>
+          <div class="coach-comparison-grid">
+            ${report.comparison.map(item => `
+              <article class="coach-comparison-card ${safe(reportTrendClass(item.direction))}">
+                <span>${safe(item.label)}</span>
+                <strong>${safe(comparisonValue(item, item.current))}</strong>
+                <p>Previous: ${safe(comparisonValue(item, item.previous))}</p>
+                <em>${safe(item.trendLabel || "Not enough data")}</em>
+                <small>${safe(comparisonDelta(item))}</small>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Report Trends</h3>
+          ${renderMiniTrendChart(report)}
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Coach Observations</h3>
+          <p>${safe(report.coachNotes || "No coach observations added yet.")}</p>
+        </section>
+
+        <section class="coach-report-section">
+          <h3>Interventions</h3>
+          ${renderInterventionList(report.interventions, report)}
+        </section>
+
+        <div class="coach-button-row coach-export-actions">
+          <button class="secondary" type="button" data-export-report-pdf>Export PDF</button>
+          <button class="secondary" type="button" data-export-report-csv>Export CSV</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderInterventionList(interventions = [], report = null) {
+    if (!interventions.length) return `<div class="coach-empty compact">No interventions recorded for this athlete yet.</div>`;
+    return `
+      <div class="coach-intervention-timeline">
+        ${interventions.map(intervention => {
+          const comparison = report ? domain.interventionComparison({
+            intervention,
+            logs: report.sourceLogs || [],
+            targets: { maximumFuelGapMinutes: report.sleepy?.targetMinutes || report.targetMinutes }
+          }) : null;
+          return `
+            <details class="coach-intervention-item">
+              <summary>
+                <span>${safe(intervention.intervention_date || domain.dateKey(intervention.created_at))}</span>
+                <strong>${safe(intervention.category || "Intervention")}</strong>
+                <em>${safe(intervention.status || "active")}</em>
+              </summary>
+              <p><strong>Observation:</strong> ${safe(intervention.observation || intervention.notes || "Not recorded")}</p>
+              <p><strong>Action:</strong> ${safe(intervention.action_text || "Not recorded")}</p>
+              ${intervention.review_date ? `<p><strong>Review date:</strong> ${safe(intervention.review_date)}</p>` : ""}
+              ${comparison ? `<p class="coach-note">${safe(comparison.label)}</p>` : ""}
+            </details>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function renderReportPreview() {
+    const target = $("coachReportPreview");
+    if (!target) return;
+    target.innerHTML = renderReport(state.generatedReport);
+  }
+
+  function renderReportControls() {
+    const select = $("coachReportAthlete");
+    if (select) {
+      const current = state.selectedReportAthleteId || state.selectedAthleteId || state.roster[0]?.athlete.userId || "";
+      select.innerHTML = state.roster.length
+        ? state.roster.map(item => `<option value="${safe(item.athlete.userId)}"${item.athlete.userId === current ? " selected" : ""}>${safe(item.athlete.displayName)}</option>`).join("")
+        : `<option value="">No assigned athletes</option>`;
+      if (current) {
+        select.value = current;
+        state.selectedReportAthleteId = current;
+      }
+    }
+    const today = domain.dateKey(new Date());
+    if ($("coachReportEnd") && !$("coachReportEnd").value) $("coachReportEnd").value = today;
+    if ($("coachInterventionDate") && !$("coachInterventionDate").value) $("coachInterventionDate").value = today;
+    renderReportPreview();
+  }
+
+  function renderCoachActions(item) {
+    const reports = recordsForAthlete(state.reports, item);
+    const interventions = recordsForAthlete(state.interventions, item);
+    const latestReport = reports[0];
+    const openInterventions = interventions.filter(record => record.status === "active" || record.status === "open");
+    return `
+      <section class="coach-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Coach Actions</h2>
+            <p>Create read-only follow-up records from this athlete's shared timing data.</p>
+          </div>
+        </div>
+        <div class="coach-action-grid">
+          <article class="coach-action-panel">
+            <strong>Athlete Review Report</strong>
+            <p class="coach-note">${safe(latestReport ? latestReport.summary : "No structured review report generated for this athlete yet.")}</p>
+            <button class="secondary" type="button" data-open-report-builder="${safe(item.athlete.userId)}">Generate review</button>
+          </article>
+          <article class="coach-action-panel">
+            <strong>Intervention</strong>
+            <p class="coach-note">${safe(openInterventions[0]?.action_text || nextActionText(item))}</p>
+            <button class="secondary" type="button" data-open-intervention-builder="${safe(item.athlete.userId)}">Record intervention</button>
+          </article>
+        </div>
+      </section>
+      <section class="coach-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Coach Interventions</h2>
+            <p>Simple timeline of practical support steps logged by this coach.</p>
+          </div>
+        </div>
+        ${renderInterventionList(interventions)}
+      </section>
+    `;
+  }
+
   function renderAthleteDetail() {
     const target = $("coachAthleteDetail");
     if (!target) return;
@@ -430,6 +805,8 @@
           <article class="coach-metric"><span>Flags</span><strong>${safe(item.flags.length ? item.flags.map(flag => flag.label).join(", ") : "None")}</strong></article>
         </div>
       </section>
+
+      ${renderCoachActions(item)}
     `;
   }
 
@@ -474,10 +851,13 @@
 
   function renderAuth() {
     const authPanel = $("coachAuthPanel");
+    const accessPanel = $("coachAccessPanel");
     const appShell = $("coachAppShell");
     const signedIn = Boolean(coachUser());
+    const coachReady = signedIn && isCoachEnabled();
     if (authPanel) authPanel.hidden = signedIn;
-    if (appShell) appShell.hidden = !signedIn;
+    if (accessPanel) accessPanel.hidden = !signedIn || coachReady || !state.coachAccessBlocked;
+    if (appShell) appShell.hidden = !coachReady;
   }
 
   function renderTabs() {
@@ -496,17 +876,17 @@
     renderRoster();
     renderAthleteList();
     renderAthleteDetail();
+    renderReportControls();
     renderSettings();
   }
 
-  async function loadCoachData() {
+  async function ensureCoachProfile({ enableCoach = false } = {}) {
     const user = coachUser();
     if (!state.client || !user) return;
-    setStatus("Loading coach data...");
 
     const { data: profile, error: profileError } = await state.client
       .from(TABLES.profiles)
-      .select("user_id,role,display_name,created_at,updated_at")
+      .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
       .eq("user_id", user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -514,8 +894,14 @@
     if (!profile) {
       const { data, error } = await state.client
         .from(TABLES.profiles)
-        .upsert({ user_id: user.id, role: "coach", display_name: user.email || "Coach" }, { onConflict: "user_id" })
-        .select("user_id,role,display_name,created_at,updated_at")
+        .upsert({
+          user_id: user.id,
+          role: "athlete",
+          coach_enabled: Boolean(enableCoach),
+          display_name: user.email || "Coach",
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" })
+        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
         .single();
       if (error) throw error;
       state.profile = data;
@@ -523,15 +909,40 @@
       state.profile = profile;
     }
 
-    if (state.profile?.role !== "coach") {
+    if (enableCoach && !isCoachEnabled()) {
       const { data, error } = await state.client
         .from(TABLES.profiles)
-        .update({ role: "coach", updated_at: new Date().toISOString() })
+        .update({ coach_enabled: true, updated_at: new Date().toISOString() })
         .eq("user_id", user.id)
-        .select("user_id,role,display_name,created_at,updated_at")
+        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
         .single();
       if (error) throw error;
       state.profile = data;
+    }
+
+    return state.profile;
+  }
+
+  async function loadCoachData({ enableCoach = false } = {}) {
+    const user = coachUser();
+    if (!state.client || !user) return;
+    setStatus("Loading coach data...");
+    state.coachAccessBlocked = false;
+
+    await ensureCoachProfile({ enableCoach });
+
+    if (!isCoachEnabled()) {
+      state.coachAccessBlocked = true;
+      state.relationships = [];
+      state.athleteProfiles = [];
+      state.logs = [];
+      state.targets = [];
+      state.reports = [];
+      state.interventions = [];
+      state.roster = [];
+      setStatus("Coach Beta is not enabled for this account yet.");
+      render();
+      return;
     }
 
     const { data: relationships, error: relationshipError } = await state.client
@@ -547,11 +958,13 @@
     state.athleteProfiles = [];
     state.logs = [];
     state.targets = [];
+    state.reports = [];
+    state.interventions = [];
 
     if (athleteIds.length) {
       const { data: profiles, error: profilesError } = await state.client
         .from(TABLES.profiles)
-        .select("user_id,role,display_name,created_at,updated_at")
+        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
         .in("user_id", athleteIds);
       if (profilesError) throw profilesError;
       state.athleteProfiles = profiles || [];
@@ -584,6 +997,24 @@
       } else {
         state.targets = targets || [];
       }
+
+      const { data: reports, error: reportsError } = await state.client
+        .from(TABLES.reports)
+        .select("*")
+        .eq("coach_id", user.id)
+        .in("athlete_id", athleteIds)
+        .order("created_at", { ascending: false });
+      if (reportsError) throw reportsError;
+      state.reports = reports || [];
+
+      const { data: interventions, error: interventionsError } = await state.client
+        .from(TABLES.interventions)
+        .select("*")
+        .eq("coach_id", user.id)
+        .in("athlete_id", athleteIds)
+        .order("created_at", { ascending: false });
+      if (interventionsError) throw interventionsError;
+      state.interventions = interventions || [];
     }
 
     rebuildRoster();
@@ -594,14 +1025,22 @@
   async function withBusy(button, callback) {
     if (state.busy) return;
     state.busy = true;
+    state.authBusyAction = button?.id || "";
+    const originalText = button?.textContent || "";
     if (button) button.disabled = true;
+    if (button?.id === "coachSignInButton") button.textContent = "Signing in...";
+    if (button?.id === "coachSignUpButton") button.textContent = "Creating...";
+    if (button?.id === "coachForgotPasswordButton") button.textContent = "Sending...";
+    if (button?.id === "coachEnableAccessButton") button.textContent = "Enabling...";
     try {
       await callback();
     } catch (error) {
       setStatus(friendlyError(error));
     } finally {
       state.busy = false;
+      state.authBusyAction = "";
       if (button) button.disabled = false;
+      if (button && originalText) button.textContent = originalText;
     }
   }
 
@@ -610,9 +1049,12 @@
       const email = $("coachEmail")?.value?.trim();
       const password = $("coachPassword")?.value || "";
       if (!email || !password) throw new Error("Enter an email and password.");
+      setStatus("Signing in...");
       const { data, error } = await state.client.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      if (!data?.session?.access_token || !data?.user?.id) throw new Error("Supabase signed in, but no session was created.");
       state.session = data.session;
+      render();
       await loadCoachData();
     });
   }
@@ -622,6 +1064,8 @@
       const email = $("coachEmail")?.value?.trim();
       const password = $("coachPassword")?.value || "";
       if (!email || !password) throw new Error("Enter an email and password.");
+      setStatus("Creating coach account...");
+      rememberCoachSignup(email);
       const { data, error } = await state.client.auth.signUp({
         email,
         password,
@@ -630,7 +1074,30 @@
       if (error) throw error;
       state.session = data.session || state.session;
       setStatus(data.session ? "Coach account created." : "Confirmation email sent. Check your inbox.");
-      if (data.session) await loadCoachData();
+      if (data.session) await loadCoachData({ enableCoach: true });
+    });
+  }
+
+  async function forgotPassword() {
+    await withBusy($("coachForgotPasswordButton"), async () => {
+      const email = $("coachEmail")?.value?.trim();
+      if (!email) throw new Error("Enter your email before requesting a password reset.");
+      const { error } = await state.client.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/coach/`
+      });
+      if (error) throw error;
+      setStatus("Password reset email sent. Check your inbox before requesting another one.");
+    });
+  }
+
+  async function enableCoachAccess() {
+    await withBusy($("coachEnableAccessButton"), async () => {
+      const user = coachUser();
+      if (!user) throw new Error("Sign in first.");
+      setStatus("Enabling Coach Beta for this account...");
+      await ensureCoachProfile({ enableCoach: true });
+      state.coachAccessBlocked = false;
+      await loadCoachData();
     });
   }
 
@@ -638,10 +1105,13 @@
     await state.client?.auth.signOut();
     state.session = null;
     state.profile = null;
+    state.coachAccessBlocked = false;
     state.relationships = [];
     state.athleteProfiles = [];
     state.logs = [];
     state.targets = [];
+    state.reports = [];
+    state.interventions = [];
     state.roster = [];
     setStatus("Signed out.");
     render();
@@ -654,8 +1124,14 @@
       const displayName = $("coachDisplayName")?.value?.trim() || user.email || "Coach";
       const { data, error } = await state.client
         .from(TABLES.profiles)
-        .upsert({ user_id: user.id, role: "coach", display_name: displayName, updated_at: new Date().toISOString() }, { onConflict: "user_id" })
-        .select("user_id,role,display_name,created_at,updated_at")
+        .upsert({
+          user_id: user.id,
+          role: state.profile?.role || "athlete",
+          coach_enabled: isCoachEnabled(),
+          display_name: displayName,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" })
+        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
         .single();
       if (error) throw error;
       state.profile = data;
@@ -703,6 +1179,256 @@
     });
   }
 
+  function targetForAthlete(athleteId) {
+    return targetsByUser()[athleteId] || {};
+  }
+
+  async function fetchAthleteLogs(athleteId, start, end) {
+    const { data, error } = await state.client
+      .from(TABLES.logs)
+      .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
+      .eq("user_id", athleteId)
+      .gte("logged_at", domain.startOfLocalDay(domain.dateKey(start)).toISOString())
+      .lte("logged_at", domain.endOfLocalDay(domain.dateKey(end)).toISOString())
+      .order("logged_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(domain.normalizeLog).filter(Boolean);
+  }
+
+  async function generateReport() {
+    await withBusy(null, async () => {
+      const user = coachUser();
+      if (!user) throw new Error("Sign in first.");
+      const item = selectedReportAthlete();
+      if (!item) throw new Error("Select an assigned athlete first.");
+      const period = reportPeriodFromControls();
+      const previous = domain.previousPeriodRange(period);
+      const currentLogs = await fetchAthleteLogs(item.athlete.userId, period.start, period.end);
+      const previousLogs = await fetchAthleteLogs(item.athlete.userId, previous.start, previous.end);
+      const interventions = recordsForAthlete(state.interventions, item);
+      const report = domain.buildAthleteReviewReport({
+        athlete: item.athlete,
+        coach: { ...state.profile, email: user.email, id: user.id },
+        organisationName: $("coachOrganisationName")?.value?.trim() || "",
+        logs: currentLogs,
+        previousLogs,
+        targets: targetForAthlete(item.athlete.userId),
+        period,
+        interventions,
+        coachNotes: $("coachReportNotes")?.value || "",
+        generatedAt: new Date()
+      });
+      report.sourceLogs = currentLogs.concat(previousLogs);
+      const now = new Date().toISOString();
+      const { data, error } = await state.client
+        .from(TABLES.reports)
+        .insert({
+          coach_id: user.id,
+          athlete_id: item.athlete.userId,
+          report_date: domain.dateKey(new Date()),
+          period_start: report.period.startKey,
+          period_end: report.period.endKey,
+          period_type: report.period.preset,
+          title: report.title,
+          summary: report.executiveSummary.join(" "),
+          coach_notes: report.coachNotes || null,
+          organisation_name: report.organisationName || null,
+          metrics: reportPayload(report),
+          previous_metrics: {
+            period: report.previousPeriod,
+            comparison: report.comparison
+          },
+          created_at: now,
+          updated_at: now
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      if (data) state.reports = [data, ...state.reports.filter(row => row.id !== data.id)];
+      state.generatedReport = report;
+      setStatus("Athlete review report generated.");
+      renderReportPreview();
+      await loadCoachData();
+    });
+  }
+
+  async function createIntervention() {
+    await withBusy(null, async () => {
+      const user = coachUser();
+      if (!user) throw new Error("Sign in first.");
+      const item = selectedReportAthlete();
+      if (!item) throw new Error("Select an assigned athlete first.");
+      const now = new Date().toISOString();
+      const observation = $("coachInterventionObservation")?.value?.trim() || nextActionText(item);
+      const action = $("coachInterventionAction")?.value?.trim() || "Agree one practical support step and review the next logging pattern.";
+      const { data, error } = await state.client
+        .from(TABLES.interventions)
+        .insert({
+          coach_id: user.id,
+          athlete_id: item.athlete.userId,
+          status: "active",
+          category: $("coachInterventionCategory")?.value || "fuelling_routine",
+          observation,
+          action_text: action,
+          target_window: item.beyondFuelGapMinutes !== null ? "current gap" : "next support window",
+          intervention_date: $("coachInterventionDate")?.value || domain.dateKey(new Date()),
+          review_date: $("coachInterventionReviewDate")?.value || null,
+          notes: "Created from Coach Beta athlete review.",
+          created_at: now,
+          updated_at: now
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      if (data) state.interventions = [data, ...state.interventions.filter(row => row.id !== data.id)];
+      setStatus("Intervention created.");
+      if ($("coachInterventionObservation")) $("coachInterventionObservation").value = "";
+      if ($("coachInterventionAction")) $("coachInterventionAction").value = "";
+      await loadCoachData();
+    });
+  }
+
+  function openReportBuilder(athleteId) {
+    state.selectedReportAthleteId = athleteId || state.selectedReportAthleteId;
+    state.currentTab = "reports";
+    render();
+    $("coachReportNotes")?.focus();
+  }
+
+  function openInterventionBuilder(athleteId) {
+    state.selectedReportAthleteId = athleteId || state.selectedReportAthleteId;
+    state.currentTab = "reports";
+    render();
+    $("coachInterventionObservation")?.focus();
+  }
+
+  function reportCsv(report) {
+    const rows = [
+      ["section", "metric", "value", "detail"],
+      ["header", "athlete", report.athleteName, report.period.display],
+      ["header", "coach", report.coachName, report.organisationName || ""],
+      ["coverage", "total_days", report.coverage.totalDays, ""],
+      ["coverage", "logged_days", report.coverage.loggedDays, ""],
+      ["coverage", "coverage_percent", report.coverage.loggedPct, ""],
+      ["coverage", "gap_metric_days", report.coverage.metricDays, ""],
+      ["consistency", "fuel_logs_per_active_day", round1(report.consistency.avgFuelLogsPerActiveDay), ""],
+      ["consistency", "hydration_logs_per_active_day", round1(report.consistency.avgHydrationLogsPerActiveDay), ""],
+      ["consistency", "days_within_gap_target_percent", report.consistency.targetAdherencePct, ""],
+      ["fuelling", "average_first_fuel", timeFromMinutes(report.fuelling.averageFirstFuelMinutes), ""],
+      ["fuelling", "average_final_fuel", timeFromMinutes(report.fuelling.averageFinalFuelMinutes), ""],
+      ["fuelling", "average_gap_minutes", round1(report.fuelling.averageGapMinutes), ""],
+      ["fuelling", "longest_gap_minutes", round1(report.fuelling.longestGapMinutes), ""],
+      ["fuelling", "most_common_gap_window", report.fuelling.commonGapWindow?.label || "", ""],
+      ["fuelling", "most_common_fuelling_window", report.fuelling.commonFuellingWindow?.label || "", ""],
+      ["sleepy", "sleepy_events", report.sleepy.total, ""],
+      ["sleepy", "sleepy_events_per_active_week", round1(report.sleepy.averagePerActiveWeek), ""],
+      ["sleepy", "most_common_sleepy_window", report.sleepy.commonWindow?.label || "", ""],
+      ["sleepy", "sleepy_after_long_gap", report.sleepy.afterLongGapCount, `${report.sleepy.afterLongGapPct || 0}%`]
+    ];
+    report.contexts.forEach(context => rows.push(["context", context.label, `${context.adherencePct}%`, `${context.metricDays} metric days`]));
+    report.comparison.forEach(item => rows.push(["comparison", item.label, item.trendLabel, comparisonDelta(item)]));
+    report.executiveSummary.forEach((point, index) => rows.push(["executive_summary", `point_${index + 1}`, point, ""]));
+    if (report.coachNotes) rows.push(["coach_observations", "notes", report.coachNotes, ""]);
+    report.interventions.forEach(intervention => {
+      rows.push(["intervention", intervention.category || "intervention", intervention.action_text || "", intervention.observation || intervention.notes || ""]);
+    });
+    return rows.map(row => row.map(value => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportReportCsv() {
+    const report = state.generatedReport;
+    if (!report) {
+      setStatus("Generate a review before exporting.");
+      return;
+    }
+    const filename = `fuel-guard-athlete-review-${report.period.startKey}-${report.period.endKey}.csv`;
+    downloadBlob(new Blob([reportCsv(report)], { type: "text/csv;charset=utf-8" }), filename);
+    setStatus("Report CSV exported.");
+  }
+
+  function exportReportPdf() {
+    const report = state.generatedReport;
+    if (!report) {
+      setStatus("Generate a review before exporting.");
+      return;
+    }
+    const printable = window.open("", "_blank");
+    if (!printable) {
+      setStatus("Allow pop-ups to export the report PDF.");
+      return;
+    }
+    const html = `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${safe(report.title)}</title>
+        <style>
+          body { margin: 0; padding: 32px; color: #102019; font-family: Arial, sans-serif; background: #fffdf7; }
+          h1, h2, h3 { margin: 0 0 10px; color: #102019; }
+          h1 { font-size: 28px; }
+          h2 { margin-top: 26px; font-size: 18px; border-bottom: 1px solid #d8d0c2; padding-bottom: 6px; }
+          p, li, td, th { font-size: 12px; line-height: 1.45; }
+          .brand { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #d99024; color: #07130f; font-weight: 900; margin-bottom: 16px; }
+          .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; margin: 12px 0 18px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { text-align: left; border-bottom: 1px solid #e4ded1; padding: 7px 4px; }
+          ul { padding-left: 18px; }
+          .note { color: #667085; }
+          @media print { body { background: #fff; } }
+        </style>
+      </head>
+      <body>
+        <div class="brand">FG</div>
+        <h1>${safe(report.title)}</h1>
+        <p>${safe(report.period.display)}</p>
+        <div class="meta">
+          <span>Coach: ${safe(report.coachName)}</span>
+          <span>Team: ${safe(report.organisationName || "Not set")}</span>
+          <span>Athlete: ${safe(report.athleteName)}</span>
+          <span>Generated: ${safe(domain.dateKey(report.generatedAt))}</span>
+          <span>Logging coverage: ${safe(`${report.coverage.loggedDays} / ${report.coverage.totalDays} days`)}</span>
+          <span>Gap metric days: ${safe(report.coverage.metricDays)}</span>
+        </div>
+        <h2>Executive Summary</h2>
+        <ul>${report.executiveSummary.map(point => `<li>${safe(point)}</li>`).join("")}</ul>
+        <h2>Consistency and Fuelling Behaviour</h2>
+        <table><tbody>${reportMetricRows(report).map(row => `<tr><th>${safe(row[0])}</th><td>${safe(row[1])}</td><td>${safe(row[2])}</td></tr>`).join("")}</tbody></table>
+        <h2>Sleepy Patterns</h2>
+        <p>${safe(report.sleepy.total ? `${report.sleepy.total} Sleepy event${report.sleepy.total === 1 ? " was" : "s were"} recorded in this period.` : "No Sleepy events were recorded in this period.")}</p>
+        <p>${safe(report.sleepy.commonWindow ? `Most common Sleepy window: ${report.sleepy.commonWindow.label}.` : "Not enough Sleepy data to identify a recurring window yet.")}</p>
+        ${report.sleepy.total ? `<p>${safe(`${report.sleepy.afterLongGapCount} of ${report.sleepy.total} Sleepy events occurred following fuel gaps longer than ${domain.duration(report.sleepy.targetMinutes || 0)}.`)}</p>` : ""}
+        <p class="note">Sleepy logs are observational markers. Fuel Guard does not infer a medical cause.</p>
+        <h2>Context</h2>
+        ${report.contexts.length ? `<table><tbody>${report.contexts.map(context => `<tr><th>${safe(context.label)}</th><td>${safe(context.adherencePct)}% within target</td><td>${safe(context.metricDays)} metric days</td></tr>`).join("")}</tbody></table>` : `<p>Not enough context-specific data yet.</p>`}
+        <h2>Previous Period Comparison</h2>
+        <table><tbody>${report.comparison.map(item => `<tr><th>${safe(item.label)}</th><td>Current: ${safe(comparisonValue(item, item.current))}</td><td>Previous: ${safe(comparisonValue(item, item.previous))}</td><td>${safe(item.trendLabel || "Not enough data")}</td></tr>`).join("")}</tbody></table>
+        <h2>Coach Observations</h2>
+        <p>${safe(report.coachNotes || "No coach observations added yet.")}</p>
+        <h2>Interventions</h2>
+        ${report.interventions.length ? `<table><tbody>${report.interventions.map(intervention => `<tr><th>${safe(intervention.intervention_date || domain.dateKey(intervention.created_at))}</th><td>${safe(intervention.category || "Intervention")}</td><td>${safe(intervention.action_text || "")}</td></tr>`).join("")}</tbody></table>` : `<p>No interventions recorded for this athlete yet.</p>`}
+      </body>
+      </html>
+    `;
+    printable.document.open();
+    printable.document.write(html);
+    printable.document.close();
+    printable.focus();
+    printable.print();
+    setStatus("Report PDF export opened.");
+  }
+
   async function init() {
     if (!domain) {
       setStatus("Coach Beta could not load Fuel Guard analytics helpers.");
@@ -725,7 +1451,13 @@
 
     state.client.auth.onAuthStateChange((_event, session) => {
       state.session = session;
-      if (session?.user) loadCoachData().catch(error => setStatus(friendlyError(error)));
+      if (session?.user) {
+        const enableCoach = consumeCoachSignup(session.user);
+        loadCoachData({ enableCoach }).catch(error => {
+          setStatus(friendlyError(error));
+          render();
+        });
+      }
       else render();
     });
 
@@ -737,7 +1469,8 @@
     }
     state.session = data.session;
     if (state.session?.user) {
-      await loadCoachData().catch(error => {
+      const enableCoach = consumeCoachSignup(state.session.user);
+      await loadCoachData({ enableCoach }).catch(error => {
         setStatus(friendlyError(error));
         render();
       });
@@ -773,14 +1506,51 @@
     const revoke = event.target.closest("[data-revoke-relationship]");
     if (revoke) {
       revokeRelationship(revoke.dataset.revokeRelationship);
+      return;
+    }
+
+    const reportBuilder = event.target.closest("[data-open-report-builder]");
+    if (reportBuilder) {
+      openReportBuilder(reportBuilder.dataset.openReportBuilder);
+      return;
+    }
+
+    const interventionBuilder = event.target.closest("[data-open-intervention-builder]");
+    if (interventionBuilder) {
+      openInterventionBuilder(interventionBuilder.dataset.openInterventionBuilder);
+      return;
+    }
+
+    if (event.target.closest("[data-export-report-pdf]")) {
+      exportReportPdf();
+      return;
+    }
+
+    if (event.target.closest("[data-export-report-csv]")) {
+      exportReportCsv();
     }
   });
 
   $("coachSignInButton")?.addEventListener("click", signIn);
   $("coachSignUpButton")?.addEventListener("click", signUp);
+  $("coachForgotPasswordButton")?.addEventListener("click", forgotPassword);
+  $("coachEnableAccessButton")?.addEventListener("click", enableCoachAccess);
+  $("coachAccessSignOutButton")?.addEventListener("click", signOut);
   $("coachSignOutButton")?.addEventListener("click", signOut);
   $("coachSaveProfileButton")?.addEventListener("click", saveProfile);
   $("coachInviteButton")?.addEventListener("click", requestSharing);
+  $("coachGenerateReviewButton")?.addEventListener("click", generateReport);
+  $("coachCreateInterventionButton")?.addEventListener("click", createIntervention);
+  $("coachReportAthlete")?.addEventListener("change", event => {
+    state.selectedReportAthleteId = event.target.value || "";
+    state.generatedReport = null;
+    renderReportPreview();
+  });
+  $("coachReportPeriod")?.addEventListener("change", event => {
+    state.reportPeriod = event.target.value || "12_weeks";
+    state.generatedReport = null;
+    renderReportPreview();
+  });
   $("coachAthleteSearch")?.addEventListener("input", event => {
     state.search = event.target.value || "";
     renderAthleteList();
