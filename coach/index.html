@@ -8,8 +8,8 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v103-coach-beta-flow-search" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v103-coach-beta-flow-search" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v104-athlete-code-links" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v104-athlete-code-links" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -83,11 +83,17 @@
         <section class="coach-card coach-search-card">
           <div class="coach-card-heading compact">
             <div>
-              <h2>Athletes</h2>
-              <p>Search active or pending athlete relationships, or paste an exact athlete user ID to request sharing.</p>
+              <h2>Add Athlete</h2>
+              <p>Enter the Athlete Code shared by an athlete. Their data stays private until they approve your request.</p>
             </div>
           </div>
-          <label class="coach-search-label">Search athletes<input id="coachAthleteSearch" type="search" placeholder="Name, label, or user ID"></label>
+          <div class="coach-form-grid coach-code-grid">
+            <label>Athlete Code<input id="coachAthleteCodeInput" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FG-7K42P"></label>
+            <div class="coach-code-action">
+              <button id="coachFindAthleteButton" class="secondary" type="button">Find Athlete</button>
+            </div>
+          </div>
+          <div id="coachAthleteCodeResult" class="coach-code-result"></div>
         </section>
         <div id="coachAthleteList"></div>
         <div id="coachAthleteDetail"></div>
@@ -144,7 +150,7 @@
           </div>
           <div class="coach-form-grid">
             <label>Display name<input id="coachDisplayName" type="text" maxlength="80" placeholder="Coach name"></label>
-            <label>Coach user ID<input id="coachUserId" type="text" readonly></label>
+            <label>Internal Coach ID<input id="coachUserId" type="text" readonly></label>
           </div>
           <div class="coach-button-row">
             <button id="coachSaveProfileButton" class="secondary" type="button">Save profile</button>
@@ -157,15 +163,8 @@
           <div class="coach-card-heading compact">
             <div>
               <h2>Team Relationships</h2>
-              <p>Add an athlete user ID to request sharing. Data appears only after the athlete explicitly approves sharing.</p>
+              <p>Use Add Athlete with an Athlete Code to request sharing. Data appears only after the athlete explicitly approves sharing.</p>
             </div>
-          </div>
-          <div class="coach-form-grid">
-            <label>Athlete user ID<input id="coachInviteAthleteId" type="text" inputmode="text" placeholder="Supabase user UUID"></label>
-            <label>Roster label<input id="coachInviteAthleteLabel" type="text" maxlength="80" placeholder="Optional display label"></label>
-          </div>
-          <div class="coach-button-row">
-            <button id="coachInviteButton" class="secondary" type="button">Request sharing</button>
           </div>
           <div id="coachRelationshipList" class="coach-relationship-list"></div>
           <p id="coachRelationshipStatus" class="coach-note" aria-live="polite"></p>
@@ -176,9 +175,9 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../api/supabase-config.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v104-athlete-code-links"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v104-athlete-code-links"></script>
 </body>
 </html>

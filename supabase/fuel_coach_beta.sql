@@ -8,6 +8,7 @@ create table if not exists public.fuel_user_profiles (
   role text not null default 'athlete',
   coach_enabled boolean not null default false,
   display_name text,
+  athlete_code text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -16,6 +17,7 @@ alter table public.fuel_user_profiles
   add column if not exists role text not null default 'athlete',
   add column if not exists coach_enabled boolean not null default false,
   add column if not exists display_name text,
+  add column if not exists athlete_code text,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
@@ -27,12 +29,74 @@ where role = 'coach'
 
 alter table public.fuel_user_profiles
   drop constraint if exists fuel_user_profiles_role_check,
+  drop constraint if exists fuel_user_profiles_athlete_code_format_check,
   add constraint fuel_user_profiles_role_check
-    check (role in ('athlete', 'coach'));
+    check (role in ('athlete', 'coach')),
+  add constraint fuel_user_profiles_athlete_code_format_check
+    check (athlete_code is null or athlete_code ~ '^FG-[A-Z0-9]{6}$');
 
 create index if not exists fuel_user_profiles_coach_enabled_idx
   on public.fuel_user_profiles (coach_enabled, user_id)
   where coach_enabled = true;
+
+create unique index if not exists fuel_user_profiles_athlete_code_idx
+  on public.fuel_user_profiles (lower(athlete_code))
+  where athlete_code is not null;
+
+create or replace function public.fuel_random_athlete_code()
+returns text
+language sql
+volatile
+set search_path = public
+as $$
+  select 'FG-' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6));
+$$;
+
+create or replace function public.fuel_user_profiles_set_athlete_code()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.athlete_code is null or trim(new.athlete_code) = '' then
+    new.athlete_code := public.fuel_random_athlete_code();
+  else
+    new.athlete_code := upper(trim(new.athlete_code));
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists fuel_user_profiles_set_athlete_code_trigger on public.fuel_user_profiles;
+create trigger fuel_user_profiles_set_athlete_code_trigger
+  before insert or update of athlete_code on public.fuel_user_profiles
+  for each row
+  execute function public.fuel_user_profiles_set_athlete_code();
+
+do $$
+declare
+  profile_row record;
+  candidate text;
+begin
+  for profile_row in
+    select user_id
+    from public.fuel_user_profiles
+    where athlete_code is null
+  loop
+    loop
+      candidate := public.fuel_random_athlete_code();
+      begin
+        update public.fuel_user_profiles
+        set athlete_code = candidate,
+            updated_at = now()
+        where user_id = profile_row.user_id;
+        exit;
+      exception when unique_violation then
+        -- Extremely unlikely; retry with a fresh short code.
+      end;
+    end loop;
+  end loop;
+end $$;
 
 create table if not exists public.fuel_coach_athletes (
   id uuid primary key default gen_random_uuid(),
@@ -40,6 +104,7 @@ create table if not exists public.fuel_coach_athletes (
   athlete_id uuid not null references auth.users(id) on delete cascade,
   status text not null default 'pending',
   athlete_label text,
+  coach_label text,
   invited_at timestamptz not null default now(),
   accepted_at timestamptz,
   revoked_at timestamptz,
@@ -52,6 +117,7 @@ alter table public.fuel_coach_athletes
   add column if not exists athlete_id uuid references auth.users(id) on delete cascade,
   add column if not exists status text not null default 'pending',
   add column if not exists athlete_label text,
+  add column if not exists coach_label text,
   add column if not exists invited_at timestamptz not null default now(),
   add column if not exists accepted_at timestamptz,
   add column if not exists revoked_at timestamptz,
@@ -68,7 +134,7 @@ alter table public.fuel_coach_athletes
   drop constraint if exists fuel_coach_athletes_status_check,
   drop constraint if exists fuel_coach_athletes_distinct_users_check,
   add constraint fuel_coach_athletes_status_check
-    check (status in ('pending', 'active', 'revoked')),
+    check (status in ('pending', 'active', 'declined', 'revoked')),
   add constraint fuel_coach_athletes_distinct_users_check
     check (coach_id <> athlete_id);
 
@@ -235,6 +301,63 @@ grant select, insert, update, delete on table public.fuel_coach_interventions to
 grant select on table public.fuel_logs to authenticated;
 grant select on table public.fuel_targets to authenticated;
 
+create or replace function public.fuel_coach_find_athlete_by_code(search_code text)
+returns table (
+  athlete_id uuid,
+  display_name text,
+  athlete_code text,
+  relationship_status text
+)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  normalized_code text;
+  caller_id uuid;
+begin
+  caller_id := auth.uid();
+  normalized_code := upper(regexp_replace(trim(coalesce(search_code, '')), '\s+', '', 'g'));
+
+  if caller_id is null or normalized_code !~ '^FG-[A-Z0-9]{6}$' then
+    return;
+  end if;
+
+  if not exists (
+    select 1
+    from public.fuel_user_profiles coach_profile
+    where coach_profile.user_id = caller_id
+      and (coach_profile.coach_enabled is true or coach_profile.role = 'coach')
+  ) then
+    return;
+  end if;
+
+  return query
+  select
+    athlete_profile.user_id,
+    coalesce(nullif(athlete_profile.display_name, ''), 'Fuel Guard Athlete') as display_name,
+    athlete_profile.athlete_code,
+    coalesce((
+      select relationship.status
+      from public.fuel_coach_athletes relationship
+      where relationship.coach_id = caller_id
+        and relationship.athlete_id = athlete_profile.user_id
+        and relationship.status in ('pending', 'active', 'declined')
+      order by relationship.updated_at desc
+      limit 1
+    ), 'not_connected') as relationship_status
+  from public.fuel_user_profiles athlete_profile
+  where lower(athlete_profile.athlete_code) = lower(normalized_code)
+    and athlete_profile.user_id <> caller_id
+  limit 1;
+end;
+$$;
+
+revoke all on function public.fuel_coach_find_athlete_by_code(text) from public;
+revoke execute on function public.fuel_coach_find_athlete_by_code(text) from anon;
+grant execute on function public.fuel_coach_find_athlete_by_code(text) to authenticated;
+
 alter table public.fuel_user_profiles enable row level security;
 alter table public.fuel_coach_athletes enable row level security;
 alter table public.fuel_coach_reports enable row level security;
@@ -294,14 +417,13 @@ create policy fuel_coach_athletes_insert_by_participant
   for insert
   to authenticated
   with check (
-    (
-      (select auth.uid()) = coach_id
-      and status = 'pending'
-    )
-    or (
-      (select auth.uid()) = athlete_id
-      and status = 'active'
-      and accepted_at is not null
+    (select auth.uid()) = coach_id
+    and status = 'pending'
+    and exists (
+      select 1
+      from public.fuel_user_profiles coach_profile
+      where coach_profile.user_id = (select auth.uid())
+        and (coach_profile.coach_enabled is true or coach_profile.role = 'coach')
     )
   );
 
@@ -323,7 +445,8 @@ create policy fuel_coach_athletes_update_by_participant
     or (
       (select auth.uid()) = athlete_id
       and athlete_id = (select auth.uid())
-      and status in ('active', 'revoked')
+      and status in ('active', 'declined', 'revoked')
+      and (status <> 'active' or accepted_at is not null)
     )
   );
 

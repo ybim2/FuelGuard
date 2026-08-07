@@ -177,6 +177,62 @@ body.coach-beta {
   text-transform: none;
 }
 
+.coach-code-grid {
+  align-items: end;
+}
+
+.coach-code-action {
+  display: flex;
+  align-items: end;
+}
+
+.coach-code-action button {
+  width: 100%;
+}
+
+.coach-code-result {
+  display: grid;
+  gap: 8px;
+}
+
+.coach-code-match {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(217, 130, 43, .2);
+  border-radius: 16px;
+  background: rgba(217, 130, 43, .08);
+}
+
+.coach-code-match.steady {
+  border-color: rgba(22, 138, 70, .2);
+  background: rgba(22, 138, 70, .08);
+}
+
+.coach-code-match.urgent {
+  border-color: rgba(185, 79, 53, .22);
+  background: rgba(185, 79, 53, .08);
+}
+
+.coach-code-match button {
+  min-height: 42px;
+  border: 1px solid rgba(16, 32, 25, .14);
+  border-radius: 13px;
+  background: #fff;
+  color: var(--coach-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.coach-code-match button:disabled {
+  cursor: wait;
+  opacity: .58;
+}
+
 .coach-form-grid select {
   appearance: none;
 }
@@ -345,7 +401,8 @@ body.coach-beta {
 
 .coach-status-chip.red,
 .coach-status-chip.crash,
-.coach-status-chip.urgent {
+.coach-status-chip.urgent,
+.coach-status-chip.declined {
   background: rgba(185, 79, 53, .15);
   color: #8a2f1e;
 }
@@ -802,7 +859,12 @@ body.coach-beta {
   .coach-report-header,
   .coach-report-row,
   .coach-roster-row,
+  .coach-code-match,
   .coach-event-row {
+    grid-template-columns: 1fr;
+  }
+
+  .coach-code-grid {
     grid-template-columns: 1fr;
   }
 

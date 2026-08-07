@@ -174,6 +174,7 @@
   let coachSharingBusy = false;
   let coachSharingState = {
     loadedFor: "",
+    profile: null,
     relationships: [],
     status: ""
   };
@@ -201,8 +202,10 @@
     "weeklyFuelLogs",
     "weeklyHydrationLogs"
   ];
+  const COACH_PROFILES_TABLE = "fuel_user_profiles";
   const COACH_RELATIONSHIPS_TABLE = "fuel_coach_athletes";
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const ATHLETE_CODE_RE = /^FG-[A-Z0-9]{6}$/;
+  const ATHLETE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   function urlRequestsPasswordRecovery() {
     return new URLSearchParams(window.location.search).get("auth") === "recovery"
@@ -246,7 +249,72 @@
   }
 
   function coachSharingSetupError(error) {
-    return /fuel_coach_athletes|does not exist|schema cache/i.test(String(error?.message || ""));
+    return /fuel_user_profiles|fuel_coach_athletes|athlete_code|coach_label|does not exist|schema cache/i.test(String(error?.message || ""));
+  }
+
+  function normalizeAthleteCode(value) {
+    const compact = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+    const match = compact.match(/^FG[-_]?([A-Z0-9]{6})$/);
+    return match ? `FG-${match[1]}` : compact;
+  }
+
+  function randomAthleteCode() {
+    const values = new Uint8Array(6);
+    if (window.crypto?.getRandomValues) window.crypto.getRandomValues(values);
+    else {
+      for (let index = 0; index < values.length; index += 1) values[index] = Math.floor(Math.random() * 255);
+    }
+    const suffix = Array.from(values, value => ATHLETE_CODE_CHARS[value % ATHLETE_CODE_CHARS.length]).join("");
+    return `FG-${suffix}`;
+  }
+
+  function coachProfileSelect() {
+    return "user_id,role,coach_enabled,display_name,athlete_code,created_at,updated_at";
+  }
+
+  async function ensureAthleteCoachProfile(client, user) {
+    const select = coachProfileSelect();
+    const { data: existing, error: profileError } = await client
+      .from(COACH_PROFILES_TABLE)
+      .select(select)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (profileError) throw profileError;
+
+    let profile = existing;
+    if (!profile) {
+      const { data, error } = await client
+        .from(COACH_PROFILES_TABLE)
+        .upsert({
+          user_id: user.id,
+          role: "athlete",
+          coach_enabled: false,
+          display_name: user.email || "Fuel Guard Athlete",
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" })
+        .select(select)
+        .single();
+      if (error) throw error;
+      profile = data;
+    }
+
+    if (profile?.athlete_code) return profile;
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const { data, error } = await client
+        .from(COACH_PROFILES_TABLE)
+        .update({
+          athlete_code: randomAthleteCode(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", user.id)
+        .select(select)
+        .single();
+      if (!error && data?.athlete_code) return data;
+      if (!/duplicate|unique|fuel_user_profiles_athlete_code/i.test(String(error?.message || ""))) throw error;
+    }
+
+    throw new Error("Could not create a unique Athlete Code.");
   }
 
   async function loadCoachSharingRelationships(force = false) {
@@ -256,24 +324,27 @@
     if (!force && (coachSharingBusy || coachSharingState.loadedFor === user.id)) return;
     coachSharingBusy = true;
     try {
+      const profile = await ensureAthleteCoachProfile(client, user);
       const { data, error } = await client
         .from(COACH_RELATIONSHIPS_TABLE)
-        .select("id,coach_id,athlete_id,status,athlete_label,created_at,accepted_at,revoked_at,updated_at")
+        .select("id,coach_id,athlete_id,status,athlete_label,coach_label,created_at,accepted_at,revoked_at,updated_at")
         .eq("athlete_id", user.id)
-        .in("status", ["pending", "active"])
+        .in("status", ["pending", "active", "declined"])
         .order("updated_at", { ascending: false });
       if (error) throw error;
+      coachSharingState.profile = profile;
       coachSharingState.relationships = data || [];
       coachSharingState.loadedFor = user.id;
       coachSharingState.status = coachSharingState.relationships.length
-        ? "Coach sharing is ready."
-        : "No coach sharing relationships yet.";
+        ? "Coach access is ready."
+        : "No coaches connected yet.";
     } catch (error) {
+      coachSharingState.profile = null;
       coachSharingState.relationships = [];
       coachSharingState.loadedFor = user.id;
       coachSharingState.status = coachSharingSetupError(error)
-        ? "Coach sharing setup is not applied yet."
-        : `Coach sharing could not load: ${error?.message || "unknown error"}`;
+        ? "Coach access setup is not applied yet."
+        : `Coach access could not load: ${error?.message || "unknown error"}`;
     } finally {
       coachSharingBusy = false;
       renderCoachSharing();
@@ -2381,40 +2452,62 @@
     card.hidden = !cloud?.signedIn || !user?.id;
     if (card.hidden) return;
 
-    const input = document.getElementById("coachShareCoachId");
-    const button = document.getElementById("coachShareButton");
+    const code = document.getElementById("coachAthleteCode");
+    const copyButton = document.getElementById("coachCopyAthleteCodeButton");
+    const shareButton = document.getElementById("coachShareAthleteCodeButton");
+    const requests = document.getElementById("coachConnectionRequests");
     const list = document.getElementById("coachSharingList");
     const status = document.getElementById("coachSharingStatus");
-    if (button) button.disabled = coachSharingBusy || !coachSharingClient();
-    if (status) status.textContent = coachSharingBusy ? "Loading coach sharing..." : coachSharingState.status;
+    const athleteCode = coachSharingState.profile?.athlete_code || "";
+    if (code) code.textContent = athleteCode || (coachSharingBusy ? "Loading..." : "Not ready");
+    if (copyButton) copyButton.disabled = coachSharingBusy || !athleteCode;
+    if (shareButton) shareButton.disabled = coachSharingBusy || !athleteCode;
+    if (status) status.textContent = coachSharingBusy ? "Loading coach access..." : coachSharingState.status;
 
     if (!coachSharingState.loadedFor || coachSharingState.loadedFor !== user.id) {
       loadCoachSharingRelationships();
     }
 
-    if (input && document.activeElement !== input && coachSharingState.status === "Shared with coach.") {
-      input.value = "";
+    const relationshipCoachName = relationship => relationship.coach_label || `Coach ${String(relationship.coach_id || "").slice(0, 8)}`;
+    const pendingRelationships = coachSharingState.relationships.filter(relationship => relationship.status === "pending");
+    const connectedRelationships = coachSharingState.relationships.filter(relationship => relationship.status === "active");
+
+    if (requests) {
+      requests.innerHTML = pendingRelationships.length
+        ? `<div class="beta-coach-sharing-items">
+            ${pendingRelationships.map(relationship => `
+              <article class="beta-coach-sharing-item pending">
+                <div>
+                  <strong>${safeText(relationshipCoachName(relationship))}</strong>
+                  <small>wants to access your Fuel Guard timing data.</small>
+                </div>
+                <span>Pending</span>
+                <div class="button-row beta-settings-actions">
+                  <button class="secondary" type="button" data-approve-coach-sharing="${safeText(relationship.id)}">Approve</button>
+                  <button class="secondary danger-secondary" type="button" data-decline-coach-sharing="${safeText(relationship.id)}">Decline</button>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+          <p class="muted">Approval shares fuel timing, hydration timing, Sleepy events, gap status, daily patterns, and review metrics derived from those events.</p>`
+        : `<p class="muted">No coach connection requests right now.</p>`;
     }
 
     if (!list) return;
-    if (!coachSharingState.relationships.length) {
-      list.innerHTML = `<p class="muted">No coaches currently have access. Add a coach user ID only when you want to share timing data.</p>`;
-      return;
-    }
-    list.innerHTML = `
-      <div class="beta-coach-sharing-items">
-        ${coachSharingState.relationships.map(relationship => `
-          <article class="beta-coach-sharing-item">
-            <div>
-              <strong>${safeText(relationship.athlete_label || `Coach ${String(relationship.coach_id || "").slice(0, 8)}`)}</strong>
-              <small>${safeText(relationship.coach_id || "")}</small>
-            </div>
-            <span>${safeText(relationship.status === "active" ? "Sharing active" : "Waiting")}</span>
-            <button class="secondary danger-secondary" type="button" data-revoke-coach-sharing="${safeText(relationship.id)}">Stop sharing</button>
-          </article>
-        `).join("")}
-      </div>
-    `;
+    list.innerHTML = connectedRelationships.length
+      ? `<div class="beta-coach-sharing-items">
+          ${connectedRelationships.map(relationship => `
+            <article class="beta-coach-sharing-item active">
+              <div>
+                <strong>${safeText(relationshipCoachName(relationship))}</strong>
+                <small>${safeText(relationship.accepted_at ? `Connected ${formatDateKey(dateKey(new Date(relationship.accepted_at)))}` : "Connected")}</small>
+              </div>
+              <span>Connected</span>
+              <button class="secondary danger-secondary" type="button" data-revoke-coach-sharing="${safeText(relationship.id)}">Remove Coach</button>
+            </article>
+          `).join("")}
+        </div>`
+      : `<p class="muted">No coaches connected. Share your Athlete Code with a coach when you want to connect.</p>`;
   }
 
   function renderSettings() {
@@ -10218,87 +10311,111 @@
     if (downloadCard) shareTrendCard(downloadCard.dataset.downloadTrendCard, true);
   });
 
-  async function shareWithCoach() {
-    if (coachSharingBusy) return;
-    const client = coachSharingClient();
-    const user = coachSharingUser();
-    const coachId = document.getElementById("coachShareCoachId")?.value.trim() || "";
-    if (!client || !user?.id) {
-      setCoachSharingStatus("Sign in before sharing with a coach.");
-      return;
-    }
-    if (!UUID_RE.test(coachId)) {
-      setCoachSharingStatus("Enter a valid coach user ID.");
-      return;
-    }
-    if (coachId === user.id) {
-      setCoachSharingStatus("Use a different coach user ID.");
-      return;
-    }
+  function currentAthleteCode() {
+    return normalizeAthleteCode(coachSharingState.profile?.athlete_code || "");
+  }
 
-    coachSharingBusy = true;
-    setCoachSharingStatus("Saving coach sharing...");
+  function athleteCodeShareText(code = currentAthleteCode()) {
+    return `Connect with me on Fuel Guard using Athlete Code ${code}.`;
+  }
+
+  async function copyAthleteCode() {
+    const code = currentAthleteCode();
+    if (!ATHLETE_CODE_RE.test(code)) {
+      setCoachSharingStatus("Your Athlete Code is not ready yet.");
+      return;
+    }
     try {
-      const now = new Date().toISOString();
-      const { error } = await client
-        .from(COACH_RELATIONSHIPS_TABLE)
-        .upsert({
-          coach_id: coachId,
-          athlete_id: user.id,
-          status: "active",
-          accepted_at: now,
-          revoked_at: null,
-          updated_at: now
-        }, { onConflict: "coach_id,athlete_id" });
-      if (error) throw error;
-      document.getElementById("coachShareCoachId").value = "";
-      coachSharingState.loadedFor = "";
-      coachSharingState.status = "Shared with coach.";
-      await loadCoachSharingRelationships(true);
-    } catch (error) {
-      setCoachSharingStatus(coachSharingSetupError(error)
-        ? "Coach sharing setup is not applied yet."
-        : `Coach sharing failed: ${error?.message || "unknown error"}`);
-    } finally {
-      coachSharingBusy = false;
-      renderCoachSharing();
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(code);
+      setCoachSharingStatus("Athlete Code copied.");
+    } catch (_error) {
+      setCoachSharingStatus(`Copy manually: ${code}`);
     }
   }
 
-  async function revokeCoachSharing(id) {
+  async function shareAthleteCode() {
+    const code = currentAthleteCode();
+    if (!ATHLETE_CODE_RE.test(code)) {
+      setCoachSharingStatus("Your Athlete Code is not ready yet.");
+      return;
+    }
+    const text = athleteCodeShareText(code);
+    try {
+      if (!navigator.share) {
+        await copyAthleteCode();
+        return;
+      }
+      await navigator.share({ title: "Fuel Guard Athlete Code", text });
+      setCoachSharingStatus("Athlete Code ready to share.");
+    } catch (error) {
+      if (/abort/i.test(String(error?.name || error?.message || ""))) return;
+      setCoachSharingStatus("Sharing was not available. Copy the code instead.");
+    }
+  }
+
+  async function updateCoachSharingRelationship(id, nextStatus, successMessage) {
     if (coachSharingBusy || !id) return;
     const client = coachSharingClient();
     const user = coachSharingUser();
     if (!client || !user?.id) {
-      setCoachSharingStatus("Sign in before changing coach sharing.");
+      setCoachSharingStatus("Sign in before changing coach access.");
       return;
     }
     coachSharingBusy = true;
-    setCoachSharingStatus("Stopping coach sharing...");
+    setCoachSharingStatus("Updating coach access...");
     try {
+      const now = new Date().toISOString();
+      const patch = { status: nextStatus, updated_at: now };
+      if (nextStatus === "active") {
+        patch.accepted_at = now;
+        patch.revoked_at = null;
+      }
+      if (nextStatus === "revoked") patch.revoked_at = now;
       const { error } = await client
         .from(COACH_RELATIONSHIPS_TABLE)
-        .update({
-          status: "revoked",
-          revoked_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .update(patch)
         .eq("id", id)
         .eq("athlete_id", user.id);
       if (error) throw error;
       coachSharingState.loadedFor = "";
-      coachSharingState.status = "Coach sharing stopped.";
+      coachSharingState.status = successMessage;
       await loadCoachSharingRelationships(true);
     } catch (error) {
-      setCoachSharingStatus(`Could not stop sharing: ${error?.message || "unknown error"}`);
+      setCoachSharingStatus(coachSharingSetupError(error)
+        ? "Coach access setup is not applied yet."
+        : `Could not update coach access: ${error?.message || "unknown error"}`);
     } finally {
       coachSharingBusy = false;
       renderCoachSharing();
     }
   }
 
-  document.getElementById("coachShareButton")?.addEventListener("click", shareWithCoach);
+  function approveCoachSharing(id) {
+    return updateCoachSharingRelationship(id, "active", "Coach connection approved.");
+  }
+
+  function declineCoachSharing(id) {
+    return updateCoachSharingRelationship(id, "declined", "Coach connection declined.");
+  }
+
+  async function revokeCoachSharing(id) {
+    return updateCoachSharingRelationship(id, "revoked", "Coach access removed.");
+  }
+
+  document.getElementById("coachCopyAthleteCodeButton")?.addEventListener("click", copyAthleteCode);
+  document.getElementById("coachShareAthleteCodeButton")?.addEventListener("click", shareAthleteCode);
   document.addEventListener("click", event => {
+    const approve = event.target.closest("[data-approve-coach-sharing]");
+    if (approve) {
+      approveCoachSharing(approve.dataset.approveCoachSharing);
+      return;
+    }
+    const decline = event.target.closest("[data-decline-coach-sharing]");
+    if (decline) {
+      declineCoachSharing(decline.dataset.declineCoachSharing);
+      return;
+    }
     const revoke = event.target.closest("[data-revoke-coach-sharing]");
     if (revoke) revokeCoachSharing(revoke.dataset.revokeCoachSharing);
   });

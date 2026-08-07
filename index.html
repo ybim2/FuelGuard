@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v103-coach-beta-flow-search" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v103-coach-beta-flow-search" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v103-coach-beta-flow-search" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v104-athlete-code-links" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v104-athlete-code-links" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v104-athlete-code-links" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -230,15 +230,25 @@
         </article>
 
         <article id="coachSharingCard" class="card beta-coach-sharing-card" hidden>
-          <h2>Coach sharing</h2>
-          <p class="muted">Share timing-only Fuel Guard data with a coach. You control who can see your logs.</p>
-          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
-            <label>Coach user ID<input id="coachShareCoachId" type="text" inputmode="text" placeholder="Supabase user UUID"></label>
+          <h2>Coach Access</h2>
+          <p class="muted">Share timing-only Fuel Guard data with a coach. You approve every connection before a coach can see your logs.</p>
+          <div class="beta-athlete-code-panel">
+            <span>Your Athlete Code</span>
+            <strong id="coachAthleteCode">Loading...</strong>
+            <p>Share this code with a coach to connect your Fuel Guard account.</p>
+            <div class="button-row beta-settings-actions">
+              <button id="coachCopyAthleteCodeButton" class="secondary" type="button">Copy Code</button>
+              <button id="coachShareAthleteCodeButton" class="secondary" type="button">Share Code</button>
+            </div>
           </div>
-          <div class="button-row beta-settings-actions">
-            <button id="coachShareButton" class="secondary" type="button">Share with coach</button>
+          <div class="beta-coach-sharing-section">
+            <h3>Coach Connection Requests</h3>
+            <div id="coachConnectionRequests" class="beta-coach-sharing-list"></div>
           </div>
-          <div id="coachSharingList" class="beta-coach-sharing-list"></div>
+          <div class="beta-coach-sharing-section">
+            <h3>Connected Coaches</h3>
+            <div id="coachSharingList" class="beta-coach-sharing-list"></div>
+          </div>
           <p id="coachSharingStatus" class="row-note" aria-live="polite"></p>
         </article>
 
@@ -317,7 +327,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v103-coach-beta-flow-search</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v104-athlete-code-links</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -333,17 +343,17 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
+  <script src="build-info.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v104-athlete-code-links"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="app-state.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="app-ui.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="app-state.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="app-ui.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v104-athlete-code-links"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v104-athlete-code-links"></script>
 </body>
 </html>

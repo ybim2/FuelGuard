@@ -7929,6 +7929,42 @@ body.beta-mvp .beta-coach-sharing-card {
   gap: 12px;
 }
 
+body.beta-mvp .beta-athlete-code-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(22, 138, 70, .08), rgba(255, 255, 255, .9));
+}
+
+body.beta-mvp .beta-athlete-code-panel > span,
+body.beta-mvp .beta-coach-sharing-section h3 {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: .76rem;
+  font-weight: 950;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+body.beta-mvp .beta-athlete-code-panel strong {
+  color: var(--text);
+  font-size: clamp(1.55rem, 8vw, 2.2rem);
+  font-weight: 950;
+  letter-spacing: .04em;
+}
+
+body.beta-mvp .beta-athlete-code-panel p,
+body.beta-mvp .beta-coach-sharing-section p {
+  margin: 0;
+}
+
+body.beta-mvp .beta-coach-sharing-section {
+  display: grid;
+  gap: 8px;
+}
+
 body.beta-mvp .beta-coach-sharing-list,
 body.beta-mvp .beta-coach-sharing-items {
   display: grid;
@@ -7945,6 +7981,16 @@ body.beta-mvp .beta-coach-sharing-item {
   border: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
   border-radius: 14px;
   background: rgba(255, 255, 255, .72);
+}
+
+body.beta-mvp .beta-coach-sharing-item.pending {
+  border-color: rgba(217, 130, 43, .22);
+  background: rgba(217, 130, 43, .08);
+}
+
+body.beta-mvp .beta-coach-sharing-item.active {
+  border-color: rgba(22, 138, 70, .2);
+  background: rgba(22, 138, 70, .08);
 }
 
 body.beta-mvp .beta-coach-sharing-item strong,

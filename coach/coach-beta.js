@@ -23,7 +23,7 @@
     { label: "21:00", start: 21, end: 24 }
   ];
   const COACH_SIGNUP_EMAIL_KEY = "fuel_guard_coach_signup_email";
-  const ATHLETE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const ATHLETE_CODE_RE = /^FG-[A-Z0-9]{6}$/;
 
   const state = {
     client: null,
@@ -42,7 +42,9 @@
     reportPeriod: "12_weeks",
     generatedReport: null,
     selectedPattern: "fuel",
-    search: "",
+    athleteCodeQuery: "",
+    athleteCodeResult: null,
+    athleteCodeStatus: "",
     authResolved: false,
     coachLoading: true,
     busy: false,
@@ -72,6 +74,16 @@
     return Boolean(profile?.coach_enabled) || role === "coach";
   }
 
+  function normalizeAthleteCode(value) {
+    const compact = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+    const match = compact.match(/^FG[-_]?([A-Z0-9]{6})$/);
+    return match ? `FG-${match[1]}` : compact;
+  }
+
+  function profileSelect() {
+    return "user_id,role,coach_enabled,display_name,athlete_code,created_at,updated_at";
+  }
+
   function setStatus(message) {
     state.status = message || "";
     const target = $("coachGlobalStatus");
@@ -90,8 +102,8 @@
     if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
-    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
-      return "Coach sharing is still warming up. Refresh and try again in a moment.";
+    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_find_athlete_by_code|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
+      return "Coach access is still warming up. Refresh and try again in a moment.";
     }
     return "Coach Beta could not complete that request. Try again in a moment.";
   }
@@ -215,6 +227,7 @@
   function relationshipStatusCopy(status) {
     if (status === "active") return "Sharing active";
     if (status === "pending") return "Waiting for athlete approval";
+    if (status === "declined") return "Request declined";
     if (status === "revoked") return "Sharing revoked";
     return "Not connected";
   }
@@ -231,31 +244,48 @@
           </div>
           <div class="coach-row-meta">
             <span>${safe(relationshipStatusCopy(item.relationStatus))}</span>
-            <span>${id}</span>
           </div>
         </div>
-        ${canOpen ? `<button type="button" data-open-athlete="${id}">View</button>` : `<button type="button" disabled>Pending</button>`}
+        ${canOpen ? `<button type="button" data-open-athlete="${id}">View</button>` : `<button type="button" disabled>${safe(item.relationStatus === "declined" ? "Declined" : "Invitation pending")}</button>`}
       </article>
     `;
   }
 
-  function exactAthleteRequestRow(athleteId) {
-    const existing = state.relationships.find(relation => relation.athlete_id === athleteId && relation.status !== "revoked");
-    if (existing) return "";
-    return `
-      <article class="coach-roster-row warning">
+  function renderAthleteCodeResult() {
+    const target = $("coachAthleteCodeResult");
+    if (!target) return;
+    const result = state.athleteCodeResult;
+    if (state.athleteCodeStatus && !result) {
+      target.innerHTML = `<p class="coach-note">${safe(state.athleteCodeStatus)}</p>`;
+      return;
+    }
+    if (!result) {
+      target.innerHTML = `<p class="coach-note">Ask an athlete for their Fuel Guard Athlete Code to connect.</p>`;
+      return;
+    }
+    const status = result.relationship_status || "not_connected";
+    const alreadyConnected = status === "active";
+    const pending = status === "pending";
+    const declined = status === "declined";
+    target.innerHTML = `
+      <article class="coach-code-match ${safe(alreadyConnected ? "steady" : declined ? "urgent" : "warning")}">
         <div>
           <div class="coach-athlete-title">
-            <strong>Athlete ${safe(athleteId.slice(0, 8))}</strong>
-            <span class="coach-status-chip pending">not connected</span>
+            <strong>${safe(result.display_name || "Fuel Guard Athlete")}</strong>
+            <span class="coach-status-chip ${safe(status)}">${safe(alreadyConnected ? "connected" : pending ? "pending" : declined ? "declined" : "not connected")}</span>
           </div>
           <div class="coach-row-meta">
-            <span>Exact athlete ID entered</span>
-            <span>${safe(athleteId)}</span>
+            <span>Fuel Guard Athlete</span>
+            <span>${safe(result.athlete_code || state.athleteCodeQuery)}</span>
           </div>
         </div>
-        <button type="button" data-request-athlete="${safe(athleteId)}">Request sharing</button>
+        ${alreadyConnected
+          ? `<button type="button" data-open-athlete="${safe(result.athlete_id)}">View</button>`
+          : pending
+            ? `<button type="button" disabled>Invitation pending</button>`
+            : `<button type="button" data-send-code-request>Send Connection Request</button>`}
       </article>
+      ${state.athleteCodeStatus ? `<p class="coach-note">${safe(state.athleteCodeStatus)}</p>` : ""}
     `;
   }
 
@@ -308,7 +338,7 @@
           </div>
         </div>
         <div class="coach-list">
-          ${state.roster.length ? state.roster.map(item => rosterRow(item, { compact: true })).join("") : `<div class="coach-empty">No active athlete sharing relationships yet.</div>`}
+          ${state.roster.length ? state.roster.map(item => rosterRow(item, { compact: true })).join("") : `<div class="coach-empty">No athletes connected yet. Ask an athlete for their Fuel Guard Athlete Code to connect.</div>`}
         </div>
       </section>
     `;
@@ -317,21 +347,19 @@
   function renderAthleteList() {
     const target = $("coachAthleteList");
     if (!target) return;
-    const query = state.search.trim().toLowerCase();
-    const relationshipMatches = relationshipRows().filter(item => {
-      if (!query) return true;
-      return `${item.displayName} ${item.userId} ${item.relationStatus}`.toLowerCase().includes(query);
-    });
     const activeById = new Map(state.roster.map(item => [item.athlete.userId, item]));
-    const rows = relationshipMatches.map(item => activeById.get(item.userId) || item);
-    const requestRow = query && ATHLETE_ID_PATTERN.test(query) ? exactAthleteRequestRow(query) : "";
-    const empty = query
-      ? "No athletes found"
-      : "No active or pending athlete sharing relationships yet.";
+    const rows = relationshipRows().map(item => activeById.get(item.userId) || item);
+    renderAthleteCodeResult();
     target.innerHTML = `
       <section class="coach-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Athletes</h2>
+            <p>Approved athletes appear with full read-only detail. Pending requests stay private until the athlete approves.</p>
+          </div>
+        </div>
         <div class="coach-list">
-          ${rows.length || requestRow ? rows.map(item => item.athlete ? rosterRow(item) : relationshipSearchRow(item)).join("") + requestRow : `<div class="coach-empty">${safe(empty)}</div>`}
+          ${rows.length ? rows.map(item => item.athlete ? rosterRow(item) : relationshipSearchRow(item)).join("") : `<div class="coach-empty">No athletes connected yet. Ask an athlete for their Fuel Guard Athlete Code to connect.</div>`}
         </div>
       </section>
     `;
@@ -903,18 +931,18 @@
         <article class="coach-relationship-row">
           <div>
             <strong>${safe(relation.athlete_label || `Athlete ${String(relation.athlete_id).slice(0, 8)}`)}</strong>
-            <p class="coach-note">${safe(relation.athlete_id)}</p>
+            <p class="coach-note">${safe(relationshipStatusCopy(relation.status))}</p>
           </div>
           <div class="coach-row-meta">
             <span>Status: ${safe(relation.status)}</span>
-            <span>${relation.status === "active" ? "Sharing active" : relation.status === "pending" ? "Waiting for athlete approval" : "Revoked"}</span>
+            <span>${safe(relation.status === "active" ? "Sharing active" : relation.status === "pending" ? "Waiting for athlete approval" : relation.status === "declined" ? "Request declined" : "Revoked")}</span>
           </div>
           <div class="coach-button-row">
             <button class="secondary" type="button" data-revoke-relationship="${safe(relation.id)}">Remove</button>
           </div>
         </article>
       `).join("")
-      : `<div class="coach-empty">No relationships yet. Paste an exact athlete user ID to request sharing.</div>`;
+      : `<div class="coach-empty">No relationships yet. Ask an athlete for their Fuel Guard Athlete Code to connect.</div>`;
   }
 
   function renderSettings() {
@@ -966,7 +994,7 @@
 
     const { data: profile, error: profileError } = await state.client
       .from(TABLES.profiles)
-      .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
+      .select(profileSelect())
       .eq("user_id", user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -981,7 +1009,7 @@
           display_name: user.email || "Coach",
           updated_at: new Date().toISOString()
         }, { onConflict: "user_id" })
-        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
+        .select(profileSelect())
         .single();
       if (error) throw error;
       state.profile = data;
@@ -994,7 +1022,7 @@
         .from(TABLES.profiles)
         .update({ coach_enabled: true, updated_at: new Date().toISOString() })
         .eq("user_id", user.id)
-        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
+        .select(profileSelect())
         .single();
       if (error) throw error;
       state.profile = data;
@@ -1032,9 +1060,9 @@
 
       const { data: relationships, error: relationshipError } = await state.client
         .from(TABLES.relationships)
-        .select("id,coach_id,athlete_id,status,athlete_label,created_at,accepted_at,revoked_at")
+        .select("id,coach_id,athlete_id,status,athlete_label,coach_label,created_at,accepted_at,revoked_at")
         .eq("coach_id", user.id)
-        .in("status", ["pending", "active"])
+        .in("status", ["pending", "active", "declined"])
         .order("created_at", { ascending: false });
       if (relationshipError) throw relationshipError;
       state.relationships = relationships || [];
@@ -1049,7 +1077,7 @@
       if (athleteIds.length) {
         const { data: profiles, error: profilesError } = await state.client
           .from(TABLES.profiles)
-          .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
+          .select(profileSelect())
           .in("user_id", athleteIds);
         if (profilesError) throw profilesError;
         state.athleteProfiles = profiles || [];
@@ -1120,6 +1148,8 @@
     if (button?.id === "coachSignInButton") button.textContent = "Signing in...";
     if (button?.id === "coachSignUpButton") button.textContent = "Sending...";
     if (button?.id === "coachForgotPasswordButton") button.textContent = "Sending...";
+    if (button?.id === "coachFindAthleteButton") button.textContent = "Finding...";
+    if (button?.dataset?.sendCodeRequest !== undefined) button.textContent = "Sending...";
     try {
       await callback();
     } catch (error) {
@@ -1201,6 +1231,9 @@
     state.reports = [];
     state.interventions = [];
     state.roster = [];
+    state.athleteCodeQuery = "";
+    state.athleteCodeResult = null;
+    state.athleteCodeStatus = "";
     setStatus("Signed out.");
     render();
   }
@@ -1219,7 +1252,7 @@
           display_name: displayName,
           updated_at: new Date().toISOString()
         }, { onConflict: "user_id" })
-        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
+        .select(profileSelect())
         .single();
       if (error) throw error;
       state.profile = data;
@@ -1228,33 +1261,65 @@
     });
   }
 
-  async function requestSharing(athleteIdOverride = "", labelOverride = "", button = $("coachInviteButton")) {
+  async function findAthleteByCode() {
+    await withBusy($("coachFindAthleteButton"), async () => {
+      const code = normalizeAthleteCode($("coachAthleteCodeInput")?.value || state.athleteCodeQuery);
+      state.athleteCodeQuery = code;
+      state.athleteCodeResult = null;
+      state.athleteCodeStatus = "";
+      if (!ATHLETE_CODE_RE.test(code)) {
+        state.athleteCodeStatus = "Enter an Athlete Code like FG-7K42P.";
+        renderAthleteCodeResult();
+        return;
+      }
+      const { data, error } = await state.client.rpc("fuel_coach_find_athlete_by_code", {
+        search_code: code
+      });
+      if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.athlete_id) {
+        state.athleteCodeStatus = "No athlete found for that code.";
+        renderAthleteCodeResult();
+        return;
+      }
+      state.athleteCodeResult = result;
+      state.athleteCodeStatus = result.relationship_status === "active"
+        ? "This athlete is already connected."
+        : result.relationship_status === "pending"
+          ? "A connection request is already waiting for athlete approval."
+          : result.relationship_status === "declined"
+            ? "The previous request was declined. You can send a new request if the athlete asked you to."
+            : "Athlete found. Send a connection request when you are ready.";
+      renderAthleteCodeResult();
+    });
+  }
+
+  async function requestSharing(button = document.querySelector("[data-send-code-request]")) {
     await withBusy(button, async () => {
       const user = coachUser();
       if (!user) throw new Error("Sign in first.");
-      const fromSearch = Boolean(athleteIdOverride);
-      const athleteId = (athleteIdOverride || $("coachInviteAthleteId")?.value || "").trim();
-      const label = (labelOverride || $("coachInviteAthleteLabel")?.value || "").trim();
-      if (!ATHLETE_ID_PATTERN.test(athleteId || "")) {
-        throw new Error("Enter a valid athlete Supabase user ID.");
-      }
+      const result = state.athleteCodeResult;
+      const athleteId = String(result?.athlete_id || "");
+      if (!athleteId) throw new Error("Find an athlete by Athlete Code before requesting access.");
       const row = {
         coach_id: user.id,
         athlete_id: athleteId,
         status: "pending",
-        athlete_label: label || null,
+        athlete_label: result?.display_name || null,
+        coach_label: state.profile?.display_name || user.email || "Fuel Guard Coach",
+        accepted_at: null,
+        revoked_at: null,
         updated_at: new Date().toISOString()
       };
       const { error } = await state.client
         .from(TABLES.relationships)
         .upsert(row, { onConflict: "coach_id,athlete_id" });
       if (error) throw error;
-      if (!fromSearch) {
-        $("coachInviteAthleteId").value = "";
-        $("coachInviteAthleteLabel").value = "";
-      }
-      setStatus("Sharing requested. Athlete data stays private until they approve.");
+      state.athleteCodeResult = { ...result, relationship_status: "pending" };
+      state.athleteCodeStatus = "Connection request sent. Athlete data stays private until they approve.";
+      setStatus(state.athleteCodeStatus);
       await loadCoachData();
+      renderAthleteCodeResult();
     });
   }
 
@@ -1620,9 +1685,9 @@
       return;
     }
 
-    const requestAthlete = event.target.closest("[data-request-athlete]");
-    if (requestAthlete) {
-      requestSharing(requestAthlete.dataset.requestAthlete, "", requestAthlete);
+    const codeRequest = event.target.closest("[data-send-code-request]");
+    if (codeRequest) {
+      requestSharing(codeRequest);
       return;
     }
 
@@ -1654,7 +1719,7 @@
   $("coachAccessSignOutButton")?.addEventListener("click", signOut);
   $("coachSignOutButton")?.addEventListener("click", signOut);
   $("coachSaveProfileButton")?.addEventListener("click", saveProfile);
-  $("coachInviteButton")?.addEventListener("click", () => requestSharing());
+  $("coachFindAthleteButton")?.addEventListener("click", findAthleteByCode);
   $("coachGenerateReviewButton")?.addEventListener("click", generateReport);
   $("coachCreateInterventionButton")?.addEventListener("click", createIntervention);
   $("coachReportAthlete")?.addEventListener("change", event => {
@@ -1667,9 +1732,17 @@
     state.generatedReport = null;
     renderReportPreview();
   });
-  $("coachAthleteSearch")?.addEventListener("input", event => {
-    state.search = event.target.value || "";
-    renderAthleteList();
+  $("coachAthleteCodeInput")?.addEventListener("input", event => {
+    state.athleteCodeQuery = normalizeAthleteCode(event.target.value || "");
+    state.athleteCodeResult = null;
+    state.athleteCodeStatus = "";
+    renderAthleteCodeResult();
+  });
+  $("coachAthleteCodeInput")?.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      findAthleteByCode();
+    }
   });
 
   document.addEventListener("DOMContentLoaded", init);

@@ -183,7 +183,7 @@ test("Settings keeps only essential production sections", () => {
 
   const intro = indexOfRequired(settings, "Settings");
   const account = indexOfRequired(settings, "Account &amp; Sync");
-  const coachSharing = indexOfRequired(settings, "Coach sharing");
+  const coachSharing = indexOfRequired(settings, "Coach Access");
   const garmin = indexOfRequired(settings, "Connected Garmin Apps");
   const maximum = indexOfRequired(settings, "Maximum Fuel Gap");
   const importAndClear = indexOfRequired(settings, "Data import and clearing");
@@ -195,23 +195,25 @@ test("Settings keeps only essential production sections", () => {
   assert.ok(garmin < maximum);
   assert.ok(maximum < importAndClear);
   assert.ok(importAndClear < version);
-  assert.match(settings, /id="coachShareCoachId"/);
-  assert.match(settings, /id="coachShareButton"/);
+  assert.match(settings, /id="coachAthleteCode"/);
+  assert.match(settings, /id="coachCopyAthleteCodeButton"/);
+  assert.match(settings, /id="coachShareAthleteCodeButton"/);
+  assert.match(settings, /id="coachConnectionRequests"/);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the coach route rendering fix", () => {
+test("PWA cache and asset versions are bumped for the athlete code linking flow", () => {
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v103-coach-beta-flow-search";
+  const version = "mobile-pwa-v104-athlete-code-links";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T233500Z/);
+  assert.match(sw, /20260808T000500Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /fuel-guard-domain\.js/);
 });

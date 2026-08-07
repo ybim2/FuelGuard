@@ -66,13 +66,33 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   assert.match(coachJs, /data-open-intervention-builder/);
   assert.match(coachJs, /data-export-report-pdf/);
   assert.match(coachJs, /data-export-report-csv/);
+  assert.match(coachHtml, /Add Athlete/);
+  assert.match(coachHtml, /id="coachAthleteCodeInput"/);
+  assert.match(coachHtml, /id="coachFindAthleteButton"/);
+  assert.match(coachHtml, /id="coachAthleteCodeResult"/);
+  assert.match(coachJs, /fuel_coach_find_athlete_by_code/);
+  assert.match(coachJs, /function findAthleteByCode/);
+  assert.match(coachJs, /function requestSharing/);
+  assert.match(coachJs, /status:\s*"pending"/);
+  assert.doesNotMatch(coachHtml, /Supabase user UUID|Name, label, or user ID|Athlete user ID/);
+  assert.doesNotMatch(coachJs, /ATHLETE_ID_PATTERN|function exactAthleteRequestRow|data-request-athlete|coachInviteAthleteId|coachAthleteSearch/);
 
   assert.doesNotMatch(athleteHtml, /data-coach-tab|Coach Beta|coachDashboardPanel/);
   assert.match(athleteHtml, /data-mobile-screen="dashboard"[\s\S]*<span>Log<\/span>/);
   assert.match(athleteHtml, /id="coachSharingCard"/);
-  assert.match(athleteJs, /function shareWithCoach/);
-  assert.match(athleteJs, /status:\s*"active"/);
-  assert.match(athleteJs, /accepted_at:\s*now/);
+  assert.match(athleteHtml, /Coach Access/);
+  assert.match(athleteHtml, /id="coachAthleteCode"/);
+  assert.match(athleteHtml, /id="coachCopyAthleteCodeButton"/);
+  assert.match(athleteHtml, /id="coachShareAthleteCodeButton"/);
+  assert.match(athleteHtml, /id="coachConnectionRequests"/);
+  assert.match(athleteJs, /function ensureAthleteCoachProfile/);
+  assert.match(athleteJs, /function copyAthleteCode/);
+  assert.match(athleteJs, /function approveCoachSharing/);
+  assert.match(athleteJs, /function declineCoachSharing/);
+  assert.match(athleteJs, /updateCoachSharingRelationship\(id, "active"/);
+  assert.match(athleteJs, /updateCoachSharingRelationship\(id, "declined"/);
+  assert.doesNotMatch(athleteHtml, /Coach user ID|Supabase user UUID/);
+  assert.doesNotMatch(athleteJs, /function shareWithCoach|coachShareCoachId|status:\s*"active"[\s\S]*accepted_at:\s*now/);
 });
 
 test("Coach attention rules flag exceeded, approaching, Sleepy cluster and steady athletes", () => {
@@ -141,8 +161,17 @@ test("Coach migration uses database-level active relationship access controls", 
 
   assert.match(sql, /create table if not exists public\.fuel_user_profiles/);
   assert.match(sql, /coach_enabled boolean not null default false/);
+  assert.match(sql, /athlete_code text/);
+  assert.match(sql, /fuel_user_profiles_athlete_code_idx/);
+  assert.match(sql, /fuel_user_profiles_athlete_code_format_check/);
+  assert.match(sql, /create or replace function public\.fuel_coach_find_athlete_by_code/);
+  assert.match(sql, /revoke all on function public\.fuel_coach_find_athlete_by_code\(text\) from public/);
+  assert.match(sql, /revoke execute on function public\.fuel_coach_find_athlete_by_code\(text\) from anon/);
+  assert.match(sql, /grant execute on function public\.fuel_coach_find_athlete_by_code\(text\) to authenticated/);
+  assert.match(sql, /coach_profile\.coach_enabled is true or coach_profile\.role = 'coach'/);
   assert.match(sql, /set coach_enabled = true/);
   assert.match(sql, /create table if not exists public\.fuel_coach_athletes/);
+  assert.match(sql, /coach_label text/);
   assert.match(sql, /create table if not exists public\.fuel_coach_reports/);
   assert.match(sql, /create table if not exists public\.fuel_coach_interventions/);
   assert.match(sql, /alter table public\.fuel_user_profiles enable row level security/);
@@ -171,23 +200,34 @@ test("Coach migration uses database-level active relationship access controls", 
   assert.match(sql, /relationship\.coach_id = \(select auth\.uid\(\)\)/);
   assert.match(sql, /relationship\.status = 'active'/);
   assert.match(sql, /with check \(\(select auth\.uid\(\)\) = user_id\)/);
-  assert.match(sql, /status in \('pending', 'active', 'revoked'\)/);
+  assert.match(sql, /status in \('pending', 'active', 'declined', 'revoked'\)/);
+  assert.match(sql, /status in \('active', 'declined', 'revoked'\)/);
+  assert.match(sql, /status = 'pending'/);
   assert.match(sql, /status in \('active', 'reviewed', 'closed'\)/);
   assert.doesNotMatch(noComments, /service_role|auth\.role\(\)/);
 });
 
-test("Coach athlete search uses existing relationships and exact user ID requests without exposing an email directory", () => {
+test("Coach athlete linking uses Athlete Codes instead of raw UUID search", () => {
   const coachHtml = read("coach/index.html");
   const coachJs = read("coach/coach-beta.js");
   const apiFiles = fs.readdirSync(path.join(root, "api")).join("\n");
 
-  assert.match(coachHtml, /Name, label, or user ID/);
-  assert.doesNotMatch(coachHtml, /Name or email/);
+  assert.match(coachHtml, /Enter the Athlete Code/);
+  assert.match(coachHtml, /id="coachAthleteCodeInput"/);
+  assert.match(coachHtml, /Find Athlete/);
+  assert.match(coachJs, /Send Connection Request/);
   assert.match(coachJs, /function relationshipRows/);
-  assert.match(coachJs, /function exactAthleteRequestRow/);
-  assert.match(coachJs, /data-request-athlete/);
-  assert.match(coachJs, /No athletes found/);
-  assert.match(coachJs, /ATHLETE_ID_PATTERN/);
+  assert.match(coachJs, /function normalizeAthleteCode/);
+  assert.match(coachJs, /function findAthleteByCode/);
+  assert.match(coachJs, /fuel_coach_find_athlete_by_code/);
+  assert.match(coachJs, /data-send-code-request/);
+  assert.match(coachJs, /status:\s*"pending"/);
+  assert.match(coachJs, /athlete_label:\s*result\?\.display_name/);
+  assert.match(coachJs, /coach_label:\s*state\.profile\?\.display_name/);
+  assert.match(coachJs, /Connection request sent/);
+  assert.match(coachJs, /filter\(relation => relation\.status === "active"\)\.map/);
+  assert.doesNotMatch(coachHtml, /Supabase user UUID|Name, label, or user ID|Athlete user ID/);
+  assert.doesNotMatch(coachJs, /ATHLETE_ID_PATTERN|function exactAthleteRequestRow|data-request-athlete|coachInviteAthleteId|coachAthleteSearch/);
   assert.doesNotMatch(coachJs, /auth\.users|fuel_coach_search_athletes|coach-athlete-search|inviteUserByEmail/);
   assert.doesNotMatch(apiFiles, /coach-athlete-search/);
 });
