@@ -205,16 +205,16 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the integrated Coach daily workflow", () => {
+test("PWA cache and asset versions are bumped for the integrated Coach intelligence release", () => {
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v108-coach-daily-integrated";
+  const version = "mobile-pwa-v109-coach-intelligence-integrated";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T174847Z/);
+  assert.match(sw, /20260807T175451Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

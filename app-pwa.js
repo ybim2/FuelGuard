@@ -1,6 +1,6 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v108-coach-daily-integrated";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v109-coach-intelligence-integrated";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;

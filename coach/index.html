@@ -8,15 +8,15 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v108-coach-daily-integrated" />
-  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
+  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v109-coach-intelligence-integrated" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -84,6 +84,9 @@
       <section id="coachDashboardPanel" class="coach-panel active" aria-label="Coach dashboard">
         <div id="coachNeedsAttention"></div>
         <div id="coachDataHealth"></div>
+        <div id="coachDueReviews"></div>
+        <div id="coachWeeklyBrief"></div>
+        <div id="coachTeamPatterns"></div>
         <div class="coach-feature-stack" data-coach-feature-host="dashboard"></div>
         <div id="coachRoster"></div>
       </section>
@@ -114,10 +117,52 @@
         <section class="coach-card">
           <div class="coach-card-heading compact">
             <div>
+              <h2>Scheduled Reviews</h2>
+              <p>Set a due date or recurrence. Coach Beta calculates due state whenever it loads.</p>
+            </div>
+          </div>
+          <div class="coach-form-grid">
+            <label>Athlete<select id="coachScheduleAthlete"></select></label>
+            <label>Review type<select id="coachScheduleType">
+              <option value="monthly">Monthly review</option>
+              <option value="8_week">8-week review</option>
+              <option value="contract">Contract review</option>
+              <option value="end_of_season">End-of-season review</option>
+              <option value="custom">Custom review</option>
+            </select></label>
+            <label>Report period<select id="coachSchedulePeriod">
+              <option value="4_weeks">4 Weeks</option>
+              <option value="8_weeks">8 Weeks</option>
+              <option value="12_weeks">12 Weeks</option>
+              <option value="season">Season</option>
+              <option value="custom">Custom dates</option>
+            </select></label>
+            <label>Next due date<input id="coachScheduleDueDate" type="date"></label>
+            <label>Cadence<select id="coachScheduleCadence">
+              <option value="monthly">Monthly</option>
+              <option value="8_weeks">Every 8 weeks</option>
+              <option value="none">One-off</option>
+              <option value="custom_days">Custom days</option>
+            </select></label>
+            <label>Custom cadence days<input id="coachScheduleCadenceDays" type="number" min="1" max="3650" inputmode="numeric" placeholder="e.g. 90"></label>
+            <label>Custom period start<input id="coachSchedulePeriodStart" type="date"></label>
+            <label>Custom period end<input id="coachSchedulePeriodEnd" type="date"></label>
+          </div>
+          <label class="coach-textarea-label">Schedule notes<textarea id="coachScheduleNotes" rows="2" maxlength="1200" placeholder="Optional preparation or contract context."></textarea></label>
+          <div class="coach-button-row">
+            <button id="coachCreateScheduleButton" class="secondary" type="button">Schedule review</button>
+          </div>
+          <div id="coachScheduledReviewList" class="coach-scheduled-review-list"></div>
+        </section>
+
+        <section class="coach-card">
+          <div class="coach-card-heading compact">
+            <div>
               <h2>Reports</h2>
               <p>Generate structured behavioural evidence for a selected athlete and review period.</p>
             </div>
           </div>
+          <div id="coachScheduleDraftContext" class="coach-schedule-context" hidden></div>
           <div class="coach-form-grid">
             <label>Athlete<select id="coachReportAthlete"></select></label>
             <label>Review period<select id="coachReportPeriod">
@@ -144,7 +189,8 @@
           <label class="coach-textarea-label">Intervention observation<textarea id="coachInterventionObservation" rows="3" maxlength="1200" placeholder="What pattern are you responding to?"></textarea></label>
           <label class="coach-textarea-label">Intervention action<textarea id="coachInterventionAction" rows="3" maxlength="1200" placeholder="What practical support step will you review later?"></textarea></label>
           <div class="coach-button-row">
-            <button id="coachGenerateReviewButton" class="primary" type="button">Generate review</button>
+            <button id="coachGenerateReviewButton" class="primary" type="button">Assemble review</button>
+            <button id="coachSaveReviewButton" class="primary" type="button" hidden>Save report</button>
             <button id="coachCreateInterventionButton" class="secondary" type="button">Create intervention</button>
           </div>
         </section>
@@ -188,16 +234,16 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../api/supabase-config.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-platform.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-attention.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-intervention-workflow.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-team-intelligence.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-review-scheduling.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-team-structure.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
-  <script src="coach-training-schedule.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-platform.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-attention.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-intervention-workflow.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-team-intelligence.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-review-scheduling.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-team-structure.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
+  <script src="coach-training-schedule.js?v=mobile-pwa-v109-coach-intelligence-integrated"></script>
 </body>
 </html>
