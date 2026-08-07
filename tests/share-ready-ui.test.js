@@ -209,12 +209,12 @@ test("PWA cache and asset versions are bumped for the athlete code lookup flow",
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v105-athlete-code-lookup";
+  const version = "mobile-pwa-v106-coach-review-domain";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T170507Z/);
+  assert.match(sw, /20260807T174031Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /fuel-guard-domain\.js/);
 });
