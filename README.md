@@ -2,7 +2,7 @@
 
 The canonical frontend is the mobile-first Fuel Guard PWA with exactly three primary screens: Log, Insights, and History. Settings opens from the sticky header icon.
 
-The current three-screen core keeps live status, fuel/hydration logging, daily progress and today’s timeline on Log; fuelling-pattern graphs, Fuel Gap Windows, Log Windows and actionable pattern review on Insights; and Fuel Window / Gap Window review on History. Advanced preferences, targets, CSV import, app update controls, and account/Garmin settings live behind Settings.
+The current three-screen core keeps live status, daily progress and an expanded today’s timeline with fuel/hydration actions on Log; Weekly Summary, Personalised Insights, fuelling-pattern graphs, Fuel Gap Windows and Log Windows on Insights; and compact week/month history navigation plus Fuel Window / Gap Window review on History. Advanced preferences, targets, CSV import, app update controls, and account/Garmin settings live behind Settings.
 
 Read `AGENTS.md` and `FRONTEND_SOURCE_OF_TRUTH.md` before making frontend changes.
 

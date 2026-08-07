@@ -4268,11 +4268,6 @@
           <strong class="beta-status-title">Status: ${safeText(statusLabel)}</strong>
           <p>${safeText(todayRecommendation(snapshot.status, event))}</p>
         </div>
-        <div class="beta-status-log-actions beta-log-actions" aria-label="Log fuel or hydration">
-          <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
-          <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
-        </div>
-        <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
         <div class="beta-today-status-grid">
           ${dailyMetricCard("Last fuel", snapshot.timeSinceFuel, snapshot.lastFuelled === "No fuel logged" ? "No fuel logged yet" : `Logged at ${snapshot.lastFuelled}`, "fuel")}
           ${dailyMetricCard("Last hydration", hydrationSince, lastLogForDay(key, isHydrationLog) ? `Logged at ${formatClock(lastLogForDay(key, isHydrationLog).date)}` : "No hydration logged yet", "hydration")}
@@ -5825,8 +5820,13 @@
   }
 
   function historyEntriesWithLogs() {
+    const range = selectedTrendRange();
     return archiveEntries()
       .filter(entry => Array.isArray(entry.logs) && entry.logs.length > 0)
+      .filter(entry => {
+        const entryDate = dateFromKey(entry.date);
+        return entryDate >= range.start && entryDate < range.end;
+      })
       .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }
 
@@ -5879,12 +5879,14 @@
   function renderHistoryList() {
     const target = document.getElementById("fuelHistoryList");
     if (!target) return;
+    const range = selectedTrendRange();
+    updateTrendControls(range);
     const entries = historyEntriesWithLogs();
     if (!entries.length) {
       target.innerHTML = `
         <section class="beta-rhythm-section-card beta-history-empty-card">
           <h3>Logged days</h3>
-          <p class="muted">Your daily summary will appear after you begin logging.</p>
+          <p class="muted">No logged days in ${safeText(range.label.toLowerCase())} yet.</p>
         </section>
       `;
       selectedHistoryDetailKey = "";
@@ -5899,7 +5901,7 @@
         <div class="section-heading-row">
           <div>
             <h3>Logged days</h3>
-            <p class="muted">Tap a day to see the full detail.</p>
+            <p class="muted">${safeText(range.label)}. Tap a day to see the full detail.</p>
           </div>
           <span class="row-note">${safeText(String(entries.length))} day${entries.length === 1 ? "" : "s"}</span>
         </div>
@@ -7498,6 +7500,18 @@
     };
   }
 
+  function averageBoundaryFuelLogInsight(entries, boundary) {
+    const values = entries.map(entry => {
+      const logs = logEventsForInsight(entry, isFuelLog);
+      const log = boundary === "final" ? logs[logs.length - 1] : logs[0];
+      return minuteOfDayFromDate(log?.date);
+    }).filter(value => Number.isFinite(value));
+    return {
+      value: clockFromMinuteOfDay(averageMinutes(values)),
+      detail: values.length ? `${values.length} day${values.length === 1 ? "" : "s"} with fuel logs` : "Needs fuel logs"
+    };
+  }
+
   function mostCommonValueInsight(values, fallback = "Not enough data yet") {
     const counts = new Map();
     values.filter(Boolean).forEach(value => counts.set(value, (counts.get(value) || 0) + 1));
@@ -8439,31 +8453,35 @@
   }
 
   function renderPersonalisedInsights(data) {
-    const { candidates } = personalisedInsightCandidates(data);
-    const insights = selectPersonalisedInsights(candidates);
-    if (!insights.length) return "";
+    const firstFuel = averageBoundaryFuelLogInsight(data.currentEntries, "first");
+    const fuelGapWindow = mostCommonGapWindowInsight(data.currentEntries, isFuelLog, gapsFromFuelLogs, mediumRiskLimit());
+    const finalFuel = averageBoundaryFuelLogInsight(data.currentEntries, "final");
+    const metrics = [
+      { label: "Average first log", value: firstFuel.value, detail: firstFuel.detail, icon: "clock" },
+      { label: "Most common fuelling gap", value: fuelGapWindow.value, detail: fuelGapWindow.detail, icon: "route" },
+      { label: "Average final log", value: finalFuel.value, detail: finalFuel.detail, icon: "clock" }
+    ];
     return `
       <section class="beta-trend-habit-section beta-personalised-insights-section" aria-label="Personalised Insights">
         <div class="beta-weekly-section-head">
           <span class="beta-icon-disc shield">${dailyIcon("shield")}</span>
           <div>
             <h3>Personalised Insights</h3>
-            <p>Repeated patterns from your logs, work/training plans and fuel suggestions.</p>
+            <p>Three practical rhythm signals from the selected ${safeText(data.range.period)}.</p>
           </div>
         </div>
-        <div class="beta-personalised-insight-list">
-          ${insights.map(insight => `
-            <article class="beta-personalised-insight-card ${safeText(insight.tone)}">
-              <span class="beta-icon-disc ${insight.tone === "elevated" ? "amber" : insight.tone === "protected" ? "shield" : ""}">${dailyIcon(insight.icon)}</span>
+        <div class="beta-personalised-insight-list beta-personalised-metric-list">
+          ${metrics.map(metric => `
+            <article class="beta-personalised-insight-card beta-personalised-metric-card">
+              <span class="beta-icon-disc">${dailyIcon(metric.icon)}</span>
               <div>
-                <p>${safeText(insight.text)}</p>
-                ${insight.detail ? `<small>${safeText(insight.detail)}</small>` : ""}
-                <span class="beta-evidence-label">${safeText(personalisedInsightEvidenceLabel(insight))}</span>
+                <span>${safeText(metric.label)}</span>
+                <p>${safeText(metric.value)}</p>
+                <small>${safeText(metric.detail)}</small>
               </div>
             </article>
           `).join("")}
         </div>
-        <p class="row-note">Insights need repeated evidence and use behavioural wording only. They are not medical or nutrition assessments.</p>
       </section>
     `;
   }
@@ -9351,22 +9369,7 @@
   }
 
   function renderTrendPriorityInsight(data) {
-    const attention = data.cards.find(card => card.summary.tone === "elevated")
-      || data.cards.find(card => card.summary.tone === "protected")
-      || data.cards[0];
-    if (!attention) return "";
-    return `
-      <section class="beta-trend-habit-section beta-trend-priority-section" aria-label="Trend priority">
-        <div class="beta-weekly-section-head">
-          <span class="beta-icon-disc ${attention.summary.tone === "elevated" ? "danger" : attention.summary.tone === "protected" ? "shield" : ""}">${dailyIcon(attention.metric.icon)}</span>
-          <div>
-            <h3>Most important trend</h3>
-            <p>${safeText(attention.summary.copy)}</p>
-          </div>
-          <span class="beta-trend-result-chip ${safeText(attention.summary.tone)}">${safeText(attention.summary.label)}</span>
-        </div>
-      </section>
-    `;
+    return "";
   }
 
   const FUELLING_PATTERN_WINDOWS = [
@@ -9449,11 +9452,12 @@
 
   function renderInsightsWeeklySummary(data) {
     const loggedDays = data.currentEntries.filter(entry => (entry.logs || []).length || Number(entry.fuelLogCount || 0) || Number(entry.hydrationLogCount || 0));
-    if (!loggedDays.length) return "";
     const fuelLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0);
     const hydrationLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.hydrationLogCount || 0), 0);
     const longestFuel = data.currentEntries.reduce((max, entry) => Math.max(max, Number(entry.longestGapMinutes || 0)), 0);
-    const summaryCopy = `You logged ${fuelLogs} fuel and ${hydrationLogs} hydration moment${fuelLogs + hydrationLogs === 1 ? "" : "s"} across ${loggedDays.length} day${loggedDays.length === 1 ? "" : "s"} in this ${data.range.period}.`;
+    const summaryCopy = loggedDays.length
+      ? `You logged ${fuelLogs} fuel and ${hydrationLogs} hydration moment${fuelLogs + hydrationLogs === 1 ? "" : "s"} across ${loggedDays.length} day${loggedDays.length === 1 ? "" : "s"} in this ${data.range.period}.`
+      : `No fuel or hydration logs in this ${data.range.period} yet.`;
     return `
       <section class="beta-trend-habit-section beta-insights-summary-section" aria-label="Weekly summary">
         <div class="beta-weekly-section-head">
@@ -9501,24 +9505,7 @@
   }
 
   function renderInsightsSupportingDetails(data) {
-    return `
-      <details class="beta-trend-detail-disclosure">
-        <summary>View supporting trend details</summary>
-        <div class="beta-trend-detail-stack">
-          ${renderGapInsights(data)}
-          ${renderTrendCards(data, ["fuel-gap", "hydration-gap", "low-energy", "logs"])}
-          ${renderFuelScoreTrends(data)}
-          ${renderDemandAdherenceInsights(data)}
-        </div>
-      </details>
-      <details class="beta-trend-detail-disclosure">
-        <summary>View Garmin metric history</summary>
-        <div class="beta-trend-detail-stack">
-          ${renderGarminMetricsSection()}
-          ${renderGarminPatternsSection()}
-        </div>
-      </details>
-    `;
+    return "";
   }
 
   function renderTrendSegmentContent(data) {
@@ -9563,13 +9550,11 @@
     const data = trendComparisonData();
     updateTrendControls(data.range);
     summaryTarget.innerHTML = `
+      ${renderInsightsWeeklySummary(data)}
+      ${renderPersonalisedInsights(data)}
       ${renderFuellingPatternGraphs(data)}
       ${renderTrendHabitInsights(data)}
-      ${renderPersonalisedInsights(data)}
-      ${renderTrendPriorityInsight(data)}
       ${renderGarminSignalsSummary()}
-      ${renderInsightsWeeklySummary(data)}
-      ${renderInsightsSupportingDetails(data)}
     `;
   }
 
@@ -10274,20 +10259,24 @@
   document.getElementById("trendPeriodWeekButton")?.addEventListener("click", () => {
     selectedTrendPeriod = "week";
     renderTrends();
+    renderHistoryScreen();
   });
   document.getElementById("trendPeriodMonthButton")?.addEventListener("click", () => {
     selectedTrendPeriod = "month";
     renderTrends();
+    renderHistoryScreen();
   });
   document.getElementById("trendPreviousWeekButton")?.addEventListener("click", () => {
     if (selectedTrendPeriod === "month") setSelectedTrendMonthStart(addMonths(selectedTrendMonthStart(), -1));
     else setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), -7));
     renderTrends();
+    renderHistoryScreen();
   });
   document.getElementById("trendNextWeekButton")?.addEventListener("click", () => {
     if (selectedTrendPeriod === "month") setSelectedTrendMonthStart(addMonths(selectedTrendMonthStart(), 1));
     else setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), 7));
     renderTrends();
+    renderHistoryScreen();
   });
   document.getElementById("shareTrendsButton")?.addEventListener("click", () => shareAllTrends(false));
   document.getElementById("downloadTrendsButton")?.addEventListener("click", () => shareAllTrends(true));

@@ -7365,6 +7365,10 @@ body.beta-mvp .beta-status-log-actions button span {
   display: block;
 }
 
+body.beta-mvp .beta-timeline-log-actions {
+  margin: 8px 0 10px;
+}
+
 body.beta-mvp .beta-timeline-static-heading {
   align-items: start;
   gap: 10px;
@@ -7428,6 +7432,65 @@ body.beta-mvp .beta-insight-heading .beta-week-selector strong {
 body.beta-mvp .beta-insights-secondary-actions {
   margin-top: 2px;
   padding: 0 2px 2px;
+}
+
+body.beta-mvp .beta-history-period-controls {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .74);
+}
+
+body.beta-mvp .beta-history-period-controls .beta-trend-period-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: max-content;
+  min-width: 148px;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-radius: 999px;
+  background: rgba(248, 252, 247, .96);
+}
+
+body.beta-mvp .beta-history-period-controls .beta-trend-period-toggle button,
+body.beta-mvp .beta-history-period-controls .beta-week-selector button {
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  box-shadow: none;
+  font-size: .76rem;
+}
+
+body.beta-mvp .beta-history-period-controls .beta-week-selector {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+body.beta-mvp .beta-history-period-controls .beta-week-selector span {
+  font-size: .68rem;
+}
+
+body.beta-mvp .beta-history-period-controls .beta-week-selector strong {
+  font-size: .86rem;
+}
+
+body.beta-mvp .beta-personalised-metric-card > div > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+body.beta-mvp .beta-personalised-metric-card p {
+  font-size: 1.1rem;
 }
 
 body.beta-mvp .beta-fuelling-pattern-grid {
@@ -7515,6 +7578,11 @@ body.beta-mvp .beta-fuelling-pattern-bars i {
 
   body.beta-mvp .beta-insight-heading .beta-trend-controls {
     grid-template-columns: auto minmax(300px, 1fr);
+    align-items: center;
+  }
+
+  body.beta-mvp .beta-history-period-controls {
+    grid-template-columns: auto minmax(260px, 1fr);
     align-items: center;
   }
 }

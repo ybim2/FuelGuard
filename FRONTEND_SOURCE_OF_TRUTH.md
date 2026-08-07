@@ -13,16 +13,16 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v88-simplified-three-tabs
+Canonical app: mobile-pwa-v89-log-insights-history-refinement
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 ## Current Screen Ownership
 
-- Log: default opening screen with exactly three primary sections: current fuel/hydration status with log actions, Today’s progress, and an expanded Today’s timeline.
-- Insights: the renamed former Trends screen. It owns compact period controls, Morning/Afternoon/Evening fuelling-pattern graphs, Fuel Gap Windows, Log Windows, the most useful actionable patterns, opt-in Garmin signals only when evidence exists, and collapsed supporting charts/details.
-- History: compact day selection plus Fuel Window and Gap Window review for the selected day.
+- Log: default opening screen with exactly three primary sections: current fuel/hydration status, Today’s progress, and an expanded Today’s timeline that owns the Log Fuel and Log Hydration actions.
+- Insights: the renamed former Trends screen. It owns Weekly Summary, the three-metric Personalised Insights card, Morning/Afternoon/Evening fuelling-pattern graphs, Fuel Gap Windows, Log Windows, and opt-in Garmin signals only when evidence exists.
+- History: compact week/month period navigation, filtered logged-day selection, plus Fuel Window and Gap Window review for the selected day.
 - Settings: account and sync, connected Garmin apps and Garmin sharing information, preferences, advanced thresholds/window/targets, legacy CSV import, destructive actions, app update, app version, and privacy.
 
 Analysis and Plan are no longer visible product screens. Dormant planning/demand and analysis helper code may remain only where it supports existing records, migrations, Garmin-derived insights, or calculations used by the active screens.
@@ -137,7 +137,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v88-simplified-three-tabs`.
+The current canonical version is `mobile-pwa-v89-log-insights-history-refinement`.
 
 ## Future Frontend Changes
 

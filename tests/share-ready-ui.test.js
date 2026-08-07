@@ -42,7 +42,7 @@ test("primary navigation has exactly Log, Insights, and History", () => {
   assert.doesNotMatch(desktopNav + mobileNav, />Analysis<|>Plan<|>Trends</);
 });
 
-test("Log is simplified to status, progress, and an expanded timeline", () => {
+test("Log is simplified and logging actions live in the expanded timeline", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const dashboard = section(html, "dashboard", "history");
@@ -50,12 +50,20 @@ test("Log is simplified to status, progress, and an expanded timeline", () => {
   const status = indexOfRequired(dashboard, 'id="fuelTodayStatus"');
   const progress = indexOfRequired(dashboard, 'id="fuelTodayProgress"');
   const timeline = indexOfRequired(dashboard, "Today’s timeline");
+  const logFuel = indexOfRequired(dashboard, 'id="graphLogFoodButton"');
+  const logHydration = indexOfRequired(dashboard, 'id="graphLogHydrationButton"');
+  const statusRenderStart = indexOfRequired(js, "function renderCurrentFuellingStatus");
+  const statusRenderEnd = indexOfRequired(js.slice(statusRenderStart), "\n  function hydrationSuggestionForDay") + statusRenderStart;
+  const statusRender = js.slice(statusRenderStart, statusRenderEnd);
 
   assert.ok(status < progress, "today progress should follow current status");
   assert.ok(progress < timeline, "timeline should follow today progress");
+  assert.ok(timeline < logFuel, "Log Fuel should sit inside Today’s Timeline");
+  assert.ok(logFuel < logHydration, "Log Hydration should sit next to Log Fuel");
   assert.doesNotMatch(dashboard, /Quick logging|\+ Add a missed log|Add today’s context|todayTimelineToggle|missedLogPanel|fuelDataDate/);
   assert.doesNotMatch(dashboard, /id="fuelDailyLog"[^>]*hidden/);
-  assert.match(js, /beta-status-log-actions[\s\S]*graphLogFoodButton[\s\S]*graphLogHydrationButton/);
+  assert.match(dashboard, /beta-timeline-log-actions[\s\S]*graphLogFoodButton[\s\S]*graphLogHydrationButton/);
+  assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
   assert.match(js, /target\.hidden = false/);
 });
 
@@ -74,36 +82,56 @@ test("Insights replaces Trends and keeps Garmin evidence in the focused screen",
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const insights = section(html, "insights", "checklist");
+  const history = section(html, "history", "insights");
   const renderTrendsStart = indexOfRequired(js, "function renderTrends()");
   const renderTrendsEnd = indexOfRequired(js.slice(renderTrendsStart), "\n  function drawBetaGraph") + renderTrendsStart;
   const renderTrends = js.slice(renderTrendsStart, renderTrendsEnd);
+  const weekly = indexOfRequired(renderTrends, "renderInsightsWeeklySummary");
+  const personalised = indexOfRequired(renderTrends, "renderPersonalisedInsights");
+  const patterns = indexOfRequired(renderTrends, "renderFuellingPatternGraphs");
+  const windows = indexOfRequired(renderTrends, "renderTrendHabitInsights");
 
   assert.match(insights, />Insights</);
   assert.doesNotMatch(insights, />Trends</);
+  assert.doesNotMatch(insights, /trendPeriodWeekButton|trendPeriodMonthButton|trendPreviousWeekButton|trendNextWeekButton|trendWeekLabel/);
+  assert.match(history, /trendPeriodWeekButton[\s\S]*trendPeriodMonthButton[\s\S]*trendPreviousWeekButton[\s\S]*trendNextWeekButton/);
   assert.match(renderTrends, /renderFuellingPatternGraphs/);
   assert.match(js, /Morning fuelling/);
   assert.match(js, /Afternoon fuelling/);
   assert.match(js, /Evening fuelling/);
   assert.match(js, /Fuel Gap Windows/);
   assert.match(js, /Log Windows/);
-  assert.match(renderTrends, /renderInsightsWeeklySummary/);
-  assert.match(renderTrends, /renderTrendPriorityInsight/);
+  assert.ok(weekly < personalised, "Weekly Summary should be first in Insights");
+  assert.ok(personalised < patterns, "Personalised Insights should follow Weekly Summary");
+  assert.ok(patterns < windows, "Fuelling pattern graphs should come before gap/log windows");
   assert.match(renderTrends, /renderPersonalisedInsights/);
   assert.match(renderTrends, /renderGarminSignalsSummary/);
-  assert.match(renderTrends, /renderInsightsSupportingDetails/);
+  assert.match(js, /averageBoundaryFuelLogInsight/);
+  assert.match(js, /Average first log/);
+  assert.match(js, /Most common fuelling gap/);
+  assert.match(js, /Average final log/);
+  assert.doesNotMatch(renderTrends, /renderTrendPriorityInsight|renderInsightsSupportingDetails/);
   assert.doesNotMatch(renderTrends, /renderTrendSegmentTabs/);
   assert.doesNotMatch(js, /Fuel Guard needs more repeated days|No Garmin signals yet|Sign in and connect Quick Log/);
-  assert.match(js, /renderGarminMetricsSection/);
-  assert.match(js, /renderGarminPatternsSection/);
   assert.ok(indexOfRequired(insights, 'id="fuelAveragesSummary"') < indexOfRequired(insights, "Share insights"));
 });
 
-test("History focuses day detail on Fuel Window and Gap Window", () => {
+test("History owns period navigation and focuses day detail on Fuel Window and Gap Window", () => {
+  const html = read("index.html");
   const js = read("fuel-beta.js");
+  const history = section(html, "history", "insights");
+  const insights = section(html, "insights", "checklist");
+  const renderHistoryListStart = indexOfRequired(js, "function renderHistoryList()");
+  const renderHistoryListEnd = indexOfRequired(js.slice(renderHistoryListStart), "\n  function renderHistoryLogGroup") + renderHistoryListStart;
+  const renderHistoryList = js.slice(renderHistoryListStart, renderHistoryListEnd);
   const renderHistoryDetailStart = indexOfRequired(js, "function renderHistoryDetail()");
   const renderHistoryDetailEnd = indexOfRequired(js.slice(renderHistoryDetailStart), "\n  function renderHistoryScreen") + renderHistoryDetailStart;
   const renderHistoryDetail = js.slice(renderHistoryDetailStart, renderHistoryDetailEnd);
 
+  assert.match(history, /trendPeriodWeekButton[\s\S]*trendPeriodMonthButton[\s\S]*trendPreviousWeekButton[\s\S]*trendNextWeekButton/);
+  assert.doesNotMatch(insights, /trendPeriodWeekButton|trendPreviousWeekButton/);
+  assert.match(renderHistoryList, /selectedTrendRange/);
+  assert.match(renderHistoryList, /updateTrendControls/);
   assert.match(js, /function renderHistoryFuelWindowCard/);
   assert.match(js, /function renderHistoryGapWindowCard/);
   assert.match(renderHistoryDetail, /renderHistoryFuelWindowCard/);
@@ -137,10 +165,10 @@ test("PWA cache and asset versions are bumped for the three-screen core", () => 
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v88-simplified-three-tabs";
+  const version = "mobile-pwa-v89-log-insights-history-refinement";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T061420Z/);
+  assert.match(sw, /20260807T065846Z/);
 });

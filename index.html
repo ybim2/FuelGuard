@@ -13,9 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v88-simplified-three-tabs" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v88-simplified-three-tabs" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v88-simplified-three-tabs" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v89-log-insights-history-refinement" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v89-log-insights-history-refinement" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v89-log-insights-history-refinement" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -135,6 +135,11 @@
               </div>
               <span id="todayTimelineLatest" class="row-note"></span>
             </div>
+            <div class="beta-status-log-actions beta-log-actions beta-timeline-log-actions" aria-label="Log fuel or hydration">
+              <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Log</span><span>Fuel</span></button>
+              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Log</span><span>Hydration</span></button>
+            </div>
+            <div id="foodLogCooldownMessage" class="fuel-cooldown-message" aria-live="polite"></div>
             <div id="fuelDailyLog" class="beta-today-timeline-panel"></div>
             <button id="undoLatestFoodLog" class="secondary beta-undo-log-button" type="button">Undo latest log</button>
           </section>
@@ -152,7 +157,21 @@
           <div class="section-heading-row beta-history-heading">
             <div>
               <h2 class="beta-panel-title">History</h2>
-              <p class="muted">Compact daily summaries for the days you logged data.</p>
+              <p class="muted">Review previous weeks and months, then open a day for Fuel Window and Gap Window detail.</p>
+            </div>
+          </div>
+          <div class="beta-history-period-controls beta-trend-controls" aria-label="History period selector">
+            <div class="beta-trend-period-toggle" aria-label="History comparison period">
+              <button id="trendPeriodWeekButton" class="secondary active" type="button" aria-pressed="true">Week</button>
+              <button id="trendPeriodMonthButton" class="secondary" type="button" aria-pressed="false">Month</button>
+            </div>
+            <div class="beta-week-selector" aria-label="Selected history period">
+              <button id="trendPreviousWeekButton" class="secondary" type="button">Previous</button>
+              <div>
+                <span id="trendPeriodLabel">Selected week</span>
+                <strong id="trendWeekLabel">This week</strong>
+              </div>
+              <button id="trendNextWeekButton" class="secondary" type="button">Next</button>
             </div>
           </div>
           <section id="fuelHistoryList"></section>
@@ -162,22 +181,8 @@
 
       <section id="insights" class="screen">
         <article class="card beta-trends-card">
-          <div class="section-heading-row beta-insight-heading beta-trends-week-row">
+          <div class="section-heading-row beta-insight-heading">
             <h2 class="beta-trends-filter-title">Insights</h2>
-            <div class="beta-trend-controls">
-              <div class="beta-trend-period-toggle" aria-label="Trend comparison period">
-                <button id="trendPeriodWeekButton" class="secondary active" type="button" aria-pressed="true">Week</button>
-                <button id="trendPeriodMonthButton" class="secondary" type="button" aria-pressed="false">Month</button>
-              </div>
-              <div class="beta-week-selector" aria-label="Trend period selector">
-                <button id="trendPreviousWeekButton" class="secondary" type="button">Previous</button>
-                <div>
-                  <span id="trendPeriodLabel">Selected week</span>
-                  <strong id="trendWeekLabel">This week</strong>
-                </div>
-                <button id="trendNextWeekButton" class="secondary" type="button">Next</button>
-              </div>
-            </div>
           </div>
           <div id="fuelAveragesSummary" class="beta-averages-summary"></div>
           <div class="button-row beta-trends-share-actions beta-insights-secondary-actions">
@@ -362,7 +367,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v88-simplified-three-tabs</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v89-log-insights-history-refinement</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -386,16 +391,16 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="build-info.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="app-state.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="app-ui.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v88-simplified-three-tabs"></script>
+  <script src="app-state.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="app-ui.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v89-log-insights-history-refinement"></script>
 </body>
 </html>
