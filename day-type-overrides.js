@@ -179,7 +179,6 @@
     applyDayTypeOverrides();
     wrapRender("renderFuelGap");
     wrapRender("renderAll");
-    wrapRender("renderHistory");
 
     document.getElementById("fuelDayType")?.addEventListener("change", event => {
       if (isRemovedDayTypeValue(event.target.value)) event.target.value = normalizeDayTypeValue(event.target.value);

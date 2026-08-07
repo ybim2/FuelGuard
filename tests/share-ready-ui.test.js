@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation has exactly Log and History, with Settings in the header", () => {
+test("primary navigation has only Log, with Settings in the header", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -36,25 +36,24 @@ test("primary navigation has exactly Log and History, with Settings in the heade
   const mobileNav = html.slice(indexOfRequired(html, '<nav class="mobile-bottom-nav beta-mobile-nav"'), indexOfRequired(html, '<script src="build-info.js'));
 
   assert.deepEqual([...desktopNav.matchAll(/data-screen="([^"]+)"[^>]*>([^<]+)<\/button>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"],
-    ["history", "History"]
+    ["dashboard", "Log"]
   ]);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"],
-    ["history", "History"]
+    ["dashboard", "Log"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
-  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
-  assert.doesNotMatch(html, /data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
-  assert.match(appUi, /\["dashboard", "history", "checklist"\]/);
-  assert.match(beta, /\["dashboard", "history", "checklist"\]/);
+  assert.match(html, /grid-template-columns: 1fr !important;/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: 1fr !important;/);
+  assert.doesNotMatch(html, /data-screen="history"|data-mobile-screen="history"|<section id="history"|data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
+  assert.match(appUi, /\["dashboard", "checklist"\]/);
+  assert.match(beta, /\["dashboard", "checklist"\]/);
+  assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
 test("Log has three visible primary sections and timeline-owned actions", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
-  const dashboard = section(html, "dashboard", "history");
+  const dashboard = section(html, "dashboard", "checklist");
   const statusRender = functionBody(js, "renderCurrentFuellingStatus", "hydrationSuggestionForDay");
   const progressRender = functionBody(js, "renderTodayProgress", "renderCompactDailySummary");
 
@@ -101,79 +100,55 @@ test("Fuelling Patterns uses today's fuel logs in a simple time-of-day count cha
   assert.match(patternsSource, /Where today’s fuel logs have landed across the day/);
 });
 
-test("Settings exposes the maximum fuelling gap goal and status logic reads it", () => {
+test("Settings hides preference controls while preserving internal defaults", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const state = read("app-state.js");
   const settings = section(html, "checklist");
 
-  assert.match(settings, /Fuel gap goal/);
-  assert.match(settings, /id="maximumFuelGapPreset"/);
-  assert.match(settings, /id="saveFuelGapGoal"/);
-  assert.match(settings, /id="fuelGoalStatus"/);
-  assert.match(settings, /2 hours[\s\S]*2\.5 hours[\s\S]*3 hours[\s\S]*3\.5 hours[\s\S]*4 hours/);
+  assert.doesNotMatch(settings, /Preferences|Fuel gap goal|Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
+  assert.doesNotMatch(settings, /id="maximumFuelGapPreset"|id="dailyFuelTarget"|id="fuelWindowPreset"|id="fuelGreenHours"/);
   assert.match(js, /function maximumFuelGapMinutes/);
   assert.match(js, /function fuelStatusLimits/);
-  assert.match(js, /function saveFuelGapGoalSetting/);
-  assert.match(js, /saveFuelGapGoal"\)\?\.addEventListener\("click", saveFuelGapGoalSetting\)/);
   assert.match(state, /maximumFuelGapMinutes: 180/);
   assert.match(state, /const goalMinutes = Math\.min\(240, Math\.max\(120, Number\(fuelGapState\(\)\.maximumFuelGapMinutes/);
 });
 
-test("History owns the compact period selector and four primary graph cards", () => {
+test("History page and navigation are removed", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
-  const history = section(html, "history", "checklist");
-  const renderHistoryList = functionBody(js, "renderHistoryList", "renderHistoryLogGroup");
-  const renderHistoryGraphs = functionBody(js, "renderHistoryGraphs", "renderHistoryList");
-  const renderHistoryDetail = functionBody(js, "renderHistoryDetail", "renderHistoryScreen");
 
-  assert.match(history, /trendPeriodWeekButton[\s\S]*trendPeriodMonthButton[\s\S]*trendPreviousWeekButton[\s\S]*trendNextWeekButton/);
-  assert.match(renderHistoryList, /selectedTrendRange/);
-  assert.match(renderHistoryList, /updateTrendControls/);
-  assert.match(renderHistoryList, /renderHistoryGraphs\(range\)/);
-  assert.match(renderHistoryGraphs, /Fuel Log Frequency/);
-  assert.match(renderHistoryGraphs, /First Fuel Time/);
-  assert.match(renderHistoryGraphs, /Final Fuel Time/);
-  assert.match(renderHistoryGraphs, /Most Common Fuel-Gap Window/);
-  assert.match(renderHistoryGraphs, /historyLogFrequencyPoints/);
-  assert.match(renderHistoryGraphs, /historyBoundaryFuelPoints/);
-  assert.match(renderHistoryGraphs, /historyGapWindowPoints/);
-  assert.match(renderHistoryDetail, /target\.innerHTML = ""/);
-  assert.doesNotMatch(renderHistoryDetail, /renderTodayTimeline|renderHistoryFuelWindowCard|renderHistoryGapWindowCard|renderDailyTargetProgress/);
+  assert.doesNotMatch(html, /<section id="history"|fuelHistoryList|fuelHistoryDetail|History period selector/);
+  assert.doesNotMatch(js, /function renderHistoryScreen|function renderHistoryList|function renderHistoryGraphs|data-history-date/);
 });
 
-test("Settings follows the simplified hierarchy and keeps advanced controls available", () => {
+test("Settings keeps only essential production sections", () => {
   const html = read("index.html");
   const settings = section(html, "checklist");
 
+  const intro = indexOfRequired(settings, "Settings");
   const account = indexOfRequired(settings, "Account &amp; Sync");
   const garmin = indexOfRequired(settings, "Connected Garmin Apps");
-  const preferences = indexOfRequired(settings, "Preferences");
-  const advanced = indexOfRequired(settings, "Advanced settings");
   const importAndClear = indexOfRequired(settings, "Data import and clearing");
   const version = indexOfRequired(settings, "App version and privacy");
 
+  assert.ok(intro < account);
   assert.ok(account < garmin);
-  assert.ok(garmin < preferences);
-  assert.ok(preferences < advanced);
-  assert.ok(advanced < importAndClear);
+  assert.ok(garmin < importAndClear);
   assert.ok(importAndClear < version);
-  assert.match(settings, /<summary>Daily targets<\/summary>/);
-  assert.match(settings, /<summary>Fuel gap goal<\/summary>/);
-  assert.match(settings, /<summary>Support thresholds and fuelling window<\/summary>/);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
+  assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Fuel gap goal|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the simplified history and goals core", () => {
+test("PWA cache and asset versions are bumped for the simplified navigation and settings cleanup", () => {
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v92-history-goals";
+  const version = "mobile-pwa-v93-settings-nav-cleanup";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T080943Z/);
+  assert.match(sw, /20260807T085409Z/);
 });

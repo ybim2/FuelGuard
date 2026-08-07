@@ -160,7 +160,6 @@
   });
 
   let selectedHistoryKey = "";
-  let selectedTrainingFilter = "all";
   let selectedTrendDayType = "all";
   let selectedTrendTrainingSession = "all";
   let selectedTrendWeekStartKey = "";
@@ -168,7 +167,6 @@
   let selectedTrendPeriod = "week";
   let selectedTrendSegment = "overview";
   let selectedPlanSubtab = "today";
-  let selectedHistoryDetailKey = "";
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let csvImportBusy = false;
@@ -697,60 +695,6 @@
     };
   }
 
-  function syncMaximumFuelGapPreset(minutes = maximumFuelGapMinutes()) {
-    const preset = document.getElementById("maximumFuelGapPreset");
-    if (!preset) return;
-    const value = String(Math.round(Number(minutes || 0)));
-    const hasPreset = Array.from(preset.options).some(option => option.value === value);
-    preset.value = hasPreset ? value : "180";
-  }
-
-  function applyMaximumFuelGapGoal(minutes) {
-    const gap = betaState();
-    const goal = clamp(Number(minutes || 180), 120, 240);
-    gap.maximumFuelGapMinutes = goal;
-    gap.thresholds.greenMinutes = Math.max(30, Math.min(goal - 15, Math.round(goal * 0.8)));
-    gap.thresholds.redMinutes = goal;
-    gap.thresholds.crashMinutes = Math.max(goal + 40, gap.thresholds.crashMinutes || DEFAULT_THRESHOLDS.crashMinutes);
-    return goal;
-  }
-
-  function saveFuelGapGoalSetting() {
-    const preset = document.getElementById("maximumFuelGapPreset");
-    const goal = applyMaximumFuelGapGoal(Number(preset?.value || maximumFuelGapMinutes()));
-    const status = document.getElementById("fuelGoalStatus");
-    if (status) status.textContent = `Maximum fuelling gap saved at ${duration(goal)}.`;
-    storeArchive(dateKey());
-    save();
-    renderAll();
-  }
-
-  function syncFuelWindowPreset(minutes = fuelWindowMinutes()) {
-    const preset = document.getElementById("fuelWindowPreset");
-    if (!preset) return;
-    const value = String(Math.round(Number(minutes || 0)));
-    const hasPreset = Array.from(preset.options).some(option => option.value === value);
-    preset.value = hasPreset ? value : "custom";
-  }
-
-  function handleFuelWindowPresetChange() {
-    const preset = document.getElementById("fuelWindowPreset");
-    const input = document.getElementById("fuelWindowHours");
-    if (!preset || !input || preset.value === "custom") return;
-    input.value = hoursValue(Number(preset.value));
-    saveFuelWindowSetting();
-  }
-
-  function saveFuelWindowSetting(message = "Daily fuelling window saved.") {
-    const gap = betaState();
-    gap.fuelWindowMinutes = minutesFromHoursField("fuelWindowHours", gap.fuelWindowMinutes, { min: 240, max: 1200 });
-    const status = document.getElementById("fuelSettingsStatus");
-    if (status) status.textContent = message;
-    save();
-    renderFuelGap();
-    syncFuelWindowPreset(gap.fuelWindowMinutes);
-  }
-
   function normalizeTargetNumber(value) {
     if (value === null || value === undefined || value === "") return null;
     const text = String(value).trim();
@@ -793,29 +737,6 @@
     return hasTarget(target) ? Math.round((Math.max(0, actual) / target) * 100) : null;
   }
 
-  function targetInputValue(value) {
-    return hasTarget(value) ? String(value) : "";
-  }
-
-  function weeklyTargetDisplayText(value, label) {
-    return hasTarget(value) ? `${value} ${label} logs per week` : `No daily ${label} target set.`;
-  }
-
-  function readTargetPreviewValue(id) {
-    const text = String(document.getElementById(id)?.value || "").trim();
-    return /^\d+$/.test(text) ? normalizeTargetNumber(text) : null;
-  }
-
-  function updateCalculatedWeeklyTargetDisplays(source = null) {
-    const previewTargets = source || {
-      dailyFuelLogs: readTargetPreviewValue("dailyFuelTarget"),
-      dailyHydrationLogs: readTargetPreviewValue("dailyHydrationTarget")
-    };
-    const fuelDisplay = document.getElementById("weeklyFuelTargetDisplay");
-    const hydrationDisplay = document.getElementById("weeklyHydrationTargetDisplay");
-    if (fuelDisplay) fuelDisplay.textContent = weeklyTargetDisplayText(weeklyTargetFromDaily(previewTargets.dailyFuelLogs), "fuel");
-    if (hydrationDisplay) hydrationDisplay.textContent = weeklyTargetDisplayText(weeklyTargetFromDaily(previewTargets.dailyHydrationLogs), "hydration");
-  }
 
   fuelGapStatus = function fuelGapStatusBeta(minutes) {
     const limits = fuelStatusLimits();
@@ -2345,29 +2266,6 @@
   }
 
   function renderSettings() {
-    const active = document.activeElement;
-    [
-      ["fuelGreenHours", thresholds().greenMinutes],
-      ["fuelRedHours", thresholds().redMinutes],
-      ["fuelCrashHours", thresholds().crashMinutes],
-      ["hydrationGreenHours", thresholds().hydrationGreenMinutes],
-      ["hydrationRedHours", thresholds().hydrationRedMinutes],
-      ["hydrationCrashHours", thresholds().hydrationCrashMinutes],
-      ["fuelWindowHours", fuelWindowMinutes()]
-    ].forEach(([id, minutes]) => {
-      const input = document.getElementById(id);
-      if (input && active !== input) input.value = hoursValue(minutes);
-    });
-    syncFuelWindowPreset();
-    syncMaximumFuelGapPreset();
-    [
-      ["dailyFuelTarget", targets().dailyFuelLogs],
-      ["dailyHydrationTarget", targets().dailyHydrationLogs]
-    ].forEach(([id, value]) => {
-      const input = document.getElementById(id);
-      if (input && active !== input) input.value = targetInputValue(value);
-    });
-    updateCalculatedWeeklyTargetDisplays(targets());
     const buildInfo = window.FUEL_GUARD_BUILD || {};
     const canonical = document.getElementById("canonicalAppVersion");
     const buildMarker = document.getElementById("buildVersionMarker");
@@ -5850,449 +5748,6 @@
     `;
   }
 
-  function historyEntriesWithLogs() {
-    const range = selectedTrendRange();
-    return archiveEntries()
-      .filter(entry => Array.isArray(entry.logs) && entry.logs.length > 0)
-      .filter(entry => {
-        const entryDate = dateFromKey(entry.date);
-        return entryDate >= range.start && entryDate < range.end;
-      })
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }
-
-  function historyTargetSummary(entry) {
-    const score = calculateDailyFuelScore(entry.date).finalScore;
-    if (Number.isFinite(score)) return `${score}/100`;
-    const currentTargets = targets();
-    const fuelPercent = targetPercent(entry.fuelLogCount || 0, currentTargets.dailyFuelLogs);
-    const hydrationPercent = targetPercent(entry.hydrationLogCount || 0, currentTargets.dailyHydrationLogs);
-    if (fuelPercent !== null || hydrationPercent !== null) {
-      return [
-        fuelPercent !== null ? `${fuelPercent}% fuel` : "",
-        hydrationPercent !== null ? `${hydrationPercent}% hydration` : ""
-      ].filter(Boolean).join(" · ");
-    }
-    return "Score building";
-  }
-
-  function historyDemandIndicators(key) {
-    const workCount = demandBlocksByTypeForDay(key, "work").length;
-    const trainingCount = demandBlocksByTypeForDay(key, "training").length;
-    const items = [];
-    if (workCount) items.push(`<span>${dailyIcon("clock")} Work</span>`);
-    if (trainingCount) items.push(`<span>${dailyIcon("route")} Training</span>`);
-    return items.length ? `<div class="beta-history-day-indicators">${items.join("")}</div>` : "";
-  }
-
-  function renderHistoryDayCard(entry) {
-    const active = selectedHistoryDetailKey === entry.date ? "active" : "";
-    return `
-      <button class="beta-history-day-card ${active}" type="button" data-history-date="${safeText(entry.date)}">
-        <div class="beta-history-day-card-head">
-          <div>
-            <strong>${safeText(entry.dateLabel || formatDateKey(entry.date))}</strong>
-            <span>${safeText(entry.dayTypeLabel || "Day type not set")}</span>
-          </div>
-          <small>${safeText(historyTargetSummary(entry))}</small>
-        </div>
-        <div class="beta-history-day-card-grid">
-          <span><b>${safeText(String(entry.fuelLogCount || 0))}</b> fuel logs</span>
-          <span><b>${safeText(entry.firstFuelTime || "Not logged")}</b> first fuel</span>
-          <span><b>${safeText(entry.lastFuelTime || "Not logged")}</b> final fuel</span>
-          <span><b>${safeText(entry.longestGap || durationText(entry.longestGapMinutes || 0))}</b> longest gap</span>
-        </div>
-        ${historyDemandIndicators(entry.date)}
-      </button>
-    `;
-  }
-
-  function historyDateShortLabel(date) {
-    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  }
-
-  function historyPeriodBuckets(range = selectedTrendRange()) {
-    if (range.period === "month") {
-      const buckets = [];
-      let cursor = startOfDay(range.start);
-      let index = 1;
-      while (cursor < range.end) {
-        const end = new Date(Math.min(addDays(cursor, 7).getTime(), range.end.getTime()));
-        buckets.push({
-          label: `Week ${index}`,
-          shortLabel: `W${index}`,
-          dateLabel: `${historyDateShortLabel(cursor)}-${historyDateShortLabel(addDays(end, -1))}`,
-          start: cursor,
-          end,
-          days: Math.max(1, daysBetween(cursor, end))
-        });
-        cursor = end;
-        index += 1;
-      }
-      return buckets;
-    }
-    return range.days.map(day => {
-      const start = startOfDay(day.currentDate);
-      return {
-        label: day.shortLabel,
-        shortLabel: day.shortLabel,
-        dateLabel: day.dateLabel,
-        start,
-        end: addDays(start, 1),
-        days: 1,
-        key: dateKey(day.currentDate)
-      };
-    });
-  }
-
-  function historyEntriesForBucket(entries, bucket) {
-    return entriesForRange(entries, bucket.start, bucket.end);
-  }
-
-  function historyFuelLogsForEntries(entries) {
-    return entries.flatMap(entry => logsForEntryType(entry, isFuelLog));
-  }
-
-  function historyLogFrequencyPoints(range, entries) {
-    return historyPeriodBuckets(range).map(bucket => {
-      const bucketEntries = historyEntriesForBucket(entries, bucket);
-      const total = historyFuelLogsForEntries(bucketEntries).length;
-      const value = range.period === "month" ? total / Math.max(1, bucket.days) : total;
-      return {
-        ...bucket,
-        value,
-        valueText: range.period === "month" ? `${value.toFixed(1)} logs/day` : `${total} fuel log${total === 1 ? "" : "s"}`,
-        tooltip: `${bucket.dateLabel}: ${range.period === "month" ? `${value.toFixed(1)} average fuel logs per day` : `${total} fuel log${total === 1 ? "" : "s"}`}`
-      };
-    });
-  }
-
-  function boundaryFuelMinuteForEntries(entries, boundary) {
-    const minutes = entries.map(entry => {
-      const logs = logsForEntryType(entry, isFuelLog);
-      const log = boundary === "final" ? logs[logs.length - 1] : logs[0];
-      return log ? minutesIntoDay(log.date) : null;
-    }).filter(Number.isFinite);
-    return averageMinutes(minutes);
-  }
-
-  function historyBoundaryFuelPoints(range, entries, boundary) {
-    return historyPeriodBuckets(range).map(bucket => {
-      const bucketEntries = historyEntriesForBucket(entries, bucket);
-      const value = boundaryFuelMinuteForEntries(bucketEntries, boundary);
-      return {
-        ...bucket,
-        value,
-        valueText: Number.isFinite(value) ? clockFromMinuteOfDay(value) : "No fuel logs",
-        tooltip: `${bucket.dateLabel}: ${boundary === "final" ? "final" : "first"} fuel ${Number.isFinite(value) ? clockFromMinuteOfDay(value) : "not logged"}`
-      };
-    });
-  }
-
-  const HISTORY_GAP_WINDOWS = [
-    { label: "06-09", startMinute: 360, endMinute: 540 },
-    { label: "09-12", startMinute: 540, endMinute: 720 },
-    { label: "12-15", startMinute: 720, endMinute: 900 },
-    { label: "15-18", startMinute: 900, endMinute: 1080 },
-    { label: "18-21", startMinute: 1080, endMinute: 1260 }
-  ];
-
-  function historyGapOverlapsWindow(gap, window) {
-    const start = minutesIntoDay(logDate(gap.start));
-    const end = minutesIntoDay(logDate(gap.end));
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
-    return Math.min(end, window.endMinute) - Math.max(start, window.startMinute) > 0;
-  }
-
-  function historyGapWindowPoints(entries) {
-    const gaps = significantGapWindows(entries, isFuelLog, gapsFromFuelLogs, mediumRiskLimit());
-    return HISTORY_GAP_WINDOWS.map(window => {
-      const count = gaps.filter(gap => historyGapOverlapsWindow(gap, window)).length;
-      const label = `${hour24Label(window.startMinute)}-${hour24Label(window.endMinute)}`;
-      return {
-        label,
-        shortLabel: label,
-        dateLabel: label,
-        value: count,
-        valueText: `${count} gap${count === 1 ? "" : "s"}`,
-        tooltip: `${label}: ${count} meaningful fuel gap${count === 1 ? "" : "s"}`
-      };
-    });
-  }
-
-  function hour24Label(minutes) {
-    const clamped = clamp(Math.round(Number(minutes || 0)), 0, 1440);
-    const hours = Math.floor(clamped / 60);
-    const mins = clamped % 60;
-    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
-  }
-
-  function historyNumberTicks(maxValue) {
-    const max = Math.max(2, Math.ceil(Number(maxValue) || 0));
-    const mid = Math.ceil(max / 2);
-    return [...new Set([0, mid, max])];
-  }
-
-  function historyTimeTicks(points) {
-    const values = points.map(point => point.value).filter(Number.isFinite);
-    if (!values.length) return [360, 720, 1080];
-    let min = Math.max(0, Math.floor(Math.min(...values) / 120) * 120);
-    let max = Math.min(1440, Math.ceil(Math.max(...values) / 120) * 120);
-    if (max - min < 240) {
-      min = Math.max(0, min - 120);
-      max = Math.min(1440, max + 120);
-    }
-    const mid = Math.round(((min + max) / 2) / 60) * 60;
-    return [...new Set([min, mid, max])];
-  }
-
-  function historyLinePath(points, xFor, yFor) {
-    const segments = [];
-    let current = [];
-    points.forEach((point, index) => {
-      if (Number.isFinite(point.value)) current.push(`${xFor(index).toFixed(1)},${yFor(point.value).toFixed(1)}`);
-      else if (current.length) {
-        segments.push(current);
-        current = [];
-      }
-    });
-    if (current.length) segments.push(current);
-    return segments.map(segment => `<polyline class="line current" points="${segment.join(" ")}"></polyline>`).join("");
-  }
-
-  function renderHistoryBarChart(points, { yLabel, xLabel, ariaLabel, valueLabel = value => String(Math.round(value)) }) {
-    const width = 760;
-    const height = 330;
-    const padding = { top: 34, right: 24, bottom: 74, left: 76 };
-    const plotWidth = width - padding.left - padding.right;
-    const plotHeight = height - padding.top - padding.bottom;
-    const max = Math.max(...points.map(point => Number(point.value || 0)), 1);
-    const maxTicks = historyNumberTicks(max);
-    const yMax = maxTicks[maxTicks.length - 1] || 1;
-    const ticks = historyNumberTicks(yMax);
-    const slot = plotWidth / Math.max(1, points.length);
-    const barWidth = Math.min(42, Math.max(14, slot * 0.48));
-    const yFor = value => padding.top + plotHeight - (Math.max(0, value) / yMax) * plotHeight;
-    return `
-      <div class="beta-history-graph beta-history-bar-graph" role="img" aria-label="${safeText(ariaLabel)}">
-        ${renderTrendAxisCopy(xLabel, yLabel)}
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
-          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
-          ${ticks.map(tick => {
-            const y = yFor(tick);
-            return `
-              <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
-              <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(valueLabel(tick))}</text>
-            `;
-          }).join("")}
-          ${points.map((point, index) => {
-            const center = padding.left + slot * index + slot / 2;
-            const h = point.value ? Math.max(3, padding.top + plotHeight - yFor(point.value)) : 0;
-            return `
-              <rect class="bar current" x="${(center - barWidth / 2).toFixed(1)}" y="${(padding.top + plotHeight - h).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${h.toFixed(1)}" rx="6"><title>${safeText(point.tooltip)}</title></rect>
-              <text class="x-label" x="${center.toFixed(1)}" y="${height - 28}">${safeText(point.shortLabel || point.label)}</text>
-            `;
-          }).join("")}
-        </svg>
-      </div>
-    `;
-  }
-
-  function renderHistoryTimeChart(points, { title, ariaLabel }) {
-    const hasData = points.some(point => Number.isFinite(point.value));
-    if (!hasData) return `<div class="beta-trend-chart-empty">No fuel logs in this period yet.</div>`;
-    const width = 760;
-    const height = 330;
-    const padding = { top: 34, right: 24, bottom: 74, left: 76 };
-    const plotWidth = width - padding.left - padding.right;
-    const plotHeight = height - padding.top - padding.bottom;
-    const ticks = historyTimeTicks(points);
-    const min = ticks[0];
-    const max = ticks[ticks.length - 1];
-    const yFor = value => padding.top + plotHeight - ((value - min) / Math.max(1, max - min)) * plotHeight;
-    const xFor = index => padding.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
-    return `
-      <div class="beta-history-graph beta-history-time-graph" role="img" aria-label="${safeText(ariaLabel)}">
-        ${renderTrendAxisCopy("day/date", "time of day")}
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-          <line class="axis" x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${padding.left + plotWidth}" y2="${padding.top + plotHeight}"></line>
-          <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}"></line>
-          ${ticks.map(tick => {
-            const y = yFor(tick);
-            return `
-              <line class="grid-line" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
-              <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(hour24Label(tick))}</text>
-            `;
-          }).join("")}
-          ${historyLinePath(points, xFor, yFor)}
-          ${points.map((point, index) => Number.isFinite(point.value) ? `<circle class="point current" cx="${xFor(index).toFixed(1)}" cy="${yFor(point.value).toFixed(1)}" r="4"><title>${safeText(point.tooltip)}</title></circle>` : "").join("")}
-          ${points.map((point, index) => `<text class="x-label" x="${xFor(index).toFixed(1)}" y="${height - 28}">${safeText(point.shortLabel || point.label)}</text>`).join("")}
-        </svg>
-      </div>
-    `;
-  }
-
-  function renderHistoryGraphCard({ title, subtitle, graph, summary = "" }) {
-    return `
-      <section class="beta-trend-comparison-card beta-history-graph-card" aria-label="${safeText(title)}">
-        <div class="beta-weekly-section-head beta-trend-card-head">
-          <span class="beta-icon-disc amber">${dailyIcon("chart")}</span>
-          <div>
-            <h3>${safeText(title)}</h3>
-            <p>${safeText(subtitle)}</p>
-          </div>
-        </div>
-        ${graph}
-        ${summary ? `<p class="beta-weekly-insight">${safeText(summary)}</p>` : ""}
-      </section>
-    `;
-  }
-
-  function renderHistoryGraphs(range = selectedTrendRange()) {
-    const entries = archiveEntries();
-    const currentEntries = entriesForRange(entries, range.start, range.end);
-    const frequencyPoints = historyLogFrequencyPoints(range, entries);
-    const firstFuelPoints = historyBoundaryFuelPoints(range, entries, "first");
-    const finalFuelPoints = historyBoundaryFuelPoints(range, entries, "final");
-    const gapWindowPoints = historyGapWindowPoints(currentEntries);
-    const topGapWindow = gapWindowPoints.slice().sort((a, b) => b.value - a.value)[0] || null;
-    return `
-      <div class="beta-history-graph-stack">
-        ${renderHistoryGraphCard({
-          title: "Fuel Log Frequency",
-          subtitle: range.period === "month" ? "Average fuel logs per day for each week in the selected month." : "Fuel logs recorded on each day in the selected week.",
-          graph: renderHistoryBarChart(frequencyPoints, {
-            yLabel: range.period === "month" ? "average fuel logs/day" : "fuel logs",
-            xLabel: range.period === "month" ? "week" : "day",
-            ariaLabel: "Fuel log frequency over the selected period"
-          }),
-          summary: "This shows how often fuel logging is happening across the selected period."
-        })}
-        ${renderHistoryGraphCard({
-          title: "First Fuel Time",
-          subtitle: range.period === "month" ? "Average first fuel time for each week." : "First fuel time for each day.",
-          graph: renderHistoryTimeChart(firstFuelPoints, { title: "First Fuel Time", ariaLabel: "First fuel time over the selected period" })
-        })}
-        ${renderHistoryGraphCard({
-          title: "Final Fuel Time",
-          subtitle: range.period === "month" ? "Average final fuel time for each week." : "Final fuel time for each day.",
-          graph: renderHistoryTimeChart(finalFuelPoints, { title: "Final Fuel Time", ariaLabel: "Final fuel time over the selected period" })
-        })}
-        ${renderHistoryGraphCard({
-          title: "Most Common Fuel-Gap Window",
-          subtitle: "Meaningful daytime gaps between consecutive fuel logs, grouped by time of day.",
-          graph: renderHistoryBarChart(gapWindowPoints, {
-            yLabel: "gap count",
-            xLabel: "time-of-day gap window",
-            ariaLabel: "Most common fuel gap window in the selected period"
-          }),
-          summary: topGapWindow && topGapWindow.value ? `Most common window: ${topGapWindow.label}.` : "No repeated daytime fuel-gap window in this period yet."
-        })}
-      </div>
-    `;
-  }
-
-  function renderHistoryList() {
-    const target = document.getElementById("fuelHistoryList");
-    if (!target) return;
-    const range = selectedTrendRange();
-    updateTrendControls(range);
-    target.innerHTML = renderHistoryGraphs(range);
-    renderHistoryDetail();
-  }
-
-  function renderHistoryLogGroup(title, logs, emptyCopy) {
-    return `
-      <section class="beta-history-log-group">
-        <h4>${safeText(title)}</h4>
-        ${logs.length ? `<div class="beta-history-log-list">${logs.map(log => renderLogEvent(log)).join("")}</div>` : `<p class="muted beta-history-empty">${safeText(emptyCopy)}</p>`}
-      </section>
-    `;
-  }
-
-  function renderHistoryDemandDetail(key) {
-    const workBlocks = demandBlocksByTypeForDay(key, "work");
-    const trainingBlocks = demandBlocksByTypeForDay(key, "training");
-    const blockRows = [...workBlocks, ...trainingBlocks].map(block => {
-      const range = blockRange(block);
-      const breaks = block.type === "work" ? workBreaksForBlock(block.id) : [];
-      return `
-        <article class="beta-history-demand-row ${safeText(block.type)}">
-          <strong>${safeText(demandBlockTitle(block))}</strong>
-          <span>${safeText(range ? timeRangeText(range.start, range.end) : "Time not set")}</span>
-          ${block.type === "training" ? `<small>${safeText(`${SESSION_INTENSITY_LABELS[block.intensity] || "Easy"}${block.isKeySession ? " · Key session" : ""}`)}</small>` : ""}
-          ${block.type === "work" && breaks.length ? `<small>${safeText(`${breaks.length} suggested fuel window${breaks.length === 1 ? "" : "s"}`)}</small>` : ""}
-        </article>
-      `;
-    });
-    return `
-      <section class="beta-rhythm-section-card beta-history-demand-detail-card">
-        <div class="section-heading-row">
-          <h3>Work and training</h3>
-        </div>
-        ${blockRows.length ? `<div class="beta-history-demand-list">${blockRows.join("")}</div>` : `<p class="muted beta-history-empty">No work shift or training session was planned for this day.</p>`}
-      </section>
-    `;
-  }
-
-  function renderHistoryFuelWindowCard(key, fuelLogs) {
-    const window = fuellingWindowStatusForDay(key, fuelLogs);
-    return `
-      <section class="beta-rhythm-section-card beta-history-window-card beta-history-fuel-window-card" aria-label="Fuel Window">
-        <div class="section-heading-row">
-          <div>
-            <h3>Fuel Window</h3>
-            <p class="muted">${safeText(window.message)}</p>
-          </div>
-        </div>
-        <div class="beta-daily-status-groups">
-          ${renderDailyMetricGroup("Fuel Window", [
-            dailyMetricCard("First fuel", window.firstFuel || "Not logged", window.started ? "The first fuel log started this window." : "The window starts with the first fuel log.", "fuel"),
-            dailyMetricCard("Window length", window.length, "Set in Settings.", "fuel"),
-            dailyMetricCard("Closes at", window.closesAt || "Not started", window.started ? "Calculated from the first fuel log." : "Waiting for first fuel log.", "fuel"),
-            dailyMetricCard("Remaining", window.remaining, "For the selected local day.", window.remaining === "Window ended" ? "warning" : "fuel")
-          ])}
-        </div>
-      </section>
-    `;
-  }
-
-  function renderHistoryGapWindowCard(entry, fuelLogs, hydrationLogs) {
-    const fuelGap = longestGapTextFromLogs(fuelLogs, gapsFromFuelLogs);
-    const hydrationGap = longestGapTextFromLogs(hydrationLogs, gapsFromHydrationLogs);
-    const windowLabel = impactWindowLabel(entry);
-    const zone = gapZoneReached(entry);
-    return `
-      <section class="beta-rhythm-section-card beta-history-window-card beta-history-gap-window-card" aria-label="Gap Window">
-        <div class="section-heading-row">
-          <div>
-            <h3>Gap Window</h3>
-            <p class="muted">The clearest timing window where longer gaps showed up on this day.</p>
-          </div>
-        </div>
-        <div class="beta-daily-status-groups">
-          ${renderDailyMetricGroup("Gap Window", [
-            dailyMetricCard("Longest fuel gap", fuelGap, "Longest time between fuel logs.", fuelGap === "Not enough data yet" ? "neutral" : "warning"),
-            dailyMetricCard("Longest hydration gap", hydrationGap, "Longest time between hydration logs.", hydrationGap === "Not enough data yet" ? "neutral" : "hydration"),
-            dailyMetricCard("Window", windowLabel || "Not clear yet", "Based on the strongest available gap signal.", "fuel"),
-            dailyMetricCard("Status", zone, "Highest support level reached on this day.", riskToneFromText(zone))
-          ])}
-        </div>
-      </section>
-    `;
-  }
-
-  function renderHistoryDetail() {
-    const target = document.getElementById("fuelHistoryDetail");
-    if (!target) return;
-    target.innerHTML = "";
-  }
-
-  function renderHistoryScreen() {
-    renderHistoryList();
-  }
-
   function impactDayPhrase(entry) {
     if (!entry?.date) return "for this day";
     return entry.date === dateKey() ? "today" : `on ${entry.dateLabel || formatDateKey(entry.date)}`;
@@ -7503,65 +6958,6 @@
     `;
   }
 
-  function renderPatternGraph(title, entries, valueForEntry, metaForEntry, { max = null, tone = "green" } = {}) {
-    if (!entries.length) return "";
-    const values = entries.map(valueForEntry).filter(value => Number.isFinite(value));
-    const maxValue = Number.isFinite(max) ? max : Math.max(...values, 1);
-    const rows = entries.map(entry => {
-      const raw = valueForEntry(entry);
-      const value = Number.isFinite(raw) ? Math.max(0, raw) : 0;
-      const width = maxValue > 0 && Number.isFinite(raw) ? Math.max(4, Math.min(100, Math.round((value / maxValue) * 100))) : 0;
-      return `
-        <div class="beta-history-bar-row">
-          <div class="beta-history-bar-label"><span>${safeText(entry.dateLabel || entry.date)}</span><small>${safeText(metaForEntry(entry))}</small></div>
-          <div class="beta-history-bar-track"><i class="${tone}" style="width:${width}%"></i></div>
-        </div>
-      `;
-    }).join("");
-    return `<section class="beta-history-chart"><h3>${safeText(title)}</h3>${rows}</section>`;
-  }
-
-  function renderHistoryAverages() {
-    const summaryTarget = document.getElementById("fuelAveragesSummary");
-    const habitTarget = document.getElementById("fuelHabitChangeSummary");
-    const graphTarget = document.getElementById("fuelAveragePatternGraphs");
-    if (!summaryTarget || !graphTarget) return;
-
-    const allEntries = loggedHistoryEntries();
-    const filteredEntries = allEntries.filter(entry => entryMatchesTrainingFilter(entry, selectedTrainingFilter));
-    if (!allEntries.length) {
-      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days yet. Log fuel for a few days and averages will appear here.</p>`;
-      if (habitTarget) habitTarget.innerHTML = "";
-      graphTarget.innerHTML = "";
-      return;
-    }
-    if (!filteredEntries.length) {
-      summaryTarget.innerHTML = `<p class="muted beta-history-empty">No logged days match ${safeText(trainingFilterLabel(selectedTrainingFilter))} yet.</p>`;
-      if (habitTarget) habitTarget.innerHTML = "";
-      graphTarget.innerHTML = "";
-      return;
-    }
-
-    const commonGap = mostCommonFuelGap(filteredEntries);
-    summaryTarget.innerHTML = `<div class="fuel-gap-insights beta-average-grid">${[
-      renderAverageMetric("Average daily first fuel time", averageClock(filteredEntries.map(entry => entry.firstFuelMinute)), `${filteredEntries.length} logged day${filteredEntries.length === 1 ? "" : "s"}`),
-      renderAverageMetric("Average daily last fuel time", averageClock(filteredEntries.map(entry => entry.lastFuelMinute)), trainingFilterLabel(selectedTrainingFilter)),
-      renderAverageMetric("Average number of fuel logs per day", averageNumber(filteredEntries.map(entry => Number(entry.fuelLogCount || 0))), "Real logged fuel points"),
-      renderAverageMetric("Average number of act-now gaps per day", averageNumber(filteredEntries.map(entry => Number(entry.highRiskGapCount || 0))), "Based on current act-now threshold"),
-      renderAverageMetric("Average longest fuel gap per day", durationText(averageValue(filteredEntries.map(entry => Number(entry.longestGapMinutes || 0))) || 0), "Average of each day's longest gap"),
-      renderAverageMetric("Most common fuel gap", commonGap.label, commonGap.count ? `${commonGap.count} logged gap${commonGap.count === 1 ? "" : "s"} in this bucket` : "Needs more fuel gaps")
-    ].join("")}</div>`;
-    if (habitTarget) habitTarget.innerHTML = renderHabitChangeSection(filteredEntries);
-
-    const maxGap = Math.max(...filteredEntries.map(entry => Number(entry.longestGapMinutes || 0)), 1);
-    const maxRisk = Math.max(...filteredEntries.map(entry => Number(entry.highRiskGapCount || 0)), 1);
-    graphTarget.innerHTML = [
-      renderPatternGraph("First fuel time by day", filteredEntries, entry => entry.firstFuelMinute, entry => entry.firstFuelTime, { max: 1440, tone: "blue" }),
-      renderPatternGraph("Last fuel time by day", filteredEntries, entry => entry.lastFuelMinute, entry => entry.lastFuelTime, { max: 1440, tone: "green" }),
-      renderPatternGraph("Longest fuel gap by day", filteredEntries, entry => Number(entry.longestGapMinutes || 0), entry => durationText(Number(entry.longestGapMinutes || 0)), { max: maxGap, tone: "amber" }),
-      renderPatternGraph("Act-now gap count by day", filteredEntries, entry => Number(entry.highRiskGapCount || 0), entry => `${entry.highRiskGapCount || 0} act-now gap${Number(entry.highRiskGapCount || 0) === 1 ? "" : "s"}`, { max: maxRisk, tone: "red" })
-    ].join("");
-  }
 
 
   function trendMetricDefinitions() {
@@ -10138,7 +9534,6 @@
     const snapshot = fuelGapSnapshot();
     const cooldown = cooldownRemainingSeconds();
     const dashboardActive = document.getElementById("dashboard")?.classList.contains("active");
-    const historyActive = document.getElementById("history")?.classList.contains("active");
     const settingsActive = document.getElementById("checklist")?.classList.contains("active");
 
     const button = document.getElementById("graphLogFoodButton");
@@ -10167,13 +9562,12 @@
       renderSelectedDayCard();
       renderDailyLog();
     }
-    if (historyActive) renderHistoryScreen();
     if (settingsActive) renderSettings();
   };
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "history", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -10185,90 +9579,8 @@
       renderSelectedDayCard();
       renderDailyLog();
     }
-    if (target === "history") renderHistoryScreen();
     if (target === "checklist") renderSettings();
   };
-
-  function saveThresholdSettings() {
-    const gap = betaState();
-    const fuelGreen = minutesFromHoursField("fuelGreenHours", gap.thresholds.greenMinutes, { min: 30, max: 480 });
-    const fuelRed = minutesFromHoursField("fuelRedHours", gap.thresholds.redMinutes, { min: 60, max: 600 });
-    const fuelCrash = minutesFromHoursField("fuelCrashHours", gap.thresholds.crashMinutes, { min: 75, max: 720 });
-    const hydrationGreen = minutesFromHoursField("hydrationGreenHours", gap.thresholds.hydrationGreenMinutes, { min: 15, max: 360 });
-    const hydrationRed = minutesFromHoursField("hydrationRedHours", gap.thresholds.hydrationRedMinutes, { min: 30, max: 480 });
-    const hydrationCrash = minutesFromHoursField("hydrationCrashHours", gap.thresholds.hydrationCrashMinutes, { min: 45, max: 600 });
-    const fuelWindow = minutesFromHoursField("fuelWindowHours", gap.fuelWindowMinutes, { min: 240, max: 1200 });
-    gap.thresholds.greenMinutes = fuelGreen;
-    gap.thresholds.redMinutes = Math.max(fuelRed, fuelGreen + 15);
-    gap.thresholds.crashMinutes = Math.max(fuelCrash, gap.thresholds.redMinutes + 15);
-    gap.thresholds.hydrationGreenMinutes = hydrationGreen;
-    gap.thresholds.hydrationRedMinutes = Math.max(hydrationRed, hydrationGreen + 15);
-    gap.thresholds.hydrationCrashMinutes = Math.max(hydrationCrash, gap.thresholds.hydrationRedMinutes + 15);
-    gap.fuelWindowMinutes = fuelWindow;
-    gap.maximumFuelGapMinutes = clamp(Number(gap.maximumFuelGapMinutes || gap.thresholds.redMinutes), 120, 240);
-    document.getElementById("fuelSettingsStatus").textContent = "Support thresholds and daily fuelling window saved.";
-    storeArchive(dateKey());
-    save();
-    renderAll();
-  }
-
-  function readTargetField(id) {
-    const input = document.getElementById(id);
-    const text = String(input?.value || "").trim();
-    if (!text) return null;
-    if (!/^\d+$/.test(text)) throw new Error("Targets must be whole numbers.");
-    const value = Number(text);
-    if (!Number.isInteger(value) || value < 1) throw new Error("Targets must be whole numbers of 1 or more.");
-    return value;
-  }
-
-  async function persistTargetSettings(message = "Targets saved.") {
-    const status = document.getElementById("fuelTargetsStatus");
-    applyDerivedTargets();
-    updateCalculatedWeeklyTargetDisplays(targets());
-    if (status) status.textContent = message;
-    save();
-    renderAll();
-    try {
-      await window.fuelGuardCloud?.saveTargets?.();
-      if (status) {
-        const cloud = window.fuelGuardCloud?.accountView?.() || {};
-        status.textContent = cloud.signedIn ? `${message} Synced to your account.` : `${message} Sign in to sync across devices.`;
-      }
-    } catch (error) {
-      if (status) status.textContent = `${message} Saved locally; cloud target sync failed: ${error?.message || "unknown error"}`;
-    }
-  }
-
-  async function saveTargetSettings() {
-    const status = document.getElementById("fuelTargetsStatus");
-    try {
-      const dailyTargets = {
-        dailyFuelLogs: readTargetField("dailyFuelTarget"),
-        dailyHydrationLogs: readTargetField("dailyHydrationTarget"),
-        updatedAt: new Date().toISOString()
-      };
-      const next = {
-        ...derivedTargets(dailyTargets),
-        updatedAt: dailyTargets.updatedAt
-      };
-      betaState().targets = next;
-      await persistTargetSettings("Targets saved.");
-    } catch (error) {
-      if (status) status.textContent = error?.message || "Targets could not be saved.";
-    }
-  }
-
-  async function clearTargetSettings() {
-    betaState().targets = {
-      dailyFuelLogs: null,
-      dailyHydrationLogs: null,
-      weeklyFuelLogs: null,
-      weeklyHydrationLogs: null,
-      updatedAt: new Date().toISOString()
-    };
-    await persistTargetSettings("Targets cleared.");
-  }
 
   async function clearBetaData() {
     if (!window.confirm("Clear fuel beta logs, summaries, day types and thresholds?")) return;
@@ -10405,12 +9717,6 @@
     const planSubtab = event.target.closest("[data-plan-subtab]");
     if (planSubtab) {
       setPlanSubtab(planSubtab.dataset.planSubtab || "today");
-      return;
-    }
-    const historyDate = event.target.closest("[data-history-date]");
-    if (historyDate) {
-      selectedHistoryDetailKey = historyDate.dataset.historyDate || "";
-      renderHistoryScreen();
       return;
     }
     if (event.target.closest("#saveTrainingDemandButton")) {
@@ -10569,24 +9875,20 @@
   document.getElementById("trendPeriodWeekButton")?.addEventListener("click", () => {
     selectedTrendPeriod = "week";
     renderTrends();
-    renderHistoryScreen();
   });
   document.getElementById("trendPeriodMonthButton")?.addEventListener("click", () => {
     selectedTrendPeriod = "month";
     renderTrends();
-    renderHistoryScreen();
   });
   document.getElementById("trendPreviousWeekButton")?.addEventListener("click", () => {
     if (selectedTrendPeriod === "month") setSelectedTrendMonthStart(addMonths(selectedTrendMonthStart(), -1));
     else setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), -7));
     renderTrends();
-    renderHistoryScreen();
   });
   document.getElementById("trendNextWeekButton")?.addEventListener("click", () => {
     if (selectedTrendPeriod === "month") setSelectedTrendMonthStart(addMonths(selectedTrendMonthStart(), 1));
     else setSelectedTrendWeekStart(addDays(selectedTrendWeekStart(), 7));
     renderTrends();
-    renderHistoryScreen();
   });
   document.getElementById("shareTrendsButton")?.addEventListener("click", () => shareAllTrends(false));
   document.getElementById("downloadTrendsButton")?.addEventListener("click", () => shareAllTrends(true));
@@ -10605,14 +9907,6 @@
     const downloadCard = event.target.closest("[data-download-trend-card]");
     if (downloadCard) shareTrendCard(downloadCard.dataset.downloadTrendCard, true);
   });
-  document.getElementById("saveFuelThresholds")?.addEventListener("click", saveThresholdSettings);
-  document.getElementById("saveFuelGapGoal")?.addEventListener("click", saveFuelGapGoalSetting);
-  document.getElementById("fuelWindowPreset")?.addEventListener("change", handleFuelWindowPresetChange);
-  document.getElementById("fuelWindowHours")?.addEventListener("change", () => saveFuelWindowSetting());
-  document.getElementById("dailyFuelTarget")?.addEventListener("input", () => updateCalculatedWeeklyTargetDisplays());
-  document.getElementById("dailyHydrationTarget")?.addEventListener("input", () => updateCalculatedWeeklyTargetDisplays());
-  document.getElementById("saveFuelTargets")?.addEventListener("click", saveTargetSettings);
-  document.getElementById("clearFuelTargets")?.addEventListener("click", clearTargetSettings);
   document.getElementById("clearFuelBetaData")?.addEventListener("click", clearBetaData);
   document.getElementById("fuelCsvImportButton")?.addEventListener("click", () => {
     const input = document.getElementById("fuelCsvImportFileInput");
