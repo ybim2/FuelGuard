@@ -8,15 +8,15 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v107-coach-platform-review" />
-  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v107-coach-platform-review" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v108-coach-daily-integrated" />
+  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v108-coach-daily-integrated" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -83,6 +83,7 @@
 
       <section id="coachDashboardPanel" class="coach-panel active" aria-label="Coach dashboard">
         <div id="coachNeedsAttention"></div>
+        <div id="coachDataHealth"></div>
         <div class="coach-feature-stack" data-coach-feature-host="dashboard"></div>
         <div id="coachRoster"></div>
       </section>
@@ -109,6 +110,7 @@
       </section>
 
       <section id="coachReportsPanel" class="coach-panel" aria-label="Athlete review reports">
+        <div id="coachInterventionReview"></div>
         <section class="coach-card">
           <div class="coach-card-heading compact">
             <div>
@@ -186,16 +188,16 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../api/supabase-config.js?v=mobile-pwa-v107-coach-platform-review"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-platform.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-attention.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-intervention-workflow.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-team-intelligence.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-review-scheduling.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-team-structure.js?v=mobile-pwa-v107-coach-platform-review"></script>
-  <script src="coach-training-schedule.js?v=mobile-pwa-v107-coach-platform-review"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-platform.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-attention.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-intervention-workflow.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-team-intelligence.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-review-scheduling.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-team-structure.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
+  <script src="coach-training-schedule.js?v=mobile-pwa-v108-coach-daily-integrated"></script>
 </body>
 </html>

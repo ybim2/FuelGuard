@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v107-coach-platform-review";
-const BUILD_VERSION = "2026-08-07T17:44:59Z";
+const APP_VERSION = "mobile-pwa-v108-coach-daily-integrated";
+const BUILD_VERSION = "2026-08-07T17:48:47Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v107-coach-platform-review-20260807T174459Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v108-coach-daily-integrated-20260807T174847Z";
 const APP_SHELL = [
   "./",
   "./index.html",

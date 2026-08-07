@@ -176,6 +176,7 @@
     loadedFor: "",
     profile: null,
     relationships: [],
+    nudges: [],
     status: ""
   };
   let csvImportBusy = false;
@@ -204,6 +205,7 @@
   ];
   const COACH_PROFILES_TABLE = "fuel_user_profiles";
   const COACH_RELATIONSHIPS_TABLE = "fuel_coach_athletes";
+  const COACH_NUDGES_TABLE = "fuel_coach_nudges";
   const ATHLETE_CODE_RE = /^FG-[A-Z0-9]{6}$/;
   const ATHLETE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -249,7 +251,7 @@
   }
 
   function coachSharingSetupError(error) {
-    return /fuel_user_profiles|fuel_coach_athletes|athlete_code|coach_label|does not exist|schema cache/i.test(String(error?.message || ""));
+    return /fuel_user_profiles|fuel_coach_athletes|fuel_coach_nudges|athlete_code|coach_label|does not exist|schema cache/i.test(String(error?.message || ""));
   }
 
   function normalizeAthleteCode(value) {
@@ -332,8 +334,16 @@
         .in("status", ["pending", "active", "declined"])
         .order("updated_at", { ascending: false });
       if (error) throw error;
+      const { data: nudges, error: nudgesError } = await client
+        .from(COACH_NUDGES_TABLE)
+        .select("id,coach_id,athlete_id,message,sent_at")
+        .eq("athlete_id", user.id)
+        .order("sent_at", { ascending: false })
+        .limit(5);
+      if (nudgesError) throw nudgesError;
       coachSharingState.profile = profile;
       coachSharingState.relationships = data || [];
+      coachSharingState.nudges = nudges || [];
       coachSharingState.loadedFor = user.id;
       coachSharingState.status = coachSharingState.relationships.length
         ? "Coach access is ready."
@@ -341,6 +351,7 @@
     } catch (error) {
       coachSharingState.profile = null;
       coachSharingState.relationships = [];
+      coachSharingState.nudges = [];
       coachSharingState.loadedFor = user.id;
       coachSharingState.status = coachSharingSetupError(error)
         ? "Coach access setup is not applied yet."
@@ -348,6 +359,7 @@
     } finally {
       coachSharingBusy = false;
       renderCoachSharing();
+      renderCoachNudges();
     }
   }
 
@@ -2508,6 +2520,34 @@
           `).join("")}
         </div>`
       : `<p class="muted">No coaches connected. Share your Athlete Code with a coach when you want to connect.</p>`;
+  }
+
+  function renderCoachNudges() {
+    const card = document.getElementById("coachNudgeInbox");
+    const list = document.getElementById("coachNudgeList");
+    if (!card || !list) return;
+    const user = coachSharingUser();
+    const signedIn = Boolean(window.fuelGuardCloud?.accountView?.()?.signedIn && user?.id);
+    if (!signedIn) {
+      card.hidden = true;
+      return;
+    }
+    if (coachSharingState.loadedFor !== user.id && !coachSharingBusy) loadCoachSharingRelationships();
+    const relationshipByCoach = new Map(coachSharingState.relationships.map(relationship => [String(relationship.coach_id), relationship]));
+    const nudges = coachSharingState.nudges || [];
+    card.hidden = !nudges.length;
+    if (card.hidden) return;
+    list.innerHTML = nudges.slice(0, 3).map(nudge => {
+      const relationship = relationshipByCoach.get(String(nudge.coach_id)) || {};
+      const coachName = relationship.coach_label || "Your Fuel Guard coach";
+      const sentAt = nudge.sent_at ? `${formatDateKey(dateKey(new Date(nudge.sent_at)))} · ${formatClock(new Date(nudge.sent_at))}` : "Recently";
+      return `
+        <article class="beta-coach-nudge-item">
+          <strong>${safeText(nudge.message)}</strong>
+          <span>${safeText(coachName)} · ${safeText(sentAt)}</span>
+        </article>
+      `;
+    }).join("");
   }
 
   function renderSettings() {
@@ -9936,6 +9976,7 @@
     }
 
     if (dashboardActive) {
+      renderCoachNudges();
       renderDayTypeControls();
       renderSelectedDayCard();
       renderDailyLog();
@@ -9954,6 +9995,7 @@
       button.classList.toggle("active", button.dataset.mobileScreen === target);
     });
     if (target === "dashboard") {
+      renderCoachNudges();
       renderSelectedDayCard();
       renderDailyLog();
     }
@@ -10460,6 +10502,7 @@
   });
   window.addEventListener("fuelguard:cloud-status", () => {
     garminPatternsState.loaded = false;
+    renderCoachNudges();
     if (document.getElementById("checklist")?.classList.contains("active")) renderSettings();
     if (document.getElementById("analysis")?.classList.contains("active")) renderAnalysis();
   });

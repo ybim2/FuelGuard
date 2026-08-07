@@ -10,6 +10,7 @@
   const DEFAULT_MAXIMUM_FUEL_GAP_MINUTES = 180;
   const APPROACHING_WINDOW_MINUTES = 30;
   const CRASH_BUFFER_MINUTES = 40;
+  const DEFAULT_NUDGE_MESSAGE = "Quick Fuel Guard check-in — remember to log when you next fuel.";
 
   function clamp(number, min, max) {
     return Math.min(max, Math.max(min, number));
@@ -337,462 +338,556 @@
       .sort((a, b) => b.urgency - a.urgency || String(a.athlete.displayName || a.athlete.email || "").localeCompare(String(b.athlete.displayName || b.athlete.email || "")));
   }
 
-  function addDays(date, days) {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
+  function addDays(date, amount) {
+    const result = startOfLocalDay(dateKey(date));
+    result.setDate(result.getDate() + Number(amount || 0));
+    return result;
   }
 
-  function startOfLocalWeek(date = new Date()) {
-    const start = startOfLocalDay(dateKey(date));
-    const day = start.getDay();
-    const offset = day === 0 ? -6 : 1 - day;
-    return addDays(start, offset);
+  function daysInclusive(start, end) {
+    const startDate = startOfLocalDay(dateKey(start));
+    const endDate = startOfLocalDay(dateKey(end));
+    return Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
   }
 
-  function endOfLocalDate(date = new Date()) {
-    const end = startOfLocalDay(dateKey(date));
-    end.setDate(end.getDate() + 1);
-    end.setMilliseconds(end.getMilliseconds() - 1);
-    return end;
+  function periodDisplay(start, end) {
+    const format = value => (parseDate(value) || new Date()).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+    return `${format(start)} – ${format(end)}`;
   }
 
-  function daysBetweenInclusive(start, end) {
-    const first = startOfLocalDay(dateKey(start));
-    const last = startOfLocalDay(dateKey(end));
-    return Math.max(1, Math.round((last - first) / 86400000) + 1);
-  }
-
-  function periodPresetLabel(preset = "12_weeks") {
-    if (preset === "4_weeks") return "4-Week Review";
-    if (preset === "8_weeks") return "8-Week Review";
-    if (preset === "season") return "Season Review";
-    if (preset === "custom") return "Custom Review";
-    return "12-Week Review";
-  }
-
-  function reviewPeriodRange({ preset = "12_weeks", now = new Date(), customStart, customEnd } = {}) {
-    const end = endOfLocalDate(parseDate(customEnd) || now);
+  function reviewPeriodRange({ preset = "12_weeks", customStart = "", customEnd = "", now = new Date() } = {}) {
+    let end = startOfLocalDay(customEnd || dateKey(now));
+    const lengths = { "4_weeks": 28, "8_weeks": 56, "12_weeks": 84, season: 84 };
+    const normalizedPreset = preset === "custom" ? "custom" : lengths[preset] ? preset : "12_weeks";
     let start;
-    if (preset === "4_weeks") start = addDays(startOfLocalDay(dateKey(end)), -27);
-    else if (preset === "8_weeks") start = addDays(startOfLocalDay(dateKey(end)), -55);
-    else if (preset === "season") {
-      start = startOfLocalDay(dateKey(end));
-      start.setMonth(0, 1);
-    } else if (preset === "custom") {
-      start = startOfLocalDay(dateKey(parseDate(customStart) || end));
+    if (normalizedPreset === "custom" && customStart) {
+      start = startOfLocalDay(customStart);
     } else {
-      start = addDays(startOfLocalDay(dateKey(end)), -83);
+      start = addDays(end, -(lengths[normalizedPreset] || 84) + 1);
     }
-    if (start > end) {
-      const swap = new Date(start);
-      start.setTime(startOfLocalDay(dateKey(end)).getTime());
-      end.setTime(endOfLocalDate(swap).getTime());
-    }
+    if (start > end) [start, end] = [end, start];
     return {
-      preset,
-      label: periodPresetLabel(preset),
+      preset: normalizedPreset,
       start,
       end,
       startKey: dateKey(start),
       endKey: dateKey(end),
-      totalDays: daysBetweenInclusive(start, end)
+      days: daysInclusive(start, end),
+      display: periodDisplay(start, end)
     };
   }
 
-  function previousPeriodRange(period = reviewPeriodRange()) {
-    const totalDays = Number(period.totalDays) || daysBetweenInclusive(period.start, period.end);
-    const end = addDays(startOfLocalDay(period.startKey || dateKey(period.start)), -1);
-    const start = addDays(startOfLocalDay(dateKey(end)), -(totalDays - 1));
+  function previousPeriodRange(period = {}) {
+    const days = Number(period.days) || daysInclusive(period.start, period.end);
+    const end = addDays(period.start || new Date(), -1);
+    const start = addDays(end, -days + 1);
     return {
-      preset: period.preset,
-      label: `Previous ${period.label || "Review"}`,
+      preset: period.preset || "custom",
       start,
-      end: endOfLocalDate(end),
+      end,
       startKey: dateKey(start),
       endKey: dateKey(end),
-      totalDays
+      days,
+      display: periodDisplay(start, end)
     };
   }
 
-  function formatDateShort(value) {
-    const date = parseDate(value);
-    if (!date) return "--";
-    return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  }
-
-  function formatDateRange(start, end) {
-    return `${formatDateShort(start)} - ${formatDateShort(end)}`;
-  }
-
-  function logsInRange(logs = [], start, end) {
-    const first = startOfLocalDay(dateKey(start));
-    const last = endOfLocalDate(end);
-    return logsWithDates(logs).filter(log => log.date >= first && log.date <= last);
+  function logsInPeriod(logs = [], period = {}) {
+    const startKey = period.startKey || dateKey(period.start);
+    const endKey = period.endKey || dateKey(period.end);
+    return logsWithDates(logs).filter(log => {
+      const key = dateKey(log.date);
+      return key >= startKey && key <= endKey;
+    });
   }
 
   function groupLogsByDay(logs = []) {
     return logsWithDates(logs).reduce((map, log) => {
       const key = dateKey(log.date);
-      if (!map[key]) map[key] = [];
-      map[key].push(log);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(log);
       return map;
-    }, {});
+    }, new Map());
   }
 
   function average(values = []) {
-    const clean = values.filter(Number.isFinite);
-    return clean.length ? clean.reduce((sum, value) => sum + value, 0) / clean.length : null;
+    const finite = values.filter(Number.isFinite);
+    return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : null;
   }
 
-  function averageTimeLabel(minutes) {
-    if (!Number.isFinite(minutes)) return "Not enough data";
-    const date = startOfLocalDay();
-    date.setMinutes(Math.round(minutes));
-    return formatClock(date);
+  function roundPercent(numerator, denominator) {
+    return denominator ? Math.round((numerator / denominator) * 100) : null;
   }
 
-  function formatHoursLabel(minutes) {
-    return Number.isFinite(minutes) ? duration(minutes) : "Not enough data";
+  function dayFuelGaps(logs = []) {
+    const fuelLogs = logsWithDates(logs).filter(isFuelLog);
+    return fuelLogs.slice(1).map((log, index) => ({
+      start: fuelLogs[index].date,
+      end: log.date,
+      minutes: (log.date - fuelLogs[index].date) / 60000
+    })).filter(gap => Number.isFinite(gap.minutes) && gap.minutes >= 0);
   }
 
-  function hourWindowLabel(startMinute, endMinute) {
-    if (!Number.isFinite(startMinute) || !Number.isFinite(endMinute)) return "Not enough data";
-    const startHour = clamp(Math.floor(startMinute / 60), 0, 23);
-    const endHour = clamp(Math.ceil(endMinute / 60), 1, 24);
-    return `${String(startHour).padStart(2, "0")}:00-${String(endHour).padStart(2, "0")}:00`;
-  }
-
-  function fuelGapsForDay(dayLogs = []) {
-    const fuel = logsWithDates(dayLogs).filter(isFuelLog).sort((a, b) => a.date - b.date);
-    const gaps = [];
-    for (let index = 1; index < fuel.length; index += 1) {
-      const start = fuel[index - 1].date;
-      const end = fuel[index].date;
-      const minutes = (end - start) / 60000;
-      if (Number.isFinite(minutes) && minutes > 0) {
-        gaps.push({
-          start,
-          end,
-          startMinute: minutesIntoDay(start),
-          endMinute: minutesIntoDay(end),
-          minutes
-        });
-      }
-    }
-    return gaps;
-  }
-
-  function commonWindowFromIntervals(intervals = [], { minimumCount = 2 } = {}) {
-    const counts = new Map();
-    intervals
-      .filter(interval => Number.isFinite(interval.startMinute) && Number.isFinite(interval.endMinute))
-      .forEach(interval => {
-        const startHour = clamp(Math.floor(interval.startMinute / 60), 0, 23);
-        const endHour = clamp(Math.ceil(interval.endMinute / 60), startHour + 1, 24);
-        const key = String(startHour);
-        const entry = counts.get(key) || { startMinute: startHour * 60, endMinuteTotal: 0, count: 0 };
-        entry.count += 1;
-        entry.endMinuteTotal += endHour * 60;
-        counts.set(key, entry);
-      });
-    const best = [...counts.values()].map(entry => ({
-      startMinute: entry.startMinute,
-      endMinute: entry.endMinuteTotal / entry.count,
-      count: entry.count
-    })).sort((a, b) => b.count - a.count || a.startMinute - b.startMinute)[0];
-    if (!best || best.count < minimumCount) return null;
-    return { ...best, label: hourWindowLabel(best.startMinute, best.endMinute) };
-  }
-
-  function commonEventWindow(logs = [], predicate = isFuelLog, { bucketHours = 2, minimumCount = 1 } = {}) {
-    const counts = new Map();
-    logsWithDates(logs).filter(predicate).forEach(log => {
-      const minute = minutesIntoDay(log.date);
-      if (!Number.isFinite(minute)) return;
-      const startHour = clamp(Math.floor(minute / 60 / bucketHours) * bucketHours, 0, 23);
-      const endHour = clamp(startHour + bucketHours, 1, 24);
-      const key = `${startHour}-${endHour}`;
-      const entry = counts.get(key) || { startMinute: startHour * 60, endMinute: endHour * 60, count: 0 };
-      entry.count += 1;
-      counts.set(key, entry);
+  function mostCommonBucket(items, definitions, minuteFor, labelFor) {
+    const buckets = definitions.map(definition => ({ ...definition, count: 0 }));
+    items.forEach(item => {
+      const minute = minuteFor(item);
+      const bucket = buckets.find(candidate => minute >= candidate.start && minute < candidate.end);
+      if (bucket) bucket.count += 1;
     });
-    const best = [...counts.values()].sort((a, b) => b.count - a.count || a.startMinute - b.startMinute)[0];
-    if (!best || best.count < minimumCount) return null;
-    return { ...best, label: hourWindowLabel(best.startMinute, best.endMinute) };
+    const winner = buckets.sort((a, b) => b.count - a.count || a.start - b.start)[0];
+    return winner?.count ? { ...winner, label: labelFor(winner) } : null;
   }
 
-  function dayContext(dayLogs = []) {
-    const context = contextForLogs(dayLogs);
-    const day = String(context.dayType || "").toLowerCase();
-    const session = String(context.trainingSession || "").toLowerCase();
-    if (/competition/.test(day)) return "Competition";
-    if (/travel|travelling/.test(day)) return "Travel";
-    if (session && !/no[_\s-]?training|none|not set/.test(session)) return "Training";
-    if (/work|working|shift/.test(day)) return "Shift";
-    return "Normal";
+  function commonFuelWindow(fuelLogs) {
+    const definitions = [];
+    for (let hour = 0; hour < 24; hour += 2) definitions.push({ start: hour * 60, end: (hour + 2) * 60 });
+    return mostCommonBucket(
+      fuelLogs,
+      definitions,
+      log => minutesIntoDay(log.date),
+      bucket => `${String(bucket.start / 60).padStart(2, "0")}:00-${String(bucket.end / 60).padStart(2, "0")}:00`
+    );
   }
 
-  function summarisePeriod({ logs = [], targets = {}, period = reviewPeriodRange() } = {}) {
-    const rangeLogs = logsInRange(logs, period.start, period.end);
-    const byDay = groupLogsByDay(rangeLogs);
+  function commonGapWindow(gaps) {
+    const definitions = [
+      { start: 0, end: 8 * 60 },
+      { start: 8 * 60, end: 10 * 60 },
+      { start: 10 * 60, end: 13 * 60 },
+      { start: 13 * 60, end: 18 * 60 },
+      { start: 18 * 60, end: 22 * 60 },
+      { start: 22 * 60, end: 24 * 60 }
+    ];
+    return mostCommonBucket(
+      gaps,
+      definitions,
+      gap => minutesIntoDay(gap.start),
+      bucket => `${String(bucket.start / 60).padStart(2, "0")}:00-${String(bucket.end / 60).padStart(2, "0")}:00`
+    );
+  }
+
+  function commonSleepyWindow(sleepyLogs) {
+    const definitions = [];
+    for (let hour = 0; hour < 24; hour += 2) definitions.push({ start: hour * 60, end: (hour + 2) * 60 });
+    return mostCommonBucket(
+      sleepyLogs,
+      definitions,
+      log => minutesIntoDay(log.date),
+      bucket => `${String(bucket.start / 60).padStart(2, "0")}:00-${String(bucket.end / 60).padStart(2, "0")}:00`
+    );
+  }
+
+  function contextLabel(value) {
+    const normalized = String(value || "").toLowerCase();
+    if (normalized.includes("work") || normalized.includes("shift")) return "Shift";
+    if (normalized.includes("competition") || normalized.includes("race")) return "Competition";
+    if (normalized.includes("holiday") || normalized.includes("travel")) return "Travel";
+    if (normalized.includes("training")) return "Training";
+    return value ? String(value).replace(/[_-]+/g, " ").replace(/\b\w/g, char => char.toUpperCase()) : "Normal";
+  }
+
+  function periodMetrics(logs = [], period = {}, targets = {}) {
+    const sourceLogs = logsInPeriod(logs, period);
+    const byDay = groupLogsByDay(sourceLogs);
     const goal = maximumFuelGapMinutes(targets);
-    const daySummaries = Object.entries(byDay).map(([key, dayLogs]) => {
-      const normalized = logsWithDates(dayLogs);
-      const fuel = normalized.filter(isFuelLog);
-      const hydration = normalized.filter(isHydrationLog);
-      const sleepy = normalized.filter(isSleepyLog);
-      const gaps = fuelGapsForDay(normalized);
-      const exceededGaps = gaps.filter(gap => gap.minutes > goal);
-      return {
-        key,
-        logs: normalized,
-        fuel,
-        hydration,
-        sleepy,
-        gaps,
-        exceededGaps,
-        hasMetrics: gaps.length > 0,
-        withinTarget: gaps.length > 0 && exceededGaps.length === 0,
-        context: dayContext(normalized),
-        firstFuel: fuel[0] || null,
-        finalFuel: fuel[fuel.length - 1] || null
-      };
-    }).sort((a, b) => a.key.localeCompare(b.key));
-    const metricDays = daySummaries.filter(day => day.hasMetrics);
-    const activeDays = daySummaries.filter(day => day.logs.length);
-    const allGaps = daySummaries.flatMap(day => day.gaps.map(gap => ({ ...gap, key: day.key, context: day.context })));
-    const exceededGaps = allGaps.filter(gap => gap.minutes > goal);
-    const sleepyLogs = rangeLogs.filter(isSleepyLog);
-    const fuelLogs = rangeLogs.filter(isFuelLog);
-    const hydrationLogs = rangeLogs.filter(isHydrationLog);
-    const sleepyAfterLongGap = sleepyLogs.filter(sleepy => {
-      const sameDayFuel = fuelLogs
-        .filter(log => dateKey(log.date) === dateKey(sleepy.date) && log.date <= sleepy.date)
-        .sort((a, b) => b.date - a.date)[0];
-      return sameDayFuel && (sleepy.date - sameDayFuel.date) / 60000 > goal;
+    const dayRows = Array.from(byDay.entries()).map(([key, dayLogs]) => {
+      const fuelLogs = dayLogs.filter(isFuelLog);
+      const hydrationLogs = dayLogs.filter(isHydrationLog);
+      const sleepyLogs = dayLogs.filter(isSleepyLog);
+      const gaps = dayFuelGaps(dayLogs);
+      const longestGap = gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : null;
+      return { key, dayLogs, fuelLogs, hydrationLogs, sleepyLogs, gaps, longestGap };
     });
+    const metricDays = dayRows.filter(day => day.gaps.length);
+    const gaps = dayRows.flatMap(day => day.gaps);
+    const fuelLogs = dayRows.flatMap(day => day.fuelLogs);
+    const hydrationLogs = dayRows.flatMap(day => day.hydrationLogs);
+    const sleepyLogs = dayRows.flatMap(day => day.sleepyLogs);
+    const exceedingGaps = gaps.filter(gap => gap.minutes > goal);
+    const daysExceedingTarget = metricDays.filter(day => day.longestGap > goal).length;
+    const afterLongGapCount = sleepyLogs.filter(sleepy => {
+      const sameDayFuel = fuelLogs.filter(fuel => dateKey(fuel.date) === dateKey(sleepy.date) && fuel.date < sleepy.date);
+      const prior = sameDayFuel.sort((a, b) => b.date - a.date)[0];
+      return prior && (sleepy.date - prior.date) / 60000 > goal;
+    }).length;
+    const totalDays = Number(period.days) || daysInclusive(period.start, period.end);
+    const loggedDays = dayRows.length;
+    const activeWeeks = Math.max(1, loggedDays / 7);
     const contextMap = new Map();
-    daySummaries.forEach(day => {
-      if (!day.hasMetrics) return;
-      const entry = contextMap.get(day.context) || { label: day.context, metricDays: 0, withinTargetDays: 0, exceededDays: 0 };
-      entry.metricDays += 1;
-      if (day.withinTarget) entry.withinTargetDays += 1;
-      if (day.exceededGaps.length) entry.exceededDays += 1;
-      contextMap.set(day.context, entry);
+    metricDays.forEach(day => {
+      const raw = day.dayLogs.find(log => log.dayType)?.dayType || "Normal";
+      const label = contextLabel(raw);
+      if (!contextMap.has(label)) contextMap.set(label, { label, metricDays: 0, withinTargetDays: 0 });
+      const context = contextMap.get(label);
+      context.metricDays += 1;
+      if (day.longestGap <= goal) context.withinTargetDays += 1;
     });
-    const contexts = [...contextMap.values()]
-      .filter(entry => entry.metricDays >= 2)
-      .map(entry => ({
-        ...entry,
-        adherencePct: Math.round((entry.withinTargetDays / entry.metricDays) * 100)
-      }))
+    const contexts = Array.from(contextMap.values())
+      .map(context => ({ ...context, adherencePct: roundPercent(context.withinTargetDays, context.metricDays) }))
       .sort((a, b) => b.metricDays - a.metricDays || a.label.localeCompare(b.label));
     return {
-      period,
-      targetMinutes: goal,
-      logs: rangeLogs,
-      fuelLogs,
-      hydrationLogs,
-      sleepyLogs,
-      daySummaries,
-      activeDays,
-      metricDays,
-      allGaps,
-      exceededGaps,
+      sourceLogs,
+      goal,
       coverage: {
-        totalDays: period.totalDays,
-        loggedDays: activeDays.length,
-        loggedPct: Math.round((activeDays.length / period.totalDays) * 100),
+        totalDays,
+        loggedDays,
         metricDays: metricDays.length,
-        limited: activeDays.length < Math.ceil(period.totalDays * .4)
+        loggedPct: roundPercent(loggedDays, totalDays),
+        limited: loggedDays < Math.min(4, totalDays) || metricDays.length < 2
       },
       consistency: {
-        avgFuelLogsPerActiveDay: activeDays.length ? fuelLogs.length / activeDays.length : null,
-        avgHydrationLogsPerActiveDay: activeDays.length ? hydrationLogs.length / activeDays.length : null,
-        daysWithinTarget: metricDays.filter(day => day.withinTarget).length,
-        daysExceedingTarget: metricDays.filter(day => day.exceededGaps.length).length,
-        targetAdherencePct: metricDays.length ? Math.round((metricDays.filter(day => day.withinTarget).length / metricDays.length) * 100) : null
+        avgFuelLogsPerActiveDay: average(dayRows.filter(day => day.fuelLogs.length).map(day => day.fuelLogs.length)),
+        avgHydrationLogsPerActiveDay: average(dayRows.filter(day => day.hydrationLogs.length).map(day => day.hydrationLogs.length)),
+        daysExceedingTarget,
+        targetAdherencePct: roundPercent(metricDays.length - daysExceedingTarget, metricDays.length)
       },
       fuelling: {
-        averageFirstFuelMinutes: average(daySummaries.map(day => day.firstFuel ? minutesIntoDay(day.firstFuel.date) : NaN)),
-        averageFinalFuelMinutes: average(daySummaries.map(day => day.finalFuel ? minutesIntoDay(day.finalFuel.date) : NaN)),
-        averageGapMinutes: average(allGaps.map(gap => gap.minutes)),
-        longestGapMinutes: allGaps.length ? Math.max(...allGaps.map(gap => gap.minutes)) : null,
-        gapsExceedingTarget: exceededGaps.length,
-        commonGapWindow: commonWindowFromIntervals(exceededGaps.length >= 2 ? exceededGaps : allGaps, { minimumCount: 2 }),
-        commonFuellingWindow: commonEventWindow(fuelLogs, isFuelLog, { minimumCount: 2 })
+        averageFirstFuelMinutes: average(dayRows.filter(day => day.fuelLogs.length).map(day => minutesIntoDay(day.fuelLogs[0].date))),
+        averageFinalFuelMinutes: average(dayRows.filter(day => day.fuelLogs.length).map(day => minutesIntoDay(day.fuelLogs[day.fuelLogs.length - 1].date))),
+        averageGapMinutes: average(gaps.map(gap => gap.minutes)),
+        longestGapMinutes: gaps.length ? Math.max(...gaps.map(gap => gap.minutes)) : null,
+        gapsExceedingTarget: exceedingGaps.length,
+        commonGapWindow: commonGapWindow(exceedingGaps.length ? exceedingGaps : gaps),
+        commonFuellingWindow: commonFuelWindow(fuelLogs)
       },
       sleepy: {
         total: sleepyLogs.length,
-        averagePerActiveWeek: period.totalDays ? sleepyLogs.length / Math.max(1, period.totalDays / 7) : 0,
-        commonWindow: commonEventWindow(sleepyLogs, isSleepyLog, { minimumCount: 2 }),
-        afterLongGapCount: sleepyAfterLongGap.length,
-        afterLongGapPct: sleepyLogs.length ? Math.round((sleepyAfterLongGap.length / sleepyLogs.length) * 100) : null,
+        averagePerActiveWeek: sleepyLogs.length / activeWeeks,
+        commonWindow: commonSleepyWindow(sleepyLogs),
+        afterLongGapCount,
+        afterLongGapPct: roundPercent(afterLongGapCount, sleepyLogs.length),
         targetMinutes: goal
       },
-      contexts
+      contexts,
+      dayRows,
+      gaps
     };
   }
 
-  function compareNumbers(current, previous, { higherIsBetter = true, threshold = 0 } = {}) {
-    if (!Number.isFinite(current) || !Number.isFinite(previous)) return { trendLabel: "Not enough data", difference: null, direction: "unknown" };
-    const raw = current - previous;
-    if (Math.abs(raw) < threshold) return { trendLabel: "Stable", difference: raw, direction: "stable" };
-    const improved = higherIsBetter ? raw > 0 : raw < 0;
-    return { trendLabel: improved ? "Improved" : "Declined", difference: raw, direction: improved ? "improved" : "declined" };
+  function comparisonMetric(id, label, current, previous, unit, higherIsBetter = false) {
+    const comparable = Number.isFinite(current) && Number.isFinite(previous);
+    const difference = comparable ? current - previous : null;
+    let direction = "unknown";
+    if (comparable) {
+      if (Math.abs(difference) < (unit === "minutes" ? 10 : 1)) direction = "stable";
+      else if ((difference > 0) === higherIsBetter) direction = "improved";
+      else direction = "declined";
+    }
+    return {
+      id, label, current, previous, unit, difference, direction,
+      trendLabel: direction === "improved" ? "Improved" : direction === "declined" ? "Moved away from target" : direction === "stable" ? "Stable" : "Not enough data"
+    };
   }
 
-  function buildPreviousComparison(current, previous) {
-    return [
-      {
-        id: "target_adherence",
-        label: "Days within target",
-        current: current.consistency.targetAdherencePct,
-        previous: previous.consistency.targetAdherencePct,
-        unit: "%",
-        ...compareNumbers(current.consistency.targetAdherencePct, previous.consistency.targetAdherencePct, { higherIsBetter: true, threshold: 5 })
-      },
-      {
-        id: "average_gap",
-        label: "Average fuel gap",
-        current: current.fuelling.averageGapMinutes,
-        previous: previous.fuelling.averageGapMinutes,
-        unit: "minutes",
-        ...compareNumbers(current.fuelling.averageGapMinutes, previous.fuelling.averageGapMinutes, { higherIsBetter: false, threshold: 15 })
-      },
-      {
-        id: "sleepy_events",
-        label: "Sleepy events",
-        current: current.sleepy.total,
-        previous: previous.sleepy.total,
-        unit: "events",
-        ...compareNumbers(current.sleepy.total, previous.sleepy.total, { higherIsBetter: false, threshold: 1 })
-      },
-      {
-        id: "coverage",
-        label: "Logging coverage",
-        current: current.coverage.loggedPct,
-        previous: previous.coverage.loggedPct,
-        unit: "%",
-        ...compareNumbers(current.coverage.loggedPct, previous.coverage.loggedPct, { higherIsBetter: true, threshold: 5 })
-      }
+  function weeklyMetrics(logs, period, targets) {
+    const rows = [];
+    for (let start = startOfLocalDay(period.startKey); start <= startOfLocalDay(period.endKey); start = addDays(start, 7)) {
+      const end = addDays(start, 6) > period.end ? startOfLocalDay(period.endKey) : addDays(start, 6);
+      const week = { start, end, startKey: dateKey(start), endKey: dateKey(end), days: daysInclusive(start, end) };
+      const metrics = periodMetrics(logs, week, targets);
+      rows.push({
+        label: start.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+        averageGapMinutes: metrics.fuelling.averageGapMinutes,
+        loggingCoveragePct: metrics.coverage.loggedPct,
+        sleepyEvents: metrics.sleepy.total
+      });
+    }
+    return rows;
+  }
+
+  function buildAthleteReviewReport({ athlete = {}, coach = {}, organisationName = "", logs = [], previousLogs = [], targets = {}, period, interventions = [], coachNotes = "", generatedAt = new Date() } = {}) {
+    const activePeriod = period || reviewPeriodRange({ now: generatedAt });
+    const previousPeriod = previousPeriodRange(activePeriod);
+    const current = periodMetrics(logs, activePeriod, targets);
+    const previous = periodMetrics(previousLogs, previousPeriod, targets);
+    const comparison = [
+      comparisonMetric("target_adherence", "Days within gap target", current.consistency.targetAdherencePct, previous.consistency.targetAdherencePct, "%", true),
+      comparisonMetric("average_gap", "Average fuel gap", current.fuelling.averageGapMinutes, previous.fuelling.averageGapMinutes, "minutes", false),
+      comparisonMetric("logging_coverage", "Logging coverage", current.coverage.loggedPct, previous.coverage.loggedPct, "%", true),
+      comparisonMetric("sleepy_events", "Sleepy events", current.sleepy.total, previous.sleepy.total, "events", false)
     ];
-  }
-
-  function executiveSummary(periodSummary, comparison = []) {
-    const points = [];
-    points.push(`${periodSummary.coverage.loggedDays} of ${periodSummary.coverage.totalDays} days included Fuel Guard logging.`);
-    if (Number.isFinite(periodSummary.consistency.targetAdherencePct)) {
-      points.push(`Fuel-gap target was met on ${periodSummary.consistency.targetAdherencePct}% of days with enough fuel logs to calculate gaps.`);
+    const executiveSummary = [];
+    if (Number.isFinite(current.consistency.targetAdherencePct)) {
+      executiveSummary.push(`Fuel-gap target was met on ${current.consistency.targetAdherencePct}% of days with enough fuel logs to measure a gap.`);
+    } else {
+      executiveSummary.push("Not enough days had multiple fuel logs to measure target adherence.");
     }
-    if (periodSummary.fuelling.commonGapWindow) {
-      points.push(`${periodSummary.fuelling.commonGapWindow.label} was the most common meaningful fuel-gap window.`);
-    }
-    const avgGap = comparison.find(item => item.id === "average_gap");
-    if (avgGap && avgGap.direction !== "unknown") {
-      points.push(`Average fuel-gap duration ${avgGap.direction === "improved" ? "improved" : avgGap.direction === "declined" ? "increased" : "stayed broadly stable"} compared with the previous period.`);
-    }
-    if (periodSummary.sleepy.total) {
-      const sleepyWindow = periodSummary.sleepy.commonWindow?.label ? `, most often around ${periodSummary.sleepy.commonWindow.label}` : "";
-      points.push(`${periodSummary.sleepy.total} Sleepy event${periodSummary.sleepy.total === 1 ? " was" : "s were"} recorded${sleepyWindow}.`);
-    }
-    if (periodSummary.contexts[0]) {
-      const lowest = [...periodSummary.contexts].sort((a, b) => a.adherencePct - b.adherencePct)[0];
-      points.push(`${lowest.label} days had the lowest fuel-gap target adherence among contexts with enough data.`);
-    }
-    return points.slice(0, 5);
-  }
-
-  function weeklyReportSeries(periodSummary) {
-    const weeks = new Map();
-    periodSummary.daySummaries.forEach(day => {
-      const start = startOfLocalWeek(dateFromKey(day.key));
-      const key = dateKey(start);
-      const entry = weeks.get(key) || { key, label: formatDateShort(start), metricDays: 0, withinTargetDays: 0, gapMinutes: [], sleepyEvents: 0 };
-      if (day.hasMetrics) {
-        entry.metricDays += 1;
-        if (day.withinTarget) entry.withinTargetDays += 1;
-        entry.gapMinutes.push(...day.gaps.map(gap => gap.minutes));
-      }
-      entry.sleepyEvents += day.sleepy.length;
-      weeks.set(key, entry);
-    });
-    return [...weeks.values()].map(week => ({
-      ...week,
-      adherencePct: week.metricDays ? Math.round((week.withinTargetDays / week.metricDays) * 100) : null,
-      averageGapMinutes: average(week.gapMinutes),
-      sleepyEvents: week.sleepyEvents
-    }));
-  }
-
-  function buildAthleteReviewReport({ athlete = {}, coach = {}, organisationName = "", logs = [], targets = {}, period = reviewPeriodRange(), previousLogs = [], interventions = [], coachNotes = "", generatedAt = new Date() } = {}) {
-    const previousPeriod = previousPeriodRange(period);
-    const currentSummary = summarisePeriod({ logs, targets, period });
-    const previousSummary = summarisePeriod({ logs: previousLogs.length ? previousLogs : logs, targets, period: previousPeriod });
-    const comparison = buildPreviousComparison(currentSummary, previousSummary);
+    executiveSummary.push(`Logging coverage was ${current.coverage.loggedDays} of ${current.coverage.totalDays} days (${current.coverage.loggedPct ?? 0}%).`);
+    executiveSummary.push(current.sleepy.total
+      ? `${current.sleepy.total} Sleepy event${current.sleepy.total === 1 ? " was" : "s were"} logged; this is an observational pattern only.`
+      : "No Sleepy events were logged in this period.");
     return {
-      title: `${period.label} - ${athlete.displayName || athlete.email || "Athlete"}`,
-      athleteName: athlete.displayName || athlete.email || "Athlete",
-      athleteId: athlete.userId || athlete.user_id || athlete.id || "",
-      coachName: coach.displayName || coach.display_name || coach.email || "Coach",
-      coachId: coach.userId || coach.user_id || coach.id || "",
-      organisationName: organisationName || "",
-      generatedAt: (parseDate(generatedAt) || new Date()).toISOString(),
-      period: {
-        ...period,
-        display: formatDateRange(period.start, period.end)
-      },
-      previousPeriod: {
-        ...previousPeriod,
-        display: formatDateRange(previousPeriod.start, previousPeriod.end)
-      },
-      executiveSummary: executiveSummary(currentSummary, comparison),
-      coverage: currentSummary.coverage,
-      consistency: currentSummary.consistency,
-      fuelling: currentSummary.fuelling,
-      sleepy: currentSummary.sleepy,
-      contexts: currentSummary.contexts,
+      title: `${athlete.displayName || "Athlete"} Review`,
+      athleteName: athlete.displayName || "Athlete",
+      coachName: coach.display_name || coach.displayName || coach.email || "Coach",
+      organisationName,
+      generatedAt,
+      period: activePeriod,
+      previousPeriod,
+      coverage: current.coverage,
+      consistency: current.consistency,
+      fuelling: current.fuelling,
+      sleepy: current.sleepy,
+      contexts: current.contexts,
+      executiveSummary,
       comparison,
-      weekly: weeklyReportSeries(currentSummary),
-      interventions: interventions || [],
-      coachNotes: String(coachNotes || "").trim()
+      weekly: weeklyMetrics(logs, activePeriod, targets),
+      interventions,
+      coachNotes,
+      targetMinutes: current.goal,
+      sourceLogs: current.sourceLogs.concat(previous.sourceLogs)
     };
   }
 
-  function interventionComparison({ intervention = {}, logs = [], targets = {}, weeks = 4 } = {}) {
-    const interventionDate = parseDate(intervention.intervention_date || intervention.interventionDate || intervention.created_at);
-    if (!interventionDate) return null;
-    const beforeEnd = addDays(startOfLocalDay(dateKey(interventionDate)), -1);
-    const beforeStart = addDays(beforeEnd, -(weeks * 7 - 1));
-    const afterStart = startOfLocalDay(dateKey(interventionDate));
-    const afterEnd = addDays(afterStart, weeks * 7 - 1);
-    const before = summarisePeriod({ logs, targets, period: { start: beforeStart, end: endOfLocalDate(beforeEnd), startKey: dateKey(beforeStart), endKey: dateKey(beforeEnd), totalDays: weeks * 7 } });
-    const after = summarisePeriod({ logs, targets, period: { start: afterStart, end: endOfLocalDate(afterEnd), startKey: dateKey(afterStart), endKey: dateKey(afterEnd), totalDays: weeks * 7 } });
-    if (!before.metricDays.length || !after.metricDays.length) {
-      return {
-        label: "Not enough before/after data yet.",
-        beforePct: before.consistency.targetAdherencePct,
-        afterPct: after.consistency.targetAdherencePct,
-        direction: "unknown"
-      };
+  function interventionComparison({ intervention = {}, logs = [], targets = {}, weeks, now = new Date() } = {}) {
+    const interventionDate = startOfLocalDay(intervention.intervention_date || intervention.created_at || dateKey(now));
+    const windowDays = Number(intervention.review_window_days) || (Number(weeks) || 4) * 7;
+    const beforePeriod = {
+      start: addDays(interventionDate, -windowDays),
+      end: addDays(interventionDate, -1)
+    };
+    beforePeriod.startKey = dateKey(beforePeriod.start);
+    beforePeriod.endKey = dateKey(beforePeriod.end);
+    beforePeriod.days = windowDays;
+    beforePeriod.display = periodDisplay(beforePeriod.start, beforePeriod.end);
+    const afterPeriod = {
+      start: interventionDate,
+      end: addDays(interventionDate, windowDays - 1)
+    };
+    afterPeriod.startKey = dateKey(afterPeriod.start);
+    afterPeriod.endKey = dateKey(afterPeriod.end);
+    afterPeriod.days = windowDays;
+    afterPeriod.display = periodDisplay(afterPeriod.start, afterPeriod.end);
+    const before = periodMetrics(logs, beforePeriod, targets);
+    const after = periodMetrics(logs, afterPeriod, targets);
+    const enoughData = before.coverage.metricDays >= 1 && after.coverage.metricDays >= 1;
+    let direction = "insufficient";
+    let label = "Not enough comparable fuel-gap data in the equivalent before and after periods yet.";
+    if (enoughData && Number.isFinite(before.fuelling.averageGapMinutes) && Number.isFinite(after.fuelling.averageGapMinutes)) {
+      const difference = after.fuelling.averageGapMinutes - before.fuelling.averageGapMinutes;
+      direction = Math.abs(difference) < 10 ? "stable" : difference < 0 ? "improved" : "declined";
+      label = `Average fuel gap was ${duration(before.fuelling.averageGapMinutes)} before and ${duration(after.fuelling.averageGapMinutes)} after; it was ${direction === "improved" ? "lower" : direction === "declined" ? "higher" : "similar"} after this intervention. This comparison is observational and does not establish cause.`;
     }
-    const comparison = compareNumbers(after.consistency.daysExceedingTarget / after.metricDays.length, before.consistency.daysExceedingTarget / before.metricDays.length, { higherIsBetter: false, threshold: .05 });
     return {
-      label: comparison.direction === "improved"
-        ? "Excessive fuel-gap rate was lower after this intervention."
-        : comparison.direction === "declined"
-          ? "Excessive fuel-gap rate was higher after this intervention."
-          : "Excessive fuel-gap rate was broadly stable after this intervention.",
-      beforePct: before.consistency.targetAdherencePct,
-      afterPct: after.consistency.targetAdherencePct,
-      direction: comparison.direction
+      direction,
+      label,
+      enoughData,
+      windowDays,
+      beforePeriod,
+      afterPeriod,
+      before: {
+        averageGapMinutes: before.fuelling.averageGapMinutes,
+        longestGapMinutes: before.fuelling.longestGapMinutes,
+        targetAdherencePct: before.consistency.targetAdherencePct,
+        gapsExceedingTarget: before.fuelling.gapsExceedingTarget,
+        loggingCoveragePct: before.coverage.loggedPct,
+        sleepyEvents: before.sleepy.total,
+        loggedDays: before.coverage.loggedDays,
+        metricDays: before.coverage.metricDays
+      },
+      after: {
+        averageGapMinutes: after.fuelling.averageGapMinutes,
+        longestGapMinutes: after.fuelling.longestGapMinutes,
+        targetAdherencePct: after.consistency.targetAdherencePct,
+        gapsExceedingTarget: after.fuelling.gapsExceedingTarget,
+        loggingCoveragePct: after.coverage.loggedPct,
+        sleepyEvents: after.sleepy.total,
+        loggedDays: after.coverage.loggedDays,
+        metricDays: after.coverage.metricDays
+      }
+    };
+  }
+
+  function wholeDaysSince(value, now = new Date()) {
+    const date = parseDate(value);
+    if (!date) return null;
+    return Math.max(0, Math.floor((startOfLocalDay(dateKey(now)) - startOfLocalDay(dateKey(date))) / 86400000));
+  }
+
+  function buildTeamDataHealth({ athletes = [], rows = [], now = new Date() } = {}) {
+    const byAthlete = new Map((rows || []).map(row => [String(row.athlete_id || row.athleteId || ""), row]));
+    const items = athletes.map(athlete => {
+      const athleteId = String(athlete.userId || athlete.user_id || athlete.id || "");
+      const row = byAthlete.get(athleteId) || {};
+      const lastLogAt = row.last_log_at || row.lastLogAt || null;
+      const daysSinceLog = wholeDaysSince(lastLogAt, now);
+      const garminStatus = row.garmin_connection_status || row.garminConnectionStatus || "not_connected";
+      let id = "reporting_normally";
+      let label = "Reporting normally";
+      let detail = lastLogAt ? `Last log ${formatClock(lastLogAt)} today` : "Logging status unavailable";
+      let priority = 0;
+      if (garminStatus === "connection_revoked") {
+        id = "garmin_reconnect";
+        label = "Garmin needs reconnecting";
+        detail = row.garmin_revoked_at ? `Connection revoked ${dateKey(row.garmin_revoked_at)}` : "Garmin connection revoked";
+        priority = 75;
+      } else if (!lastLogAt) {
+        id = "insufficient_data";
+        label = "Insufficient data";
+        detail = "No shared Fuel Guard logs yet";
+        priority = 30;
+      } else if (daysSinceLog >= 3) {
+        id = "prolonged_absence";
+        label = `No logs for ${daysSinceLog} days`;
+        detail = `Last log ${dateKey(lastLogAt)}`;
+        priority = 70;
+      } else if (daysSinceLog >= 1) {
+        id = "no_logs_today";
+        label = "No logs today";
+        detail = daysSinceLog === 1 ? "Last logged yesterday" : `Last logged ${daysSinceLog} days ago`;
+        priority = 50;
+      }
+      return {
+        athlete,
+        athleteId,
+        id,
+        label,
+        detail,
+        priority,
+        daysSinceLog,
+        lastLogAt,
+        lastGarminLogAt: row.last_garmin_log_at || null,
+        garminConnectionStatus: garminStatus,
+        garminConnectedAt: row.garmin_connected_at || null,
+        garminLastUsedAt: row.garmin_last_used_at || null,
+        garminRevokedAt: row.garmin_revoked_at || null
+      };
+    });
+    const summary = {
+      total: items.length,
+      reportingNormally: items.filter(item => item.id === "reporting_normally").length,
+      noLogsToday: items.filter(item => item.id === "no_logs_today").length,
+      prolongedAbsence: items.filter(item => item.id === "prolonged_absence").length,
+      insufficientData: items.filter(item => item.id === "insufficient_data").length,
+      garminReconnect: items.filter(item => item.id === "garmin_reconnect").length
+    };
+    return { items, summary };
+  }
+
+  function occurrenceToken(value) {
+    return String(value || "unknown").replace(/[^a-zA-Z0-9_.-]+/g, "_").slice(0, 100);
+  }
+
+  function attentionItem({ athlete, type, category, label, detail, priority, occurrenceKey, canNudge = false, interventionId = null }) {
+    return {
+      athlete,
+      athleteId: String(athlete?.userId || athlete?.user_id || athlete?.id || ""),
+      type,
+      category,
+      label,
+      detail,
+      priority,
+      occurrenceKey,
+      canNudge,
+      interventionId
+    };
+  }
+
+  function buildCoachAttentionItems({ roster = [], dataHealth = { items: [] }, interventions = [], actions = [], now = new Date(), includeResolved = false } = {}) {
+    const key = dateKey(now);
+    const generated = new Map();
+    const healthByAthlete = new Map((dataHealth.items || []).map(item => [String(item.athleteId || ""), item]));
+    const add = item => {
+      const dedupeKey = `${item.athleteId}:${item.occurrenceKey}`;
+      const existing = generated.get(dedupeKey);
+      if (!existing || item.priority > existing.priority) generated.set(dedupeKey, item);
+    };
+    roster.forEach(status => {
+      const athlete = status.athlete;
+      status.flags.forEach(flag => {
+        if (flag.id === "low_fuelling_activity") {
+          const health = healthByAthlete.get(String(athlete.userId || athlete.user_id || athlete.id || ""));
+          if (health && health.id !== "reporting_normally") return;
+          add(attentionItem({
+            athlete,
+            type: "no_logs_today",
+            category: "not_logging",
+            label: "Not logging fuel",
+            detail: flag.detail,
+            priority: flag.priority,
+            occurrenceKey: `no_logs_today:${key}`,
+            canNudge: true
+          }));
+          return;
+        }
+        const type = flag.id === "sleepy_cluster" ? "repeated_sleepy" : flag.id;
+        const latestTrigger = type === "repeated_sleepy"
+          ? status.sleepyLogs[status.sleepyLogs.length - 1]
+          : status.lastFuel;
+        const trigger = latestTrigger?.id || latestTrigger?.externalEventId || latestTrigger?.timestamp || key;
+        const target = type.startsWith("gap_") ? `:${status.maximumFuelGapMinutes}` : "";
+        add(attentionItem({
+          athlete,
+          type,
+          category: type === "gap_approaching" ? "approaching_gap" : type === "repeated_sleepy" ? "repeated_sleepy" : "need_attention",
+          label: flag.label,
+          detail: flag.detail,
+          priority: flag.priority,
+          occurrenceKey: `${type}:${key}:${occurrenceToken(trigger)}${target}`,
+          canNudge: true
+        }));
+      });
+    });
+    (dataHealth.items || []).forEach(health => {
+      if (health.id === "reporting_normally") return;
+      const athlete = health.athlete;
+      const occurrenceKey = health.id === "garmin_reconnect"
+        ? `garmin_reconnect:${occurrenceToken(health.garminRevokedAt || "revoked")}`
+        : `${health.id}:${key}:${occurrenceToken(health.lastLogAt || "never")}`;
+      add(attentionItem({
+        athlete,
+        type: health.id,
+        category: health.id === "garmin_reconnect" ? "need_attention" : "not_logging",
+        label: health.label,
+        detail: health.detail,
+        priority: health.priority,
+        occurrenceKey,
+        canNudge: health.id !== "garmin_reconnect"
+      }));
+    });
+    const rosterByAthlete = new Map(roster.map(item => [String(item.athlete.userId || item.athlete.id || ""), item.athlete]));
+    (interventions || []).forEach(intervention => {
+      const due = intervention.status === "review_due" || (intervention.status === "active" && String(intervention.review_date || "") <= key);
+      if (!due) return;
+      const athlete = rosterByAthlete.get(String(intervention.athlete_id || ""));
+      if (!athlete) return;
+      add(attentionItem({
+        athlete,
+        type: "intervention_review_due",
+        category: "need_attention",
+        label: "Intervention review due",
+        detail: intervention.action_text || intervention.observation || "Open the intervention review.",
+        priority: 90,
+        occurrenceKey: `intervention_review_due:${occurrenceToken(intervention.id)}:${occurrenceToken(intervention.review_date)}`,
+        interventionId: intervention.id
+      }));
+    });
+    const actionByKey = new Map((actions || []).map(action => [String(action.occurrence_key || action.occurrenceKey || ""), action]));
+    return Array.from(generated.values())
+      .map(item => ({ ...item, disposition: actionByKey.get(item.occurrenceKey)?.status || "open" }))
+      .filter(item => includeResolved || item.disposition === "open")
+      .sort((a, b) => b.priority - a.priority || String(a.athlete?.displayName || "").localeCompare(String(b.athlete?.displayName || "")));
+  }
+
+  function attentionSummary(items = []) {
+    return {
+      needAttention: items.filter(item => item.category === "need_attention").length,
+      approachingGap: items.filter(item => item.category === "approaching_gap").length,
+      repeatedSleepy: items.filter(item => item.category === "repeated_sleepy").length,
+      notLogging: items.filter(item => item.category === "not_logging").length,
+      total: items.length
     };
   }
 
   return {
     CHECKIN_NOTE_PREFIX,
     SLEEPY_CHECKIN_TYPE,
+    DEFAULT_NUDGE_MESSAGE,
     escapeHtml,
     parseDate,
     logDate,
@@ -820,13 +915,11 @@
     buildCoachRoster,
     reviewPeriodRange,
     previousPeriodRange,
-    formatDateRange,
-    logsInRange,
-    fuelGapsForDay,
-    commonWindowFromIntervals,
-    commonEventWindow,
-    summarisePeriod,
+    periodMetrics,
     buildAthleteReviewReport,
-    interventionComparison
+    interventionComparison,
+    buildTeamDataHealth,
+    buildCoachAttentionItems,
+    attentionSummary
   };
 });

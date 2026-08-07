@@ -7,7 +7,10 @@
     logs: "fuel_logs",
     targets: "fuel_targets",
     reports: "fuel_coach_reports",
-    interventions: "fuel_coach_interventions"
+    interventions: "fuel_coach_interventions",
+    attentionActions: "fuel_coach_attention_actions",
+    notes: "fuel_coach_notes",
+    nudges: "fuel_coach_nudges"
   };
   const PATTERN_TYPES = [
     { id: "fuel", label: "Fuel", empty: "No fuel logged today", noun: "fuel log" },
@@ -35,6 +38,15 @@
     targets: [],
     reports: [],
     interventions: [],
+    attentionActions: [],
+    notes: [],
+    nudges: [],
+    dataHealthRows: [],
+    teamDataHealth: { items: [], summary: {} },
+    attentionItems: [],
+    attentionComposer: null,
+    pendingInterventionAttention: null,
+    interventionReview: null,
     roster: [],
     currentTab: "dashboard",
     selectedAthleteId: "",
@@ -113,7 +125,7 @@
     if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
-    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_find_athlete_by_code|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
+    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_attention_actions|fuel_coach_notes|fuel_coach_nudges|fuel_coach_find_athlete_by_code|fuel_coach_data_health|fuel_coach_refresh_due_interventions|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach access is still warming up. Refresh and try again in a moment.";
     }
     return "Coach Beta could not complete that request. Try again in a moment.";
@@ -199,6 +211,21 @@
       state.selectedAthleteId = state.roster[0]?.athlete.userId || "";
     }
     return previousAthleteId !== state.selectedAthleteId;
+  }
+
+  function rebuildOperationalData() {
+    state.teamDataHealth = domain.buildTeamDataHealth({
+      athletes: athleteRows(),
+      rows: state.dataHealthRows,
+      now: new Date()
+    });
+    state.attentionItems = domain.buildCoachAttentionItems({
+      roster: state.roster,
+      dataHealth: state.teamDataHealth,
+      interventions: state.interventions,
+      actions: state.attentionActions,
+      now: new Date()
+    });
   }
 
   function currentStatusCopy(item) {
@@ -312,36 +339,119 @@
   function renderNeedsAttention() {
     const target = $("coachNeedsAttention");
     if (!target) return;
-    const flagged = state.roster.filter(item => item.flags.length);
+    const summary = domain.attentionSummary(state.attentionItems);
     target.innerHTML = `
-      <section class="coach-card">
-        <div class="coach-card-heading">
+      <section class="coach-card coach-inbox-card">
+        <div class="coach-card-heading coach-inbox-heading">
           <span class="coach-icon">!</span>
           <div>
             <h2>Needs Attention</h2>
-            <p>Behavioural timing signals from athletes who have shared Fuel Guard logs with you.</p>
+            <p>Your daily exception inbox. Deal with what changed, then leave.</p>
+          </div>
+          <button class="secondary coach-refresh-button" type="button" data-refresh-coach-inbox>Refresh</button>
+        </div>
+        <div class="coach-inbox-summary" aria-label="Attention summary">
+          <strong>${safe(summary.needAttention)} need attention</strong>
+          <span>${safe(summary.approachingGap)} approaching gap</span>
+          <span>${safe(summary.repeatedSleepy)} repeated Sleepy</span>
+          <span>${safe(summary.notLogging)} not logging</span>
+        </div>
+        <div class="coach-alert-list coach-inbox-list">
+          ${state.attentionItems.length ? state.attentionItems.map(renderAttentionItem).join("") : `
+            <div class="coach-empty coach-inbox-zero">
+              <strong>Inbox clear</strong>
+              <span>No new exceptions need action right now.</span>
+            </div>
+          `}
+        </div>
+      </section>
+    `;
+  }
+
+  function attentionTone(item) {
+    if (item.type === "gap_exceeded" || item.type === "garmin_reconnect") return "critical";
+    if (item.type === "gap_approaching" || item.type === "intervention_review_due") return "warning";
+    return "steady";
+  }
+
+  function attentionComposer(item) {
+    const composer = state.attentionComposer;
+    if (!composer || composer.occurrenceKey !== item.occurrenceKey) return "";
+    const isNudge = composer.kind === "nudge";
+    return `
+      <div class="coach-attention-composer">
+        <label>${isNudge ? "Nudge message" : "Coach note"}
+          <textarea id="coachAttentionComposerText" rows="3" maxlength="${isNudge ? "280" : "2000"}" placeholder="${isNudge ? "A short Fuel Guard check-in" : "Add a factual note for this athlete"}">${safe(isNudge ? domain.DEFAULT_NUDGE_MESSAGE : "")}</textarea>
+        </label>
+        <div class="coach-button-row">
+          <button class="primary" type="button" data-submit-attention-composer>${isNudge ? "Send nudge" : "Save note"}</button>
+          <button class="secondary" type="button" data-cancel-attention-composer>Cancel</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAttentionItem(item) {
+    const occurrence = safe(item.occurrenceKey);
+    const athleteId = safe(item.athleteId);
+    const reviewButton = item.interventionId
+      ? `<button class="secondary" type="button" data-review-intervention="${safe(item.interventionId)}">Review follow-up</button>`
+      : `<button class="secondary" type="button" data-create-attention-intervention="${occurrence}">Create intervention</button>`;
+    return `
+      <article class="coach-alert-row coach-inbox-item ${safe(attentionTone(item))}" data-attention-occurrence="${occurrence}">
+        <div class="coach-inbox-item-main">
+          <div class="coach-athlete-title">
+            <strong>${safe(item.athlete?.displayName || "Athlete")}</strong>
+            <span class="coach-chip">${safe(item.label)}</span>
+          </div>
+          <p>${safe(item.detail)}</p>
+        </div>
+        <div class="coach-inbox-actions" aria-label="Actions for ${safe(item.athlete?.displayName || "athlete")}">
+          <button class="primary" type="button" data-attention-status="reviewed" data-occurrence-key="${occurrence}">Reviewed</button>
+          <button class="secondary" type="button" data-add-attention-note="${occurrence}">Add note</button>
+          ${reviewButton}
+          ${item.canNudge ? `<button class="secondary" type="button" data-nudge-attention="${occurrence}">Nudge athlete</button>` : ""}
+          <button class="secondary" type="button" data-open-athlete="${athleteId}">Open athlete</button>
+          <button class="coach-dismiss-button" type="button" data-attention-status="dismissed" data-occurrence-key="${occurrence}">Dismiss</button>
+        </div>
+        ${attentionComposer(item)}
+      </article>
+    `;
+  }
+
+  function renderDataHealth() {
+    const target = $("coachDataHealth");
+    if (!target) return;
+    const summary = state.teamDataHealth.summary || {};
+    const items = state.teamDataHealth.items || [];
+    const problems = items.filter(item => item.id !== "reporting_normally");
+    target.innerHTML = `
+      <section class="coach-card coach-data-health-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Team data health</h2>
+            <p>Is today’s shared Fuel Guard information trustworthy?</p>
           </div>
         </div>
-        <div class="coach-alert-list">
-          ${flagged.length ? flagged.map(item => {
-            const flag = item.flags[0];
-            const tone = flagTone(flag);
-            return `
-              <article class="coach-alert-row ${safe(tone)}">
-                <div class="coach-athlete-title">
-                  <strong>${safe(item.athlete.displayName)}</strong>
-                  <span class="coach-chip">${safe(flag.label)}</span>
-                </div>
-                <p>${safe(flag.detail)}</p>
-                <div class="coach-mini-metrics">
-                  <span>Status: ${safe(item.statusLabel)}</span>
-                  <span>Last fuel: ${safe(item.lastFuel ? `${domain.duration(item.minutesSinceFuel)} ago` : "No fuel today")}</span>
-                  <span>Sleepy: ${safe(item.sleepyLogs.length)}</span>
-                </div>
-              </article>
-            `;
-          }).join("") : `<div class="coach-empty">No athletes need attention right now.</div>`}
+        <div class="coach-data-health-summary">
+          <strong>${safe(summary.reportingNormally || 0)}/${safe(summary.total || 0)} athletes reporting normally</strong>
+          <span>${safe(summary.noLogsToday || 0)} haven’t logged today</span>
+          <span>${safe(summary.garminReconnect || 0)} Garmin ${(summary.garminReconnect || 0) === 1 ? "needs" : "connections need"} reconnecting</span>
         </div>
+        ${problems.length ? `
+          <details class="coach-data-health-details">
+            <summary>${safe(problems.length)} data-health issue${problems.length === 1 ? "" : "s"}</summary>
+            <div class="coach-data-health-list">
+              ${problems.map(item => `
+                <article>
+                  <strong>${safe(item.athlete?.displayName || "Athlete")}</strong>
+                  <span>${safe(item.label)}</span>
+                  <small>${safe(item.detail)}</small>
+                </article>
+              `).join("")}
+            </div>
+          </details>
+        ` : `<p class="coach-note">No shared logging or connection issues detected.</p>`}
       </section>
     `;
   }
@@ -518,7 +628,7 @@
     const athleteId = String(item?.athlete?.userId || "");
     return (records || [])
       .filter(record => String(record.athlete_id || "") === athleteId)
-      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      .sort((a, b) => new Date(b.created_at || b.sent_at || b.acted_at || 0) - new Date(a.created_at || a.sent_at || a.acted_at || 0));
   }
 
   function nextActionText(item) {
@@ -793,6 +903,62 @@
     target.innerHTML = renderReport(state.generatedReport);
   }
 
+  function interventionMetricValue(value, unit = "") {
+    if (!Number.isFinite(value)) return "Not enough data";
+    if (unit === "minutes") return domain.duration(value);
+    if (unit === "%") return `${Math.round(value)}%`;
+    return String(Math.round(value * 10) / 10);
+  }
+
+  function renderInterventionReview() {
+    const target = $("coachInterventionReview");
+    if (!target) return;
+    const review = state.interventionReview;
+    if (!review) {
+      target.innerHTML = "";
+      return;
+    }
+    const comparison = review.comparison;
+    const metrics = [
+      ["Average fuel gap", "averageGapMinutes", "minutes"],
+      ["Longest fuel gap", "longestGapMinutes", "minutes"],
+      ["Within configured target", "targetAdherencePct", "%"],
+      ["Gaps exceeding target", "gapsExceedingTarget", ""],
+      ["Logging coverage", "loggingCoveragePct", "%"],
+      ["Sleepy events", "sleepyEvents", ""]
+    ];
+    target.innerHTML = `
+      <section class="coach-card coach-intervention-review-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <p class="coach-kicker">Review due</p>
+            <h2>${safe(review.intervention.action_text || review.intervention.category || "Intervention")}</h2>
+            <p>Equivalent ${safe(comparison.windowDays)}-day periods before and after ${safe(review.intervention.intervention_date)}.</p>
+          </div>
+        </div>
+        <p class="coach-intervention-comparison-label">${safe(comparison.label)}</p>
+        <div class="coach-before-after-table">
+          <div class="coach-before-after-row heading"><span>Metric</span><strong>Before</strong><strong>After</strong></div>
+          ${metrics.map(([label, key, unit]) => `
+            <div class="coach-before-after-row">
+              <span>${safe(label)}</span>
+              <strong>${safe(interventionMetricValue(comparison.before[key], unit))}</strong>
+              <strong>${safe(interventionMetricValue(comparison.after[key], unit))}</strong>
+            </div>
+          `).join("")}
+        </div>
+        ${comparison.enoughData ? "" : `<p class="coach-limited-note">Insufficient comparable gap data. Keep the intervention open and review again when coverage improves.</p>`}
+        <p class="coach-note">Before/after changes are observational. Fuel Guard does not claim the intervention caused an outcome.</p>
+        <label class="coach-textarea-label">Review note<textarea id="coachInterventionReviewNotes" rows="3" maxlength="1200" placeholder="What changed, what stayed the same, and what should happen next?">${safe(review.intervention.review_notes || "")}</textarea></label>
+        <div class="coach-button-row">
+          <button class="primary" type="button" data-complete-intervention-review="reviewed">Mark reviewed</button>
+          <button class="secondary" type="button" data-complete-intervention-review="closed">Close intervention</button>
+          <button class="secondary" type="button" data-cancel-intervention-review>Back</button>
+        </div>
+      </section>
+    `;
+  }
+
   function renderReportControls() {
     const select = $("coachReportAthlete");
     if (select) {
@@ -808,12 +974,15 @@
     const today = domain.dateKey(new Date());
     if ($("coachReportEnd") && !$("coachReportEnd").value) $("coachReportEnd").value = today;
     if ($("coachInterventionDate") && !$("coachInterventionDate").value) $("coachInterventionDate").value = today;
+    if ($("coachInterventionReviewDate") && !$("coachInterventionReviewDate").value) $("coachInterventionReviewDate").value = defaultReviewDate(today);
     renderReportPreview();
   }
 
   function renderCoachActions(item) {
     const reports = recordsForAthlete(state.reports, item);
     const interventions = recordsForAthlete(state.interventions, item);
+    const notes = recordsForAthlete(state.notes, item).slice(0, 3);
+    const nudges = recordsForAthlete(state.nudges, item).slice(0, 3);
     const latestReport = reports[0];
     const openInterventions = interventions.filter(record => record.status === "active" || record.status === "open");
     return `
@@ -845,6 +1014,23 @@
           </div>
         </div>
         ${renderInterventionList(interventions)}
+      </section>
+      <section class="coach-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Recent coach activity</h2>
+            <p>Private notes and auditable Fuel Guard nudges from this coach.</p>
+          </div>
+        </div>
+        <div class="coach-activity-list">
+          ${notes.map(note => `
+            <article><span>Note</span><strong>${safe(note.body)}</strong><time>${safe(domain.dateKey(note.created_at))} · ${safe(domain.formatClock(note.created_at))}</time></article>
+          `).join("")}
+          ${nudges.map(nudge => `
+            <article><span>Nudge</span><strong>${safe(nudge.message)}</strong><time>${safe(domain.dateKey(nudge.sent_at))} · ${safe(domain.formatClock(nudge.sent_at))}</time></article>
+          `).join("")}
+          ${notes.length || nudges.length ? "" : `<div class="coach-empty compact">No coach activity recorded yet.</div>`}
+        </div>
       </section>
     `;
   }
@@ -1010,10 +1196,12 @@
     renderAuth();
     renderTabs();
     renderNeedsAttention();
+    renderDataHealth();
     renderRoster();
     renderAthleteList();
     renderAthleteDetail();
     renderReportControls();
+    renderInterventionReview();
     renderSettings();
   }
 
@@ -1080,6 +1268,12 @@
         state.targets = [];
         state.reports = [];
         state.interventions = [];
+        state.attentionActions = [];
+        state.notes = [];
+        state.nudges = [];
+        state.dataHealthRows = [];
+        state.teamDataHealth = { items: [], summary: {} };
+        state.attentionItems = [];
         state.roster = [];
         state.coachLoading = false;
         platformController?.reset();
@@ -1103,6 +1297,10 @@
       state.targets = [];
       state.reports = [];
       state.interventions = [];
+      state.attentionActions = [];
+      state.notes = [];
+      state.nudges = [];
+      state.dataHealthRows = [];
 
       if (athleteIds.length) {
         const { data: profiles, error: profilesError } = await state.client
@@ -1158,9 +1356,54 @@
           .order("created_at", { ascending: false });
         if (interventionsError) throw interventionsError;
         state.interventions = interventions || [];
+
+        const { error: dueError } = await state.client.rpc("fuel_coach_refresh_due_interventions");
+        if (dueError) throw dueError;
+        const refreshedInterventions = await state.client
+          .from(TABLES.interventions)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("created_at", { ascending: false });
+        if (refreshedInterventions.error) throw refreshedInterventions.error;
+        state.interventions = refreshedInterventions.data || [];
+
+        const { data: attentionActions, error: attentionError } = await state.client
+          .from(TABLES.attentionActions)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("acted_at", { ascending: false });
+        if (attentionError) throw attentionError;
+        state.attentionActions = attentionActions || [];
+
+        const { data: notes, error: notesError } = await state.client
+          .from(TABLES.notes)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (notesError) throw notesError;
+        state.notes = notes || [];
+
+        const { data: nudges, error: nudgesError } = await state.client
+          .from(TABLES.nudges)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("sent_at", { ascending: false })
+          .limit(100);
+        if (nudgesError) throw nudgesError;
+        state.nudges = nudges || [];
+
+        const { data: dataHealth, error: dataHealthError } = await state.client.rpc("fuel_coach_data_health");
+        if (dataHealthError) throw dataHealthError;
+        state.dataHealthRows = dataHealth || [];
       }
 
       const selectionChanged = rebuildRoster();
+      rebuildOperationalData();
       state.coachLoading = false;
       setStatus(`Loaded ${state.roster.length} active athlete${state.roster.length === 1 ? "" : "s"}.`);
       render();
@@ -1262,6 +1505,15 @@
     state.targets = [];
     state.reports = [];
     state.interventions = [];
+    state.attentionActions = [];
+    state.notes = [];
+    state.nudges = [];
+    state.dataHealthRows = [];
+    state.teamDataHealth = { items: [], summary: {} };
+    state.attentionItems = [];
+    state.attentionComposer = null;
+    state.pendingInterventionAttention = null;
+    state.interventionReview = null;
     state.roster = [];
     state.athleteCodeQuery = "";
     state.athleteCodeResult = null;
@@ -1381,6 +1633,163 @@
     });
   }
 
+  function attentionItemForKey(occurrenceKey) {
+    return state.attentionItems.find(item => item.occurrenceKey === occurrenceKey) || null;
+  }
+
+  async function saveAttentionDisposition(item, status) {
+    const user = coachUser();
+    if (!user || !item || !["reviewed", "dismissed"].includes(status)) throw new Error("Attention action unavailable.");
+    const now = new Date().toISOString();
+    const { data, error } = await state.client
+      .from(TABLES.attentionActions)
+      .upsert({
+        coach_id: user.id,
+        athlete_id: item.athleteId,
+        item_type: item.type,
+        occurrence_key: item.occurrenceKey,
+        status,
+        acted_at: now,
+        updated_at: now
+      }, { onConflict: "coach_id,athlete_id,occurrence_key" })
+      .select("*")
+      .single();
+    if (error) throw error;
+    if (data) state.attentionActions = [data, ...state.attentionActions.filter(row => row.id !== data.id && row.occurrence_key !== data.occurrence_key)];
+    state.attentionComposer = null;
+    rebuildOperationalData();
+  }
+
+  async function updateAttentionStatus(button) {
+    await withBusy(button, async () => {
+      const item = attentionItemForKey(button?.dataset?.occurrenceKey || "");
+      if (!item) throw new Error("This attention item has changed. Refresh the inbox.");
+      const status = button.dataset.attentionStatus;
+      await saveAttentionDisposition(item, status);
+      setStatus(status === "reviewed" ? "Attention item reviewed." : "Attention item dismissed.");
+      renderNeedsAttention();
+    });
+  }
+
+  function openAttentionComposer(kind, occurrenceKey) {
+    const item = attentionItemForKey(occurrenceKey);
+    if (!item) return;
+    state.attentionComposer = { kind, occurrenceKey };
+    renderNeedsAttention();
+    setTimeout(() => $("coachAttentionComposerText")?.focus(), 0);
+  }
+
+  async function submitAttentionComposer(button) {
+    await withBusy(button, async () => {
+      const composer = state.attentionComposer;
+      const item = attentionItemForKey(composer?.occurrenceKey || "");
+      const user = coachUser();
+      const text = $("coachAttentionComposerText")?.value?.trim() || "";
+      if (!composer || !item || !user) throw new Error("This attention action is no longer available.");
+      if (!text) throw new Error(composer.kind === "nudge" ? "Enter a nudge message." : "Enter a note.");
+      if (composer.kind === "nudge") {
+        const { data, error } = await state.client
+          .from(TABLES.nudges)
+          .insert({
+            coach_id: user.id,
+            athlete_id: item.athleteId,
+            attention_occurrence_key: item.occurrenceKey,
+            message: text,
+            sent_at: new Date().toISOString()
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+        if (data) state.nudges = [data, ...state.nudges];
+        await saveAttentionDisposition(item, "reviewed");
+        setStatus(`Nudge sent to ${item.athlete?.displayName || "athlete"}.`);
+      } else {
+        const { data, error } = await state.client
+          .from(TABLES.notes)
+          .insert({
+            coach_id: user.id,
+            athlete_id: item.athleteId,
+            attention_occurrence_key: item.occurrenceKey,
+            body: text
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+        if (data) state.notes = [data, ...state.notes];
+        await saveAttentionDisposition(item, "reviewed");
+        setStatus("Coach note saved and item reviewed.");
+      }
+      render();
+    });
+  }
+
+  function defaultReviewDate(interventionDate = domain.dateKey(new Date()), days = 28) {
+    const date = domain.startOfLocalDay(interventionDate);
+    date.setDate(date.getDate() + days);
+    return domain.dateKey(date);
+  }
+
+  function openAttentionIntervention(occurrenceKey) {
+    const item = attentionItemForKey(occurrenceKey);
+    if (!item) return;
+    state.pendingInterventionAttention = item;
+    openInterventionBuilder(item.athleteId);
+    if ($("coachInterventionObservation")) $("coachInterventionObservation").value = item.detail;
+    if ($("coachInterventionAction")) $("coachInterventionAction").value = nextActionText(state.roster.find(row => row.athlete.userId === item.athleteId));
+    if ($("coachInterventionReviewDate")) $("coachInterventionReviewDate").value = defaultReviewDate();
+  }
+
+  async function openInterventionReview(interventionId, button = null) {
+    await withBusy(button, async () => {
+      const intervention = state.interventions.find(row => row.id === interventionId);
+      if (!intervention) throw new Error("Intervention not found.");
+      const start = domain.startOfLocalDay(intervention.intervention_date);
+      start.setDate(start.getDate() - Number(intervention.review_window_days || 28));
+      const end = domain.startOfLocalDay(intervention.intervention_date);
+      end.setDate(end.getDate() + Number(intervention.review_window_days || 28) - 1);
+      const logs = await fetchAthleteLogs(intervention.athlete_id, start, end);
+      const comparison = domain.interventionComparison({
+        intervention,
+        logs,
+        targets: targetForAthlete(intervention.athlete_id)
+      });
+      state.interventionReview = { intervention, comparison };
+      state.selectedReportAthleteId = intervention.athlete_id;
+      state.currentTab = "reports";
+      render();
+      $("coachInterventionReview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  async function completeInterventionReview(status, button = null) {
+    await withBusy(button, async () => {
+      const review = state.interventionReview;
+      if (!review || !["reviewed", "closed"].includes(status)) throw new Error("Open an intervention review first.");
+      const now = new Date().toISOString();
+      const patch = {
+        status,
+        review_notes: $("coachInterventionReviewNotes")?.value?.trim() || null,
+        review_snapshot: review.comparison,
+        updated_at: now
+      };
+      if (status === "reviewed") patch.reviewed_at = now;
+      if (status === "closed") patch.closed_at = now;
+      const { data, error } = await state.client
+        .from(TABLES.interventions)
+        .update(patch)
+        .eq("id", review.intervention.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      const attention = state.attentionItems.find(item => item.interventionId === review.intervention.id);
+      if (attention) await saveAttentionDisposition(attention, "reviewed");
+      if (data) state.interventions = [data, ...state.interventions.filter(row => row.id !== data.id)];
+      state.interventionReview = null;
+      setStatus(status === "reviewed" ? "Intervention review saved." : "Intervention closed.");
+      await loadCoachData();
+    });
+  }
+
   function targetForAthlete(athleteId) {
     return targetsByUser()[athleteId] || {};
   }
@@ -1463,6 +1872,8 @@
       const now = new Date().toISOString();
       const observation = $("coachInterventionObservation")?.value?.trim() || nextActionText(item);
       const action = $("coachInterventionAction")?.value?.trim() || "Agree one practical support step and review the next logging pattern.";
+      const interventionDate = $("coachInterventionDate")?.value || domain.dateKey(new Date());
+      const sourceAttention = state.pendingInterventionAttention;
       const { data, error } = await state.client
         .from(TABLES.interventions)
         .insert({
@@ -1473,9 +1884,11 @@
           observation,
           action_text: action,
           target_window: item.beyondFuelGapMinutes !== null ? "current gap" : "next support window",
-          intervention_date: $("coachInterventionDate")?.value || domain.dateKey(new Date()),
-          review_date: $("coachInterventionReviewDate")?.value || null,
-          notes: "Created from Coach Beta athlete review.",
+          intervention_date: interventionDate,
+          review_date: $("coachInterventionReviewDate")?.value || defaultReviewDate(interventionDate),
+          review_window_days: 28,
+          source_attention_occurrence_key: sourceAttention?.occurrenceKey || null,
+          notes: sourceAttention ? "Created from the daily Needs Attention inbox." : "Created from Coach Beta athlete review.",
           created_at: now,
           updated_at: now
         })
@@ -1483,6 +1896,8 @@
         .single();
       if (error) throw error;
       if (data) state.interventions = [data, ...state.interventions.filter(row => row.id !== data.id)];
+      if (sourceAttention) await saveAttentionDisposition(sourceAttention, "reviewed");
+      state.pendingInterventionAttention = null;
       setStatus("Intervention created.");
       if ($("coachInterventionObservation")) $("coachInterventionObservation").value = "";
       if ($("coachInterventionAction")) $("coachInterventionAction").value = "";
@@ -1747,6 +2162,66 @@
     const interventionBuilder = event.target.closest("[data-open-intervention-builder]");
     if (interventionBuilder) {
       openInterventionBuilder(interventionBuilder.dataset.openInterventionBuilder);
+      return;
+    }
+
+    const attentionStatus = event.target.closest("[data-attention-status]");
+    if (attentionStatus) {
+      updateAttentionStatus(attentionStatus);
+      return;
+    }
+
+    const attentionNote = event.target.closest("[data-add-attention-note]");
+    if (attentionNote) {
+      openAttentionComposer("note", attentionNote.dataset.addAttentionNote);
+      return;
+    }
+
+    const attentionNudge = event.target.closest("[data-nudge-attention]");
+    if (attentionNudge) {
+      openAttentionComposer("nudge", attentionNudge.dataset.nudgeAttention);
+      return;
+    }
+
+    const attentionIntervention = event.target.closest("[data-create-attention-intervention]");
+    if (attentionIntervention) {
+      openAttentionIntervention(attentionIntervention.dataset.createAttentionIntervention);
+      return;
+    }
+
+    const submitComposer = event.target.closest("[data-submit-attention-composer]");
+    if (submitComposer) {
+      submitAttentionComposer(submitComposer);
+      return;
+    }
+
+    if (event.target.closest("[data-cancel-attention-composer]")) {
+      state.attentionComposer = null;
+      renderNeedsAttention();
+      return;
+    }
+
+    const reviewIntervention = event.target.closest("[data-review-intervention]");
+    if (reviewIntervention) {
+      openInterventionReview(reviewIntervention.dataset.reviewIntervention, reviewIntervention);
+      return;
+    }
+
+    const completeReview = event.target.closest("[data-complete-intervention-review]");
+    if (completeReview) {
+      completeInterventionReview(completeReview.dataset.completeInterventionReview, completeReview);
+      return;
+    }
+
+    if (event.target.closest("[data-cancel-intervention-review]")) {
+      state.interventionReview = null;
+      renderInterventionReview();
+      return;
+    }
+
+    const refreshInbox = event.target.closest("[data-refresh-coach-inbox]");
+    if (refreshInbox) {
+      withBusy(refreshInbox, () => loadCoachData());
       return;
     }
 
