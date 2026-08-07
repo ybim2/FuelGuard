@@ -45,6 +45,7 @@
     athleteCodeQuery: "",
     athleteCodeResult: null,
     athleteCodeStatus: "",
+    athleteCodeStatusDetail: "",
     authResolved: false,
     coachLoading: true,
     busy: false,
@@ -270,7 +271,12 @@
     if (!target) return;
     const result = state.athleteCodeResult;
     if (state.athleteCodeStatus && !result) {
-      target.innerHTML = `<p class="coach-note">${safe(state.athleteCodeStatus)}</p>`;
+      target.innerHTML = `
+        <div class="coach-code-message" role="status">
+          <strong>${safe(state.athleteCodeStatus)}</strong>
+          ${state.athleteCodeStatusDetail ? `<p>${safe(state.athleteCodeStatusDetail)}</p>` : ""}
+        </div>
+      `;
       return;
     }
     if (!result) {
@@ -1295,6 +1301,7 @@
       state.athleteCodeQuery = code;
       state.athleteCodeResult = null;
       state.athleteCodeStatus = "";
+      state.athleteCodeStatusDetail = "";
       if (!ATHLETE_CODE_RE.test(code)) {
         state.athleteCodeStatus = "Enter an Athlete Code like FG-7K42P.";
         renderAthleteCodeResult();
@@ -1306,7 +1313,14 @@
       if (error) throw error;
       const result = Array.isArray(data) ? data[0] : data;
       if (!result?.athlete_id) {
-        state.athleteCodeStatus = "No athlete found for that code.";
+        state.athleteCodeStatus = "Athlete code not found";
+        state.athleteCodeStatusDetail = "Check the code and try again.";
+        renderAthleteCodeResult();
+        return;
+      }
+      if (result.relationship_status === "self" || result.athlete_id === coachUser()?.id) {
+        state.athleteCodeStatus = "This is your Athlete Code";
+        state.athleteCodeStatusDetail = "You can't add your own athlete account as a coached athlete.";
         renderAthleteCodeResult();
         return;
       }
@@ -1329,6 +1343,9 @@
       const result = state.athleteCodeResult;
       const athleteId = String(result?.athlete_id || "");
       if (!athleteId) throw new Error("Find an athlete by Athlete Code before requesting access.");
+      if (athleteId === user.id || result?.relationship_status === "self") {
+        throw new Error("You can't add your own athlete account as a coached athlete.");
+      }
       const row = {
         coach_id: user.id,
         athlete_id: athleteId,
@@ -1345,6 +1362,7 @@
       if (error) throw error;
       state.athleteCodeResult = { ...result, relationship_status: "pending" };
       state.athleteCodeStatus = "Connection request sent. Athlete data stays private until they approve.";
+      state.athleteCodeStatusDetail = "";
       setStatus(state.athleteCodeStatus);
       await loadCoachData({ reason: "sharing-requested" });
       renderAthleteCodeResult();
@@ -1765,6 +1783,7 @@
     state.athleteCodeQuery = normalizeAthleteCode(event.target.value || "");
     state.athleteCodeResult = null;
     state.athleteCodeStatus = "";
+    state.athleteCodeStatusDetail = "";
     renderAthleteCodeResult();
   });
   $("coachAthleteCodeInput")?.addEventListener("keydown", event => {

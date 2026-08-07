@@ -1,7 +1,7 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v105-coach-platform",
-  buildVersion: "2026-08-07T17:25:40Z",
-  sourceCheckpoint: "v105-coach-platform",
-  serviceWorkerUrl: "./sw.js?v=mobile-pwa-v105-coach-platform",
-  cacheName: "fuel-guard-mobile-pwa-v105-coach-platform-20260807T172540Z"
+  canonicalApp: "mobile-pwa-v106-coach-integrated",
+  buildVersion: "2026-08-07T17:43:02Z",
+  sourceCheckpoint: "v106-coach-integrated",
+  serviceWorkerUrl: "./sw.js?v=mobile-pwa-v106-coach-integrated",
+  cacheName: "fuel-guard-mobile-pwa-v106-coach-integrated-20260807T174302Z"
 });
