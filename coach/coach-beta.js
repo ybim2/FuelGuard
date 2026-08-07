@@ -7,7 +7,8 @@
     logs: "fuel_logs",
     targets: "fuel_targets",
     reports: "fuel_coach_reports",
-    interventions: "fuel_coach_interventions"
+    interventions: "fuel_coach_interventions",
+    schedules: "fuel_coach_review_schedules"
   };
   const PATTERN_TYPES = [
     { id: "fuel", label: "Fuel", empty: "No fuel logged today", noun: "fuel log" },
@@ -35,12 +36,17 @@
     targets: [],
     reports: [],
     interventions: [],
+    schedules: [],
     roster: [],
+    weeklyBrief: null,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     currentTab: "dashboard",
     selectedAthleteId: "",
     selectedReportAthleteId: "",
+    selectedScheduleId: "",
     reportPeriod: "12_weeks",
     generatedReport: null,
+    reportSaved: false,
     selectedPattern: "fuel",
     athleteCodeQuery: "",
     athleteCodeResult: null,
@@ -102,7 +108,8 @@
     if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
-    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_find_athlete_by_code|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
+    if (/select an assigned athlete|choose a valid|custom cadence|custom report period|assemble a review|scheduled review is no longer available/i.test(message)) return message;
+    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_review_schedules|fuel_coach_find_athlete_by_code|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach access is still warming up. Refresh and try again in a moment.";
     }
     return "Coach Beta could not complete that request. Try again in a moment.";
@@ -146,6 +153,7 @@
           displayName: profileName(profile, relation),
           relationId: relation.id,
           relationStatus: relation.status,
+          sharingStartedAt: relation.accepted_at || relation.created_at || "",
           profile
         };
       });
@@ -177,11 +185,21 @@
   }
 
   function rebuildRoster() {
+    const athletes = athleteRows();
     state.roster = domain.buildCoachRoster({
-      athletes: athleteRows(),
+      athletes,
       logs: state.logs,
       targetsByUser: targetsByUser(),
       now: new Date()
+    });
+    state.weeklyBrief = domain.buildWeeklyCoachBrief({
+      athletes,
+      relationships: state.relationships,
+      coachId: coachUser()?.id || "",
+      logs: state.logs,
+      targetsByUser: targetsByUser(),
+      now: new Date(),
+      timeZone: state.timeZone
     });
     if (!state.selectedAthleteId && state.roster[0]) state.selectedAthleteId = state.roster[0].athlete.userId;
   }
@@ -287,6 +305,185 @@
       </article>
       ${state.athleteCodeStatus ? `<p class="coach-note">${safe(state.athleteCodeStatus)}</p>` : ""}
     `;
+  }
+
+  function briefMetric(label, value, detail = "") {
+    return `
+      <article class="coach-brief-metric">
+        <span>${safe(label)}</span>
+        <strong>${safe(value)}</strong>
+        ${detail ? `<small>${safe(detail)}</small>` : ""}
+      </article>
+    `;
+  }
+
+  function renderWeeklyBrief() {
+    const target = $("coachWeeklyBrief");
+    if (!target) return;
+    const brief = state.weeklyBrief;
+    if (!brief) {
+      target.innerHTML = `<section class="coach-card"><div class="coach-empty">Weekly team intelligence is loading.</div></section>`;
+      return;
+    }
+    const coverage = Number.isFinite(brief.loggingCoveragePct) ? `${brief.loggingCoveragePct}%` : "Not enough data";
+    const gapWindow = brief.biggestGapWindow?.label || "No repeated window yet";
+    const gapDetail = brief.biggestGapWindow
+      ? `${brief.biggestGapWindow.count} gaps · ${brief.biggestGapWindow.athleteCount} athletes`
+      : "Requires repeated >target gaps across athletes";
+    target.innerHTML = `
+      <section class="coach-card coach-weekly-brief">
+        <div class="coach-card-heading">
+          <span class="coach-icon">W</span>
+          <div>
+            <p class="coach-kicker">Weekly Coach Brief</p>
+            <h1>${safe(brief.period.display)}</h1>
+            <p>Previous complete Monday-Sunday · ${safe(state.timeZone)}</p>
+          </div>
+        </div>
+        <div class="coach-brief-grid">
+          ${briefMetric("Active athletes", brief.athleteCount)}
+          ${briefMetric("Logging coverage", coverage, `${brief.analytics.loggingCoverage.loggedAthleteDays} of ${brief.analytics.loggingCoverage.eligibleAthleteDays} eligible athlete-days`)}
+          ${briefMetric("Frequently exceeded", brief.frequentlyExceededCount, "At least 2 days and half of measurable days")}
+          ${briefMetric("Biggest gap window", gapWindow, gapDetail)}
+          ${briefMetric("Improved", brief.improvedCount, "Comparable week-to-week data")}
+          ${briefMetric("Deteriorated", brief.deterioratedCount, "Material adherence or gap change")}
+          ${briefMetric("Need review", brief.reviewCount, "Evidence-based review candidates")}
+        </div>
+        ${brief.limited ? `<p class="coach-limited-note">Small squad or limited logging coverage - counts are shown, but team percentages and patterns are withheld until the sample is meaningful.</p>` : ""}
+        <div class="coach-button-row">
+          <button class="primary" type="button" data-review-team>Review Team</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTeamPatterns() {
+    const target = $("coachTeamPatterns");
+    if (!target) return;
+    const analytics = state.weeklyBrief?.analytics;
+    if (!analytics) {
+      target.innerHTML = "";
+      return;
+    }
+    const candidates = analytics.reviewCandidates;
+    target.innerHTML = `
+      <section class="coach-card coach-team-intelligence">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Team Intelligence</h2>
+            <p>Repeated squad patterns are separated from individual review signals.</p>
+          </div>
+        </div>
+        <div class="coach-intelligence-grid">
+          <section class="coach-intelligence-column">
+            <div class="coach-intelligence-title"><span class="coach-chip team">Team pattern</span><strong>Operational signals</strong></div>
+            ${analytics.patterns.length ? `
+              <div class="coach-pattern-list">
+                ${analytics.patterns.map(pattern => `<article><p>${safe(pattern.label)}</p></article>`).join("")}
+              </div>
+            ` : `<div class="coach-empty compact">Not enough repeated multi-athlete data to identify a team-level pattern this week.</div>`}
+          </section>
+          <section class="coach-intelligence-column">
+            <div class="coach-intelligence-title"><span class="coach-chip individual">Individual</span><strong>Review candidates</strong></div>
+            ${candidates.length ? `
+              <div class="coach-candidate-list">
+                ${candidates.map(candidate => `
+                  <article>
+                    <div><strong>${safe(candidate.athlete.displayName || "Fuel Guard Athlete")}</strong><p>${safe(candidate.reasons.join(" · "))}</p></div>
+                    <button type="button" data-open-athlete="${safe(candidate.athleteId)}">Review</button>
+                  </article>
+                `).join("")}
+              </div>
+            ` : `<div class="coach-empty compact">No athlete meets the weekly review threshold.</div>`}
+          </section>
+        </div>
+        <p class="coach-note">Patterns describe shared timing and context. They do not establish cause, blame athletes, or provide a medical interpretation of Sleepy events.</p>
+      </section>
+    `;
+  }
+
+  function scheduleAthlete(schedule) {
+    return state.roster.find(item => String(item.athlete.userId) === String(schedule?.athlete_id)) || null;
+  }
+
+  function scheduleLabel(schedule) {
+    return domain.reviewScheduleDefinition(schedule?.review_type).label;
+  }
+
+  function sortedSchedules() {
+    return [...state.schedules].sort((a, b) => {
+      const aState = domain.scheduledReviewState(a, { now: new Date(), timeZone: state.timeZone });
+      const bState = domain.scheduledReviewState(b, { now: new Date(), timeZone: state.timeZone });
+      if (aState.due !== bState.due) return aState.due ? -1 : 1;
+      return String(aState.dueKey || "9999-12-31").localeCompare(String(bState.dueKey || "9999-12-31"));
+    });
+  }
+
+  function scheduleRow(schedule, { compact = false } = {}) {
+    const athlete = scheduleAthlete(schedule);
+    const due = domain.scheduledReviewState(schedule, { now: new Date(), timeZone: state.timeZone });
+    return `
+      <article class="coach-schedule-row ${safe(due.state)}">
+        <div>
+          <div class="coach-athlete-title">
+            <strong>${safe(athlete?.athlete.displayName || "Shared athlete")}</strong>
+            <span class="coach-status-chip ${safe(due.state)}">${safe(due.label)}</span>
+          </div>
+          <div class="coach-row-meta">
+            <span>${safe(scheduleLabel(schedule))}</span>
+            <span>${safe(due.dueKey ? `Due ${due.dueKey}` : "No next due date")}</span>
+            <span>${safe(schedule.cadence === "none" ? "One-off" : schedule.cadence === "8_weeks" ? "Every 8 weeks" : schedule.cadence === "custom_days" ? `Every ${schedule.cadence_days} days` : "Monthly")}</span>
+          </div>
+          ${!compact && schedule.coach_notes ? `<p class="coach-note">${safe(schedule.coach_notes)}</p>` : ""}
+        </div>
+        ${schedule.status === "active" ? `<button class="${due.due ? "primary" : "secondary"}" type="button" data-open-scheduled-review="${safe(schedule.id)}">${safe(due.due ? "Review due" : "Open review")}</button>` : ""}
+      </article>
+    `;
+  }
+
+  function renderDueReviews() {
+    const target = $("coachDueReviews");
+    if (!target) return;
+    const due = sortedSchedules().filter(schedule => domain.scheduledReviewState(schedule, { now: new Date(), timeZone: state.timeZone }).due);
+    if (!due.length) {
+      target.innerHTML = state.schedules.length ? `
+        <section class="coach-card coach-due-clear">
+          <div class="coach-card-heading compact"><div><h2>Scheduled Reviews</h2><p>No review is due today.</p></div></div>
+        </section>
+      ` : "";
+      return;
+    }
+    target.innerHTML = `
+      <section class="coach-card coach-due-reviews">
+        <div class="coach-card-heading compact">
+          <div><p class="coach-kicker">Review due</p><h2>${safe(due.length)} scheduled review${due.length === 1 ? "" : "s"} ready</h2><p>Open a due review to assemble the relevant athlete report from shared Fuel Guard data.</p></div>
+        </div>
+        <div class="coach-scheduled-review-list">${due.map(schedule => scheduleRow(schedule, { compact: true })).join("")}</div>
+      </section>
+    `;
+  }
+
+  function renderScheduledReviews() {
+    const target = $("coachScheduledReviewList");
+    if (!target) return;
+    const schedules = sortedSchedules();
+    target.innerHTML = schedules.length
+      ? schedules.map(schedule => scheduleRow(schedule)).join("")
+      : `<div class="coach-empty compact">No scheduled reviews yet.</div>`;
+  }
+
+  function renderScheduleDraftContext() {
+    const target = $("coachScheduleDraftContext");
+    const save = $("coachSaveReviewButton");
+    const schedule = state.schedules.find(row => row.id === state.selectedScheduleId) || null;
+    if (target) {
+      target.hidden = !schedule;
+      target.innerHTML = schedule ? `<strong>${safe(scheduleLabel(schedule))}</strong><span>Due ${safe(schedule.next_due_date)} · saving this report will complete the due review and ${schedule.cadence === "none" ? "close the schedule" : "advance the next due date"}.</span>` : "";
+    }
+    if (save) {
+      save.hidden = !state.generatedReport || state.reportSaved;
+      save.textContent = schedule ? "Save & complete review" : "Save report";
+    }
   }
 
   function renderNeedsAttention() {
@@ -777,8 +974,19 @@
       }
     }
     const today = domain.dateKey(new Date());
+    const scheduleSelect = $("coachScheduleAthlete");
+    if (scheduleSelect) {
+      scheduleSelect.innerHTML = state.roster.length
+        ? state.roster.map(item => `<option value="${safe(item.athlete.userId)}">${safe(item.athlete.displayName)}</option>`).join("")
+        : `<option value="">No assigned athletes</option>`;
+    }
+    const periodSelect = $("coachReportPeriod");
+    if (periodSelect) periodSelect.value = state.reportPeriod;
     if ($("coachReportEnd") && !$("coachReportEnd").value) $("coachReportEnd").value = today;
     if ($("coachInterventionDate") && !$("coachInterventionDate").value) $("coachInterventionDate").value = today;
+    if ($("coachScheduleDueDate") && !$("coachScheduleDueDate").value) $("coachScheduleDueDate").value = today;
+    renderScheduledReviews();
+    renderScheduleDraftContext();
     renderReportPreview();
   }
 
@@ -980,6 +1188,9 @@
   function render() {
     renderAuth();
     renderTabs();
+    renderWeeklyBrief();
+    renderTeamPatterns();
+    renderDueReviews();
     renderNeedsAttention();
     renderRoster();
     renderAthleteList();
@@ -1051,7 +1262,9 @@
         state.targets = [];
         state.reports = [];
         state.interventions = [];
+        state.schedules = [];
         state.roster = [];
+        state.weeklyBrief = null;
         state.coachLoading = false;
         setStatus("This account is signed in, but Coach Beta is not enabled for it yet.");
         render();
@@ -1073,6 +1286,7 @@
       state.targets = [];
       state.reports = [];
       state.interventions = [];
+      state.schedules = [];
 
       if (athleteIds.length) {
         const { data: profiles, error: profilesError } = await state.client
@@ -1082,14 +1296,21 @@
         if (profilesError) throw profilesError;
         state.athleteProfiles = profiles || [];
 
-        const start = domain.startOfLocalDay().toISOString();
-        const end = domain.endOfLocalDay().toISOString();
+        const weeklyPeriod = domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
+        const comparisonPeriod = domain.previousPeriodRange(weeklyPeriod);
+        const dashboardPeriod = domain.periodFromKeys(
+          comparisonPeriod.startKey,
+          domain.dateKeyInTimeZone(new Date(), state.timeZone),
+          "coach_dashboard",
+          state.timeZone
+        );
+        const dashboardBounds = domain.periodQueryBounds(dashboardPeriod, state.timeZone);
         const { data: logs, error: logsError } = await state.client
           .from(TABLES.logs)
           .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
           .in("user_id", athleteIds)
-          .gte("logged_at", start)
-          .lt("logged_at", end)
+          .gte("logged_at", dashboardBounds.start.toISOString())
+          .lt("logged_at", dashboardBounds.endExclusive.toISOString())
           .order("logged_at", { ascending: true });
         if (logsError) throw logsError;
         state.logs = (logs || []).map(domain.normalizeLog).filter(Boolean);
@@ -1128,6 +1349,15 @@
           .order("created_at", { ascending: false });
         if (interventionsError) throw interventionsError;
         state.interventions = interventions || [];
+
+        const { data: schedules, error: schedulesError } = await state.client
+          .from(TABLES.schedules)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("next_due_date", { ascending: true, nullsFirst: false });
+        if (schedulesError) throw schedulesError;
+        state.schedules = schedules || [];
       }
 
       rebuildRoster();
@@ -1340,48 +1570,82 @@
   }
 
   async function fetchAthleteLogs(athleteId, start, end) {
+    const period = domain.periodFromKeys(
+      typeof start === "string" ? start : domain.dateKeyInTimeZone(start, state.timeZone),
+      typeof end === "string" ? end : domain.dateKeyInTimeZone(end, state.timeZone),
+      "fetch",
+      state.timeZone
+    );
+    const bounds = domain.periodQueryBounds(period, state.timeZone);
     const { data, error } = await state.client
       .from(TABLES.logs)
       .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
       .eq("user_id", athleteId)
-      .gte("logged_at", domain.startOfLocalDay(domain.dateKey(start)).toISOString())
-      .lte("logged_at", domain.endOfLocalDay(domain.dateKey(end)).toISOString())
+      .gte("logged_at", bounds.start.toISOString())
+      .lt("logged_at", bounds.endExclusive.toISOString())
       .order("logged_at", { ascending: true });
     if (error) throw error;
     return (data || []).map(domain.normalizeLog).filter(Boolean);
   }
 
+  async function assembleReportDraft(period) {
+    const user = coachUser();
+    if (!user) throw new Error("Sign in first.");
+    const item = selectedReportAthlete();
+    if (!item) throw new Error("Select an assigned athlete first.");
+    const reportPeriod = period || reportPeriodFromControls();
+    const previous = domain.previousPeriodRange(reportPeriod);
+    const currentLogs = await fetchAthleteLogs(item.athlete.userId, reportPeriod.startKey, reportPeriod.endKey);
+    const previousLogs = await fetchAthleteLogs(item.athlete.userId, previous.startKey, previous.endKey);
+    const interventions = recordsForAthlete(state.interventions, item);
+    const report = domain.buildAthleteReviewReport({
+      athlete: item.athlete,
+      coach: { ...state.profile, email: user.email, id: user.id },
+      organisationName: $("coachOrganisationName")?.value?.trim() || "",
+      logs: currentLogs,
+      previousLogs,
+      targets: targetForAthlete(item.athlete.userId),
+      period: reportPeriod,
+      interventions,
+      coachNotes: $("coachReportNotes")?.value || "",
+      generatedAt: new Date(),
+      timeZone: state.timeZone
+    });
+    report.sourceLogs = currentLogs.concat(previousLogs);
+    state.generatedReport = report;
+    state.reportSaved = false;
+    setStatus("Review assembled. Interpret the evidence, add factual notes, then save.");
+    renderReportPreview();
+    renderScheduleDraftContext();
+    return report;
+  }
+
   async function generateReport() {
-    await withBusy(null, async () => {
+    await withBusy($("coachGenerateReviewButton"), async () => {
+      state.selectedScheduleId = "";
+      await assembleReportDraft(reportPeriodFromControls());
+    });
+  }
+
+  async function saveReport() {
+    await withBusy($("coachSaveReviewButton"), async () => {
       const user = coachUser();
       if (!user) throw new Error("Sign in first.");
       const item = selectedReportAthlete();
-      if (!item) throw new Error("Select an assigned athlete first.");
-      const period = reportPeriodFromControls();
-      const previous = domain.previousPeriodRange(period);
-      const currentLogs = await fetchAthleteLogs(item.athlete.userId, period.start, period.end);
-      const previousLogs = await fetchAthleteLogs(item.athlete.userId, previous.start, previous.end);
-      const interventions = recordsForAthlete(state.interventions, item);
-      const report = domain.buildAthleteReviewReport({
-        athlete: item.athlete,
-        coach: { ...state.profile, email: user.email, id: user.id },
-        organisationName: $("coachOrganisationName")?.value?.trim() || "",
-        logs: currentLogs,
-        previousLogs,
-        targets: targetForAthlete(item.athlete.userId),
-        period,
-        interventions,
-        coachNotes: $("coachReportNotes")?.value || "",
-        generatedAt: new Date()
-      });
-      report.sourceLogs = currentLogs.concat(previousLogs);
+      if (!item || !state.generatedReport) throw new Error("Assemble a review before saving.");
+      const report = {
+        ...state.generatedReport,
+        coachNotes: $("coachReportNotes")?.value?.trim() || "",
+        organisationName: $("coachOrganisationName")?.value?.trim() || state.generatedReport.organisationName || ""
+      };
+      state.generatedReport = report;
       const now = new Date().toISOString();
       const { data, error } = await state.client
         .from(TABLES.reports)
         .insert({
           coach_id: user.id,
           athlete_id: item.athlete.userId,
-          report_date: domain.dateKey(new Date()),
+          report_date: domain.dateKeyInTimeZone(new Date(), state.timeZone),
           period_start: report.period.startKey,
           period_end: report.period.endKey,
           period_type: report.period.preset,
@@ -1401,10 +1665,102 @@
         .single();
       if (error) throw error;
       if (data) state.reports = [data, ...state.reports.filter(row => row.id !== data.id)];
-      state.generatedReport = report;
-      setStatus("Athlete review report generated.");
+
+      const schedule = state.schedules.find(row => row.id === state.selectedScheduleId) || null;
+      if (schedule) {
+        const updates = domain.completeScheduledReview(schedule, {
+          completedOn: new Date(),
+          timeZone: state.timeZone,
+          reportId: data?.id || null
+        });
+        const { data: updatedSchedule, error: scheduleError } = await state.client
+          .from(TABLES.schedules)
+          .update(updates)
+          .eq("id", schedule.id)
+          .eq("coach_id", user.id)
+          .select("*")
+          .single();
+        if (scheduleError) throw scheduleError;
+        if (updatedSchedule) state.schedules = state.schedules.map(row => row.id === updatedSchedule.id ? updatedSchedule : row);
+        setStatus(updates.next_due_date ? `Review saved. Next review due ${updates.next_due_date}.` : "Review saved and one-off schedule completed.");
+      } else {
+        setStatus("Athlete review report saved.");
+      }
+      state.reportSaved = true;
+      state.selectedScheduleId = "";
+      renderScheduleDraftContext();
+      renderScheduledReviews();
+      renderDueReviews();
       renderReportPreview();
-      await loadCoachData();
+    });
+  }
+
+  async function createReviewSchedule() {
+    await withBusy($("coachCreateScheduleButton"), async () => {
+      const user = coachUser();
+      const athleteId = $("coachScheduleAthlete")?.value || "";
+      const type = $("coachScheduleType")?.value || "custom";
+      const dueDate = domain.validDateKey($("coachScheduleDueDate")?.value);
+      const reportPeriodType = $("coachSchedulePeriod")?.value || domain.reviewScheduleDefinition(type).reportPeriod;
+      const cadence = $("coachScheduleCadence")?.value || domain.reviewScheduleDefinition(type).cadence;
+      const cadenceDays = cadence === "custom_days" ? Number($("coachScheduleCadenceDays")?.value) : null;
+      const reportPeriodStart = reportPeriodType === "custom" ? domain.validDateKey($("coachSchedulePeriodStart")?.value) : "";
+      const reportPeriodEnd = reportPeriodType === "custom" ? domain.validDateKey($("coachSchedulePeriodEnd")?.value) : "";
+      if (!user || !athleteId) throw new Error("Select an assigned athlete first.");
+      if (!dueDate) throw new Error("Choose a valid next due date.");
+      if (cadence === "custom_days" && (!Number.isInteger(cadenceDays) || cadenceDays < 1 || cadenceDays > 3650)) throw new Error("Custom cadence must be between 1 and 3650 days.");
+      if (reportPeriodType === "custom" && (!reportPeriodStart || !reportPeriodEnd || reportPeriodStart > reportPeriodEnd)) throw new Error("Choose a valid custom report period.");
+      const now = new Date().toISOString();
+      const { data, error } = await state.client
+        .from(TABLES.schedules)
+        .insert({
+          coach_id: user.id,
+          athlete_id: athleteId,
+          review_type: type,
+          report_period_type: reportPeriodType,
+          report_period_start: reportPeriodStart || null,
+          report_period_end: reportPeriodEnd || null,
+          cadence,
+          cadence_days: cadenceDays,
+          due_date: dueDate,
+          next_due_date: dueDate,
+          status: "active",
+          coach_notes: $("coachScheduleNotes")?.value?.trim() || null,
+          created_at: now,
+          updated_at: now
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      if (data) state.schedules = [...state.schedules.filter(row => row.id !== data.id), data];
+      setStatus("Review scheduled. Due state will update automatically when Coach Beta loads.");
+      if ($("coachScheduleNotes")) $("coachScheduleNotes").value = "";
+      renderScheduledReviews();
+      renderDueReviews();
+    });
+  }
+
+  async function openScheduledReview(scheduleId, button) {
+    await withBusy(button, async () => {
+      const schedule = state.schedules.find(row => row.id === scheduleId);
+      const item = scheduleAthlete(schedule);
+      if (!schedule || !item) throw new Error("This scheduled review is no longer available for an active shared athlete.");
+      const period = domain.reportPeriodForSchedule(schedule, { timeZone: state.timeZone });
+      state.selectedScheduleId = schedule.id;
+      state.selectedReportAthleteId = item.athlete.userId;
+      state.selectedAthleteId = item.athlete.userId;
+      state.reportPeriod = period.preset;
+      state.generatedReport = null;
+      state.reportSaved = false;
+      state.currentTab = "reports";
+      render();
+      if ($("coachReportAthlete")) $("coachReportAthlete").value = item.athlete.userId;
+      if ($("coachReportPeriod")) $("coachReportPeriod").value = period.preset;
+      if ($("coachReportStart")) $("coachReportStart").value = period.startKey;
+      if ($("coachReportEnd")) $("coachReportEnd").value = period.endKey;
+      if ($("coachReportNotes")) $("coachReportNotes").value = schedule.coach_notes || "";
+      await assembleReportDraft(period);
+      $("coachScheduleDraftContext")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
@@ -1446,6 +1802,9 @@
 
   function openReportBuilder(athleteId) {
     state.selectedReportAthleteId = athleteId || state.selectedReportAthleteId;
+    state.selectedScheduleId = "";
+    state.generatedReport = null;
+    state.reportSaved = false;
     state.currentTab = "reports";
     render();
     $("coachReportNotes")?.focus();
@@ -1657,6 +2016,13 @@
   }
 
   document.addEventListener("click", event => {
+    if (event.target.closest("[data-review-team]")) {
+      state.currentTab = "athletes";
+      render();
+      $("coachAthleteList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     const tab = event.target.closest("[data-coach-tab]");
     if (tab) {
       state.currentTab = tab.dataset.coachTab;
@@ -1691,6 +2057,12 @@
       return;
     }
 
+    const scheduledReview = event.target.closest("[data-open-scheduled-review]");
+    if (scheduledReview) {
+      openScheduledReview(scheduledReview.dataset.openScheduledReview, scheduledReview);
+      return;
+    }
+
     const reportBuilder = event.target.closest("[data-open-report-builder]");
     if (reportBuilder) {
       openReportBuilder(reportBuilder.dataset.openReportBuilder);
@@ -1721,15 +2093,38 @@
   $("coachSaveProfileButton")?.addEventListener("click", saveProfile);
   $("coachFindAthleteButton")?.addEventListener("click", findAthleteByCode);
   $("coachGenerateReviewButton")?.addEventListener("click", generateReport);
+  $("coachSaveReviewButton")?.addEventListener("click", saveReport);
+  $("coachCreateScheduleButton")?.addEventListener("click", createReviewSchedule);
   $("coachCreateInterventionButton")?.addEventListener("click", createIntervention);
   $("coachReportAthlete")?.addEventListener("change", event => {
     state.selectedReportAthleteId = event.target.value || "";
+    state.selectedScheduleId = "";
     state.generatedReport = null;
+    state.reportSaved = false;
+    renderScheduleDraftContext();
     renderReportPreview();
   });
   $("coachReportPeriod")?.addEventListener("change", event => {
     state.reportPeriod = event.target.value || "12_weeks";
+    state.selectedScheduleId = "";
     state.generatedReport = null;
+    state.reportSaved = false;
+    renderScheduleDraftContext();
+    renderReportPreview();
+  });
+  $("coachScheduleType")?.addEventListener("change", event => {
+    const definition = domain.reviewScheduleDefinition(event.target.value);
+    if ($("coachSchedulePeriod")) $("coachSchedulePeriod").value = definition.reportPeriod;
+    if ($("coachScheduleCadence")) $("coachScheduleCadence").value = definition.cadence;
+  });
+  $("coachReportNotes")?.addEventListener("input", event => {
+    if (!state.generatedReport) return;
+    state.generatedReport = { ...state.generatedReport, coachNotes: event.target.value || "" };
+    renderReportPreview();
+  });
+  $("coachOrganisationName")?.addEventListener("input", event => {
+    if (!state.generatedReport) return;
+    state.generatedReport = { ...state.generatedReport, organisationName: event.target.value || "" };
     renderReportPreview();
   });
   $("coachAthleteCodeInput")?.addEventListener("input", event => {
