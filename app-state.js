@@ -20,6 +20,7 @@ const DEFAULT_STATE = {
     planRealism: {},
     graphMode: "fuel",
     fuelWindowMinutes: 720,
+    maximumFuelGapMinutes: 180,
     thresholds: {
       greenMinutes: FUEL_GREEN_LIMIT_MINUTES,
       redMinutes: FUEL_RED_LIMIT_MINUTES,
@@ -96,6 +97,9 @@ function load() {
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)
           : defaults.fuelGap.fuelWindowMinutes,
+        maximumFuelGapMinutes: Number.isFinite(Number(parsedFuelGap.maximumFuelGapMinutes))
+          ? Number(parsedFuelGap.maximumFuelGapMinutes)
+          : defaults.fuelGap.maximumFuelGapMinutes,
         thresholds: {
           ...defaults.fuelGap.thresholds,
           ...(isPlainObject(parsedFuelGap.thresholds) ? parsedFuelGap.thresholds : {})
@@ -204,6 +208,9 @@ function fuelGapState() {
   if (!isPlainObject(state.fuelGap.planRealism)) state.fuelGap.planRealism = {};
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
     state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
+  }
+  if (!Number.isFinite(Number(state.fuelGap.maximumFuelGapMinutes))) {
+    state.fuelGap.maximumFuelGapMinutes = DEFAULT_STATE.fuelGap.maximumFuelGapMinutes;
   }
   if (!isPlainObject(state.fuelGap.thresholds)) state.fuelGap.thresholds = { ...DEFAULT_STATE.fuelGap.thresholds };
   state.fuelGap.thresholds = {
@@ -320,8 +327,9 @@ function minutesSinceLastFuel(now = new Date()) {
 
 function fuelGapStatus(minutes) {
   const thresholds = fuelGapState().thresholds || DEFAULT_STATE.fuelGap.thresholds;
-  const greenMinutes = Number(thresholds.greenMinutes || FUEL_GREEN_LIMIT_MINUTES);
-  const redMinutes = Math.max(Number(thresholds.redMinutes || FUEL_RED_LIMIT_MINUTES), greenMinutes + 30);
+  const goalMinutes = Math.min(240, Math.max(120, Number(fuelGapState().maximumFuelGapMinutes || thresholds.redMinutes || FUEL_RED_LIMIT_MINUTES)));
+  const greenMinutes = Math.max(30, Math.min(goalMinutes - 15, Math.round(goalMinutes * 0.8)));
+  const redMinutes = goalMinutes;
   const crashMinutes = Math.max(Number(thresholds.crashMinutes || FUEL_CRASH_LIMIT_MINUTES), redMinutes + 15);
   if (!Number.isFinite(minutes)) return "red";
   if (minutes < greenMinutes) return "green";

@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v91-fuelling-pattern-chart";
-const BUILD_VERSION = "2026-08-07T07:34:09Z";
+const APP_VERSION = "mobile-pwa-v92-history-goals";
+const BUILD_VERSION = "2026-08-07T08:09:43Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v91-fuelling-pattern-chart-20260807T073409Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v92-history-goals-20260807T080943Z";
 const APP_SHELL = [
   "./",
   "./index.html",

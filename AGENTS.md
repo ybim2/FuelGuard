@@ -7,14 +7,13 @@ Source of truth
 The canonical Fuel Guard app is the mobile-first PWA with these main bottom tabs:
 
 - Log
-- Insights
 - History
 
 Settings opens from the sticky top header.
 
 Do not use, recreate, or rebuild from the old web PWA design. Do not edit archived or deprecated frontend versions. Do not create a new frontend unless the user explicitly asks for one.
 
-All UI work must be applied to the canonical mobile PWA. Account/login setup belongs inside Settings unless explicitly changed. The chronological Fuelling Patterns bar chart belongs on Log below Today’s Progress; Weekly Summary, Personalised Insights and Garmin signals when evidence exists belong in Insights; period navigation plus Fuel Window / Gap Window review belong in History, not in a new desktop-style frontend.
+All UI work must be applied to the canonical mobile PWA. Account/login setup belongs inside Settings unless explicitly changed. Today’s status, today-only Fuelling Patterns and the expanded timeline with compact fuel/hydration/undo actions belong on Log. Week/month pattern review belongs in History, not in a new desktop-style frontend.
 
 Before making UI changes, confirm the canonical entry point and active components. Keep the current mobile-first design style.
 
@@ -34,7 +33,7 @@ These old parked features have been removed from the active app and must not be 
 Mobile PWA update rules
 -----------------------
 
-- The canonical app is the mobile PWA with Log, Insights, and History in bottom navigation, plus Settings from the sticky header.
+- The canonical app is the mobile PWA with Log and History in bottom navigation, plus Settings from the sticky header.
 - The deployed Vercel URL is the source for the installed mobile PWA.
 - Settings must show the canonical marker and current build version so Safari and the installed PWA can be compared after deploys.
 - Service worker caches must be versioned for every deployed app-shell update.
@@ -48,9 +47,8 @@ Canonical files
 - Main entry point: `index.html`
 - App/root component: the static `body.beta-mvp` app shell in `index.html`
 - Routing/navigation: `index.html` nav buttons, base `switchScreen` in `app-ui.js`, and mobile PWA overrides in `fuel-beta.js`
-- Log screen: `#dashboard` in `index.html`, behavior in `fuel-beta.js`, support state in `app-state.js`, styling in `fuel-beta.css`, `mobile-pwa.css`, and `mobile-ux-overrides.css`; the fuel/hydration/undo actions live compactly inside Today’s Timeline and Fuelling Patterns sits below Today’s Progress.
-- Insights screen: `#insights` in `index.html`, Weekly Summary, Personalised Insights and Garmin signal behavior in `fuel-beta.js`
-- History screen: `#history` in `index.html`, compact week/month navigation plus Fuel Window / Gap Window history behavior in `fuel-beta.js`
+- Log screen: `#dashboard` in `index.html`, behavior in `fuel-beta.js`, support state in `app-state.js`, styling in `fuel-beta.css`, `mobile-pwa.css`, and `mobile-ux-overrides.css`; the fuel/hydration/undo actions live compactly inside Today’s Timeline and Fuelling Patterns uses today’s fuel logs only.
+- History screen: `#history` in `index.html`, compact week/month navigation plus Fuel Log Frequency, First Fuel Time, Final Fuel Time and Most Common Fuel-Gap Window graphs in `fuel-beta.js`
 - Settings screen: `#checklist` in `index.html`, behavior in `fuel-beta.js` and `fuel-beta-ui-polish.js`
 - PWA manifest: `manifest.webmanifest`
 - Service worker/PWA config: `sw.js` and registration in `app-pwa.js`
