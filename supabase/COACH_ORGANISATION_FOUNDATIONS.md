@@ -1,6 +1,8 @@
 # Coach organisational foundations
 
-Apply `migrations/20260807172224_coach_organisation_foundations.sql` after the existing Fuel Guard log, target, and Coach Beta schemas.
+Apply `migrations/20260807172400_coach_organisation_foundations.sql` after the existing Fuel Guard log, target, and Coach Beta schemas.
+
+Apply `migrations/20260807181022_coach_relationship_identity_hardening.sql` afterwards. It makes coach/athlete relationship IDs immutable, preserves sharing audit rows through revocation, and keeps revoked team-roster rows manageable for an authorised reactivation.
 
 ## Authorization invariant
 
@@ -116,4 +118,4 @@ New notes and schedule changes are immediately queryable through the Data API. C
 ## Tests
 
 - `tests/coach-organisation-foundations.test.js` checks the migration's objects, grants, indexes, RLS composition, adapter boundary, and lack of Garmin/service-role coupling.
-- `supabase/tests/coach_organisation_foundations_rls_test.sql` is a 47-assertion pgTAP suite covering authorised collaboration, cross-coach/cross-athlete/cross-organisation isolation, UUID-only attacks, revocation, non-authorising groups, assignment access, manual updates, upcoming queries, and UTC/local-date boundaries.
+- `supabase/tests/coach_organisation_foundations_rls_test.sql` is a 50-assertion pgTAP suite covering authorised collaboration, cross-coach/cross-athlete/cross-organisation isolation, UUID-only attacks, revocation, immutable sharing identities, roster reactivation, non-authorising groups, assignment access, manual updates, upcoming queries, and UTC/local-date boundaries.

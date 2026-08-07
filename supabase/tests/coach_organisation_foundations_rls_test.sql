@@ -1,5 +1,5 @@
 begin;
-select plan(47);
+select plan(50);
 
 -- Fixed identities make policy failures easy to diagnose.
 insert into auth.users (
@@ -447,6 +447,33 @@ select results_eq(
     where id = '50000000-0000-0000-0000-000000000001'$$,
   $$values (null::uuid, 1::bigint)$$,
   'Deleting a group clears its optional session link without deleting the session'
+);
+
+-- 48: participants may change relationship state, but never repoint its identity.
+select throws_ok(
+  $$update public.fuel_coach_athletes
+    set athlete_id = '10000000-0000-0000-0000-000000000102'
+    where coach_id = '10000000-0000-0000-0000-000000000001'
+      and athlete_id = '10000000-0000-0000-0000-000000000101'$$,
+  '42501', null,
+  'Coach cannot repoint an existing relationship to another athlete'
+);
+
+-- 49-50: revoked team membership remains visible to authorised staff so the
+-- existing audit row can be safely reactivated after direct sharing is restored.
+select lives_ok(
+  $$update public.fuel_team_athletes
+    set status = 'revoked', revoked_at = now()
+    where team_id = '30000000-0000-0000-0000-000000000001'
+      and athlete_id = '10000000-0000-0000-0000-000000000101'$$,
+  'Authorised contributor can revoke a team roster row'
+);
+select lives_ok(
+  $$update public.fuel_team_athletes
+    set status = 'active', joined_at = coalesce(joined_at, now()), revoked_at = null
+    where team_id = '30000000-0000-0000-0000-000000000001'
+      and athlete_id = '10000000-0000-0000-0000-000000000101'$$,
+  'Authorised contributor can reactivate the existing team roster row'
 );
 
 select * from finish();

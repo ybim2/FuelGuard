@@ -11,7 +11,17 @@
     attentionActions: "fuel_coach_attention_actions",
     notes: "fuel_coach_notes",
     nudges: "fuel_coach_nudges",
-    schedules: "fuel_coach_review_schedules"
+    schedules: "fuel_coach_review_schedules",
+    organisations: "fuel_organisations",
+    teams: "fuel_teams",
+    teamStaff: "fuel_team_staff",
+    teamAthletes: "fuel_team_athletes",
+    staffNotes: "fuel_staff_notes",
+    savedGroups: "fuel_saved_groups",
+    savedGroupMembers: "fuel_saved_group_members",
+    trainingSessions: "fuel_training_sessions",
+    trainingAssignments: "fuel_training_session_athletes",
+    trainingContext: "fuel_training_operational_context"
   };
   const PATTERN_TYPES = [
     { id: "fuel", label: "Fuel", empty: "No fuel logged today", noun: "fuel log" },
@@ -49,6 +59,18 @@
     pendingInterventionAttention: null,
     interventionReview: null,
     schedules: [],
+    organisations: [],
+    teams: [],
+    teamStaff: [],
+    teamAthletes: [],
+    staffNotes: [],
+    savedGroups: [],
+    savedGroupMembers: [],
+    trainingSessions: [],
+    trainingAssignments: [],
+    trainingContext: [],
+    organisationFeaturesReady: true,
+    selectedGroupId: "",
     roster: [],
     weeklyBrief: null,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -131,8 +153,8 @@
     if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
-    if (/select an assigned athlete|choose a valid|custom cadence|custom report period|assemble a review|scheduled review is no longer available/i.test(message)) return message;
-    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_attention_actions|fuel_coach_notes|fuel_coach_nudges|fuel_coach_review_schedules|fuel_coach_find_athlete_by_code|fuel_coach_data_health|fuel_coach_refresh_due_interventions|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
+    if (/enter an email and password|enter your email before|sign in first|select an assigned athlete|choose a valid|custom cadence|custom report period|assemble a review|scheduled review is no longer available|enter a group name|enter an organisation name|enter a team name|choose a team|choose an actively shared athlete|choose at least one authorised athlete|valid session start and end|local time does not exist|find an athlete by athlete code|can't add your own athlete|attention action unavailable|attention item has changed|attention action is no longer available|enter a nudge message|enter a note|enter a shared staff note|shared note access is no longer available|intervention not found|open an intervention review first/i.test(message)) return message;
+    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_attention_actions|fuel_coach_notes|fuel_coach_nudges|fuel_coach_review_schedules|fuel_organisations|fuel_teams|fuel_team_|fuel_staff_notes|fuel_saved_group|fuel_training_|fuel_coach_find_athlete_by_code|fuel_coach_data_health|fuel_coach_refresh_due_interventions|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach access is still warming up. Refresh and try again in a moment.";
     }
     return "Coach Beta could not complete that request. Try again in a moment.";
@@ -182,6 +204,24 @@
       });
   }
 
+  function selectedGroup() {
+    return state.savedGroups.find(group => String(group.id) === String(state.selectedGroupId)) || null;
+  }
+
+  function groupAthleteIds(groupId = state.selectedGroupId) {
+    if (!groupId) return null;
+    return new Set(state.savedGroupMembers
+      .filter(member => String(member.group_id) === String(groupId))
+      .map(member => String(member.athlete_id)));
+  }
+
+  function scopedAthleteRows() {
+    const athletes = athleteRows();
+    const allowed = groupAthleteIds();
+    if (!allowed) return athletes;
+    return athletes.filter(athlete => allowed.has(String(athlete.userId)));
+  }
+
   function relationshipRows() {
     const profileById = new Map(state.athleteProfiles.map(profile => [profile.user_id, profile]));
     return state.relationships.map(relation => {
@@ -209,7 +249,8 @@
 
   function rebuildRoster() {
     const previousAthleteId = state.selectedAthleteId;
-    const athletes = athleteRows();
+    if (state.selectedGroupId && !selectedGroup()) state.selectedGroupId = "";
+    const athletes = scopedAthleteRows();
     state.roster = domain.buildCoachRoster({
       athletes,
       logs: state.logs,
@@ -233,7 +274,7 @@
 
   function rebuildOperationalData() {
     state.teamDataHealth = domain.buildTeamDataHealth({
-      athletes: athleteRows(),
+      athletes: scopedAthleteRows(),
       rows: state.dataHealthRows,
       now: new Date()
     });
@@ -241,6 +282,7 @@
       roster: state.roster,
       dataHealth: state.teamDataHealth,
       interventions: state.interventions,
+      trainingContext: state.trainingContext,
       actions: state.attentionActions,
       now: new Date()
     });
@@ -364,6 +406,23 @@
     `;
   }
 
+  function renderGroupFilter() {
+    const target = $("coachGroupFilter");
+    if (!target) return;
+    const group = selectedGroup();
+    const visibleMembers = group ? scopedAthleteRows().length : state.roster.length;
+    target.innerHTML = `
+      <div>
+        <label for="coachActiveGroupFilter">Roster scope</label>
+        <select id="coachActiveGroupFilter">
+          <option value="">All active athletes</option>
+          ${state.savedGroups.map(item => `<option value="${safe(item.id)}"${String(item.id) === String(state.selectedGroupId) ? " selected" : ""}>${safe(item.name)}</option>`).join("")}
+        </select>
+      </div>
+      <p>${group ? `${safe(group.name)} · ${safe(visibleMembers)} currently authorised athlete${visibleMembers === 1 ? "" : "s"}` : `${safe(state.roster.length)} active athlete${state.roster.length === 1 ? "" : "s"}`} · Group membership never overrides sharing access.</p>
+    `;
+  }
+
   function renderWeeklyBrief() {
     const target = $("coachWeeklyBrief");
     if (!target) return;
@@ -458,7 +517,8 @@
   }
 
   function sortedSchedules() {
-    return [...state.schedules].sort((a, b) => {
+    const rosterIds = new Set(state.roster.map(item => String(item.athlete.userId)));
+    return state.schedules.filter(schedule => !state.selectedGroupId || rosterIds.has(String(schedule.athlete_id))).sort((a, b) => {
       const aState = domain.scheduledReviewState(a, { now: new Date(), timeZone: state.timeZone });
       const bState = domain.scheduledReviewState(b, { now: new Date(), timeZone: state.timeZone });
       if (aState.due !== bState.due) return aState.due ? -1 : 1;
@@ -922,9 +982,10 @@
 
   function comparisonDelta(item) {
     if (!Number.isFinite(item.difference)) return "";
-    if (item.unit === "minutes") return `${item.difference > 0 ? "+" : ""}${domain.duration(Math.abs(item.difference))}`;
+    const sign = item.difference > 0 ? "+" : item.difference < 0 ? "-" : "";
+    if (item.unit === "minutes") return `${sign}${domain.duration(Math.abs(item.difference))}`;
     if (item.unit === "%") return `${item.difference > 0 ? "+" : ""}${Math.round(item.difference)} percentage points`;
-    return `${item.difference > 0 ? "+" : ""}${Math.round(item.difference)}`;
+    return `${sign}${Math.abs(Math.round(item.difference))}`;
   }
 
   function renderMiniTrendChart(report) {
@@ -1107,6 +1168,17 @@
     return String(Math.round(value * 10) / 10);
   }
 
+  function interventionMetricSnapshot(metrics = {}) {
+    return {
+      averageGapMinutes: metrics.fuelling?.averageGapMinutes,
+      longestGapMinutes: metrics.fuelling?.longestGapMinutes,
+      targetAdherencePct: metrics.consistency?.targetAdherencePct,
+      gapsExceedingTarget: metrics.fuelling?.gapsExceedingTarget,
+      loggingCoveragePct: metrics.coverage?.loggedPct,
+      sleepyEvents: metrics.sleepy?.total
+    };
+  }
+
   function renderInterventionReview() {
     const target = $("coachInterventionReview");
     if (!target) return;
@@ -1116,6 +1188,8 @@
       return;
     }
     const comparison = review.comparison;
+    const before = interventionMetricSnapshot(comparison.before);
+    const after = interventionMetricSnapshot(comparison.after);
     const metrics = [
       ["Average fuel gap", "averageGapMinutes", "minutes"],
       ["Longest fuel gap", "longestGapMinutes", "minutes"],
@@ -1139,8 +1213,8 @@
           ${metrics.map(([label, key, unit]) => `
             <div class="coach-before-after-row">
               <span>${safe(label)}</span>
-              <strong>${safe(interventionMetricValue(comparison.before[key], unit))}</strong>
-              <strong>${safe(interventionMetricValue(comparison.after[key], unit))}</strong>
+              <strong>${safe(interventionMetricValue(before[key], unit))}</strong>
+              <strong>${safe(interventionMetricValue(after[key], unit))}</strong>
             </div>
           `).join("")}
         </div>
@@ -1335,6 +1409,7 @@
       </section>
 
       ${renderCoachActions(item)}
+      ${renderSharedStaffContext(item)}
     `;
   }
 
@@ -1368,6 +1443,201 @@
       : `<div class="coach-empty">No relationships yet. Ask an athlete for their Fuel Guard Athlete Code to connect.</div>`;
   }
 
+  function organisationForTeam(team) {
+    return state.organisations.find(item => String(item.id) === String(team?.organisation_id)) || null;
+  }
+
+  function currentStaffForTeam(teamId) {
+    const userId = coachUser()?.id || "";
+    return state.teamStaff.find(staff => String(staff.team_id) === String(teamId) && String(staff.user_id) === String(userId) && staff.status === "active") || null;
+  }
+
+  function canContributeToTeam(teamId) {
+    return ["contributor", "manager"].includes(currentStaffForTeam(teamId)?.access_level);
+  }
+
+  function activeTeamAthletes(teamId) {
+    const authorised = new Set(athleteRows().map(athlete => String(athlete.userId)));
+    return state.teamAthletes.filter(member => (
+      String(member.team_id) === String(teamId)
+      && member.status === "active"
+      && authorised.has(String(member.athlete_id))
+    ));
+  }
+
+  function athleteName(athleteId) {
+    return athleteRows().find(item => String(item.userId) === String(athleteId))?.displayName || `Athlete ${String(athleteId || "").slice(0, 8)}`;
+  }
+
+  function renderTeamSetup() {
+    const target = $("coachTeamSetup");
+    if (!target) return;
+    if (!state.organisationFeaturesReady) {
+      target.innerHTML = `<section class="coach-card"><div class="coach-empty">Team, shared-note, group, and schedule storage is not available in this Supabase environment yet.</div></section>`;
+      return;
+    }
+    const organisationOptions = state.organisations.map(item => `<option value="${safe(item.id)}">${safe(item.name)}</option>`).join("");
+    target.innerHTML = `
+      <section class="coach-card">
+        <div class="coach-card-heading compact"><div><h2>Team setup</h2><p>Teams provide context for shared staff notes and training schedules. Direct athlete sharing is still required.</p></div></div>
+        <div class="coach-form-grid">
+          <label>New organisation<input id="coachNewOrganisationName" type="text" maxlength="160" placeholder="Organisation name"></label>
+          <div class="coach-code-action"><button class="secondary" type="button" data-create-organisation>Create organisation</button></div>
+          <label>Organisation<select id="coachNewTeamOrganisation">${organisationOptions || `<option value="">Create an organisation first</option>`}</select></label>
+          <label>Team name<input id="coachNewTeamName" type="text" maxlength="160" placeholder="Team name"></label>
+          <label>Team timezone<input id="coachNewTeamTimezone" type="text" maxlength="80" value="${safe(state.timeZone)}" placeholder="Europe/London"></label>
+          <div class="coach-code-action"><button class="secondary" type="button" data-create-team ${state.organisations.length ? "" : "disabled"}>Create team</button></div>
+        </div>
+        <div class="coach-team-list">
+          ${state.teams.length ? state.teams.map(team => {
+            const assigned = new Set(activeTeamAthletes(team.id).map(member => String(member.athlete_id)));
+            return `
+              <article class="coach-team-card">
+                <div><strong>${safe(team.name)}</strong><p>${safe(organisationForTeam(team)?.name || "Organisation")} · ${safe(team.timezone_name)}</p></div>
+                <div class="coach-membership-list">
+                  ${athleteRows().length ? athleteRows().map(athlete => `
+                    <label><input type="checkbox" data-team-athlete-team="${safe(team.id)}" data-team-athlete-id="${safe(athlete.userId)}" ${assigned.has(String(athlete.userId)) ? "checked" : ""} ${canContributeToTeam(team.id) ? "" : "disabled"}> ${safe(athlete.displayName)}</label>
+                  `).join("") : `<span class="coach-note">Connect an athlete before assigning the team roster.</span>`}
+                </div>
+              </article>
+            `;
+          }).join("") : `<div class="coach-empty compact">No teams yet.</div>`}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSavedGroups() {
+    const target = $("coachSavedGroups");
+    if (!target) return;
+    if (!state.organisationFeaturesReady) {
+      target.innerHTML = "";
+      return;
+    }
+    target.innerHTML = `
+      <section class="coach-card">
+        <div class="coach-card-heading compact"><div><h2>Saved groups</h2><p>Create reusable roster scopes for the dashboard, Needs Attention, and team analytics.</p></div></div>
+        <div class="coach-form-grid coach-group-create-grid">
+          <label>Group name<input id="coachNewGroupName" type="text" maxlength="100" placeholder="e.g. Academy squad"></label>
+          <div class="coach-code-action"><button class="secondary" type="button" data-create-saved-group>Create group</button></div>
+        </div>
+        <div class="coach-group-list">
+          ${state.savedGroups.length ? state.savedGroups.map(group => {
+            const members = groupAthleteIds(group.id) || new Set();
+            const editable = group.scope === "personal" || canContributeToTeam(group.team_id);
+            return `
+              <article class="coach-group-card">
+                <div class="coach-group-heading">
+                  <input type="text" maxlength="100" value="${safe(group.name)}" aria-label="Group name" data-group-name-input="${safe(group.id)}" ${editable ? "" : "readonly"}>
+                  <span>${safe(group.scope === "team" ? "Team group" : "Personal group")}</span>
+                </div>
+                <div class="coach-membership-list">
+                  ${athleteRows().length ? athleteRows().map(athlete => `
+                    <label><input type="checkbox" data-group-member-group="${safe(group.id)}" data-group-member-athlete="${safe(athlete.userId)}" ${members.has(String(athlete.userId)) ? "checked" : ""} ${editable ? "" : "disabled"}> ${safe(athlete.displayName)}</label>
+                  `).join("") : `<span class="coach-note">No actively shared athletes are available.</span>`}
+                </div>
+                ${editable ? `<div class="coach-button-row"><button class="secondary" type="button" data-rename-saved-group="${safe(group.id)}">Save name</button><button class="secondary danger-secondary" type="button" data-delete-saved-group="${safe(group.id)}">Delete group</button></div>` : ""}
+              </article>
+            `;
+          }).join("") : `<div class="coach-empty compact">No saved groups yet.</div>`}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSharedStaffContext(item) {
+    if (!state.organisationFeaturesReady) return "";
+    const memberships = state.teamAthletes.filter(member => member.status === "active" && String(member.athlete_id) === String(item.athlete.userId));
+    const teams = memberships.map(member => state.teams.find(team => String(team.id) === String(member.team_id))).filter(Boolean);
+    if (!teams.length) return `
+      <section class="coach-card"><div class="coach-card-heading compact"><div><h2>Shared staff context</h2><p>Add this athlete to an authorised team in Settings to share immutable staff notes.</p></div></div><div class="coach-empty compact">No authorised team context for this athlete.</div></section>
+    `;
+    const notes = state.staffNotes.filter(note => String(note.athlete_id) === String(item.athlete.userId));
+    const contributorTeams = teams.filter(team => canContributeToTeam(team.id));
+    return `
+      <section class="coach-card">
+        <div class="coach-card-heading compact"><div><h2>Shared staff context</h2><p>Immutable notes visible only to authorised team staff who also retain direct athlete sharing.</p></div></div>
+        ${contributorTeams.length ? `
+          <div class="coach-form-grid">
+            <label>Team<select id="coachStaffNoteTeam">${contributorTeams.map(team => `<option value="${safe(team.id)}">${safe(team.name)}</option>`).join("")}</select></label>
+            <label>Category<select id="coachStaffNoteCategory"><option value="general">General</option><option value="nutrition_reviewed">Nutrition reviewed</option><option value="coach_contact">Coach contact</option><option value="travel_plan">Travel plan</option><option value="training">Training</option><option value="other">Other</option></select></label>
+          </div>
+          <label class="coach-textarea-label">Shared note<textarea id="coachStaffNoteText" rows="3" maxlength="4000" placeholder="Factual context for authorised staff"></textarea></label>
+          <div class="coach-button-row"><button class="secondary" type="button" data-create-staff-note="${safe(item.athlete.userId)}">Add shared note</button></div>
+        ` : `<p class="coach-note">You have view-only team access. Existing notes remain visible, but you cannot add one.</p>`}
+        <div class="coach-staff-note-list">
+          ${notes.length ? notes.map(note => {
+            const team = state.teams.find(row => String(row.id) === String(note.team_id));
+            const organisation = state.organisations.find(row => String(row.id) === String(note.organisation_id));
+            return `<article><div><strong>${safe(note.author_display_name || "Fuel Guard Staff")}</strong><span>${safe(note.category.replace(/_/g, " "))}</span></div><p>${safe(note.note_text)}</p><time>${safe(organisation?.name || "Organisation")} · ${safe(team?.name || "Team")} · ${safe(domain.dateKey(note.created_at))} ${safe(domain.formatClock(note.created_at))}</time></article>`;
+          }).join("") : `<div class="coach-empty compact">No shared staff notes yet.</div>`}
+        </div>
+      </section>
+    `;
+  }
+
+  function sessionAssignments(sessionId) {
+    return state.trainingAssignments.filter(assignment => String(assignment.session_id) === String(sessionId));
+  }
+
+  function trainingAssignmentOptions(teamId) {
+    const memberIds = new Set(activeTeamAthletes(teamId).map(member => String(member.athlete_id)));
+    const athletes = athleteRows().filter(athlete => memberIds.has(String(athlete.userId)));
+    const groups = state.savedGroups.filter(group => {
+      const members = groupAthleteIds(group.id) || new Set();
+      return [...members].some(athleteId => memberIds.has(String(athleteId)));
+    });
+    return [
+      `<option value="team">Entire authorised team roster</option>`,
+      ...athletes.map(athlete => `<option value="athlete:${safe(athlete.userId)}">Athlete · ${safe(athlete.displayName)}</option>`),
+      ...groups.map(group => `<option value="group:${safe(group.id)}">Saved group · ${safe(group.name)}</option>`)
+    ].join("");
+  }
+
+  function renderTrainingSchedule() {
+    const target = $("coachTrainingSchedule");
+    if (!target) return;
+    if (!state.organisationFeaturesReady) {
+      target.innerHTML = "";
+      return;
+    }
+    const writableTeams = state.teams.filter(team => canContributeToTeam(team.id));
+    const firstTeam = writableTeams[0] || state.teams[0] || null;
+    const assignmentOptions = trainingAssignmentOptions(firstTeam?.id || "");
+    const start = new Date(Date.now() + 3600000);
+    start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0);
+    const end = new Date(start.getTime() + 90 * 60000);
+    const initialTimeZone = firstTeam?.timezone_name || state.timeZone;
+    const localValue = date => {
+      const parts = domain.zonedDateParts(date, initialTimeZone);
+      return `${domain.dateKeyInTimeZone(date, initialTimeZone)}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+    };
+    target.innerHTML = `
+      <section class="coach-card">
+        <div class="coach-card-heading compact"><div><h2>Training schedule</h2><p>Manual operational context. Schedules do not change athlete thresholds or prescribe nutrition.</p></div></div>
+        ${writableTeams.length ? `
+          <div class="coach-form-grid">
+            <label>Team<select id="coachTrainingTeam">${writableTeams.map(team => `<option value="${safe(team.id)}">${safe(team.name)}</option>`).join("")}</select></label>
+            <label>Assignment<select id="coachTrainingAssignment">${assignmentOptions}</select></label>
+            <label>Session name<input id="coachTrainingName" type="text" maxlength="160" placeholder="Morning training"></label>
+            <label>Session type<input id="coachTrainingType" type="text" maxlength="80" value="training"></label>
+            <label>Starts<input id="coachTrainingStarts" type="datetime-local" value="${safe(localValue(start))}"></label>
+            <label>Ends<input id="coachTrainingEnds" type="datetime-local" value="${safe(localValue(end))}"></label>
+            <label>Timezone<input id="coachTrainingTimezone" type="text" maxlength="80" value="${safe(initialTimeZone)}"></label>
+            <label>Location<input id="coachTrainingLocation" type="text" maxlength="160" placeholder="Optional"></label>
+          </div>
+          <div class="coach-button-row"><button class="secondary" type="button" data-create-training-session>Create session</button></div>
+        ` : `<div class="coach-empty compact">Create a team with contributor access in Settings before adding a session.</div>`}
+        <div class="coach-training-list">
+          ${state.trainingSessions.length ? state.trainingSessions.map(session => {
+            const assignments = sessionAssignments(session.id);
+            return `<article><div><strong>${safe(session.session_name || session.session_type)}</strong><p>${safe(state.teams.find(team => String(team.id) === String(session.team_id))?.name || "Team")} · ${safe(session.timezone_name)}</p></div><time>${safe(session.session_date)} · ${safe(domain.formatClockInTimeZone(session.starts_at, session.timezone_name))}-${safe(domain.formatClockInTimeZone(session.ends_at, session.timezone_name))}</time><span>${safe(assignments.length)} authorised athlete${assignments.length === 1 ? "" : "s"}</span></article>`;
+          }).join("") : `<div class="coach-empty compact">No upcoming sessions in the next 14 days.</div>`}
+        </div>
+      </section>
+    `;
+  }
+
   function renderSettings() {
     const user = coachUser();
     const displayName = $("coachDisplayName");
@@ -1375,6 +1645,8 @@
     if (displayName && document.activeElement !== displayName) displayName.value = state.profile?.display_name || "";
     if (userId) userId.value = user?.id || "";
     renderRelationships();
+    renderTeamSetup();
+    renderSavedGroups();
   }
 
   function renderAuth() {
@@ -1382,6 +1654,7 @@
     const authPanel = $("coachAuthPanel");
     const accessPanel = $("coachAccessPanel");
     const appShell = $("coachAppShell");
+    const globalStatus = $("coachGlobalStatus");
     const signedIn = Boolean(coachUser());
     const coachReady = signedIn && isCoachEnabled();
     const loading = !state.authResolved || state.coachLoading;
@@ -1389,6 +1662,7 @@
     if (authPanel) authPanel.hidden = loading || signedIn;
     if (accessPanel) accessPanel.hidden = loading || !signedIn || coachReady || !state.coachAccessBlocked;
     if (appShell) appShell.hidden = loading || !coachReady;
+    if (globalStatus) globalStatus.hidden = loading || !coachReady;
   }
 
   function renderTabs() {
@@ -1403,6 +1677,7 @@
   function render() {
     renderAuth();
     renderTabs();
+    renderGroupFilter();
     renderWeeklyBrief();
     renderTeamPatterns();
     renderDueReviews();
@@ -1413,6 +1688,7 @@
     renderAthleteDetail();
     renderReportControls();
     renderInterventionReview();
+    renderTrainingSchedule();
     renderSettings();
   }
 
@@ -1459,6 +1735,101 @@
     return state.profile;
   }
 
+  function resetOrganisationData() {
+    state.organisations = [];
+    state.teams = [];
+    state.teamStaff = [];
+    state.teamAthletes = [];
+    state.staffNotes = [];
+    state.savedGroups = [];
+    state.savedGroupMembers = [];
+    state.trainingSessions = [];
+    state.trainingAssignments = [];
+    state.trainingContext = [];
+    state.organisationFeaturesReady = true;
+    state.selectedGroupId = "";
+  }
+
+  function organisationFoundationMissing(error) {
+    return /fuel_organisations|fuel_teams|fuel_team_staff|fuel_team_athletes|fuel_staff_notes|fuel_saved_groups|fuel_saved_group_members|fuel_training_sessions|fuel_training_session_athletes|fuel_training_operational_context|does not exist|schema cache/i.test(String(error?.message || ""));
+  }
+
+  async function loadOrganisationData(user, athleteIds) {
+    const previousGroupId = state.selectedGroupId;
+    resetOrganisationData();
+    try {
+      const organisationsResult = await state.client.from(TABLES.organisations).select("*").order("name", { ascending: true });
+      if (organisationsResult.error) throw organisationsResult.error;
+      state.organisations = organisationsResult.data || [];
+
+      const teamsResult = await state.client.from(TABLES.teams).select("*").order("name", { ascending: true });
+      if (teamsResult.error) throw teamsResult.error;
+      state.teams = teamsResult.data || [];
+
+      const groupsResult = await state.client.from(TABLES.savedGroups).select("*").order("name", { ascending: true });
+      if (groupsResult.error) throw groupsResult.error;
+      state.savedGroups = groupsResult.data || [];
+      state.selectedGroupId = state.savedGroups.some(group => String(group.id) === String(previousGroupId)) ? previousGroupId : "";
+
+      const groupIds = state.savedGroups.map(group => group.id);
+      if (groupIds.length) {
+        const membersResult = await state.client.from(TABLES.savedGroupMembers).select("*").in("group_id", groupIds);
+        if (membersResult.error) throw membersResult.error;
+        state.savedGroupMembers = membersResult.data || [];
+      }
+
+      const teamIds = state.teams.map(team => team.id);
+      if (!teamIds.length) return;
+
+      const staffResult = await state.client.from(TABLES.teamStaff).select("*").in("team_id", teamIds);
+      if (staffResult.error) throw staffResult.error;
+      state.teamStaff = staffResult.data || [];
+
+      const teamAthletesResult = await state.client.from(TABLES.teamAthletes).select("*").in("team_id", teamIds);
+      if (teamAthletesResult.error) throw teamAthletesResult.error;
+      state.teamAthletes = teamAthletesResult.data || [];
+
+      if (athleteIds.length) {
+        const notesResult = await state.client
+          .from(TABLES.staffNotes)
+          .select("*")
+          .in("team_id", teamIds)
+          .in("athlete_id", athleteIds)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        if (notesResult.error) throw notesResult.error;
+        state.staffNotes = notesResult.data || [];
+      }
+
+      const from = new Date(Date.now() - 86400000).toISOString();
+      const to = new Date(Date.now() + 14 * 86400000).toISOString();
+      const sessionsResult = await state.client
+        .from(TABLES.trainingSessions)
+        .select("*")
+        .in("team_id", teamIds)
+        .gte("starts_at", from)
+        .lt("starts_at", to)
+        .order("starts_at", { ascending: true });
+      if (sessionsResult.error) throw sessionsResult.error;
+      state.trainingSessions = sessionsResult.data || [];
+
+      const sessionIds = state.trainingSessions.map(session => session.id);
+      if (sessionIds.length) {
+        const assignmentsResult = await state.client.from(TABLES.trainingAssignments).select("*").in("session_id", sessionIds);
+        if (assignmentsResult.error) throw assignmentsResult.error;
+        state.trainingAssignments = assignmentsResult.data || [];
+
+        const contextResult = await state.client.from(TABLES.trainingContext).select("*").in("session_id", sessionIds);
+        if (contextResult.error) throw contextResult.error;
+        state.trainingContext = contextResult.data || [];
+      }
+    } catch (error) {
+      if (!organisationFoundationMissing(error)) throw error;
+      resetOrganisationData();
+      state.organisationFeaturesReady = false;
+    }
+  }
+
   async function loadCoachData({ enableCoach = false, reason = "coach-data" } = {}) {
     const user = coachUser();
     if (!state.client || !user) return;
@@ -1486,6 +1857,7 @@
         state.teamDataHealth = { items: [], summary: {} };
         state.attentionItems = [];
         state.schedules = [];
+        resetOrganisationData();
         state.roster = [];
         state.weeklyBrief = null;
         state.coachLoading = false;
@@ -1632,6 +2004,8 @@
         state.schedules = schedules || [];
       }
 
+      await loadOrganisationData(user, athleteIds);
+
       const selectionChanged = rebuildRoster();
       rebuildOperationalData();
       state.coachLoading = false;
@@ -1745,6 +2119,7 @@
     state.pendingInterventionAttention = null;
     state.interventionReview = null;
     state.roster = [];
+    resetOrganisationData();
     state.athleteCodeQuery = "";
     state.athleteCodeResult = null;
     state.athleteCodeStatus = "";
@@ -1774,6 +2149,225 @@
       setStatus("Coach profile saved.");
       renderSettings();
       platformController?.publishData("profile-saved");
+    });
+  }
+
+  async function createOrganisation(button) {
+    await withBusy(button, async () => {
+      const user = coachUser();
+      const name = $("coachNewOrganisationName")?.value?.trim() || "";
+      if (!user || !name) throw new Error("Enter an organisation name.");
+      const { error } = await state.client.from(TABLES.organisations).insert({ name, created_by: user.id });
+      if (error) throw error;
+      setStatus("Organisation created. You are its owner.");
+      await loadCoachData({ reason: "organisation-created" });
+    });
+  }
+
+  async function createTeam(button) {
+    await withBusy(button, async () => {
+      const user = coachUser();
+      const organisationId = $("coachNewTeamOrganisation")?.value || "";
+      const name = $("coachNewTeamName")?.value?.trim() || "";
+      const timeZone = $("coachNewTeamTimezone")?.value?.trim() || state.timeZone;
+      if (!user || !organisationId) throw new Error("Choose a team organisation.");
+      if (!name) throw new Error("Enter a team name.");
+      try {
+        new Intl.DateTimeFormat("en-GB", { timeZone }).format(new Date());
+      } catch (_error) {
+        throw new Error("Choose a valid IANA team timezone.");
+      }
+      const { error } = await state.client.from(TABLES.teams).insert({
+        organisation_id: organisationId,
+        name,
+        timezone_name: timeZone,
+        created_by: user.id
+      });
+      if (error) throw error;
+      setStatus("Team created. Add only actively shared athletes to its roster.");
+      await loadCoachData({ reason: "team-created" });
+    });
+  }
+
+  async function toggleTeamAthlete(input) {
+    await withBusy(input, async () => {
+      const user = coachUser();
+      const teamId = input.dataset.teamAthleteTeam || "";
+      const athleteId = input.dataset.teamAthleteId || "";
+      const team = state.teams.find(item => String(item.id) === String(teamId));
+      const existing = state.teamAthletes.find(item => String(item.team_id) === String(teamId) && String(item.athlete_id) === String(athleteId));
+      if (!user || !team || !athleteRows().some(athlete => String(athlete.userId) === String(athleteId))) throw new Error("Choose an actively shared athlete.");
+      const now = new Date().toISOString();
+      if (existing) {
+        const patch = input.checked
+          ? { status: "active", joined_at: now, revoked_at: null }
+          : { status: "revoked", revoked_at: now };
+        const { error } = await state.client.from(TABLES.teamAthletes).update(patch).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        if (!input.checked) return;
+        const { error } = await state.client.from(TABLES.teamAthletes).insert({
+          organisation_id: team.organisation_id,
+          team_id: team.id,
+          athlete_id: athleteId,
+          status: "active",
+          added_by: user.id,
+          joined_at: now
+        });
+        if (error) throw error;
+      }
+      setStatus(input.checked ? "Athlete added to team." : "Athlete removed from team context.");
+      await loadCoachData({ reason: "team-roster-updated" });
+    });
+  }
+
+  async function createSavedGroup(button) {
+    await withBusy(button, async () => {
+      const user = coachUser();
+      const name = $("coachNewGroupName")?.value?.trim() || "";
+      if (!user || !name) throw new Error("Enter a group name.");
+      const { error } = await state.client.from(TABLES.savedGroups).insert({
+        scope: "personal",
+        coach_id: user.id,
+        name,
+        created_by: user.id
+      });
+      if (error) throw error;
+      setStatus("Saved group created.");
+      await loadCoachData({ reason: "saved-group-created" });
+    });
+  }
+
+  async function renameSavedGroup(groupId, button) {
+    await withBusy(button, async () => {
+      const name = document.querySelector(`[data-group-name-input="${CSS.escape(groupId)}"]`)?.value?.trim() || "";
+      if (!name) throw new Error("Enter a group name.");
+      const { error } = await state.client.from(TABLES.savedGroups).update({ name }).eq("id", groupId);
+      if (error) throw error;
+      setStatus("Saved group renamed.");
+      await loadCoachData({ reason: "saved-group-renamed" });
+    });
+  }
+
+  async function deleteSavedGroup(groupId, button) {
+    if (!window.confirm("Delete this saved group? Athlete sharing and logs will not be changed.")) return;
+    await withBusy(button, async () => {
+      const { error } = await state.client.from(TABLES.savedGroups).delete().eq("id", groupId);
+      if (error) throw error;
+      if (String(state.selectedGroupId) === String(groupId)) state.selectedGroupId = "";
+      setStatus("Saved group deleted. Athlete access was unchanged.");
+      await loadCoachData({ reason: "saved-group-deleted" });
+    });
+  }
+
+  async function toggleSavedGroupMember(input) {
+    await withBusy(input, async () => {
+      const user = coachUser();
+      const groupId = input.dataset.groupMemberGroup || "";
+      const athleteId = input.dataset.groupMemberAthlete || "";
+      if (!user || !state.savedGroups.some(group => String(group.id) === String(groupId)) || !athleteRows().some(athlete => String(athlete.userId) === String(athleteId))) throw new Error("Choose an actively shared athlete.");
+      if (input.checked) {
+        const { error } = await state.client.from(TABLES.savedGroupMembers).insert({ group_id: groupId, athlete_id: athleteId, added_by: user.id });
+        if (error) throw error;
+      } else {
+        const { error } = await state.client.from(TABLES.savedGroupMembers).delete().eq("group_id", groupId).eq("athlete_id", athleteId);
+        if (error) throw error;
+      }
+      setStatus(input.checked ? "Athlete added to saved group." : "Athlete removed from saved group.");
+      await loadCoachData({ reason: "saved-group-membership-updated" });
+    });
+  }
+
+  async function createStaffNote(athleteId, button) {
+    await withBusy(button, async () => {
+      const user = coachUser();
+      const teamId = $("coachStaffNoteTeam")?.value || "";
+      const team = state.teams.find(item => String(item.id) === String(teamId));
+      const noteText = $("coachStaffNoteText")?.value?.trim() || "";
+      if (!user || !team || !noteText) throw new Error("Enter a shared staff note.");
+      if (!canContributeToTeam(teamId) || !activeTeamAthletes(teamId).some(member => String(member.athlete_id) === String(athleteId))) throw new Error("Shared note access is no longer available for this athlete.");
+      const { error } = await state.client.from(TABLES.staffNotes).insert({
+        organisation_id: team.organisation_id,
+        team_id: team.id,
+        athlete_id: athleteId,
+        author_id: user.id,
+        category: $("coachStaffNoteCategory")?.value || "general",
+        note_text: noteText
+      });
+      if (error) throw error;
+      setStatus("Shared staff note saved with author and team context.");
+      await loadCoachData({ reason: "staff-note-created" });
+    });
+  }
+
+  function trainingDateTime(value, timeZone) {
+    const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone }).format(new Date());
+    } catch (_error) {
+      return null;
+    }
+    const date = domain.zonedDateTimeToUtc(match[1], timeZone, Number(match[2]), Number(match[3]));
+    const parts = domain.zonedDateParts(date, timeZone);
+    if (!date || !parts || domain.dateKeyInTimeZone(date, timeZone) !== match[1] || parts.hour !== Number(match[2]) || parts.minute !== Number(match[3])) {
+      throw new Error("That local time does not exist in the selected timezone.");
+    }
+    return date;
+  }
+
+  async function createTrainingSession(button) {
+    await withBusy(button, async () => {
+      const user = coachUser();
+      const teamId = $("coachTrainingTeam")?.value || "";
+      const team = state.teams.find(item => String(item.id) === String(teamId));
+      const timeZone = $("coachTrainingTimezone")?.value?.trim() || team?.timezone_name || state.timeZone;
+      const startsAt = trainingDateTime($("coachTrainingStarts")?.value, timeZone);
+      const endsAt = trainingDateTime($("coachTrainingEnds")?.value, timeZone);
+      if (!user || !team) throw new Error("Choose a team for this session.");
+      if (!startsAt || !endsAt || endsAt <= startsAt || endsAt - startsAt > 86400000) throw new Error("Choose a valid session start and end within 24 hours.");
+
+      const assignment = $("coachTrainingAssignment")?.value || "team";
+      const teamAthleteIds = new Set(activeTeamAthletes(team.id).map(member => String(member.athlete_id)));
+      let athleteIds = [];
+      let savedGroupId = null;
+      if (assignment === "team") {
+        athleteIds = [...teamAthleteIds];
+      } else if (assignment.startsWith("athlete:")) {
+        const athleteId = assignment.slice("athlete:".length);
+        if (teamAthleteIds.has(athleteId)) athleteIds = [athleteId];
+      } else if (assignment.startsWith("group:")) {
+        const groupId = assignment.slice("group:".length);
+        const group = state.savedGroups.find(item => String(item.id) === String(groupId));
+        const members = groupAthleteIds(groupId) || new Set();
+        athleteIds = [...members].filter(athleteId => teamAthleteIds.has(athleteId));
+        if (group?.scope === "team" && String(group.team_id) === String(team.id)) savedGroupId = group.id;
+      }
+      if (!athleteIds.length) throw new Error("Choose at least one authorised athlete who belongs to this team.");
+
+      const { data: session, error } = await state.client.from(TABLES.trainingSessions).insert({
+        organisation_id: team.organisation_id,
+        team_id: team.id,
+        saved_group_id: savedGroupId,
+        session_date: domain.dateKeyInTimeZone(startsAt, timeZone),
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        timezone_name: timeZone,
+        session_type: $("coachTrainingType")?.value?.trim() || "training",
+        session_name: $("coachTrainingName")?.value?.trim() || null,
+        location: $("coachTrainingLocation")?.value?.trim() || null,
+        created_by: user.id,
+        updated_by: user.id
+      }).select("*").single();
+      if (error) throw error;
+      const assignments = athleteIds.map(athleteId => ({ session_id: session.id, athlete_id: athleteId, assigned_by: user.id }));
+      const assignmentResult = await state.client.from(TABLES.trainingAssignments).insert(assignments);
+      if (assignmentResult.error) {
+        await state.client.from(TABLES.trainingSessions).delete().eq("id", session.id);
+        throw assignmentResult.error;
+      }
+      setStatus(`Training session created for ${athleteIds.length} authorised athlete${athleteIds.length === 1 ? "" : "s"}. Athlete thresholds were not changed.`);
+      await loadCoachData({ reason: "training-session-created" });
     });
   }
 
@@ -1828,9 +2422,7 @@
       if (athleteId === user.id || result?.relationship_status === "self") {
         throw new Error("You can't add your own athlete account as a coached athlete.");
       }
-      const row = {
-        coach_id: user.id,
-        athlete_id: athleteId,
+      const mutableRelationship = {
         status: "pending",
         athlete_label: result?.display_name || null,
         coach_label: state.profile?.display_name || user.email || "Fuel Guard Coach",
@@ -1838,9 +2430,21 @@
         revoked_at: null,
         updated_at: new Date().toISOString()
       };
-      const { error } = await state.client
+      const existingResult = await state.client
         .from(TABLES.relationships)
-        .upsert(row, { onConflict: "coach_id,athlete_id" });
+        .select("id,status")
+        .eq("coach_id", user.id)
+        .eq("athlete_id", athleteId)
+        .maybeSingle();
+      if (existingResult.error) throw existingResult.error;
+      const write = existingResult.data
+        ? state.client.from(TABLES.relationships).update(mutableRelationship).eq("id", existingResult.data.id)
+        : state.client.from(TABLES.relationships).insert({
+          coach_id: user.id,
+          athlete_id: athleteId,
+          ...mutableRelationship
+        });
+      const { error } = await write;
       if (error) throw error;
       state.athleteCodeResult = { ...result, relationship_status: "pending" };
       state.athleteCodeStatus = "Connection request sent. Athlete data stays private until they approve.";
@@ -2605,6 +3209,74 @@
 
     if (event.target.closest("[data-export-report-csv]")) {
       exportReportCsv();
+      return;
+    }
+
+    const createOrganisationButton = event.target.closest("[data-create-organisation]");
+    if (createOrganisationButton) {
+      createOrganisation(createOrganisationButton);
+      return;
+    }
+
+    const createTeamButton = event.target.closest("[data-create-team]");
+    if (createTeamButton) {
+      createTeam(createTeamButton);
+      return;
+    }
+
+    const createGroupButton = event.target.closest("[data-create-saved-group]");
+    if (createGroupButton) {
+      createSavedGroup(createGroupButton);
+      return;
+    }
+
+    const renameGroupButton = event.target.closest("[data-rename-saved-group]");
+    if (renameGroupButton) {
+      renameSavedGroup(renameGroupButton.dataset.renameSavedGroup, renameGroupButton);
+      return;
+    }
+
+    const deleteGroupButton = event.target.closest("[data-delete-saved-group]");
+    if (deleteGroupButton) {
+      deleteSavedGroup(deleteGroupButton.dataset.deleteSavedGroup, deleteGroupButton);
+      return;
+    }
+
+    const staffNoteButton = event.target.closest("[data-create-staff-note]");
+    if (staffNoteButton) {
+      createStaffNote(staffNoteButton.dataset.createStaffNote, staffNoteButton);
+      return;
+    }
+
+    const trainingButton = event.target.closest("[data-create-training-session]");
+    if (trainingButton) {
+      createTrainingSession(trainingButton);
+    }
+  });
+
+  document.addEventListener("change", event => {
+    if (event.target.id === "coachActiveGroupFilter") {
+      state.selectedGroupId = event.target.value || "";
+      state.generatedReport = null;
+      state.reportSaved = false;
+      rebuildRoster();
+      rebuildOperationalData();
+      render();
+      platformController?.publishData("saved-group-filtered");
+      return;
+    }
+    if (event.target.id === "coachTrainingTeam") {
+      const team = state.teams.find(item => String(item.id) === String(event.target.value));
+      if (team && $("coachTrainingTimezone")) $("coachTrainingTimezone").value = team.timezone_name || state.timeZone;
+      if (team && $("coachTrainingAssignment")) $("coachTrainingAssignment").innerHTML = trainingAssignmentOptions(team.id);
+      return;
+    }
+    if (event.target.matches("[data-team-athlete-team]")) {
+      toggleTeamAthlete(event.target);
+      return;
+    }
+    if (event.target.matches("[data-group-member-group]")) {
+      toggleSavedGroupMember(event.target);
     }
   });
 

@@ -118,6 +118,17 @@
     return `${hours % 12 || 12}:${minutes} ${suffix}`;
   }
 
+  function formatClockInTimeZone(value, timeZone) {
+    const date = parseDate(value);
+    if (!date) return "--";
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: resolvedTimeZone(timeZone),
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).format(date).replace(/\s/g, " ").toUpperCase();
+  }
+
   function duration(minutes) {
     if (!Number.isFinite(minutes)) return "No data";
     const safeMinutes = Math.max(0, Math.round(minutes));
@@ -1208,7 +1219,7 @@
     };
   }
 
-  function buildCoachAttentionItems({ roster = [], dataHealth = { items: [] }, interventions = [], actions = [], now = new Date(), includeResolved = false } = {}) {
+  function buildCoachAttentionItems({ roster = [], dataHealth = { items: [] }, interventions = [], trainingContext = [], actions = [], now = new Date(), includeResolved = false } = {}) {
     const key = dateKey(now);
     const generated = new Map();
     const healthByAthlete = new Map((dataHealth.items || []).map(item => [String(item.athleteId || ""), item]));
@@ -1258,7 +1269,9 @@
       const athlete = health.athlete;
       const occurrenceKey = health.id === "garmin_reconnect"
         ? `garmin_reconnect:${occurrenceToken(health.garminRevokedAt || "revoked")}`
-        : `${health.id}:${key}:${occurrenceToken(health.lastLogAt || "never")}`;
+        : health.id === "no_logs_today"
+          ? `no_logs_today:${key}:${occurrenceToken(health.lastLogAt || "never")}`
+          : `${health.id}:${occurrenceToken(health.lastLogAt || "never")}`;
       add(attentionItem({
         athlete,
         type: health.id,
@@ -1271,6 +1284,32 @@
       }));
     });
     const rosterByAthlete = new Map(roster.map(item => [String(item.athlete.userId || item.athlete.id || ""), item.athlete]));
+    (trainingContext || []).forEach(context => {
+      const athleteId = String(context.athlete_id || context.athleteId || "");
+      const athlete = rosterByAthlete.get(athleteId);
+      const startsAt = parseDate(context.starts_at || context.startsAt);
+      const gapStatus = String(context.gap_status || context.gapStatus || "");
+      if (!athlete || !startsAt || startsAt < now || startsAt - now > 6 * 60 * 60 * 1000) return;
+      if (!["exceeded", "close", "no_prior_fuel"].includes(gapStatus)) return;
+      const label = gapStatus === "exceeded"
+        ? "Upcoming session: gap target exceeded"
+        : gapStatus === "close"
+          ? "Upcoming session: gap target approaching"
+          : "Upcoming session: no prior fuel log";
+      const sessionLabel = context.session_name || context.sessionName || context.session_type || context.sessionType || "Training session";
+      const contextTimeZone = context.timezone_name || context.timeZone;
+      const detail = `${sessionLabel} at ${formatClockInTimeZone(startsAt, contextTimeZone)}${contextTimeZone ? ` ${contextTimeZone}` : ""}. ${gapStatus === "no_prior_fuel" ? "No prior shared fuel log is available." : `Projected gap at session start: ${duration(Number(context.gap_minutes_at_start ?? context.gapMinutesAtStart))}.`} This is schedule context only; the athlete's target is unchanged.`;
+      add(attentionItem({
+        athlete,
+        type: `training_${gapStatus}`,
+        category: gapStatus === "close" ? "approaching_gap" : "need_attention",
+        label,
+        detail,
+        priority: gapStatus === "exceeded" ? 95 : gapStatus === "close" ? 75 : 55,
+        occurrenceKey: `training:${occurrenceToken(context.session_id || context.sessionId)}:${gapStatus}:${occurrenceToken(context.last_fuel_at || context.lastFuelAt || "never")}`,
+        canNudge: true
+      }));
+    });
     (interventions || []).forEach(intervention => {
       const due = intervention.status === "review_due" || (intervention.status === "active" && String(intervention.review_date || "") <= key);
       if (!due) return;
@@ -1316,6 +1355,7 @@
     endOfLocalDay,
     minutesIntoDay,
     formatClock,
+    formatClockInTimeZone,
     duration,
     parseCheckinNote,
     checkinPayload,
@@ -1347,6 +1387,7 @@
     reviewPeriodRange,
     previousPeriodRange,
     periodQueryBounds,
+    zonedDateTimeToUtc,
     timeBandForMinutes,
     gapWindow,
     athletePeriodMetrics,

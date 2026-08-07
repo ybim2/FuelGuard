@@ -1,6 +1,7 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v109-coach-intelligence-integrated";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v110-coach-qa-hardening";
+  const SERVICE_WORKER_SCOPE = buildInfo.serviceWorkerScope || "./";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;
@@ -62,7 +63,7 @@
   function registrationReady() {
     if (registrationPromise) return registrationPromise;
     registrationPromise = navigator.serviceWorker
-      .register(SERVICE_WORKER_URL, { scope: "./", updateViaCache: "none" })
+      .register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE, updateViaCache: "none" })
       .then(registration => {
         activateWaitingWorker(registration);
         registration.addEventListener("updatefound", () => {

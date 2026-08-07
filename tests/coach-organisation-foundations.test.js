@@ -8,7 +8,7 @@ const migrationPath = path.join(
   root,
   "supabase",
   "migrations",
-  "20260807172224_coach_organisation_foundations.sql"
+  "20260807172400_coach_organisation_foundations.sql"
 );
 const rlsTestPath = path.join(
   root,
@@ -125,7 +125,7 @@ test("private authorization helpers are hardened and public APIs are explicit", 
 });
 
 test("pgTAP suite covers isolation, revocation, groups, schedules, and timezone boundaries", () => {
-  assert.match(rlsTests, /select plan\(47\)/);
+  assert.match(rlsTests, /select plan\(50\)/);
   assert.match(rlsTests, /Coach in another organisation cannot read Organisation A notes/);
   assert.match(rlsTests, /Unauthorised staff cannot write notes for another athlete/);
   assert.match(rlsTests, /Saved-group metadata never grants athlete log access/);
@@ -135,4 +135,6 @@ test("pgTAP suite covers isolation, revocation, groups, schedules, and timezone 
   assert.match(rlsTests, /UTC date cannot be stored when it disagrees with the session timezone/);
   assert.match(rlsTests, /Authorised staff can query upcoming sessions by saved group/);
   assert.match(rlsTests, /Authorised contributor can update a manual training session/);
+  assert.match(rlsTests, /Coach cannot repoint an existing relationship to another athlete/);
+  assert.match(rlsTests, /Authorised contributor can reactivate the existing team roster row/);
 });
