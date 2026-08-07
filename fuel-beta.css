@@ -7366,10 +7366,27 @@ body.beta-mvp .beta-status-log-actions button span {
 }
 
 body.beta-mvp .beta-timeline-log-actions {
-  margin: 8px 0 10px;
+  order: 1;
+  margin: 6px 0 2px;
+}
+
+body.beta-mvp .beta-today-log .fuel-cooldown-message {
+  order: 2;
+  min-height: 0;
+  margin: 0;
+}
+
+body.beta-mvp .beta-today-log #undoLatestFoodLog {
+  order: 3;
+  margin: 2px 0 8px;
+}
+
+body.beta-mvp .beta-today-log .beta-today-timeline-panel {
+  order: 4;
 }
 
 body.beta-mvp .beta-timeline-static-heading {
+  order: 0;
   align-items: start;
   gap: 10px;
 }
@@ -7493,17 +7510,74 @@ body.beta-mvp .beta-personalised-metric-card p {
   font-size: 1.1rem;
 }
 
-body.beta-mvp .beta-fuelling-pattern-grid {
+body.beta-mvp .beta-fuelling-pattern-chart-card {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 0 0;
+}
+
+body.beta-mvp .beta-fuelling-pattern-axis-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--fg-muted);
+  font-size: .72rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart {
   width: 100%;
+  min-height: 220px;
+  padding: 4px 0 0;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart svg {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  overflow: visible;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart .axis {
+  stroke: rgba(var(--fg-brand-dark-rgb), .34);
+  stroke-width: 1.4;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart .grid {
+  stroke: rgba(var(--fg-brand-dark-rgb), .08);
+  stroke-width: 1;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart .bar {
+  fill: rgba(var(--fg-fuel-rgb), .7);
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart .x-label,
+body.beta-mvp .beta-fuelling-pattern-chart .y-label {
+  fill: var(--fg-text-strong);
+  font-size: 13px;
+  font-weight: 850;
+  text-anchor: middle;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart .y-label {
+  text-anchor: end;
+}
+
+body.beta-mvp .beta-fuelling-pattern-chart-card small {
+  color: var(--fg-muted);
+  font-size: .8rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-insights-summary-section .beta-weekly-section-head h3.beta-status-title {
+  margin: 0;
+  font-weight: 950;
+  line-height: 1.04;
 }
 
 body.beta-mvp .beta-fuelling-pattern-card {
-  display: grid;
-  gap: 9px;
-  min-width: 0;
-  padding: 12px;
   border: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,252,247,.92));

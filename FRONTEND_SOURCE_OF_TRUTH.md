@@ -13,15 +13,15 @@ Settings is still part of the canonical app, but it opens from the sticky header
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v90-log-patterns-progress-refinement
+Canonical app: mobile-pwa-v91-fuelling-pattern-chart
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 ## Current Screen Ownership
 
-- Log: default opening screen with current fuel/hydration status including daily log counts, simplified Today’s Progress, Fuelling Patterns, and an expanded Today’s timeline that owns the Log Fuel and Log Hydration actions.
-- Insights: the renamed former Trends screen. It owns Weekly Summary with behavioural pattern metrics, the three-metric Personalised Insights card, Fuel Gap Windows, Log Windows, and opt-in Garmin signals only when evidence exists.
+- Log: default opening screen with current fuel/hydration status including daily log counts, simplified Today’s Progress, a chronological Fuelling Patterns bar chart, and an expanded Today’s timeline that owns compact Log Fuel, Log Hydration, and Undo actions.
+- Insights: the renamed former Trends screen. It owns Weekly Summary with behavioural pattern metrics, the three-metric Personalised Insights card, and opt-in Garmin signals only when evidence exists.
 - History: compact week/month period navigation, filtered logged-day selection, plus Fuel Window and Gap Window review for the selected day.
 - Settings: account and sync, connected Garmin apps and Garmin sharing information, preferences, advanced thresholds/window/targets, legacy CSV import, destructive actions, app update, app version, and privacy.
 
@@ -137,7 +137,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v90-log-patterns-progress-refinement`.
+The current canonical version is `mobile-pwa-v91-fuelling-pattern-chart`.
 
 ## Future Frontend Changes
 

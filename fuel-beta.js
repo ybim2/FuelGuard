@@ -9368,61 +9368,99 @@
     return "";
   }
 
-  const FUELLING_PATTERN_WINDOWS = [
-    { id: "morning", title: "Morning fuelling", startHour: 5, endHour: 12 },
-    { id: "afternoon", title: "Afternoon fuelling", startHour: 12, endHour: 17 },
-    { id: "evening", title: "Evening fuelling", startHour: 17, endHour: 22 }
+  const FUELLING_PATTERN_BUCKETS = [
+    { label: "00-06", tick: "00:00", startHour: 0, endHour: 6 },
+    { label: "06-09", tick: "06:00", startHour: 6, endHour: 9 },
+    { label: "09-12", tick: "09:00", startHour: 9, endHour: 12 },
+    { label: "12-15", tick: "12:00", startHour: 12, endHour: 15 },
+    { label: "15-18", tick: "15:00", startHour: 15, endHour: 18 },
+    { label: "18-21", tick: "18:00", startHour: 18, endHour: 21 },
+    { label: "21-24", tick: "21:00", startHour: 21, endHour: 24 }
   ];
 
-  function fuellingPatternLogs(entries, windowDef) {
-    const start = windowDef.startHour * 60;
-    const end = windowDef.endHour * 60;
+  function fuellingPatternLogs(entries) {
     return entries
       .flatMap(entry => entryLogsWithDates(entry).filter(isFuelLog))
       .map(log => ({ ...log, minute: minutesIntoDay(log.date) }))
-      .filter(log => log.minute >= start && log.minute < end)
+      .filter(log => Number.isFinite(log.minute) && log.minute >= 0 && log.minute < 1440)
       .sort((a, b) => a.minute - b.minute);
   }
 
-  function mostCommonPatternHour(logs) {
-    const counts = new Map();
-    logs.forEach(log => {
-      const hour = Math.floor(log.minute / 60);
-      counts.set(hour, (counts.get(hour) || 0) + 1);
+  function fuellingPatternBucketCounts(logs) {
+    return FUELLING_PATTERN_BUCKETS.map(bucket => {
+      const start = bucket.startHour * 60;
+      const end = bucket.endHour * 60;
+      const bucketLogs = logs.filter(log => log.minute >= start && log.minute < end);
+      return {
+        ...bucket,
+        count: bucketLogs.length,
+        times: bucketLogs.map(log => formatClock(log.date))
+      };
     });
-    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
-    if (!top) return null;
-    return { hour: top[0], count: top[1] };
   }
 
-  function renderFuellingPatternGraph(windowDef, entries) {
-    const logs = fuellingPatternLogs(entries, windowDef);
-    const start = windowDef.startHour * 60;
-    const span = Math.max(1, (windowDef.endHour - windowDef.startHour) * 60);
-    const common = mostCommonPatternHour(logs);
-    const markers = logs.map((log, index) => {
-      const left = ((log.minute - start) / span) * 100;
-      const lane = (index % 3) - 1;
-      const tooltip = `${formatClock(log.date)} fuel log${log.source ? ` · ${log.source}` : ""}`;
-      return `<span class="beta-fuelling-pattern-marker" style="left:${stylePercent(left)};--lane:${lane}" title="${safeText(tooltip)}" tabindex="0" aria-label="${safeText(tooltip)}"></span>`;
-    }).join("");
-    const hourBars = Array.from({ length: windowDef.endHour - windowDef.startHour }, (_, index) => {
-      const hour = windowDef.startHour + index;
-      const count = logs.filter(log => Math.floor(log.minute / 60) === hour).length;
-      const height = logs.length ? Math.max(8, (count / Math.max(common?.count || 1, 1)) * 44) : 0;
-      return `<i style="height:${height.toFixed(1)}px" title="${safeText(`${hourClockLabel(hour)}: ${count} fuel log${count === 1 ? "" : "s"}`)}"></i>`;
-    }).join("");
-    const summary = common
-      ? `Most common: ${hourRangeLabel(common.hour)} · ${common.count} log${common.count === 1 ? "" : "s"}`
-      : "No fuel logs in this window yet.";
+  function integerTicks(maxValue) {
+    const max = Math.max(1, Math.ceil(Number(maxValue) || 0));
+    const step = Math.max(1, Math.ceil(max / 4));
+    const ticks = [];
+    for (let value = 0; value <= max; value += step) ticks.push(value);
+    if (ticks[ticks.length - 1] !== max) ticks.push(max);
+    return ticks;
+  }
+
+  function renderFuellingPatternBarChart(entries) {
+    const logs = fuellingPatternLogs(entries);
+    const buckets = fuellingPatternBucketCounts(logs);
+    const maxCount = Math.max(...buckets.map(bucket => bucket.count), 1);
+    const ticks = integerTicks(maxCount);
+    const yMax = ticks[ticks.length - 1] || 1;
+    const width = 460;
+    const height = 230;
+    const padding = { top: 22, right: 18, bottom: 50, left: 46 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const bottom = padding.top + plotHeight;
+    const slot = plotWidth / buckets.length;
+    const barWidth = Math.min(34, Math.max(18, slot * 0.54));
+    const xFor = index => padding.left + slot * index + slot / 2;
+    const yFor = value => bottom - (Math.max(0, value) / yMax) * plotHeight;
+    const topBucket = buckets.reduce((top, bucket) => bucket.count > top.count ? bucket : top, buckets[0]);
+    const summary = logs.length
+      ? `Most fuel logs cluster around ${topBucket.label}.`
+      : "No fuel logs in this period yet.";
     return `
-      <article class="beta-fuelling-pattern-card ${safeText(windowDef.id)}">
-        <div class="beta-fuelling-pattern-head">
-          <h4>${safeText(windowDef.title)}</h4>
-          <span>${safeText(`${hourClockLabel(windowDef.startHour)}-${hourClockLabel(windowDef.endHour)}`)}</span>
+      <article class="beta-fuelling-pattern-chart-card">
+        <div class="beta-fuelling-pattern-axis-copy">
+          <span>Y: fuelling count</span>
+          <span>X: time of day</span>
         </div>
-        <div class="beta-fuelling-pattern-track" aria-hidden="true">${markers}</div>
-        <div class="beta-fuelling-pattern-bars" aria-hidden="true">${hourBars}</div>
+        <div class="beta-fuelling-pattern-chart" role="img" aria-label="Fuelling count by time of day">
+          <svg viewBox="0 0 ${width} ${height}" aria-hidden="true">
+            <line class="axis" x1="${padding.left}" y1="${bottom}" x2="${padding.left + plotWidth}" y2="${bottom}"></line>
+            <line class="axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${bottom}"></line>
+            ${ticks.map(tick => {
+              const y = yFor(tick);
+              return `
+                <line class="grid" x1="${padding.left}" y1="${y.toFixed(1)}" x2="${padding.left + plotWidth}" y2="${y.toFixed(1)}"></line>
+                <text class="y-label" x="${padding.left - 12}" y="${(y + 4).toFixed(1)}">${safeText(String(tick))}</text>
+              `;
+            }).join("")}
+            ${buckets.map((bucket, index) => {
+              const x = xFor(index);
+              const barHeight = bucket.count ? Math.max(4, bottom - yFor(bucket.count)) : 0;
+              const y = bottom - barHeight;
+              const title = bucket.count
+                ? `${bucket.label}: ${bucket.count} fuel log${bucket.count === 1 ? "" : "s"}${bucket.times.length ? ` (${bucket.times.join(", ")})` : ""}`
+                : `${bucket.label}: 0 fuel logs`;
+              return `
+                <rect class="bar" x="${(x - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="8">
+                  <title>${safeText(title)}</title>
+                </rect>
+                <text class="x-label" x="${x.toFixed(1)}" y="${height - 26}">${safeText(bucket.tick)}</text>
+              `;
+            }).join("")}
+          </svg>
+        </div>
         <small>${safeText(summary)}</small>
       </article>
     `;
@@ -9436,12 +9474,10 @@
           <span class="beta-icon-disc amber">${dailyIcon("fuel")}</span>
           <div>
             <h3>Fuelling patterns</h3>
-            <p>When fuel logs usually happen in the selected ${safeText(data.range.period)}.</p>
+            <p>When fuel logs usually happen across the selected ${safeText(data.range.period)}.</p>
           </div>
         </div>
-        <div class="beta-fuelling-pattern-grid">
-          ${FUELLING_PATTERN_WINDOWS.map(windowDef => renderFuellingPatternGraph(windowDef, entries)).join("")}
-        </div>
+        ${renderFuellingPatternBarChart(entries)}
       </section>
     `;
   }
@@ -9461,7 +9497,7 @@
         <div class="beta-weekly-section-head">
           <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
           <div>
-            <h3>Weekly summary</h3>
+            <h3 class="beta-status-title">Weekly summary</h3>
             <p>${safeText(summaryCopy)}</p>
           </div>
         </div>
@@ -9550,7 +9586,6 @@
     summaryTarget.innerHTML = `
       ${renderInsightsWeeklySummary(data)}
       ${renderPersonalisedInsights(data)}
-      ${renderTrendHabitInsights(data)}
       ${renderGarminSignalsSummary()}
     `;
   }

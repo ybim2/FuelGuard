@@ -68,6 +68,7 @@ test("Log is simplified and logging actions live in the expanded timeline", () =
   assert.ok(patterns < timeline, "timeline should follow Fuelling Patterns");
   assert.ok(timeline < logFuel, "Log Fuel should sit inside Today’s Timeline");
   assert.ok(logFuel < logHydration, "Log Hydration should sit next to Log Fuel");
+  assert.ok(logHydration < indexOfRequired(dashboard, 'id="undoLatestFoodLog"'), "Undo should stay in the same compact timeline action area");
   assert.doesNotMatch(dashboard, /Quick logging|\+ Add a missed log|Add today’s context|todayTimelineToggle|missedLogPanel|fuelDataDate/);
   assert.doesNotMatch(dashboard, /id="fuelDailyLog"[^>]*hidden/);
   assert.match(dashboard, /beta-timeline-log-actions[\s\S]*graphLogFoodButton[\s\S]*graphLogHydrationButton/);
@@ -76,6 +77,10 @@ test("Log is simplified and logging actions live in the expanded timeline", () =
   assert.doesNotMatch(progressRender, /Fuel logs|Hydration logs|Longest fuel gap|Longest hydration gap|longestGapTextFromLogs/);
   assert.match(selectedDayRender, /fuelLogPatterns/);
   assert.match(selectedDayRender, /renderFuellingPatternGraphs/);
+  assert.match(js, /FUELLING_PATTERN_BUCKETS/);
+  assert.match(js, /renderFuellingPatternBarChart/);
+  assert.match(js, /Y: fuelling count/);
+  assert.match(js, /X: time of day/);
   assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
   assert.match(js, /target\.hidden = false/);
 });
@@ -101,24 +106,17 @@ test("Insights replaces Trends and keeps Garmin evidence in the focused screen",
   const renderTrends = js.slice(renderTrendsStart, renderTrendsEnd);
   const weekly = indexOfRequired(renderTrends, "renderInsightsWeeklySummary");
   const personalised = indexOfRequired(renderTrends, "renderPersonalisedInsights");
-  const windows = indexOfRequired(renderTrends, "renderTrendHabitInsights");
   const weeklySummaryStart = indexOfRequired(js, "function renderInsightsWeeklySummary");
   const weeklySummaryEnd = indexOfRequired(js.slice(weeklySummaryStart), "\n  function renderGarminSignalsSummary") + weeklySummaryStart;
   const weeklySummary = js.slice(weeklySummaryStart, weeklySummaryEnd);
 
-  assert.match(insights, />Insights</);
+  assert.doesNotMatch(insights, /beta-trends-filter-title|<h2[^>]*>Insights<\/h2>/);
   assert.doesNotMatch(insights, />Trends</);
   assert.doesNotMatch(insights, /trendPeriodWeekButton|trendPeriodMonthButton|trendPreviousWeekButton|trendNextWeekButton|trendWeekLabel/);
   assert.match(history, /trendPeriodWeekButton[\s\S]*trendPeriodMonthButton[\s\S]*trendPreviousWeekButton[\s\S]*trendNextWeekButton/);
   assert.doesNotMatch(renderTrends, /renderFuellingPatternGraphs/);
-  assert.match(js, /Morning fuelling/);
-  assert.match(js, /Afternoon fuelling/);
-  assert.match(js, /Evening fuelling/);
-  assert.match(js, /Fuel Gap Windows/);
-  assert.match(js, /Log Windows/);
+  assert.doesNotMatch(renderTrends, /renderTrendHabitInsights/);
   assert.ok(weekly < personalised, "Weekly Summary should be first in Insights");
-  assert.ok(personalised < windows, "Personalised Insights should follow Weekly Summary");
-  assert.ok(personalised < windows, "Fuel Gap Windows and Log Windows should follow Personalised Insights");
   assert.match(weeklySummary, /Most common fuel-gap window/);
   assert.match(weeklySummary, /Most common fuelling window/);
   assert.doesNotMatch(weeklySummary, /renderWeeklyMetricCard\("Logged days"|renderWeeklyMetricCard\("Longest fuel gap"/);
@@ -183,10 +181,10 @@ test("PWA cache and asset versions are bumped for the three-screen core", () => 
   const html = read("index.html");
   const buildInfo = read("build-info.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v90-log-patterns-progress-refinement";
+  const version = "mobile-pwa-v91-fuelling-pattern-chart";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T071649Z/);
+  assert.match(sw, /20260807T073409Z/);
 });
