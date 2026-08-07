@@ -37,10 +37,12 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   assert.match(coachHtml, /data-coach-tab="athletes"/);
   assert.match(coachHtml, /data-coach-tab="reports"/);
   assert.match(coachHtml, /data-coach-tab="settings"/);
+  assert.match(coachHtml, /id="coachLoadingPanel"/);
+  assert.match(coachHtml, /id="coachAuthPanel" class="coach-card coach-auth-card" hidden/);
   assert.match(coachHtml, /id="coachAccessPanel"/);
   assert.match(coachHtml, /Create coach account/);
   assert.match(coachHtml, /Forgot password\?/);
-  assert.match(coachHtml, /Enable Coach Beta/);
+  assert.doesNotMatch(coachHtml, /Enable Coach Beta|Open athlete app/);
   assert.match(coachHtml, /id="coachReportsPanel"/);
   assert.match(coachHtml, /fuel-guard-domain\.js/);
   assert.match(coachHtml, /api\/supabase-config\.js/);
@@ -49,7 +51,10 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   assert.match(coachJs, /coach_enabled/);
   assert.match(coachJs, /signInWithPassword/);
   assert.match(coachJs, /resetPasswordForEmail/);
-  assert.match(coachJs, /function enableCoachAccess/);
+  assert.match(coachJs, /authResolved/);
+  assert.match(coachJs, /coachLoading/);
+  assert.match(coachJs, /appShell\.hidden = loading \|\| !coachReady/);
+  assert.doesNotMatch(coachJs, /function enableCoachAccess|coachEnableAccessButton/);
   assert.doesNotMatch(coachJs, /update\(\{\s*role:\s*"coach"/);
   assert.match(coachJs, /data-open-report-builder/);
   assert.match(coachJs, /data-open-intervention-builder/);

@@ -208,7 +208,6 @@ body.coach-beta {
 }
 
 .coach-button-row button,
-.coach-link-button,
 .coach-tabbar button,
 .coach-roster-row button,
 .coach-pattern-tabs button {
@@ -218,17 +217,6 @@ body.coach-beta {
   cursor: pointer;
   font: inherit;
   font-weight: 900;
-}
-
-.coach-link-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  padding: 10px 14px;
-  background: #fff;
-  color: var(--coach-text);
-  text-decoration: none;
 }
 
 .coach-button-row button.primary {

@@ -42,8 +42,9 @@
     generatedReport: null,
     selectedPattern: "fuel",
     search: "",
+    authResolved: false,
+    coachLoading: true,
     busy: false,
-    authBusyAction: "",
     coachAccessBlocked: false,
     status: ""
   };
@@ -850,14 +851,17 @@
   }
 
   function renderAuth() {
+    const loadingPanel = $("coachLoadingPanel");
     const authPanel = $("coachAuthPanel");
     const accessPanel = $("coachAccessPanel");
     const appShell = $("coachAppShell");
     const signedIn = Boolean(coachUser());
     const coachReady = signedIn && isCoachEnabled();
-    if (authPanel) authPanel.hidden = signedIn;
-    if (accessPanel) accessPanel.hidden = !signedIn || coachReady || !state.coachAccessBlocked;
-    if (appShell) appShell.hidden = !coachReady;
+    const loading = !state.authResolved || state.coachLoading;
+    if (loadingPanel) loadingPanel.hidden = !loading;
+    if (authPanel) authPanel.hidden = loading || signedIn;
+    if (accessPanel) accessPanel.hidden = loading || !signedIn || coachReady || !state.coachAccessBlocked;
+    if (appShell) appShell.hidden = loading || !coachReady;
   }
 
   function renderTabs() {
@@ -926,119 +930,126 @@
   async function loadCoachData({ enableCoach = false } = {}) {
     const user = coachUser();
     if (!state.client || !user) return;
-    setStatus("Loading coach data...");
+    state.authResolved = true;
+    state.coachLoading = true;
     state.coachAccessBlocked = false;
+    setStatus("Loading coach data...");
+    renderAuth();
 
-    await ensureCoachProfile({ enableCoach });
+    try {
+      await ensureCoachProfile({ enableCoach });
 
-    if (!isCoachEnabled()) {
-      state.coachAccessBlocked = true;
-      state.relationships = [];
+      if (!isCoachEnabled()) {
+        state.coachAccessBlocked = true;
+        state.relationships = [];
+        state.athleteProfiles = [];
+        state.logs = [];
+        state.targets = [];
+        state.reports = [];
+        state.interventions = [];
+        state.roster = [];
+        state.coachLoading = false;
+        setStatus("This account is signed in, but Coach Beta is not enabled for it yet.");
+        render();
+        return;
+      }
+
+      const { data: relationships, error: relationshipError } = await state.client
+        .from(TABLES.relationships)
+        .select("id,coach_id,athlete_id,status,athlete_label,created_at,accepted_at,revoked_at")
+        .eq("coach_id", user.id)
+        .in("status", ["pending", "active"])
+        .order("created_at", { ascending: false });
+      if (relationshipError) throw relationshipError;
+      state.relationships = relationships || [];
+
+      const athleteIds = state.relationships.filter(relation => relation.status === "active").map(relation => relation.athlete_id);
       state.athleteProfiles = [];
       state.logs = [];
       state.targets = [];
       state.reports = [];
       state.interventions = [];
-      state.roster = [];
-      setStatus("Coach Beta is not enabled for this account yet.");
-      render();
-      return;
-    }
 
-    const { data: relationships, error: relationshipError } = await state.client
-      .from(TABLES.relationships)
-      .select("id,coach_id,athlete_id,status,athlete_label,created_at,accepted_at,revoked_at")
-      .eq("coach_id", user.id)
-      .in("status", ["pending", "active"])
-      .order("created_at", { ascending: false });
-    if (relationshipError) throw relationshipError;
-    state.relationships = relationships || [];
-
-    const athleteIds = state.relationships.filter(relation => relation.status === "active").map(relation => relation.athlete_id);
-    state.athleteProfiles = [];
-    state.logs = [];
-    state.targets = [];
-    state.reports = [];
-    state.interventions = [];
-
-    if (athleteIds.length) {
-      const { data: profiles, error: profilesError } = await state.client
-        .from(TABLES.profiles)
-        .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
-        .in("user_id", athleteIds);
-      if (profilesError) throw profilesError;
-      state.athleteProfiles = profiles || [];
-
-      const start = domain.startOfLocalDay().toISOString();
-      const end = domain.endOfLocalDay().toISOString();
-      const { data: logs, error: logsError } = await state.client
-        .from(TABLES.logs)
-        .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
-        .in("user_id", athleteIds)
-        .gte("logged_at", start)
-        .lt("logged_at", end)
-        .order("logged_at", { ascending: true });
-      if (logsError) throw logsError;
-      state.logs = (logs || []).map(domain.normalizeLog).filter(Boolean);
-
-      const { data: targets, error: targetsError } = await state.client
-        .from(TABLES.targets)
-        .select("user_id,daily_fuel_logs,daily_hydration_logs,maximum_fuel_gap_minutes,updated_at")
-        .in("user_id", athleteIds);
-      if (targetsError && /maximum_fuel_gap_minutes|schema cache|does not exist/i.test(targetsError.message || "")) {
-        const legacy = await state.client
-          .from(TABLES.targets)
-          .select("user_id,daily_fuel_logs,daily_hydration_logs,updated_at")
+      if (athleteIds.length) {
+        const { data: profiles, error: profilesError } = await state.client
+          .from(TABLES.profiles)
+          .select("user_id,role,coach_enabled,display_name,created_at,updated_at")
           .in("user_id", athleteIds);
-        if (legacy.error) throw legacy.error;
-        state.targets = legacy.data || [];
-      } else if (targetsError) {
-        throw targetsError;
-      } else {
-        state.targets = targets || [];
+        if (profilesError) throw profilesError;
+        state.athleteProfiles = profiles || [];
+
+        const start = domain.startOfLocalDay().toISOString();
+        const end = domain.endOfLocalDay().toISOString();
+        const { data: logs, error: logsError } = await state.client
+          .from(TABLES.logs)
+          .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
+          .in("user_id", athleteIds)
+          .gte("logged_at", start)
+          .lt("logged_at", end)
+          .order("logged_at", { ascending: true });
+        if (logsError) throw logsError;
+        state.logs = (logs || []).map(domain.normalizeLog).filter(Boolean);
+
+        const { data: targets, error: targetsError } = await state.client
+          .from(TABLES.targets)
+          .select("user_id,daily_fuel_logs,daily_hydration_logs,maximum_fuel_gap_minutes,updated_at")
+          .in("user_id", athleteIds);
+        if (targetsError && /maximum_fuel_gap_minutes|schema cache|does not exist/i.test(targetsError.message || "")) {
+          const legacy = await state.client
+            .from(TABLES.targets)
+            .select("user_id,daily_fuel_logs,daily_hydration_logs,updated_at")
+            .in("user_id", athleteIds);
+          if (legacy.error) throw legacy.error;
+          state.targets = legacy.data || [];
+        } else if (targetsError) {
+          throw targetsError;
+        } else {
+          state.targets = targets || [];
+        }
+
+        const { data: reports, error: reportsError } = await state.client
+          .from(TABLES.reports)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("created_at", { ascending: false });
+        if (reportsError) throw reportsError;
+        state.reports = reports || [];
+
+        const { data: interventions, error: interventionsError } = await state.client
+          .from(TABLES.interventions)
+          .select("*")
+          .eq("coach_id", user.id)
+          .in("athlete_id", athleteIds)
+          .order("created_at", { ascending: false });
+        if (interventionsError) throw interventionsError;
+        state.interventions = interventions || [];
       }
 
-      const { data: reports, error: reportsError } = await state.client
-        .from(TABLES.reports)
-        .select("*")
-        .eq("coach_id", user.id)
-        .in("athlete_id", athleteIds)
-        .order("created_at", { ascending: false });
-      if (reportsError) throw reportsError;
-      state.reports = reports || [];
-
-      const { data: interventions, error: interventionsError } = await state.client
-        .from(TABLES.interventions)
-        .select("*")
-        .eq("coach_id", user.id)
-        .in("athlete_id", athleteIds)
-        .order("created_at", { ascending: false });
-      if (interventionsError) throw interventionsError;
-      state.interventions = interventions || [];
+      rebuildRoster();
+      state.coachLoading = false;
+      setStatus(`Loaded ${state.roster.length} active athlete${state.roster.length === 1 ? "" : "s"}.`);
+      render();
+    } catch (error) {
+      state.coachLoading = false;
+      throw error;
     }
-
-    rebuildRoster();
-    setStatus(`Loaded ${state.roster.length} active athlete${state.roster.length === 1 ? "" : "s"}.`);
-    render();
   }
 
   async function withBusy(button, callback) {
     if (state.busy) return;
     state.busy = true;
-    state.authBusyAction = button?.id || "";
     const originalText = button?.textContent || "";
     if (button) button.disabled = true;
     if (button?.id === "coachSignInButton") button.textContent = "Signing in...";
     if (button?.id === "coachSignUpButton") button.textContent = "Creating...";
     if (button?.id === "coachForgotPasswordButton") button.textContent = "Sending...";
-    if (button?.id === "coachEnableAccessButton") button.textContent = "Enabling...";
     try {
       await callback();
     } catch (error) {
       setStatus(friendlyError(error));
     } finally {
       state.busy = false;
-      state.authBusyAction = "";
       if (button) button.disabled = false;
       if (button && originalText) button.textContent = originalText;
     }
@@ -1054,7 +1065,9 @@
       if (error) throw error;
       if (!data?.session?.access_token || !data?.user?.id) throw new Error("Supabase signed in, but no session was created.");
       state.session = data.session;
-      render();
+      state.authResolved = true;
+      state.coachLoading = true;
+      renderAuth();
       await loadCoachData();
     });
   }
@@ -1074,7 +1087,12 @@
       if (error) throw error;
       state.session = data.session || state.session;
       setStatus(data.session ? "Coach account created." : "Confirmation email sent. Check your inbox.");
-      if (data.session) await loadCoachData({ enableCoach: true });
+      if (data.session) {
+        state.authResolved = true;
+        state.coachLoading = true;
+        renderAuth();
+        await loadCoachData({ enableCoach: true });
+      }
     });
   }
 
@@ -1090,21 +1108,12 @@
     });
   }
 
-  async function enableCoachAccess() {
-    await withBusy($("coachEnableAccessButton"), async () => {
-      const user = coachUser();
-      if (!user) throw new Error("Sign in first.");
-      setStatus("Enabling Coach Beta for this account...");
-      await ensureCoachProfile({ enableCoach: true });
-      state.coachAccessBlocked = false;
-      await loadCoachData();
-    });
-  }
-
   async function signOut() {
     await state.client?.auth.signOut();
     state.session = null;
     state.profile = null;
+    state.authResolved = true;
+    state.coachLoading = false;
     state.coachAccessBlocked = false;
     state.relationships = [];
     state.athleteProfiles = [];
@@ -1431,10 +1440,14 @@
 
   async function init() {
     if (!domain) {
+      state.authResolved = true;
+      state.coachLoading = false;
       setStatus("Coach Beta could not load Fuel Guard analytics helpers.");
       return;
     }
     if (!configured()) {
+      state.authResolved = true;
+      state.coachLoading = false;
       setStatus("Coach Beta needs Supabase public URL/key configuration.");
       renderAuth();
       return;
@@ -1449,20 +1462,10 @@
       }
     });
 
-    state.client.auth.onAuthStateChange((_event, session) => {
-      state.session = session;
-      if (session?.user) {
-        const enableCoach = consumeCoachSignup(session.user);
-        loadCoachData({ enableCoach }).catch(error => {
-          setStatus(friendlyError(error));
-          render();
-        });
-      }
-      else render();
-    });
-
     const { data, error } = await state.client.auth.getSession();
+    state.authResolved = true;
     if (error) {
+      state.coachLoading = false;
       setStatus(error.message);
       render();
       return;
@@ -1470,14 +1473,40 @@
     state.session = data.session;
     if (state.session?.user) {
       const enableCoach = consumeCoachSignup(state.session.user);
+      state.coachLoading = true;
+      renderAuth();
       await loadCoachData({ enableCoach }).catch(error => {
+        state.coachLoading = false;
         setStatus(friendlyError(error));
         render();
       });
     } else {
+      state.coachLoading = false;
       setStatus("Sign in to open Coach Beta.");
       render();
     }
+
+    state.client.auth.onAuthStateChange((_event, session) => {
+      const previousUserId = state.session?.user?.id || "";
+      state.session = session;
+      state.authResolved = true;
+      if (session?.user) {
+        if (state.coachLoading && previousUserId === session.user.id) return;
+        const enableCoach = consumeCoachSignup(session.user);
+        state.coachLoading = true;
+        renderAuth();
+        loadCoachData({ enableCoach }).catch(error => {
+          state.coachLoading = false;
+          setStatus(friendlyError(error));
+          render();
+        });
+      }
+      else {
+        state.coachLoading = false;
+        state.coachAccessBlocked = false;
+        render();
+      }
+    });
   }
 
   document.addEventListener("click", event => {
@@ -1534,7 +1563,6 @@
   $("coachSignInButton")?.addEventListener("click", signIn);
   $("coachSignUpButton")?.addEventListener("click", signUp);
   $("coachForgotPasswordButton")?.addEventListener("click", forgotPassword);
-  $("coachEnableAccessButton")?.addEventListener("click", enableCoachAccess);
   $("coachAccessSignOutButton")?.addEventListener("click", signOut);
   $("coachSignOutButton")?.addEventListener("click", signOut);
   $("coachSaveProfileButton")?.addEventListener("click", saveProfile);

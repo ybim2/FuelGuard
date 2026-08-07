@@ -8,8 +8,8 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v101-coach-auth-flow" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v101-coach-auth-flow" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v102-coach-route-rendering" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v102-coach-route-rendering" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -21,7 +21,17 @@
   </header>
 
   <main class="coach-shell">
-    <section id="coachAuthPanel" class="coach-card coach-auth-card">
+    <section id="coachLoadingPanel" class="coach-card coach-auth-card" role="status" aria-live="polite">
+      <div class="coach-card-heading">
+        <span class="coach-icon">FG</span>
+        <div>
+          <h1>Fuel Guard Coach</h1>
+          <p>Loading Coach Beta...</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="coachAuthPanel" class="coach-card coach-auth-card" hidden>
       <div class="coach-card-heading">
         <span class="coach-icon">FG</span>
         <div>
@@ -45,14 +55,12 @@
       <div class="coach-card-heading">
         <span class="coach-icon">FG</span>
         <div>
-          <h1>Coach access</h1>
-          <p>This Supabase account is signed in, but Coach Beta is not enabled for it yet.</p>
+          <h1>Coach access unavailable</h1>
+          <p>This signed-in account is not enabled for Coach Beta.</p>
         </div>
       </div>
-      <p class="coach-note">You can keep using Fuel Guard as an athlete. Enable Coach Beta only if this account should also review athletes who explicitly share data with you.</p>
+      <p class="coach-note">Ask the Fuel Guard admin to enable Coach Beta for this account. Athlete data is only visible through explicit sharing relationships.</p>
       <div class="coach-button-row">
-        <button id="coachEnableAccessButton" class="primary" type="button">Enable Coach Beta</button>
-        <a class="coach-link-button" href="../">Open athlete app</a>
         <button id="coachAccessSignOutButton" class="secondary" type="button">Log out</button>
       </div>
       <p id="coachAccessStatus" class="coach-note" aria-live="polite"></p>
@@ -168,9 +176,9 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../api/supabase-config.js?v=mobile-pwa-v101-coach-auth-flow"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v102-coach-route-rendering"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v101-coach-auth-flow"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v101-coach-auth-flow"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v102-coach-route-rendering"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v102-coach-route-rendering"></script>
 </body>
 </html>
