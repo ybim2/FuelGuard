@@ -8,8 +8,8 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v102-coach-route-rendering" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v102-coach-route-rendering" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v103-coach-beta-flow-search" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v103-coach-beta-flow-search" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -84,10 +84,10 @@
           <div class="coach-card-heading compact">
             <div>
               <h2>Athletes</h2>
-              <p>Search assigned athletes and open a read-only daily view.</p>
+              <p>Search active or pending athlete relationships, or paste an exact athlete user ID to request sharing.</p>
             </div>
           </div>
-          <label class="coach-search-label">Search athletes<input id="coachAthleteSearch" type="search" placeholder="Name or email"></label>
+          <label class="coach-search-label">Search athletes<input id="coachAthleteSearch" type="search" placeholder="Name, label, or user ID"></label>
         </section>
         <div id="coachAthleteList"></div>
         <div id="coachAthleteDetail"></div>
@@ -176,9 +176,9 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../api/supabase-config.js?v=mobile-pwa-v102-coach-route-rendering"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v102-coach-route-rendering"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v102-coach-route-rendering"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v103-coach-beta-flow-search"></script>
 </body>
 </html>

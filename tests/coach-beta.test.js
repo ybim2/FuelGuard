@@ -30,6 +30,7 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   const athleteJs = read("fuel-beta.js");
   const coachHtml = read("coach/index.html");
   const coachJs = read("coach/coach-beta.js");
+  const coachCss = read("coach/coach-beta.css");
 
   assert.match(coachHtml, /Fuel Guard Coach Beta/);
   assert.match(coachHtml, /Fuel Guard Coach/);
@@ -51,9 +52,14 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   assert.match(coachJs, /coach_enabled/);
   assert.match(coachJs, /signInWithPassword/);
   assert.match(coachJs, /resetPasswordForEmail/);
+  assert.match(coachJs, /emailRedirectTo:\s*`\$\{window\.location\.origin\}\/coach\/`/);
+  assert.match(coachJs, /fuel_guard_coach_signup:\s*true/);
+  assert.match(coachJs, /Coach invitation sent/);
+  assert.match(coachJs, /function coachSignupIntent/);
   assert.match(coachJs, /authResolved/);
   assert.match(coachJs, /coachLoading/);
   assert.match(coachJs, /appShell\.hidden = loading \|\| !coachReady/);
+  assert.match(coachCss, /\.coach-beta \[hidden\] \{[\s\S]*display: none !important;/);
   assert.doesNotMatch(coachJs, /function enableCoachAccess|coachEnableAccessButton/);
   assert.doesNotMatch(coachJs, /update\(\{\s*role:\s*"coach"/);
   assert.match(coachJs, /data-open-report-builder/);
@@ -168,6 +174,22 @@ test("Coach migration uses database-level active relationship access controls", 
   assert.match(sql, /status in \('pending', 'active', 'revoked'\)/);
   assert.match(sql, /status in \('active', 'reviewed', 'closed'\)/);
   assert.doesNotMatch(noComments, /service_role|auth\.role\(\)/);
+});
+
+test("Coach athlete search uses existing relationships and exact user ID requests without exposing an email directory", () => {
+  const coachHtml = read("coach/index.html");
+  const coachJs = read("coach/coach-beta.js");
+  const apiFiles = fs.readdirSync(path.join(root, "api")).join("\n");
+
+  assert.match(coachHtml, /Name, label, or user ID/);
+  assert.doesNotMatch(coachHtml, /Name or email/);
+  assert.match(coachJs, /function relationshipRows/);
+  assert.match(coachJs, /function exactAthleteRequestRow/);
+  assert.match(coachJs, /data-request-athlete/);
+  assert.match(coachJs, /No athletes found/);
+  assert.match(coachJs, /ATHLETE_ID_PATTERN/);
+  assert.doesNotMatch(coachJs, /auth\.users|fuel_coach_search_athletes|coach-athlete-search|inviteUserByEmail/);
+  assert.doesNotMatch(apiFiles, /coach-athlete-search/);
 });
 
 test("Athlete review report calculates coverage, gap metrics, Sleepy associations and comparison", () => {

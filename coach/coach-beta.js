@@ -23,6 +23,7 @@
     { label: "21:00", start: 21, end: 24 }
   ];
   const COACH_SIGNUP_EMAIL_KEY = "fuel_guard_coach_signup_email";
+  const ATHLETE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   const state = {
     client: null,
@@ -85,12 +86,14 @@
     const message = String(error?.message || error || "Something went wrong.");
     if (/invalid login credentials/i.test(message)) return "Those login details did not work. Check the email and password, then try again.";
     if (/email not confirmed|confirm/i.test(message)) return "Please confirm your email address before logging in.";
+    if (/already registered|already exists|user already/i.test(message)) return "This coach account may already exist. Try logging in, or wait before requesting another email.";
+    if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
     if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach sharing is still warming up. Refresh and try again in a moment.";
     }
-    return message;
+    return "Coach Beta could not complete that request. Try again in a moment.";
   }
 
   function rememberCoachSignup(email) {
@@ -108,6 +111,12 @@
     } catch (_error) {
       return false;
     }
+  }
+
+  function coachSignupIntent(user) {
+    const metadata = user?.user_metadata || {};
+    const localSignup = consumeCoachSignup(user);
+    return Boolean(metadata.fuel_guard_coach_signup || metadata.coach_signup || localSignup);
   }
 
   function profileName(profile, relation) {
@@ -128,6 +137,20 @@
           profile
         };
       });
+  }
+
+  function relationshipRows() {
+    const profileById = new Map(state.athleteProfiles.map(profile => [profile.user_id, profile]));
+    return state.relationships.map(relation => {
+      const profile = profileById.get(relation.athlete_id) || {};
+      return {
+        userId: relation.athlete_id,
+        displayName: profileName(profile, relation),
+        relationId: relation.id,
+        relationStatus: relation.status,
+        profile
+      };
+    });
   }
 
   function targetsByUser() {
@@ -185,6 +208,53 @@
           ${topFlag ? `<p class="coach-note">${safe(topFlag.detail)}</p>` : compact ? "" : `<p class="coach-note">No attention flag right now.</p>`}
         </div>
         <button type="button" data-open-athlete="${id}">View</button>
+      </article>
+    `;
+  }
+
+  function relationshipStatusCopy(status) {
+    if (status === "active") return "Sharing active";
+    if (status === "pending") return "Waiting for athlete approval";
+    if (status === "revoked") return "Sharing revoked";
+    return "Not connected";
+  }
+
+  function relationshipSearchRow(item) {
+    const id = safe(item.userId);
+    const canOpen = item.relationStatus === "active";
+    return `
+      <article class="coach-roster-row ${safe(item.relationStatus === "active" ? "steady" : "warning")}">
+        <div>
+          <div class="coach-athlete-title">
+            <strong>${safe(item.displayName)}</strong>
+            <span class="coach-status-chip ${safe(item.relationStatus)}">${safe(item.relationStatus)}</span>
+          </div>
+          <div class="coach-row-meta">
+            <span>${safe(relationshipStatusCopy(item.relationStatus))}</span>
+            <span>${id}</span>
+          </div>
+        </div>
+        ${canOpen ? `<button type="button" data-open-athlete="${id}">View</button>` : `<button type="button" disabled>Pending</button>`}
+      </article>
+    `;
+  }
+
+  function exactAthleteRequestRow(athleteId) {
+    const existing = state.relationships.find(relation => relation.athlete_id === athleteId && relation.status !== "revoked");
+    if (existing) return "";
+    return `
+      <article class="coach-roster-row warning">
+        <div>
+          <div class="coach-athlete-title">
+            <strong>Athlete ${safe(athleteId.slice(0, 8))}</strong>
+            <span class="coach-status-chip pending">not connected</span>
+          </div>
+          <div class="coach-row-meta">
+            <span>Exact athlete ID entered</span>
+            <span>${safe(athleteId)}</span>
+          </div>
+        </div>
+        <button type="button" data-request-athlete="${safe(athleteId)}">Request sharing</button>
       </article>
     `;
   }
@@ -248,14 +318,20 @@
     const target = $("coachAthleteList");
     if (!target) return;
     const query = state.search.trim().toLowerCase();
-    const rows = state.roster.filter(item => {
+    const relationshipMatches = relationshipRows().filter(item => {
       if (!query) return true;
-      return `${item.athlete.displayName} ${item.athlete.userId}`.toLowerCase().includes(query);
+      return `${item.displayName} ${item.userId} ${item.relationStatus}`.toLowerCase().includes(query);
     });
+    const activeById = new Map(state.roster.map(item => [item.athlete.userId, item]));
+    const rows = relationshipMatches.map(item => activeById.get(item.userId) || item);
+    const requestRow = query && ATHLETE_ID_PATTERN.test(query) ? exactAthleteRequestRow(query) : "";
+    const empty = query
+      ? "No athletes found"
+      : "No active or pending athlete sharing relationships yet.";
     target.innerHTML = `
       <section class="coach-card">
         <div class="coach-list">
-          ${rows.length ? rows.map(item => rosterRow(item)).join("") : `<div class="coach-empty">No assigned athlete matches that search.</div>`}
+          ${rows.length || requestRow ? rows.map(item => item.athlete ? rosterRow(item) : relationshipSearchRow(item)).join("") + requestRow : `<div class="coach-empty">${safe(empty)}</div>`}
         </div>
       </section>
     `;
@@ -838,7 +914,7 @@
           </div>
         </article>
       `).join("")
-      : `<div class="coach-empty">No relationships yet. Add an athlete user ID to request sharing.</div>`;
+      : `<div class="coach-empty">No relationships yet. Paste an exact athlete user ID to request sharing.</div>`;
   }
 
   function renderSettings() {
@@ -1042,7 +1118,7 @@
     const originalText = button?.textContent || "";
     if (button) button.disabled = true;
     if (button?.id === "coachSignInButton") button.textContent = "Signing in...";
-    if (button?.id === "coachSignUpButton") button.textContent = "Creating...";
+    if (button?.id === "coachSignUpButton") button.textContent = "Sending...";
     if (button?.id === "coachForgotPasswordButton") button.textContent = "Sending...";
     try {
       await callback();
@@ -1077,16 +1153,19 @@
       const email = $("coachEmail")?.value?.trim();
       const password = $("coachPassword")?.value || "";
       if (!email || !password) throw new Error("Enter an email and password.");
-      setStatus("Creating coach account...");
+      setStatus("Sending coach invitation...");
       rememberCoachSignup(email);
       const { data, error } = await state.client.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/coach/` }
+        options: {
+          emailRedirectTo: `${window.location.origin}/coach/`,
+          data: { fuel_guard_coach_signup: true }
+        }
       });
       if (error) throw error;
       state.session = data.session || state.session;
-      setStatus(data.session ? "Coach account created." : "Confirmation email sent. Check your inbox.");
+      setStatus(data.session ? "Coach account created." : "Coach invitation sent. Check your inbox.");
       if (data.session) {
         state.authResolved = true;
         state.coachLoading = true;
@@ -1149,13 +1228,14 @@
     });
   }
 
-  async function requestSharing() {
-    await withBusy($("coachInviteButton"), async () => {
+  async function requestSharing(athleteIdOverride = "", labelOverride = "", button = $("coachInviteButton")) {
+    await withBusy(button, async () => {
       const user = coachUser();
       if (!user) throw new Error("Sign in first.");
-      const athleteId = $("coachInviteAthleteId")?.value?.trim();
-      const label = $("coachInviteAthleteLabel")?.value?.trim();
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(athleteId || "")) {
+      const fromSearch = Boolean(athleteIdOverride);
+      const athleteId = (athleteIdOverride || $("coachInviteAthleteId")?.value || "").trim();
+      const label = (labelOverride || $("coachInviteAthleteLabel")?.value || "").trim();
+      if (!ATHLETE_ID_PATTERN.test(athleteId || "")) {
         throw new Error("Enter a valid athlete Supabase user ID.");
       }
       const row = {
@@ -1169,8 +1249,10 @@
         .from(TABLES.relationships)
         .upsert(row, { onConflict: "coach_id,athlete_id" });
       if (error) throw error;
-      $("coachInviteAthleteId").value = "";
-      $("coachInviteAthleteLabel").value = "";
+      if (!fromSearch) {
+        $("coachInviteAthleteId").value = "";
+        $("coachInviteAthleteLabel").value = "";
+      }
       setStatus("Sharing requested. Athlete data stays private until they approve.");
       await loadCoachData();
     });
@@ -1472,7 +1554,7 @@
     }
     state.session = data.session;
     if (state.session?.user) {
-      const enableCoach = consumeCoachSignup(state.session.user);
+      const enableCoach = coachSignupIntent(state.session.user);
       state.coachLoading = true;
       renderAuth();
       await loadCoachData({ enableCoach }).catch(error => {
@@ -1492,7 +1574,7 @@
       state.authResolved = true;
       if (session?.user) {
         if (state.coachLoading && previousUserId === session.user.id) return;
-        const enableCoach = consumeCoachSignup(session.user);
+        const enableCoach = coachSignupIntent(session.user);
         state.coachLoading = true;
         renderAuth();
         loadCoachData({ enableCoach }).catch(error => {
@@ -1538,6 +1620,12 @@
       return;
     }
 
+    const requestAthlete = event.target.closest("[data-request-athlete]");
+    if (requestAthlete) {
+      requestSharing(requestAthlete.dataset.requestAthlete, "", requestAthlete);
+      return;
+    }
+
     const reportBuilder = event.target.closest("[data-open-report-builder]");
     if (reportBuilder) {
       openReportBuilder(reportBuilder.dataset.openReportBuilder);
@@ -1566,7 +1654,7 @@
   $("coachAccessSignOutButton")?.addEventListener("click", signOut);
   $("coachSignOutButton")?.addEventListener("click", signOut);
   $("coachSaveProfileButton")?.addEventListener("click", saveProfile);
-  $("coachInviteButton")?.addEventListener("click", requestSharing);
+  $("coachInviteButton")?.addEventListener("click", () => requestSharing());
   $("coachGenerateReviewButton")?.addEventListener("click", generateReport);
   $("coachCreateInterventionButton")?.addEventListener("click", createIntervention);
   $("coachReportAthlete")?.addEventListener("change", event => {
