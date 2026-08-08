@@ -132,10 +132,16 @@ create table if not exists public.garmin_activity_summaries (
 );
 
 create unique index if not exists garmin_activity_user_source_activity_idx
-  on public.garmin_activity_summaries (user_id, source, device_id, source_activity_id)
+  on public.garmin_activity_summaries (user_id, source, source_activity_id)
   where source_activity_id is not null;
-create unique index if not exists garmin_activity_user_device_started_type_idx
-  on public.garmin_activity_summaries (user_id, source, device_id, started_at, activity_type)
+create unique index if not exists garmin_activity_user_started_type_duration_idx
+  on public.garmin_activity_summaries (
+    user_id,
+    source,
+    started_at,
+    (lower(btrim(activity_type))),
+    duration_seconds
+  )
   where source_activity_id is null;
 create index if not exists garmin_activity_user_started_idx
   on public.garmin_activity_summaries (user_id, started_at desc);

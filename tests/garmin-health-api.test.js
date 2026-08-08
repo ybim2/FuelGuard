@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const auth = require("../lib/garmin-auth.js");
 const health = require("../lib/garmin-health.js");
+const domain = require("../fuel-guard-domain.js");
 
 const BASE_ENV = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -128,9 +129,13 @@ class FakeSupabase {
     }
     if (table === "garmin_activity_summaries") {
       if (body.source_activity_id) {
-        return row => row.user_id === body.user_id && row.source === body.source && row.device_id === body.device_id && row.source_activity_id === body.source_activity_id;
+        return row => row.user_id === body.user_id && row.source === body.source && row.source_activity_id === body.source_activity_id;
       }
-      return row => row.user_id === body.user_id && row.source === body.source && row.device_id === body.device_id && row.started_at === body.started_at && row.activity_type === body.activity_type;
+      return row => row.user_id === body.user_id
+        && row.source === body.source
+        && row.started_at === body.started_at
+        && String(row.activity_type).trim().toLowerCase() === String(body.activity_type).trim().toLowerCase()
+        && row.duration_seconds === body.duration_seconds;
     }
     if (table === "garmin_device_capabilities") {
       return row => row.user_id === body.user_id && row.source === body.source && row.device_id === body.device_id;
@@ -268,6 +273,59 @@ test("Garmin health ingestion validates, stores and dedupes opt-in local samples
     assert.equal(fake.tables.garmin_daily_features[0].workouts_missing_pre_fuel, 0);
     assert.equal(fake.tables.garmin_daily_features[0].workouts_missing_post_fuel, 1);
     assert.equal(fake.tables.garmin_weekly_features[0].workouts_missing_pre_fuel, 0);
+  });
+});
+
+test("watch-local activity history maps to its authenticated athlete, dedupes across devices, and drives workout fuel context", async () => {
+  await withFake(async fake => {
+    const payload = {
+      ...healthPayload(),
+      snapshot_external_id: "fg-health-fr255-no-source-id",
+      device_id: "fr255",
+      heart_rate_samples: [],
+      stress_samples: [],
+      body_battery_samples: [],
+      profile_snapshot: null,
+      activity_summaries: [{
+        activity_type: "running",
+        started_at: "2026-08-06T17:00:00.000Z",
+        duration_seconds: 1800,
+        distance_metres: 5000
+      }]
+    };
+
+    const first = await call(health.garminHealthHandler, {
+      body: { ...payload, user_id: "attacker-user-id" }
+    });
+    const second = await call(health.garminHealthHandler, {
+      body: {
+        ...payload,
+        snapshot_external_id: "fg-health-fr965-no-source-id",
+        device_id: "fr965"
+      }
+    });
+
+    assert.equal(first.statusCode, 200);
+    assert.equal(first.json.sections.activity_summaries.accepted, 1);
+    assert.equal(second.statusCode, 200);
+    assert.equal(second.json.sections.activity_summaries.duplicate, 1);
+    assert.equal(fake.tables.garmin_activity_summaries.length, 1);
+
+    const persisted = fake.tables.garmin_activity_summaries[0];
+    assert.equal(persisted.user_id, USER_ID);
+    assert.equal(persisted.source_activity_id, null);
+    assert.equal(persisted.activity_type, "running");
+    assert.equal(persisted.started_at, "2026-08-06T17:00:00.000Z");
+    assert.equal(persisted.duration_seconds, 1800);
+    assert.ok(persisted.id);
+
+    const context = domain.getWorkoutFuelContext(persisted, [
+      { id: "before", user_id: USER_ID, logged_at: "2026-08-06T15:30:00.000Z", type: "fuel" },
+      { id: "after", user_id: USER_ID, logged_at: "2026-08-06T18:00:00.000Z", type: "fuel" }
+    ]);
+    assert.equal(context.workout.endAt.toISOString(), "2026-08-06T17:30:00.000Z");
+    assert.equal(context.preFuelGapMinutes, 90);
+    assert.equal(context.postFuelGapMinutes, 30);
   });
 });
 
