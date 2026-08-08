@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1713" />
+  <meta name="description" content="Fuel Guard Performance provides permissioned organisational fuelling oversight." />
+  <title>Fuel Guard Performance</title>
+  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
+  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v114-performance-platform" />
+</head>
+<body>
+  <header class="performance-topbar">
+    <a class="performance-brand" href="../" aria-label="Open Fuel Guard athlete app">
+      <span aria-hidden="true">FG</span>
+      <strong>Performance</strong>
+    </a>
+    <div class="performance-topbar-actions">
+      <label id="organisationPickerLabel" hidden>
+        <span>Organisation</span>
+        <select id="organisationPicker" aria-label="Select organisation"></select>
+      </label>
+      <button id="refreshButton" class="icon-button" type="button" aria-label="Refresh Performance data" hidden>↻</button>
+    </div>
+  </header>
+
+  <main class="performance-page">
+    <section id="loadingPanel" class="performance-card centred-card" role="status" aria-live="polite">
+      <span class="brand-mark">FG</span>
+      <h1>Fuel Guard Performance</h1>
+      <p>Resolving organisational access…</p>
+    </section>
+
+    <section id="authPanel" class="performance-card centred-card" hidden>
+      <span class="brand-mark">FG</span>
+      <h1>Fuel Guard Performance</h1>
+      <p>Sign in with your organisational staff account. Access is resolved from server-side scope and capability grants.</p>
+      <div class="form-grid compact-form">
+        <label>Email<input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com" /></label>
+        <label>Password<input id="passwordInput" type="password" autocomplete="current-password" placeholder="Password" /></label>
+      </div>
+      <button id="signInButton" class="primary-button" type="button">Sign in</button>
+      <p id="authStatus" class="status-line" aria-live="polite"></p>
+    </section>
+
+    <section id="accessPanel" class="performance-card centred-card" hidden>
+      <span class="brand-mark">FG</span>
+      <h1>Performance access unavailable</h1>
+      <p>This account has no active Performance organisation, scope, and <em>view Performance</em> capability combination.</p>
+      <div class="button-row">
+        <button id="retryAccessButton" class="secondary-button" type="button">Check access again</button>
+        <button id="accessSignOutButton" class="text-button" type="button">Sign out</button>
+      </div>
+    </section>
+
+    <div id="appShell" class="performance-shell" hidden>
+      <aside class="performance-sidebar">
+        <div class="sidebar-heading">
+          <span>Operating layer</span>
+          <strong id="sidebarOrganisation">Organisation</strong>
+        </div>
+        <nav class="performance-nav" aria-label="Performance navigation">
+          <button class="active" type="button" data-performance-tab="overview"><span aria-hidden="true">◎</span>Overview</button>
+          <button type="button" data-performance-tab="pathway"><span aria-hidden="true">⌘</span>Pathway</button>
+          <button type="button" data-performance-tab="staff"><span aria-hidden="true">♙</span>Staff &amp; Access</button>
+          <button type="button" data-performance-tab="reports"><span aria-hidden="true">▥</span>Reports</button>
+          <button type="button" data-performance-tab="settings"><span aria-hidden="true">⚙</span>Settings</button>
+        </nav>
+        <p class="sidebar-privacy">Metrics are calculated on the server from actively shared athletes in your permitted scope.</p>
+      </aside>
+
+      <div class="performance-content">
+        <section id="overviewPanel" class="performance-panel active" aria-labelledby="overviewTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">Organisational command centre</p><h1 id="overviewTitle">Overview</h1></div>
+            <label class="unit-filter">Scope view<select id="overviewUnitPicker"><option value="">All permitted units</option></select></label>
+          </div>
+          <div id="overviewContent" aria-live="polite"></div>
+        </section>
+
+        <section id="pathwayPanel" class="performance-panel" aria-labelledby="pathwayTitle">
+          <div class="page-heading"><div><p class="eyebrow">Structure and responsibility</p><h1 id="pathwayTitle">Pathway</h1></div></div>
+          <div id="pathwayContent"></div>
+          <section id="unitManager" class="performance-card management-card" hidden>
+            <div><p class="eyebrow">Structure control</p><h2>Add organisation unit</h2><p>Create a root or nested unit without changing the underlying permission model.</p></div>
+            <div class="form-grid">
+              <label>Name<input id="unitNameInput" maxlength="160" placeholder="e.g. Bedford" /></label>
+              <label>Type<input id="unitTypeInput" maxlength="80" placeholder="e.g. Location" /></label>
+              <label>Parent<select id="unitParentPicker"><option value="">Organisation root</option></select></label>
+              <label>Timezone<input id="unitTimezoneInput" maxlength="80" value="Europe/London" /></label>
+            </div>
+            <button id="saveUnitButton" class="secondary-button" type="button">Add unit</button>
+            <p id="unitStatus" class="status-line" aria-live="polite"></p>
+          </section>
+        </section>
+
+        <section id="staffPanel" class="performance-panel" aria-labelledby="staffTitle">
+          <div class="page-heading"><div><p class="eyebrow">Responsibility and least privilege</p><h1 id="staffTitle">Staff &amp; Access</h1></div></div>
+          <div id="staffContent"></div>
+          <section id="accessManager" class="performance-card management-card" hidden>
+            <div><p class="eyebrow">Access control</p><h2>Assign scope and capability</h2><p><strong>Scope</strong> controls who a person can see. <strong>Capability</strong> controls what they can do.</p></div>
+            <div class="management-grid">
+              <form id="membershipForm" class="management-form">
+                <h3>Staff membership</h3>
+                <label>Staff account ID<input id="membershipUserInput" placeholder="Approved staff UUID" /></label>
+                <label>Administration level<select id="membershipRolePicker"><option value="staff">Staff</option><option value="admin">Organisation admin</option></select></label>
+                <label>Status<select id="membershipStatusPicker"><option value="active">Active</option><option value="revoked">Inactive</option></select></label>
+                <button class="secondary-button" type="submit">Save membership</button>
+              </form>
+              <form id="capabilityForm" class="management-form">
+                <h3>Capability</h3>
+                <label>Staff<select id="capabilityStaffPicker"></select></label>
+                <label>Capability<select id="capabilityPicker"></select></label>
+                <label>Status<select id="capabilityStatusPicker"><option value="active">Active</option><option value="revoked">Revoked</option></select></label>
+                <button class="secondary-button" type="submit">Save capability</button>
+              </form>
+              <form id="scopeForm" class="management-form">
+                <h3>Scope</h3>
+                <label>Staff<select id="scopeStaffPicker"></select></label>
+                <label>Scope type<select id="scopeTypePicker"><option value="organisation">Entire organisation</option><option value="unit">Organisation unit</option><option value="athlete">Individual athlete/client</option></select></label>
+                <label id="scopeUnitLabel" hidden>Unit<select id="scopeUnitPicker"></select></label>
+                <label id="scopeAthleteLabel" hidden>Athlete/client<select id="scopeAthletePicker"></select></label>
+                <label id="scopeDescendantsLabel" class="checkbox-label" hidden><input id="scopeDescendantsInput" type="checkbox" /> Include descendant units</label>
+                <label>Status<select id="scopeStatusPicker"><option value="active">Active</option><option value="revoked">Revoked</option></select></label>
+                <button class="secondary-button" type="submit">Save scope</button>
+              </form>
+              <form id="athleteUnitForm" class="management-form">
+                <h3>Athlete/client unit</h3>
+                <label>Athlete/client<select id="athleteUnitAthletePicker"></select></label>
+                <label>Organisation unit<select id="athleteUnitPicker"></select></label>
+                <label>Assignment<select id="athleteUnitStatusPicker"><option value="active">Active</option><option value="revoked">Remove from unit</option></select></label>
+                <button class="secondary-button" type="submit">Save unit assignment</button>
+              </form>
+            </div>
+            <form id="athleteInviteForm" class="inline-form">
+              <label>Athlete account ID<input id="athleteInviteInput" placeholder="UUID from an approved athlete relationship" /></label>
+              <button class="secondary-button" type="submit">Invite to share</button>
+            </form>
+            <p id="accessStatus" class="status-line" aria-live="polite"></p>
+          </section>
+        </section>
+
+        <section id="reportsPanel" class="performance-panel" aria-labelledby="reportsTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">Behavioural evidence, not rankings</p><h1 id="reportsTitle">Reports</h1></div>
+            <form id="reportFilters" class="report-filters">
+              <label>From<input id="reportFromInput" type="date" /></label>
+              <label>To<input id="reportToInput" type="date" /></label>
+              <label>Unit<select id="reportUnitPicker"><option value="">All permitted units</option></select></label>
+              <button class="secondary-button" type="submit">Run report</button>
+            </form>
+          </div>
+          <div id="reportsContent"></div>
+        </section>
+
+        <section id="settingsPanel" class="performance-panel" aria-labelledby="settingsTitle">
+          <div class="page-heading"><div><p class="eyebrow">Organisation controls</p><h1 id="settingsTitle">Settings</h1></div></div>
+          <section class="performance-card settings-card">
+            <h2>Reporting privacy</h2>
+            <p>Behavioural rates and comparisons are suppressed below the configured cohort minimum. Suppression is applied inside the database RPC.</p>
+            <form id="reportingMinimumForm" class="inline-form">
+              <label>Minimum cohort size<input id="reportingMinimumInput" type="number" min="3" max="25" /></label>
+              <button id="saveReportingMinimumButton" class="secondary-button" type="submit">Save minimum</button>
+            </form>
+          </section>
+          <section class="performance-card settings-card">
+            <h2>Session</h2>
+            <p id="signedInIdentity">Signed in</p>
+            <button id="signOutButton" class="text-button" type="button">Sign out</button>
+          </section>
+          <section class="performance-card settings-card">
+            <h2>Build</h2>
+            <dl class="definition-list"><div><dt>Surface</dt><dd>Fuel Guard Performance</dd></div><div><dt>Version</dt><dd id="buildVersion">Unknown</dd></div></dl>
+          </section>
+          <p id="settingsStatus" class="status-line" aria-live="polite"></p>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <p id="globalStatus" class="global-status" aria-live="polite"></p>
+
+  <script src="../build-info.js?v=mobile-pwa-v114-performance-platform"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v114-performance-platform"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
+  <script src="../app-pwa.js?v=mobile-pwa-v114-performance-platform"></script>
+  <script src="performance.js?v=mobile-pwa-v114-performance-platform"></script>
+</body>
+</html>

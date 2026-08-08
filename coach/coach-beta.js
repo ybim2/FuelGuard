@@ -19,6 +19,8 @@
     staffNotes: "fuel_staff_notes",
     savedGroups: "fuel_saved_groups",
     savedGroupMembers: "fuel_saved_group_members",
+    garminActivities: "garmin_activity_summaries",
+    demandBlocks: "fuel_demand_blocks",
     trainingSessions: "fuel_training_sessions",
     trainingAssignments: "fuel_training_session_athletes",
     trainingContext: "fuel_training_operational_context"
@@ -66,9 +68,13 @@
     staffNotes: [],
     savedGroups: [],
     savedGroupMembers: [],
+    garminActivities: [],
+    demandBlocks: [],
     trainingSessions: [],
     trainingAssignments: [],
     trainingContext: [],
+    workoutFuelContexts: [],
+    workoutFuelSummaries: [],
     organisationFeaturesReady: true,
     selectedGroupId: "",
     roster: [],
@@ -154,7 +160,7 @@
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
     if (/enter an email and password|enter your email before|sign in first|select an assigned athlete|choose a valid|custom cadence|custom report period|assemble a review|scheduled review is no longer available|enter a group name|enter an organisation name|enter a team name|choose a team|choose an actively shared athlete|choose at least one authorised athlete|valid session start and end|local time does not exist|find an athlete by athlete code|can't add your own athlete|attention action unavailable|attention item has changed|attention action is no longer available|enter a nudge message|enter a note|enter a shared staff note|shared note access is no longer available|intervention not found|open an intervention review first/i.test(message)) return message;
-    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_attention_actions|fuel_coach_notes|fuel_coach_nudges|fuel_coach_review_schedules|fuel_organisations|fuel_teams|fuel_team_|fuel_staff_notes|fuel_saved_group|fuel_training_|fuel_coach_find_athlete_by_code|fuel_coach_data_health|fuel_coach_refresh_due_interventions|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
+    if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_attention_actions|fuel_coach_notes|fuel_coach_nudges|fuel_coach_review_schedules|fuel_organisations|fuel_teams|fuel_team_|fuel_staff_notes|fuel_saved_group|fuel_training_|fuel_demand_blocks|garmin_activity_summaries|fuel_coach_find_athlete_by_code|fuel_coach_data_health|fuel_coach_refresh_due_interventions|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach access is still warming up. Refresh and try again in a moment.";
     }
     return "Coach Beta could not complete that request. Try again in a moment.";
@@ -272,6 +278,46 @@
     return previousAthleteId !== state.selectedAthleteId;
   }
 
+  function rebuildWorkoutFuelData() {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 14 * 86400000);
+    const sessionById = new Map(state.trainingSessions.map(session => [String(session.id), session]));
+    const teamWorkouts = state.trainingAssignments.map(assignment => {
+      const session = sessionById.get(String(assignment.session_id));
+      if (!session) return null;
+      return {
+        ...session,
+        athleteId: assignment.athlete_id,
+        source: session.source === "external_provider" ? session.source_provider : "coach_schedule",
+        sourceActivityId: session.external_session_id || "",
+        type: session.session_type,
+        title: session.session_name,
+        startAt: session.starts_at,
+        endAt: session.ends_at,
+        timeZone: session.timezone_name
+      };
+    }).filter(Boolean);
+    const workouts = domain.normalizeWorkouts([
+      ...state.garminActivities,
+      ...state.demandBlocks.map(block => ({
+        ...block,
+        athleteId: block.user_id,
+        source: "manual",
+        type: block.session_type || "training",
+        title: block.title,
+        startAt: block.start_time,
+        endAt: block.end_time
+      })),
+      ...teamWorkouts
+    ]).filter(workout => workout.endAt <= now && workout.endAt >= windowStart);
+    state.workoutFuelContexts = domain.getWorkoutFuelContexts(workouts, state.logs);
+    state.workoutFuelSummaries = domain.workoutFuelSummariesByAthlete({
+      contexts: state.workoutFuelContexts,
+      targetsByUser: targetsByUser(),
+      timeZone: state.timeZone
+    });
+  }
+
   function rebuildOperationalData() {
     state.teamDataHealth = domain.buildTeamDataHealth({
       athletes: scopedAthleteRows(),
@@ -283,6 +329,7 @@
       dataHealth: state.teamDataHealth,
       interventions: state.interventions,
       trainingContext: state.trainingContext,
+      workoutFuelSummaries: state.workoutFuelSummaries,
       actions: state.attentionActions,
       now: new Date()
     });
@@ -627,7 +674,10 @@
 
   function attentionTone(item) {
     if (item.type === "gap_exceeded" || item.type === "garmin_reconnect") return "critical";
-    if (item.type === "gap_approaching" || item.type === "intervention_review_due") return "warning";
+    if (item.type === "gap_approaching"
+      || item.type === "intervention_review_due"
+      || item.type === "training_repeated_long_pre_gap"
+      || item.type === "training_missing_post_fuel") return "warning";
     return "steady";
   }
 
@@ -1317,6 +1367,65 @@
     `;
   }
 
+  function workoutFuelSummaryForAthlete(athleteId) {
+    return state.workoutFuelSummaries.find(summary => String(summary.athleteId) === String(athleteId)) || null;
+  }
+
+  function workoutTitle(workout) {
+    return String(workout.title || workout.type || "Training session")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
+  function renderCoachWorkoutFuel(item) {
+    const summary = workoutFuelSummaryForAthlete(item.athlete.userId);
+    if (!summary?.contexts?.length) {
+      return `
+        <section class="coach-card coach-training-fuel-card">
+          <div class="coach-card-heading compact"><div><h2>Pre/Post Training Fuel</h2><p>Completed sessions from shared Garmin, manual, and team-schedule data.</p></div></div>
+          <div class="coach-empty compact">No completed training sessions are available in the last 14 days.</div>
+        </section>
+      `;
+    }
+    const metrics = [
+      ["Sessions", String(summary.sessionCount)],
+      ["Avg pre-session gap", Number.isFinite(summary.averagePreFuelGapMinutes) ? domain.duration(summary.averagePreFuelGapMinutes) : "More data needed"],
+      ["Avg post-session fuel", Number.isFinite(summary.averagePostFuelGapMinutes) ? domain.duration(summary.averagePostFuelGapMinutes) : "More data needed"],
+      ...(Number.isFinite(summary.targetMinutes)
+        ? [["After configured gap target", String(summary.extendedPreFuelGapCount)]]
+        : []),
+      ["No subsequent fuel that day", String(summary.noPostFuelSameDayCount)]
+    ];
+    return `
+      <section class="coach-card coach-training-fuel-card">
+        <div class="coach-card-heading compact">
+          <div>
+            <h2>Pre/Post Training Fuel</h2>
+            <p>Workout-relative timing from the athlete's shared records. No calories or medical interpretation.</p>
+          </div>
+        </div>
+        <div class="coach-training-fuel-metrics">
+          ${metrics.map(([label, value]) => `<article><span>${safe(label)}</span><strong>${safe(value)}</strong></article>`).join("")}
+        </div>
+        <div class="coach-training-fuel-list">
+          ${summary.contexts.slice(0, 5).map(context => `
+            <article>
+              <div>
+                <strong>${safe(workoutTitle(context.workout))}</strong>
+                <span>${safe(`${domain.dateKeyInTimeZone(context.workout.startAt, state.timeZone)} · ${domain.formatClockInTimeZone(context.workout.startAt, state.timeZone)}–${domain.formatClockInTimeZone(context.workout.endAt, state.timeZone)}`)}</span>
+              </div>
+              <dl>
+                <div><dt>Before</dt><dd>${safe(context.hasPreviousFuel ? domain.duration(context.preFuelGapMinutes) : "No prior fuel logged")}</dd></div>
+                <div><dt>After</dt><dd>${safe(context.hasPostFuel ? domain.duration(context.postFuelGapMinutes) : "No post-session fuel logged")}</dd></div>
+              </dl>
+            </article>
+          `).join("")}
+        </div>
+        ${summary.enoughForPatterns ? "" : `<p class="coach-note">More sessions are needed before Fuel Guard can identify a pattern.</p>`}
+      </section>
+    `;
+  }
+
   function renderAthleteDetail() {
     const target = $("coachAthleteDetail");
     if (!target) return;
@@ -1352,6 +1461,8 @@
           </article>
         </div>
       </section>
+
+      ${renderCoachWorkoutFuel(item)}
 
       <section class="coach-card">
         <div class="coach-card-heading compact">
@@ -1801,7 +1912,7 @@
         state.staffNotes = notesResult.data || [];
       }
 
-      const from = new Date(Date.now() - 86400000).toISOString();
+      const from = new Date(Date.now() - 14 * 86400000).toISOString();
       const to = new Date(Date.now() + 14 * 86400000).toISOString();
       const sessionsResult = await state.client
         .from(TABLES.trainingSessions)
@@ -1854,6 +1965,10 @@
         state.notes = [];
         state.nudges = [];
         state.dataHealthRows = [];
+        state.garminActivities = [];
+        state.demandBlocks = [];
+        state.workoutFuelContexts = [];
+        state.workoutFuelSummaries = [];
         state.teamDataHealth = { items: [], summary: {} };
         state.attentionItems = [];
         state.schedules = [];
@@ -1887,6 +2002,10 @@
       state.nudges = [];
       state.dataHealthRows = [];
       state.schedules = [];
+      state.garminActivities = [];
+      state.demandBlocks = [];
+      state.workoutFuelContexts = [];
+      state.workoutFuelSummaries = [];
 
       if (athleteIds.length) {
         const { data: profiles, error: profilesError } = await state.client
@@ -1898,8 +2017,13 @@
 
         const weeklyPeriod = domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
         const comparisonPeriod = domain.previousPeriodRange(weeklyPeriod);
-        const dashboardPeriod = domain.periodFromKeys(
+        const workoutWindowStart = new Date(Date.now() - 15 * 86400000);
+        const dashboardStartKey = [
           comparisonPeriod.startKey,
+          domain.dateKeyInTimeZone(workoutWindowStart, state.timeZone)
+        ].sort()[0];
+        const dashboardPeriod = domain.periodFromKeys(
+          dashboardStartKey,
           domain.dateKeyInTimeZone(new Date(), state.timeZone),
           "coach_dashboard",
           state.timeZone
@@ -1914,6 +2038,29 @@
           .order("logged_at", { ascending: true });
         if (logsError) throw logsError;
         state.logs = (logs || []).map(domain.normalizeLog).filter(Boolean);
+
+        const workoutWindowEnd = new Date();
+        const [garminResult, demandResult] = await Promise.all([
+          state.client
+            .from(TABLES.garminActivities)
+            .select("id,user_id,source,source_activity_id,activity_type,started_at,duration_seconds")
+            .in("user_id", athleteIds)
+            .gte("started_at", workoutWindowStart.toISOString())
+            .lte("started_at", workoutWindowEnd.toISOString())
+            .order("started_at", { ascending: false }),
+          state.client
+            .from(TABLES.demandBlocks)
+            .select("id,user_id,type,start_time,end_time,title,session_type")
+            .in("user_id", athleteIds)
+            .eq("type", "training")
+            .gte("end_time", workoutWindowStart.toISOString())
+            .lte("end_time", workoutWindowEnd.toISOString())
+            .order("start_time", { ascending: false })
+        ]);
+        if (garminResult.error) throw garminResult.error;
+        if (demandResult.error) throw demandResult.error;
+        state.garminActivities = garminResult.data || [];
+        state.demandBlocks = demandResult.data || [];
 
         const { data: targets, error: targetsError } = await state.client
           .from(TABLES.targets)
@@ -2007,6 +2154,7 @@
       await loadOrganisationData(user, athleteIds);
 
       const selectionChanged = rebuildRoster();
+      rebuildWorkoutFuelData();
       rebuildOperationalData();
       state.coachLoading = false;
       setStatus(`Loaded ${state.roster.length} active athlete${state.roster.length === 1 ? "" : "s"}.`);
@@ -2113,6 +2261,10 @@
     state.notes = [];
     state.nudges = [];
     state.dataHealthRows = [];
+    state.garminActivities = [];
+    state.demandBlocks = [];
+    state.workoutFuelContexts = [];
+    state.workoutFuelSummaries = [];
     state.teamDataHealth = { items: [], summary: {} };
     state.attentionItems = [];
     state.attentionComposer = null;

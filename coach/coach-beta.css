@@ -665,6 +665,92 @@ body.coach-beta {
   padding: 8px 12px;
 }
 
+.coach-training-fuel-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.coach-training-fuel-metrics article {
+  padding: 12px;
+  border: 1px solid var(--coach-line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .72);
+}
+
+.coach-training-fuel-metrics span,
+.coach-training-fuel-list span,
+.coach-training-fuel-list dt {
+  color: var(--coach-muted);
+  font-size: .76rem;
+}
+
+.coach-training-fuel-metrics strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--coach-text);
+}
+
+.coach-training-fuel-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.coach-training-fuel-list > article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--coach-line);
+  border-radius: 14px;
+  background: var(--coach-surface);
+}
+
+.coach-training-fuel-list > article > div > strong,
+.coach-training-fuel-list > article > div > span {
+  display: block;
+}
+
+.coach-training-fuel-list > article > div > span {
+  margin-top: 4px;
+}
+
+.coach-training-fuel-list dl {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+}
+
+.coach-training-fuel-list dl div {
+  min-width: 88px;
+}
+
+.coach-training-fuel-list dt,
+.coach-training-fuel-list dd {
+  margin: 0;
+}
+
+.coach-training-fuel-list dd {
+  margin-top: 3px;
+  color: var(--coach-text);
+  font-size: .84rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .coach-training-fuel-list > article {
+    grid-template-columns: 1fr;
+  }
+
+  .coach-training-fuel-list dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .coach-timeline-dot {
   display: inline-grid;
   place-items: center;

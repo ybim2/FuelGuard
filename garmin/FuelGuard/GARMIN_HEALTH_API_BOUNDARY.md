@@ -6,6 +6,8 @@ Fuel Guard currently uses only data available locally to the Connect IQ app on t
 
 Quick Log can optionally share bounded Connect IQ-local snapshots after the user enables health-pattern sharing in Garmin Connect / Connect IQ settings.
 
+Collection is opportunistic when Quick Log opens, refreshes or logs fuel; it is not triggered by completion of a Garmin activity. The current collector does not emit a Garmin cloud activity ID, so `source_activity_id` remains empty and Fuel Guard uses the summary fields for ingestion deduplication.
+
 Supported sources are runtime-detected per device:
 
 - `Toybox.SensorHistory.getHeartRateHistory()`
