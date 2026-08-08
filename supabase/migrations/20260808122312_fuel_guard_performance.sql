@@ -42,6 +42,9 @@ alter table public.fuel_teams
 
 create index if not exists fuel_teams_parent_idx
   on public.fuel_teams (organisation_id, parent_team_id, display_order, name);
+create index if not exists fuel_teams_parent_fk_idx
+  on public.fuel_teams (parent_team_id, organisation_id)
+  where parent_team_id is not null;
 
 comment on table public.fuel_teams is
   'Generic nested organisation units. The legacy table name is retained to avoid a parallel hierarchy; permission logic is label-independent.';
@@ -81,6 +84,10 @@ create table public.fuel_staff_capabilities (
   constraint fuel_staff_capabilities_unique
     unique (organisation_id, user_id, capability)
 );
+
+create index fuel_staff_capabilities_granted_by_idx
+  on public.fuel_staff_capabilities (granted_by)
+  where granted_by is not null;
 
 create table public.fuel_staff_scopes (
   id uuid primary key default gen_random_uuid(),
@@ -124,6 +131,15 @@ create unique index fuel_staff_scopes_athlete_unique
   where scope_type = 'athlete';
 create index fuel_staff_scopes_user_status_idx
   on public.fuel_staff_scopes (user_id, organisation_id, status);
+create index fuel_staff_scopes_unit_fk_idx
+  on public.fuel_staff_scopes (unit_id, organisation_id)
+  where unit_id is not null;
+create index fuel_staff_scopes_athlete_idx
+  on public.fuel_staff_scopes (athlete_id)
+  where athlete_id is not null;
+create index fuel_staff_scopes_assigned_by_idx
+  on public.fuel_staff_scopes (assigned_by)
+  where assigned_by is not null;
 
 create table public.fuel_organisation_athlete_shares (
   id uuid primary key default gen_random_uuid(),
@@ -150,6 +166,9 @@ create index fuel_organisation_athlete_shares_athlete_idx
   on public.fuel_organisation_athlete_shares (athlete_id, status, organisation_id);
 create index fuel_organisation_athlete_shares_org_idx
   on public.fuel_organisation_athlete_shares (organisation_id, status, athlete_id);
+create index fuel_organisation_athlete_shares_invited_by_idx
+  on public.fuel_organisation_athlete_shares (invited_by)
+  where invited_by is not null;
 
 -- A recursive trigger prevents same-organisation cycles while allowing safe
 -- reparenting. The composite foreign key already prevents cross-org parents.
@@ -203,18 +222,21 @@ security invoker
 set search_path = pg_catalog
 as $$
 begin
-  if tg_table_name = 'fuel_staff_capabilities'
-     and (new.organisation_id, new.user_id, new.capability)
-         is distinct from (old.organisation_id, old.user_id, old.capability) then
-    raise exception 'Capability identity cannot be changed.' using errcode = '42501';
-  elsif tg_table_name = 'fuel_staff_scopes'
-     and (new.organisation_id, new.user_id, new.scope_type, new.unit_id, new.athlete_id)
-         is distinct from (old.organisation_id, old.user_id, old.scope_type, old.unit_id, old.athlete_id) then
-    raise exception 'Scope identity cannot be changed.' using errcode = '42501';
-  elsif tg_table_name = 'fuel_organisation_athlete_shares'
-     and (new.organisation_id, new.athlete_id)
-         is distinct from (old.organisation_id, old.athlete_id) then
-    raise exception 'Organisation sharing identity cannot be changed.' using errcode = '42501';
+  if tg_table_name = 'fuel_staff_capabilities' then
+    if (new.organisation_id, new.user_id, new.capability)
+       is distinct from (old.organisation_id, old.user_id, old.capability) then
+      raise exception 'Capability identity cannot be changed.' using errcode = '42501';
+    end if;
+  elsif tg_table_name = 'fuel_staff_scopes' then
+    if (new.organisation_id, new.user_id, new.scope_type, new.unit_id, new.athlete_id)
+       is distinct from (old.organisation_id, old.user_id, old.scope_type, old.unit_id, old.athlete_id) then
+      raise exception 'Scope identity cannot be changed.' using errcode = '42501';
+    end if;
+  elsif tg_table_name = 'fuel_organisation_athlete_shares' then
+    if (new.organisation_id, new.athlete_id)
+       is distinct from (old.organisation_id, old.athlete_id) then
+      raise exception 'Organisation sharing identity cannot be changed.' using errcode = '42501';
+    end if;
   end if;
   return new;
 end;
@@ -613,26 +635,9 @@ create policy fuel_organisation_athlete_shares_update_participant
     or private.fuel_performance_has_capability(organisation_id, 'manage_staff_access')
   );
 
--- Performance access to unit metadata composes with the existing Coach unit
--- policies. It never grants athlete-event access.
-create policy fuel_teams_select_performance_scope
-  on public.fuel_teams
-  for select to authenticated
-  using (
-    private.fuel_performance_has_capability(organisation_id, 'view_performance')
-    and private.fuel_performance_unit_in_scope(organisation_id, id)
-  );
-
-create policy fuel_teams_insert_performance_manager
-  on public.fuel_teams
-  for insert to authenticated
-  with check (private.fuel_performance_has_capability(organisation_id, 'manage_structure'));
-
-create policy fuel_teams_update_performance_manager
-  on public.fuel_teams
-  for update to authenticated
-  using (private.fuel_performance_has_capability(organisation_id, 'manage_structure'))
-  with check (private.fuel_performance_has_capability(organisation_id, 'manage_structure'));
+-- Performance unit metadata and management stay behind the capability-checked
+-- RPCs below. The existing Coach policies remain the only direct table path,
+-- avoiding broader direct access and duplicate permissive policy evaluation.
 
 create or replace function public.fuel_performance_set_capability(
   p_organisation_id uuid,

@@ -80,6 +80,13 @@ test("athlete organisation sharing is explicit, athlete-activated, revocable and
   assert.match(athleteSharing, /without deleting your account|personal Fuel Guard data remains private/);
 });
 
+test("shared identity trigger branches before reading table-specific fields", () => {
+  const guard = migration.match(/create or replace function private\.fuel_performance_prevent_identity_repoint\(\)[\s\S]*?\$\$;/)?.[0] || "";
+  assert.match(guard, /if tg_table_name = 'fuel_staff_capabilities' then\s+if \(new\.organisation_id, new\.user_id, new\.capability\)/);
+  assert.match(guard, /elsif tg_table_name = 'fuel_staff_scopes' then\s+if \(new\.organisation_id, new\.user_id, new\.scope_type/);
+  assert.match(guard, /elsif tg_table_name = 'fuel_organisation_athlete_shares' then\s+if \(new\.organisation_id, new\.athlete_id\)/);
+});
+
 test("aggregate permission resolution intersects capability, active share, assignment and scope", () => {
   const access = migration.match(/create or replace function private\.fuel_performance_can_access_athlete[\s\S]*?\$\$;/)?.[0] || "";
   assert.match(access, /fuel_performance_has_capability/);
@@ -111,6 +118,16 @@ test("new public relationship tables use explicit grants and RLS", () => {
   assert.match(migration, /grant update \(include_descendants, status, revoked_at, updated_at\)[\s\S]*fuel_staff_scopes/);
   assert.match(migration, /grant update \(status, shared_at, revoked_at, updated_at\)[\s\S]*fuel_organisation_athlete_shares/);
   assert.doesNotMatch(migration, /grant (?:select, )?update, delete on table public\.fuel_(?:staff_capabilities|staff_scopes|organisation_athlete_shares)/);
+  for (const index of [
+    "fuel_teams_parent_fk_idx",
+    "fuel_staff_capabilities_granted_by_idx",
+    "fuel_staff_scopes_unit_fk_idx",
+    "fuel_staff_scopes_athlete_idx",
+    "fuel_staff_scopes_assigned_by_idx",
+    "fuel_organisation_athlete_shares_invited_by_idx"
+  ]) assert.match(migration, new RegExp(`create index(?: if not exists)? ${index}`));
+  assert.doesNotMatch(migration, /create policy fuel_teams_(?:select|insert|update)_performance/);
+  assert.match(migration, /Performance unit metadata and management stay behind the capability-checked/);
 });
 
 test("overview reuses Coach actions and interventions without exposing narratives", () => {

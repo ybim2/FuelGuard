@@ -201,7 +201,12 @@ select ok((public.fuel_performance_pathway('83000000-0000-0000-0000-000000000001
 select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000006', true);
 select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select throws_ok(
-  $$update public.fuel_teams set parent_team_id = '84000000-0000-0000-0000-000000000003' where id = '84000000-0000-0000-0000-000000000002'$$,
+  $$select public.fuel_performance_save_unit(
+      '83000000-0000-0000-0000-000000000001',
+      '84000000-0000-0000-0000-000000000002',
+      '84000000-0000-0000-0000-000000000003',
+      'Bedford', 'Location', 'Europe/London', 1
+    )$$,
   '23514', 'Organisation unit hierarchy cannot contain a cycle.', 'Nested organisation units reject a cycle');
 select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000002', true);
 select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
