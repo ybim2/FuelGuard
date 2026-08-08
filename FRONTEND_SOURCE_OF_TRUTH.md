@@ -13,7 +13,7 @@ The initial coach-facing beta is a separate route at `/coach/`. It is not a tab 
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v110-coach-qa-hardening
+Canonical app: mobile-pwa-v113-log-history-safety
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
@@ -114,6 +114,14 @@ Deploy the repository root. The `.nojekyll` file indicates the project is safe t
 
 No `package.json`, Vite, Next, Netlify, or Firebase config is present in this repo. The `vercel.json` file only sets cache headers for the canonical static PWA. If a build tool is added later, it must point to this canonical root app.
 
+## Cloud Log Safety
+
+For an authenticated athlete, `public.fuel_logs` is canonical history. The in-app timeline must always reconcile as persisted cloud rows plus unsynced local rows. A manual or offline event must never replace rows returned by Supabase.
+
+Cloud rows are identified by their database UUID. Pending retries use the database UUID, Garmin `external_event_id`, or a client-generated UUID as appropriate; visible timestamps and event types are not sufficient identities. Online manual logging is complete only after Supabase acknowledges the write and the client reloads the canonical cloud timeline.
+
+Before release, run `node --test tests/*.test.js`. The permanent update-safety fixture in `tests/fuel-log-update-safety.test.js` must prove five existing Garmin rows plus one new manual row still total six after a fresh reopen.
+
 ## Mobile PWA Update Rules
 
 1. The canonical app is the mobile PWA with Log in the bottom navigation.
@@ -137,7 +145,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v110-coach-qa-hardening`.
+The current canonical version is `mobile-pwa-v113-log-history-safety`.
 
 ## Future Frontend Changes
 

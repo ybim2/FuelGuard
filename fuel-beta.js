@@ -2056,7 +2056,7 @@
     };
   };
 
-  function setQuickLogConfirmation(type = "fuel", date = new Date()) {
+  function setQuickLogConfirmation(type = "fuel", date = new Date(), syncResult = null) {
     const label = type === "hydration"
       ? "Hydration logged"
       : type === "fuel_hydration"
@@ -2064,13 +2064,38 @@
         : type === SLEEPY_CHECKIN_TYPE
           ? "Sleepy logged"
         : "Fuel logged";
-    quickLogConfirmation = `${label} - ${formatClock(date)}`;
+    const syncCopy = syncResult?.status === "synced"
+      ? "Saved to cloud."
+      : syncResult?.status === "error"
+        ? "Saved here; cloud sync needs attention."
+        : syncResult?.status === "pending"
+          ? "Saved here; waiting to sync."
+          : "Saving...";
+    quickLogConfirmation = `${label} - ${formatClock(date)}. ${syncCopy}`;
     if (quickLogConfirmationTimer && typeof clearTimeout === "function") clearTimeout(quickLogConfirmationTimer);
     quickLogConfirmationTimer = typeof setTimeout === "function" ? setTimeout(() => {
       quickLogConfirmation = "";
       quickLogConfirmationTimer = 0;
       renderFuelGap();
     }, 3500) : 0;
+  }
+
+  function persistQuickLog(log, type, loggedAt) {
+    const cloud = window.fuelGuardCloud;
+    if (!cloud?.saveLog) {
+      setQuickLogConfirmation(type, loggedAt, { status: "pending" });
+      renderFuelGap();
+      return Promise.resolve({ status: "pending", persisted: false, reason: "cloud_unavailable" });
+    }
+    return Promise.resolve(cloud.saveLog(log)).then(result => {
+      setQuickLogConfirmation(type, loggedAt, result || { status: "error" });
+      renderFuelGap();
+      return result;
+    }).catch(error => {
+      setQuickLogConfirmation(type, loggedAt, { status: "error", error });
+      renderFuelGap();
+      return { status: "error", persisted: false, error };
+    });
   }
 
   function recordRhythmLog(type = "fuel", options = {}) {
@@ -2126,7 +2151,7 @@
     setQuickLogConfirmation(normalizedType, loggedAt);
     save();
     renderAll();
-    window.fuelGuardCloud?.saveLog(log);
+    return persistQuickLog(log, normalizedType, loggedAt);
   }
 
   recordFuelled = function recordFuelledBeta(options = {}) {
@@ -2334,7 +2359,7 @@
     if (payload.checkinType === SLEEPY_CHECKIN_TYPE) setQuickLogConfirmation(SLEEPY_CHECKIN_TYPE, loggedAt);
     save();
     renderAll();
-    window.fuelGuardCloud?.saveLog(log);
+    return persistQuickLog(log, payload.checkinType === SLEEPY_CHECKIN_TYPE ? SLEEPY_CHECKIN_TYPE : "checkin", loggedAt);
   }
 
   window.recordCheckinEvent = recordCheckinEvent;
