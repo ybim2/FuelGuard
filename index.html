@@ -115,6 +115,17 @@
     <main class="app">
       <header class="topbar beta-topbar" aria-label="Fuel Guard">
         <div class="logo beta-topbar-logo" aria-hidden="true">FG</div>
+        <div class="beta-topbar-context">
+          <button id="mainAccountIdentity" class="beta-main-account" type="button" data-open-screen="checklist" aria-label="Log in to Fuel Guard">
+            <span id="mainAccountIdentityLabel">Not signed in</span>
+            <strong id="mainAccountIdentityValue">Log in</strong>
+          </button>
+          <nav class="beta-product-switcher" aria-label="Fuel Guard products">
+            <a href="/" aria-current="page">Athlete</a>
+            <a href="/coach/">Coach</a>
+            <a href="/performance/">Performance</a>
+          </nav>
+        </div>
         <button class="beta-header-settings-button" type="button" data-open-screen="checklist" aria-label="Open settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9.1 1.7 1.7 0 0 0-.9 1.6v.2h-4v-.2a1.7 1.7 0 0 0-.9-1.6 1.7 1.7 0 0 0-1.9-.1l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 6.2 15a1.7 1.7 0 0 0-1.4-1H4.6v-4h.2a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9-.1 1.7 1.7 0 0 0 .9-1.6V1.8h4V2a1.7 1.7 0 0 0 .9 1.6 1.7 1.7 0 0 0 1.9.1l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
         </button>
@@ -369,6 +380,7 @@
   <script src="fuel-guard-domain.js?v=mobile-pwa-v114-performance-platform"></script>
   <script src="app-state.js?v=mobile-pwa-v114-performance-platform"></script>
   <script src="fuel-supabase.js?v=mobile-pwa-v114-performance-platform"></script>
+  <script src="product-shell.js?v=mobile-pwa-v114-performance-platform"></script>
   <script src="organisation-sharing.js?v=mobile-pwa-v114-performance-platform"></script>
   <script src="garmin-connected-devices.js?v=mobile-pwa-v114-performance-platform"></script>
   <script src="app-ui.js?v=mobile-pwa-v114-performance-platform"></script>

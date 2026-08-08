@@ -53,6 +53,7 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `styles.css`, `mobile-pwa.css`, `mobile-ux-overrides.css`, `fuel-beta.css`: active styles
 - `app-state.js`: local app state and persistence helpers
 - `fuel-supabase.js`: Supabase Auth plus cloud log, target, and demand-planning sync layer
+- `product-shell.js`: live-session main-header identity and Athlete/Coach/Performance product navigation support
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
 - `fuel-beta.js`: canonical mobile PWA behavior for Log and header-accessible Settings

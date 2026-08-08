@@ -62,6 +62,8 @@ test("Garmin activity migration removes existing duplicates and enforces race-sa
   assert.match(activityDedupeSql, /delete from public\.garmin_activity_summaries[\s\S]*duplicate_position > 1/g);
   assert.match(activityDedupeSql, /create unique index if not exists garmin_activity_user_source_identity_idx/);
   assert.match(activityDedupeSql, /create unique index if not exists garmin_activity_user_summary_identity_idx/);
+  assert.match(activityDedupeSql, /drop index if exists public\.garmin_activity_user_source_activity_idx/);
+  assert.match(activityDedupeSql, /drop index if exists public\.garmin_activity_user_started_type_duration_idx/);
 
   const identityIndexes = activityDedupeSql.slice(activityDedupeSql.indexOf("create unique index"));
   assert.doesNotMatch(identityIndexes, /device_id/);

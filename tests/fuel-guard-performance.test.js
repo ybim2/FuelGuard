@@ -188,7 +188,7 @@ test("Performance UI is desktop-first, responsive and accessibility-labelled", (
 });
 
 test("service worker versions and routes Athlete, Coach and Performance independently", () => {
-  assert.match(sw, /mobile-pwa-v112-performance/);
+  assert.match(sw, /mobile-pwa-v114-performance-platform/);
   assert.match(sw, /\.\/performance\/index\.html/);
   assert.match(sw, /\.\/performance\/performance\.css/);
   assert.match(sw, /\.\/performance\/performance\.js/);

@@ -34,6 +34,7 @@ const APP_SHELL = [
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
+  "./product-shell.js",
   "./organisation-sharing.js",
   "./garmin-connected-devices.js",
   "./app-ui.js",

@@ -54,6 +54,12 @@ create unique index if not exists garmin_activity_user_summary_identity_idx
   )
   where source_activity_id is null;
 
+-- The bootstrap schema previously enforced these exact identities under older
+-- names. Keep only the canonical indexes above so each write maintains one
+-- unique index per identity instead of an identical pair.
+drop index if exists public.garmin_activity_user_source_activity_idx;
+drop index if exists public.garmin_activity_user_started_type_duration_idx;
+
 comment on index public.garmin_activity_user_source_identity_idx is
   'Race-safe Garmin workout deduplication by athlete, provider and upstream activity ID.';
 
