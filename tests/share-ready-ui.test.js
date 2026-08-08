@@ -206,13 +206,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for update-safe log history", () => {
+test("PWA cache and asset versions are bumped for the update-safe Performance release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v113-log-history-safety";
+  const version = "mobile-pwa-v114-performance-platform";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -222,9 +222,13 @@ test("PWA cache and asset versions are bumped for update-safe log history", () =
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260808T174011Z/);
+  assert.match(sw, /20260808T185724Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
   assert.match(sw, /fuel-guard-domain\.js/);
+  assert.match(sw, /training-fuel\.css/);
+  assert.match(sw, /training-fuel\.js/);
+  assert.match(html, /training-fuel\.css/);
+  assert.match(html, /training-fuel\.js/);
 });

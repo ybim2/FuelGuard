@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v113-log-history-safety";
-const BUILD_VERSION = "2026-08-08T17:40:11Z";
+const APP_VERSION = "mobile-pwa-v114-performance-platform";
+const BUILD_VERSION = "2026-08-08T18:57:24Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v113-log-history-safety-20260808T174011Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v114-performance-platform-20260808T185724Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -22,18 +22,24 @@ const APP_SHELL = [
   "./coach/coach-team-structure.js",
   "./coach/coach-training-schedule.css",
   "./coach/coach-training-schedule.js",
+  "./performance/index.html",
+  "./performance/performance.css",
+  "./performance/performance.js",
   "./build-info.js",
   "./styles.css",
   "./mobile-pwa.css",
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
+  "./training-fuel.css",
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
+  "./organisation-sharing.js",
   "./garmin-connected-devices.js",
   "./app-ui.js",
   "./app-pwa.js",
   "./fuel-beta.js",
+  "./training-fuel.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
   "./manifest.webmanifest",
@@ -92,7 +98,11 @@ self.addEventListener("fetch", event => {
   if (requestUrl.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    const shell = requestUrl.pathname.startsWith("/coach") ? "./coach/index.html" : "./index.html";
+    const shell = requestUrl.pathname.startsWith("/coach")
+      ? "./coach/index.html"
+      : requestUrl.pathname.startsWith("/performance")
+        ? "./performance/index.html"
+        : "./index.html";
     event.respondWith(
       fetch(request)
         .then(response => {

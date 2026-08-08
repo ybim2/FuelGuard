@@ -227,6 +227,216 @@
     return logsWithDates(logs).filter(log => dateKey(log.date) === key);
   }
 
+  function workoutAthleteId(workout = {}) {
+    return String(workout.athleteId || workout.athlete_id || workout.userId || workout.user_id || "");
+  }
+
+  function normalizeWorkout(row = {}) {
+    const startAt = parseDate(row.startAt || row.start_at || row.startedAt || row.started_at || row.startTime || row.start_time);
+    const suppliedEnd = parseDate(row.endAt || row.end_at || row.endedAt || row.ended_at || row.endTime || row.end_time);
+    const suppliedDuration = Number(row.durationSeconds ?? row.duration_seconds ?? row.duration);
+    const endAt = suppliedEnd || (startAt && Number.isFinite(suppliedDuration) && suppliedDuration > 0
+      ? new Date(startAt.getTime() + suppliedDuration * 1000)
+      : null);
+    if (!startAt || !endAt || endAt <= startAt) return null;
+
+    const rawSource = String(row.sourceProvider || row.source_provider || row.source || "manual").trim().toLowerCase();
+    const source = rawSource.includes("garmin") ? "garmin" : rawSource || "manual";
+    const sourceActivityId = String(
+      row.sourceActivityId
+      || row.source_activity_id
+      || row.externalSessionId
+      || row.external_session_id
+      || ""
+    );
+    const id = String(row.id || sourceActivityId || `${source}:${startAt.toISOString()}`);
+    const type = String(
+      row.type
+      || row.activityType
+      || row.activity_type
+      || row.sessionType
+      || row.session_type
+      || "training"
+    ).trim() || "training";
+    const title = String(row.title || row.name || row.sessionName || row.session_name || "").trim();
+
+    return {
+      id,
+      athleteId: workoutAthleteId(row),
+      source,
+      sourceActivityId,
+      type,
+      title,
+      startAt,
+      endAt,
+      durationSeconds: Math.round((endAt - startAt) / 1000),
+      timeZone: String(row.timeZone || row.timezone || row.timezoneName || row.timezone_name || ""),
+      raw: row
+    };
+  }
+
+  function workoutDedupeKey(workout) {
+    const athleteId = workoutAthleteId(workout);
+    if (workout.sourceActivityId) return `${athleteId}|${workout.source}|external:${workout.sourceActivityId}`;
+    return [
+      athleteId,
+      workout.source,
+      workout.startAt.toISOString(),
+      workout.type.toLowerCase(),
+      workout.durationSeconds
+    ].join("|");
+  }
+
+  function normalizeWorkouts(workouts = []) {
+    const unique = new Map();
+    (Array.isArray(workouts) ? workouts : []).forEach(row => {
+      const workout = normalizeWorkout(row);
+      if (!workout) return;
+      const key = workoutDedupeKey(workout);
+      if (!unique.has(key)) unique.set(key, workout);
+    });
+    return Array.from(unique.values()).sort((a, b) => b.startAt - a.startAt || String(a.id).localeCompare(String(b.id)));
+  }
+
+  function lowerBoundFuel(logs, timestamp) {
+    let low = 0;
+    let high = logs.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (logs[middle].date.getTime() < timestamp) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+
+  function upperBoundFuel(logs, timestamp) {
+    let low = 0;
+    let high = logs.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (logs[middle].date.getTime() <= timestamp) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+
+  function getWorkoutFuelContexts(workouts = [], fuelEvents = []) {
+    const normalizedWorkouts = normalizeWorkouts(workouts);
+    const athleteIds = new Set(normalizedWorkouts.map(workout => workout.athleteId).filter(Boolean));
+    const allowUnscopedFuel = athleteIds.size <= 1;
+    const fuelByAthlete = new Map();
+    const allFuel = [];
+
+    logsWithDates(fuelEvents).filter(isFuelLog).forEach(log => {
+      allFuel.push(log);
+      const athleteId = String(log.userId || "");
+      if (!athleteId && !allowUnscopedFuel) return;
+      const key = athleteId || "__unscoped__";
+      if (!fuelByAthlete.has(key)) fuelByAthlete.set(key, []);
+      fuelByAthlete.get(key).push(log);
+    });
+
+    return normalizedWorkouts.map(workout => {
+      const scoped = !workout.athleteId && allowUnscopedFuel
+        ? allFuel
+        : allowUnscopedFuel
+          ? [...(fuelByAthlete.get(workout.athleteId) || []), ...(fuelByAthlete.get("__unscoped__") || [])].sort((a, b) => a.date - b.date)
+          : fuelByAthlete.get(workout.athleteId) || [];
+      const startMs = workout.startAt.getTime();
+      const endMs = workout.endAt.getTime();
+      const previousIndex = lowerBoundFuel(scoped, startMs) - 1;
+      const nextIndex = upperBoundFuel(scoped, endMs);
+      const previousFuelEvent = previousIndex >= 0 ? scoped[previousIndex] : null;
+      const nextFuelEvent = nextIndex < scoped.length ? scoped[nextIndex] : null;
+      return {
+        workout,
+        athleteId: workout.athleteId,
+        previousFuelEvent,
+        nextFuelEvent,
+        preFuelGapMinutes: previousFuelEvent ? Math.round((startMs - previousFuelEvent.date.getTime()) / 60000) : null,
+        postFuelGapMinutes: nextFuelEvent ? Math.round((nextFuelEvent.date.getTime() - endMs) / 60000) : null,
+        hasPreviousFuel: Boolean(previousFuelEvent),
+        hasPostFuel: Boolean(nextFuelEvent)
+      };
+    });
+  }
+
+  function getWorkoutFuelContext(workout, fuelEvents = []) {
+    return getWorkoutFuelContexts([workout], fuelEvents)[0] || null;
+  }
+
+  function averageFinite(values = []) {
+    const finite = values.map(Number).filter(Number.isFinite);
+    return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : null;
+  }
+
+  function aggregateWorkoutFuelContexts(contexts = [], { targetMinutes, timeZone, minimumSamples = 2 } = {}) {
+    const valid = (Array.isArray(contexts) ? contexts : []).filter(context => context?.workout?.startAt && context?.workout?.endAt);
+    const preGaps = valid.map(context => context.preFuelGapMinutes).filter(Number.isFinite);
+    const postGaps = valid.map(context => context.postFuelGapMinutes).filter(Number.isFinite);
+    const zone = resolvedTimeZone(timeZone);
+    const postFuelSameDay = context => context.nextFuelEvent
+      && dateKeyInTimeZone(context.nextFuelEvent.date, zone) === dateKeyInTimeZone(context.workout.endAt, zone);
+    const configuredTarget = Number(targetMinutes);
+    const extended = Number.isFinite(configuredTarget) && configuredTarget > 0
+      ? valid.filter(context => Number.isFinite(context.preFuelGapMinutes) && context.preFuelGapMinutes > configuredTarget)
+      : [];
+    const evening = valid.filter(context => minutesIntoDayInTimeZone(context.workout.startAt, zone) >= 18 * 60);
+    const other = valid.filter(context => minutesIntoDayInTimeZone(context.workout.startAt, zone) < 18 * 60);
+    const eveningAverage = averageFinite(evening.map(context => context.preFuelGapMinutes));
+    const otherAverage = averageFinite(other.map(context => context.preFuelGapMinutes));
+    const eveningLonger = evening.length >= 3
+      && other.length >= 3
+      && Number.isFinite(eveningAverage)
+      && Number.isFinite(otherAverage)
+      && eveningAverage - otherAverage >= 30;
+
+    return {
+      sessionCount: valid.length,
+      preFuelSampleCount: preGaps.length,
+      postFuelSampleCount: postGaps.length,
+      averagePreFuelGapMinutes: preGaps.length >= minimumSamples ? Math.round(averageFinite(preGaps)) : null,
+      averagePostFuelGapMinutes: postGaps.length >= minimumSamples ? Math.round(averageFinite(postGaps)) : null,
+      missingPreviousFuelCount: valid.filter(context => !context.hasPreviousFuel).length,
+      missingPostFuelCount: valid.filter(context => !context.hasPostFuel).length,
+      noPostFuelSameDayCount: valid.filter(context => !postFuelSameDay(context)).length,
+      extendedPreFuelGapCount: extended.length,
+      targetMinutes: Number.isFinite(configuredTarget) && configuredTarget > 0 ? configuredTarget : null,
+      eveningLonger,
+      eveningPreFuelGapMinutes: eveningLonger ? Math.round(eveningAverage) : null,
+      otherPreFuelGapMinutes: eveningLonger ? Math.round(otherAverage) : null,
+      enoughForPatterns: valid.length >= 3
+    };
+  }
+
+  function workoutFuelSummariesByAthlete({ contexts = [], targetsByUser = {}, timeZone, minimumSamples = 2 } = {}) {
+    const grouped = new Map();
+    (Array.isArray(contexts) ? contexts : []).forEach(context => {
+      const athleteId = String(context?.athleteId || context?.workout?.athleteId || "");
+      if (!athleteId) return;
+      if (!grouped.has(athleteId)) grouped.set(athleteId, []);
+      grouped.get(athleteId).push(context);
+    });
+    return Array.from(grouped.entries()).map(([athleteId, athleteContexts]) => {
+      const targets = targetsByUser[athleteId] || {};
+      const configuredTarget = Number(
+        targets.maximumFuelGapMinutes
+        ?? targets.maximum_fuel_gap_minutes
+        ?? targets.maximum_fuel_gap
+        ?? targets.maxFuelGapMinutes
+      );
+      return {
+        athleteId,
+        contexts: athleteContexts.sort((a, b) => b.workout.startAt - a.workout.startAt),
+        ...aggregateWorkoutFuelContexts(athleteContexts, {
+          targetMinutes: Number.isFinite(configuredTarget) ? maximumFuelGapMinutes(targets) : null,
+          timeZone,
+          minimumSamples
+        })
+      };
+    });
+  }
+
   function maximumFuelGapMinutes(targets = {}) {
     const value = Number(
       targets.maximumFuelGapMinutes ??
@@ -1219,7 +1429,7 @@
     };
   }
 
-  function buildCoachAttentionItems({ roster = [], dataHealth = { items: [] }, interventions = [], trainingContext = [], actions = [], now = new Date(), includeResolved = false } = {}) {
+  function buildCoachAttentionItems({ roster = [], dataHealth = { items: [] }, interventions = [], trainingContext = [], workoutFuelSummaries = [], actions = [], now = new Date(), includeResolved = false } = {}) {
     const key = dateKey(now);
     const generated = new Map();
     const healthByAthlete = new Map((dataHealth.items || []).map(item => [String(item.athleteId || ""), item]));
@@ -1310,6 +1520,38 @@
         canNudge: true
       }));
     });
+    (workoutFuelSummaries || []).forEach(summary => {
+      const athlete = rosterByAthlete.get(String(summary.athleteId || ""));
+      if (!athlete || Number(summary.sessionCount || 0) < 3) return;
+      const contexts = Array.isArray(summary.contexts) ? summary.contexts : [];
+      if (Number(summary.extendedPreFuelGapCount || 0) >= 2 && Number.isFinite(Number(summary.targetMinutes))) {
+        const latest = contexts.find(context => Number(context.preFuelGapMinutes) > Number(summary.targetMinutes));
+        add(attentionItem({
+          athlete,
+          type: "training_repeated_long_pre_gap",
+          category: "need_attention",
+          label: "Repeated longer fuel gap before training",
+          detail: `${summary.extendedPreFuelGapCount} of ${summary.sessionCount} recent sessions started after the athlete's configured ${duration(Number(summary.targetMinutes))} fuel-gap target. This is a timing pattern, not a medical conclusion.`,
+          priority: 72,
+          occurrenceKey: `training_repeated_long_pre_gap:${occurrenceToken(latest?.workout?.id || key)}:${summary.extendedPreFuelGapCount}:${summary.targetMinutes}`,
+          canNudge: true
+        }));
+      }
+      if (Number(summary.noPostFuelSameDayCount || 0) >= 2) {
+        const latest = contexts.find(context => !context.nextFuelEvent
+          || dateKeyInTimeZone(context.nextFuelEvent.date, context.workout.timeZone) !== dateKeyInTimeZone(context.workout.endAt, context.workout.timeZone));
+        add(attentionItem({
+          athlete,
+          type: "training_missing_post_fuel",
+          category: "need_attention",
+          label: "Repeated no post-session fuel log",
+          detail: `${summary.noPostFuelSameDayCount} of ${summary.sessionCount} recent sessions had no subsequent fuel logged that day. Review the shared timing context with the athlete.`,
+          priority: 68,
+          occurrenceKey: `training_missing_post_fuel:${occurrenceToken(latest?.workout?.id || key)}:${summary.noPostFuelSameDayCount}`,
+          canNudge: true
+        }));
+      }
+    });
     (interventions || []).forEach(intervention => {
       const due = intervention.status === "review_due" || (intervention.status === "active" && String(intervention.review_date || "") <= key);
       if (!due) return;
@@ -1367,6 +1609,12 @@
     normalizeLog,
     logsWithDates,
     logsForDay,
+    normalizeWorkout,
+    normalizeWorkouts,
+    getWorkoutFuelContext,
+    getWorkoutFuelContexts,
+    aggregateWorkoutFuelContexts,
+    workoutFuelSummariesByAthlete,
     latestLog,
     maximumFuelGapMinutes,
     fuelGapStatus,

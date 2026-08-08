@@ -10,10 +10,12 @@ Settings is still part of the canonical app, but it opens from the sticky header
 
 The initial coach-facing beta is a separate route at `/coach/`. It is not a tab inside the athlete Log experience. Keep coach dashboard, roster, and relationship-management UI in the coach route unless the user explicitly asks to merge it elsewhere.
 
+Fuel Guard Performance is a third, separate organisational surface at `/performance/`. It sits above Coach for permissioned aggregate oversight, nested organisational units, staff responsibility, data health and reporting. It must not replace Athlete or Coach, download raw organisation histories into the browser, or reuse the old archived frontend.
+
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v113-log-history-safety
+Canonical app: mobile-pwa-v114-performance-platform
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
@@ -58,6 +60,8 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `day-type-overrides.js`: day type and training session support
 - `fuel-guard-domain.js`: shared Fuel Guard log/status helpers used by the athlete app shell and Coach Beta
 - `coach/index.html`, `coach/coach-beta.js`, `coach/coach-beta.css`: separate coach-facing beta dashboard
+- `performance/index.html`, `performance/performance.js`, `performance/performance.css`: separate desktop-first, responsive organisational Performance surface
+- `organisation-sharing.js`: athlete Settings controls for accepting or revoking explicit organisation sharing
 - `manifest.webmanifest`: PWA manifest
 - `sw.js`: service worker and app shell cache
 - `app-pwa.js`: service worker registration/update handling
@@ -145,7 +149,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v113-log-history-safety`.
+The current canonical version is `mobile-pwa-v114-performance-platform`.
 
 ## Future Frontend Changes
 

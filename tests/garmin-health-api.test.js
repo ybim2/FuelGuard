@@ -265,9 +265,9 @@ test("Garmin health ingestion validates, stores and dedupes opt-in local samples
     assert.equal(fake.tables.garmin_weekly_features[0].week_start_date, "2026-08-03");
     assert.equal(fake.tables.garmin_weekly_features[0].total_fuel_events, 2);
     assert.equal(fake.tables.garmin_daily_features[0].fuel_debt_minutes, 90);
-    assert.equal(fake.tables.garmin_daily_features[0].workouts_missing_pre_fuel, 1);
+    assert.equal(fake.tables.garmin_daily_features[0].workouts_missing_pre_fuel, 0);
     assert.equal(fake.tables.garmin_daily_features[0].workouts_missing_post_fuel, 1);
-    assert.equal(fake.tables.garmin_weekly_features[0].workouts_missing_pre_fuel, 1);
+    assert.equal(fake.tables.garmin_weekly_features[0].workouts_missing_pre_fuel, 0);
   });
 });
 
