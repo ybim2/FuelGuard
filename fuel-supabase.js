@@ -19,7 +19,7 @@
   let client = null;
   let session = null;
   let initialized = false;
-  let syncInProgress = false;
+  let syncPromise = null;
   let recoveryMode = false;
   let lastStatus = "Cloud sync is not configured yet.";
   let targetMaximumGapColumnAvailable = true;
@@ -189,6 +189,32 @@
       log?.trainingSession || "",
       log?.note || log?.notes || ""
     ].join("|");
+  }
+
+  function externalIdentity(source, externalEventId) {
+    const value = String(externalEventId || "").trim();
+    return value ? `external:${normalizeSource(source)}:${value}` : "";
+  }
+
+  function logIdentityKeys(log) {
+    if (!log || typeof log !== "object") return [];
+    const keys = [];
+    const cloudId = log.cloudId || (isUuid(log.id) ? log.id : "");
+    if (isUuid(cloudId)) keys.push(`cloud:${cloudId}`);
+    const externalKey = externalIdentity(log.source, log.externalEventId || log.external_event_id);
+    if (externalKey) keys.push(externalKey);
+    const localId = log.localId || (!isUuid(log.id) ? log.id : "");
+    if (localId) keys.push(`local:${localId}`);
+    return [...new Set(keys)];
+  }
+
+  function rowIdentityKeys(row) {
+    if (!row || typeof row !== "object") return [];
+    const keys = [];
+    if (isUuid(row.id)) keys.push(`cloud:${row.id}`);
+    const externalKey = externalIdentity(row.source, row.external_event_id);
+    if (externalKey) keys.push(externalKey);
+    return [...new Set(keys)];
   }
 
   function sameInstant(log, row) {
@@ -723,34 +749,55 @@
     await upsertTargets();
   }
 
-  function mergeSyncedRows(rows) {
-    const gap = gapState();
-    if (!gap) return;
-    const existingLogs = Array.isArray(gap.logs) ? gap.logs : [];
-    const seenCloudKeys = new Set();
+  function reconcileLogTimeline(rows, existingLogs = []) {
+    const seenCloudPrimaryKeys = new Set();
+    const cloudMatchKeys = new Set();
+    const expectedCloudIds = new Set();
     const cloudLogs = [];
-    rows.map(rowToLog).filter(Boolean).forEach(log => {
-      const cloudKey = isUuid(log.cloudId || log.id) ? `cloud:${log.cloudId || log.id}` : "";
-      const fallbackKey = logFingerprint(log);
-      if ((cloudKey && seenCloudKeys.has(cloudKey)) || (fallbackKey && seenCloudKeys.has(fallbackKey))) return;
-      if (cloudKey) seenCloudKeys.add(cloudKey);
-      if (fallbackKey) seenCloudKeys.add(fallbackKey);
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      const log = rowToLog(row);
+      if (!log) return;
+      const identityKeys = rowIdentityKeys(row);
+      const cloudIdKey = identityKeys.find(key => key.startsWith("cloud:")) || "";
+      const primaryKey = cloudIdKey || identityKeys.find(key => key.startsWith("external:")) || "";
+      if (primaryKey && seenCloudPrimaryKeys.has(primaryKey)) return;
+      if (primaryKey) seenCloudPrimaryKeys.add(primaryKey);
+      if (cloudIdKey) expectedCloudIds.add(cloudIdKey);
+      identityKeys.forEach(key => cloudMatchKeys.add(key));
       cloudLogs.push(log);
     });
-    const pendingLocal = existingLogs.filter(log => {
-      if (![PENDING, ERROR].includes(log.syncStatus)) return false;
-      const id = log.cloudId || log.id;
-      const cloudKey = isUuid(id) ? `cloud:${id}` : "";
-      const fallbackKey = logFingerprint(log);
-      return !(cloudKey && seenCloudKeys.has(cloudKey)) && !(fallbackKey && seenCloudKeys.has(fallbackKey));
+
+    const pendingLocal = (Array.isArray(existingLogs) ? existingLogs : []).filter(log => {
+      if (![PENDING, ERROR].includes(log?.syncStatus)) return false;
+      return !logIdentityKeys(log).some(key => cloudMatchKeys.has(key));
     });
 
-    gap.logs = [...cloudLogs, ...pendingLocal].sort((a, b) => {
+    const timeline = [...cloudLogs, ...pendingLocal].sort((a, b) => {
       const aDate = dateFromLog(a);
       const bDate = dateFromLog(b);
       return (aDate?.getTime() || 0) - (bDate?.getTime() || 0);
     });
+
+    const timelineKeys = new Set(timeline.flatMap(logIdentityKeys));
+    const missingCloudKeys = [...expectedCloudIds].filter(key => !timelineKeys.has(key));
+    if (missingCloudKeys.length) {
+      throw new Error(`Cloud reconciliation invariant failed for ${missingCloudKeys.length} persisted log(s).`);
+    }
+
+    return {
+      logs: timeline,
+      cloudCount: cloudLogs.length,
+      pendingCount: pendingLocal.length
+    };
+  }
+
+  function mergeSyncedRows(rows) {
+    const gap = gapState();
+    if (!gap) return { logs: [], cloudCount: 0, pendingCount: 0 };
+    const reconciliation = reconcileLogTimeline(rows, Array.isArray(gap.logs) ? gap.logs : []);
+    gap.logs = reconciliation.logs;
     rebuildDayContextFromLogs(gap);
+    return reconciliation;
   }
 
   function rebuildDayContextFromLogs(gap) {
@@ -798,10 +845,10 @@
   function matchPendingLogsToCloudRows(logs, rows) {
     logs.forEach(log => {
       if (!log || log.syncStatus === SYNCED) return;
-      const localId = log.cloudId || log.id;
+      const identityKeys = new Set(logIdentityKeys(log));
       const match = rows.find(row => {
-        if (isUuid(localId) && row.id === localId && logMatchesRow(log, row)) return true;
-        return !isUuid(localId) && logMatchesRow(log, row);
+        if (rowIdentityKeys(row).some(key => identityKeys.has(key))) return true;
+        return !identityKeys.size && logMatchesRow(log, row);
       });
       if (!match) return;
       updateLocalLogFromRow(log, match);
@@ -811,12 +858,10 @@
 
   function findMatchingLocalLog(row, fallbackLog) {
     const logs = allLogs();
-    const id = row.id;
-    const localId = fallbackLog?.id || fallbackLog?.cloudId;
-    return logs.find(log => log.id === id || log.cloudId === id || log.id === localId || log.cloudId === localId)
-      || logs.find(log => {
-        return sameInstant(log, row) && normalizeType(log.type) === normalizeType(row.type);
-      });
+    const rowKeys = new Set(rowIdentityKeys(row));
+    const fallbackKeys = new Set(logIdentityKeys(fallbackLog));
+    return logs.find(log => logIdentityKeys(log).some(key => rowKeys.has(key) || fallbackKeys.has(key)))
+      || (!rowKeys.size && !fallbackKeys.size ? logs.find(log => logMatchesRow(log, row)) : null);
   }
 
   async function fetchRows() {
@@ -849,10 +894,14 @@
         .upsert(withId.map(item => item.row), { onConflict: "id" })
         .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at");
       if (error) throw error;
-      (data || []).forEach((row, index) => {
-        updateLocalLogFromRow(withId[index]?.log || findMatchingLocalLog(row), row);
+      (data || []).forEach(row => {
+        const item = withId.find(candidate => rowIdentityKeys(row).some(key => logIdentityKeys(candidate.log).includes(key)));
+        updateLocalLogFromRow(item?.log || findMatchingLocalLog(row), row);
         savedRows.push(row);
       });
+      if ((data || []).length !== withId.length) {
+        throw new Error(`Supabase acknowledged ${(data || []).length} of ${withId.length} log write(s).`);
+      }
     }
 
     if (withoutId.length) {
@@ -862,9 +911,15 @@
         .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at");
       if (error) throw error;
       (data || []).forEach((row, index) => {
-        updateLocalLogFromRow(withoutId[index]?.log || findMatchingLocalLog(row), row);
+        const rowKeys = new Set(rowIdentityKeys(row));
+        const item = withoutId.find(candidate => logIdentityKeys(candidate.log).some(key => rowKeys.has(key)))
+          || (withoutId.length === 1 ? withoutId[0] : withoutId[index]);
+        updateLocalLogFromRow(item?.log || findMatchingLocalLog(row), row);
         savedRows.push(row);
       });
+      if ((data || []).length !== withoutId.length) {
+        throw new Error(`Supabase acknowledged ${(data || []).length} of ${withoutId.length} log write(s).`);
+      }
     }
 
     return savedRows;
@@ -890,81 +945,106 @@
   }
 
   async function syncNow() {
-    if (syncInProgress) return;
+    if (syncPromise) return syncPromise;
     const gap = gapState();
     if (!configured()) {
       status("Cloud sync needs Supabase public URL/key configuration.");
-      return;
+      return { status: "unconfigured", cloudCount: 0, pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length };
     }
     if (!user()) {
       status("Not signed in. Logs are cached on this device.");
-      return;
+      return { status: "signed_out", cloudCount: 0, pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length };
     }
     if (!isOnline()) {
       status("Offline. New logs are cached locally and will sync when online.");
-      return;
+      return { status: PENDING, cloudCount: 0, pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length };
     }
 
-    syncInProgress = true;
-    status("Syncing Fuel Guard logs...");
-    try {
-      await flushDeletes();
-      const existingRows = await fetchRows();
-      const pending = allLogs().filter(log => log.syncStatus !== SYNCED);
-      await uploadLogs(matchPendingLogsToCloudRows(pending, existingRows));
-      const rows = await fetchRows();
-      mergeSyncedRows(rows);
-      let targetWarning = "";
+    syncPromise = (async () => {
+      status("Syncing Fuel Guard logs...");
       try {
-        await syncTargets();
-      } catch (targetError) {
-        targetWarning = ` Targets stayed cached locally: ${targetError?.message || "target sync failed"}.`;
+        await flushDeletes();
+        const existingRows = await fetchRows();
+        const pending = allLogs().filter(log => log.syncStatus !== SYNCED);
+        await uploadLogs(matchPendingLogsToCloudRows(pending, existingRows));
+        const rows = await fetchRows();
+        const reconciliation = mergeSyncedRows(rows);
+        let targetWarning = "";
+        try {
+          await syncTargets();
+        } catch (targetError) {
+          targetWarning = ` Targets stayed cached locally: ${targetError?.message || "target sync failed"}.`;
+        }
+        let planningWarning = "";
+        try {
+          await syncDemandPlanning();
+        } catch (planningError) {
+          planningWarning = demandPlanningTableMissing(planningError)
+            ? " Demand planning stayed cached locally until the Supabase demand-planning SQL is applied."
+            : ` Demand planning stayed cached locally: ${planningError?.message || "planning sync failed"}.`;
+        }
+        if (gap) {
+          gap.cloud.lastSyncedAt = new Date().toISOString();
+          gap.cloud.lastError = "";
+        }
+        status(`Synced ${reconciliation.cloudCount} cloud log${reconciliation.cloudCount === 1 ? "" : "s"}.${targetWarning}${planningWarning}`);
+        persistAndRender();
+        return { status: SYNCED, ...reconciliation };
+      } catch (error) {
+        if (gap) gap.cloud.lastError = error?.message || "Sync failed.";
+        allLogs().filter(log => log.syncStatus !== SYNCED).forEach(log => setLogSyncState(log, ERROR));
+        status(`Cloud sync failed: ${error?.message || "unknown error"}`);
+        if (typeof save === "function") save();
+        return {
+          status: ERROR,
+          error,
+          cloudCount: allLogs().filter(log => log.syncStatus === SYNCED).length,
+          pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length
+        };
+      } finally {
+        syncPromise = null;
       }
-      let planningWarning = "";
-      try {
-        await syncDemandPlanning();
-      } catch (planningError) {
-        planningWarning = demandPlanningTableMissing(planningError)
-          ? " Demand planning stayed cached locally until the Supabase demand-planning SQL is applied."
-          : ` Demand planning stayed cached locally: ${planningError?.message || "planning sync failed"}.`;
-      }
-      if (gap) {
-        gap.cloud.lastSyncedAt = new Date().toISOString();
-        gap.cloud.lastError = "";
-      }
-      status(`Synced ${rows.length} cloud log${rows.length === 1 ? "" : "s"}.${targetWarning}${planningWarning}`);
-      persistAndRender();
-    } catch (error) {
-      if (gap) gap.cloud.lastError = error?.message || "Sync failed.";
-      allLogs().filter(log => log.syncStatus !== SYNCED).forEach(log => setLogSyncState(log, ERROR));
-      status(`Cloud sync failed: ${error?.message || "unknown error"}`);
-      if (typeof save === "function") save();
-    } finally {
-      syncInProgress = false;
-    }
+    })();
+    return syncPromise;
   }
 
   async function saveLog(log) {
-    if (!log) return;
+    if (!log) return { status: ERROR, persisted: false, error: new Error("Missing log.") };
     setLogSyncState(log, PENDING);
     if (typeof save === "function") save();
     if (!configured()) {
       status("Log saved locally. Cloud sync needs Supabase public URL/key configuration.");
-      return;
+      return { status: PENDING, persisted: false, reason: "unconfigured", log };
     }
     if (!user() || !isOnline()) {
       status(user() ? "Offline. Log cached for later sync." : "Log saved locally. Sign in to sync.");
-      return;
+      return { status: PENDING, persisted: false, reason: user() ? "offline" : "signed_out", log };
     }
 
     try {
       const rows = await uploadLogs([log]);
-      if (rows.length) status("Log saved to Supabase.");
+      if (rows.length !== 1) throw new Error("Supabase did not acknowledge the log write.");
+      const cloudRows = await fetchRows();
+      const reconciliation = mergeSyncedRows(cloudRows);
+      const savedId = rows[0]?.id;
+      if (savedId && !reconciliation.logs.some(item => item.cloudId === savedId || item.id === savedId)) {
+        throw new Error("Saved log was not present in the canonical cloud timeline.");
+      }
+      const gap = gapState();
+      if (gap) {
+        gap.cloud.lastSyncedAt = new Date().toISOString();
+        gap.cloud.lastError = "";
+      }
+      status(`Log saved to Supabase. ${reconciliation.cloudCount} cloud log${reconciliation.cloudCount === 1 ? "" : "s"} loaded.`);
       persistAndRender();
+      return { status: SYNCED, persisted: true, log, row: rows[0], ...reconciliation };
     } catch (error) {
       setLogSyncState(log, ERROR);
+      const gap = gapState();
+      if (gap) gap.cloud.lastError = error?.message || "Log sync failed.";
       status(`Log saved locally. Supabase sync failed: ${error?.message || "unknown error"}`);
       if (typeof save === "function") save();
+      return { status: ERROR, persisted: false, error, log };
     }
   }
 
@@ -1141,48 +1221,66 @@
   }
 
   async function init() {
-    if (initialized) return;
-    initialized = true;
+    if (initialized) return syncPromise || { status: "initialized" };
     if (!configured()) {
       status(window.supabase?.createClient ? "Cloud sync needs Supabase public URL/key configuration." : "Cloud sync library is offline; local cache is active.");
-      return;
+      return { status: "not_ready" };
     }
 
+    initialized = true;
     recoveryMode = urlRequestsRecovery();
     const nextConfig = config();
-    client = window.supabase.createClient(nextConfig.url, nextConfig.anonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true
-      }
-    });
+    try {
+      client = window.supabase.createClient(nextConfig.url, nextConfig.anonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true
+        }
+      });
 
-    const { data, error } = await client.auth.getSession();
-    if (error) status(`Auth session check failed: ${error.message}`);
-    session = data?.session || null;
-    status(recoveryMode
-      ? "You're resetting your password. Enter a new password below."
-      : session?.user
-        ? `Signed in as ${session.user.email}.`
-        : "Not signed in. Logs are cached on this device.");
+      const { data, error } = await client.auth.getSession();
+      if (error) throw error;
+      session = data?.session || null;
+      status(recoveryMode
+        ? "You're resetting your password. Enter a new password below."
+        : session?.user
+          ? `Signed in as ${session.user.email}.`
+          : "Not signed in. Logs are cached on this device.");
 
-    client.auth.onAuthStateChange((event, nextSession) => {
-      session = nextSession;
-      if (event === "PASSWORD_RECOVERY") {
-        setRecoveryMode(true, "You're resetting your password. Enter a new password below.");
-      } else if (recoveryMode) {
-        status("You're resetting your password. Enter a new password below.");
-      } else if (session?.user && !recoveryMode) syncNow();
-      else status("Signed out. Logs are cached on this device.");
-      if (typeof renderAll === "function") renderAll();
-    });
+      client.auth.onAuthStateChange((event, nextSession) => {
+        session = nextSession;
+        if (event === "PASSWORD_RECOVERY") {
+          setRecoveryMode(true, "You're resetting your password. Enter a new password below.");
+        } else if (recoveryMode) {
+          status("You're resetting your password. Enter a new password below.");
+        } else if (session?.user && !recoveryMode) syncNow();
+        else status("Signed out. Logs are cached on this device.");
+        if (typeof renderAll === "function") renderAll();
+      });
 
-    if (recoveryMode) setRecoveryMode(true);
-    else if (session?.user) await syncNow();
+      if (recoveryMode) setRecoveryMode(true);
+      else if (session?.user) return await syncNow();
+      return { status: "initialized" };
+    } catch (error) {
+      initialized = false;
+      client = null;
+      session = null;
+      status(`Cloud initialization failed: ${error?.message || "unknown error"}. Retrying when online.`);
+      return { status: ERROR, error };
+    }
   }
 
-  window.addEventListener("online", () => syncNow());
+  async function resumeCloudSync() {
+    if (!initialized) return init();
+    return syncNow();
+  }
+
+  window.addEventListener("online", () => resumeCloudSync());
+  window.addEventListener("pageshow", () => resumeCloudSync());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) resumeCloudSync();
+  });
   document.addEventListener("DOMContentLoaded", () => init());
   requestAnimationFrame(() => init());
 
@@ -1220,7 +1318,11 @@
       normalizeSource,
       normalizeType,
       rowForLog,
-      rowToLog
+      rowToLog,
+      logIdentityKeys,
+      rowIdentityKeys,
+      reconcileLogTimeline,
+      mergeSyncedRows
     }
   };
 })();

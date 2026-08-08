@@ -98,7 +98,7 @@ test("Log is a status-first beta instrument panel", () => {
   assert.match(sleepyRecorder, /checkinType:\s*SLEEPY_CHECKIN_TYPE/);
   assert.match(sleepyRecorder, /arousalLevel:\s*SLEEPY_CHECKIN_TYPE/);
   assert.match(checkinRecorder, /betaState\(\)\.logs\.push\(log\)/);
-  assert.match(checkinRecorder, /window\.fuelGuardCloud\?\.saveLog\(log\)/);
+  assert.match(checkinRecorder, /return persistQuickLog\(log,/);
   assert.match(undoSource, /betaState\(\)\.logs\.forEach/);
   assert.doesNotMatch(undoSource, /\.filter\(isFuelLog|\.filter\(isHydrationLog/);
   assert.match(timelineSource, /isSleepyLog\(log\)/);
@@ -117,7 +117,8 @@ test("Log is a status-first beta instrument panel", () => {
   assert.match(statusRender, /Fuel logs/);
   assert.match(statusRender, /Hydration logs/);
   assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
-  assert.ok(js.includes('quickLogConfirmation = `${label} - ${formatClock(date)}`;'));
+  assert.match(js, /quickLogConfirmation = `\$\{label\} - \$\{formatClock\(date\)\}\. \$\{syncCopy\}`/);
+  assert.match(js, /return persistQuickLog\(log, normalizedType, loggedAt\)/);
 });
 
 test("Today’s Patterns switches between fuel, hydration and sleepy event counts", () => {
@@ -205,13 +206,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the integrated Coach intelligence release", () => {
+test("PWA cache and asset versions are bumped for update-safe log history", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v110-coach-qa-hardening";
+  const version = "mobile-pwa-v113-log-history-safety";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -221,7 +222,7 @@ test("PWA cache and asset versions are bumped for the integrated Coach intellige
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260807T181022Z/);
+  assert.match(sw, /20260808T174011Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
