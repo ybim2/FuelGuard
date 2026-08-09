@@ -13,10 +13,10 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v115-athlete-training-access" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v115-athlete-training-access" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v115-athlete-training-access" />
-  <link rel="stylesheet" href="training-fuel.css?v=mobile-pwa-v115-athlete-training-access" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v116-performance-demo-readiness" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v116-performance-demo-readiness" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v116-performance-demo-readiness" />
+  <link rel="stylesheet" href="training-fuel.css?v=mobile-pwa-v116-performance-demo-readiness" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -122,12 +122,12 @@
           </button>
           <nav class="beta-product-switcher" aria-label="Fuel Guard products">
             <a href="/" aria-current="page">Athlete</a>
-            <a href="/coach/">Coach</a>
-            <a href="/performance/">Performance</a>
+            <a id="coachProductLink" href="/coach/" hidden>Coach</a>
+            <a id="performanceProductLink" href="/performance/" hidden>Performance</a>
           </nav>
         </div>
-        <button class="beta-header-settings-button" type="button" data-open-screen="checklist" aria-label="Open settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9.1 1.7 1.7 0 0 0-.9 1.6v.2h-4v-.2a1.7 1.7 0 0 0-.9-1.6 1.7 1.7 0 0 0-1.9-.1l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 6.2 15a1.7 1.7 0 0 0-1.4-1H4.6v-4h.2a1.7 1.7 0 0 0 1.4-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9-.1 1.7 1.7 0 0 0 .9-1.6V1.8h4V2a1.7 1.7 0 0 0 .9 1.6 1.7 1.7 0 0 0 1.9.1l.2-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.4 1h.2v4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
+        <button class="beta-header-settings-button" type="button" data-open-screen="checklist" aria-label="Open profile and account settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>
         </button>
       </header>
 
@@ -142,6 +142,7 @@
           </div>
           <div id="coachNudgeList" class="beta-coach-nudge-list"></div>
         </article>
+        <section id="athleteActivitySummary" class="beta-activity-summary" aria-label="Fuel Guard activity summary"></section>
         <article class="card fuel-gap-card beta-today-shell">
           <section id="fuelTodayStatus"></section>
           <div class="beta-day-type-storage" hidden aria-hidden="true">
@@ -195,7 +196,7 @@
 
       <section id="checklist" class="screen">
         <article class="card beta-settings-intro-card">
-          <h2>Settings</h2>
+          <h2>Profile &amp; Settings</h2>
           <p class="muted beta-supportive-note">Fuel Guard is designed to help you notice fuelling rhythm, not judge food choices. If tracking food or fuelling timing feels distressing, use the app in the gentlest way that supports you.</p>
         </article>
 
@@ -349,7 +350,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v115-athlete-training-access</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v116-performance-demo-readiness</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -365,20 +366,20 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v115-athlete-training-access"></script>
+  <script src="build-info.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="app-state.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="product-shell.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="app-ui.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="training-fuel.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v115-athlete-training-access"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="app-state.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="product-shell.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="app-ui.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="training-fuel.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
 </body>
 </html>

@@ -5633,6 +5633,17 @@
     return "";
   }
 
+  function renderAthleteActivitySummary() {
+    const target = document.getElementById("athleteActivitySummary");
+    if (!target || !window.FuelGuardDomain?.activityUsageSummary) return;
+    const summary = window.FuelGuardDomain.activityUsageSummary(betaState().logs, new Date());
+    target.innerHTML = `
+      <span><b aria-hidden="true">🔥</b><strong>${summary.dayStreak}</strong> day streak</span>
+      <span><b aria-hidden="true">🍽</b><strong>${summary.fuelMoments}</strong> fuel moments</span>
+      <span><b aria-hidden="true">💧</b><strong>${summary.hydrationMoments}</strong> hydration moments</span>
+    `;
+  }
+
   function renderCompactDailySummary(key = todayViewKey()) {
     const entry = archiveEntries().find(item => item.date === key) || buildArchiveEntry(key);
     const logs = logsForDay(key);
@@ -10013,6 +10024,7 @@
 
     if (dashboardActive) {
       renderCoachNudges();
+      renderAthleteActivitySummary();
       renderDayTypeControls();
       renderSelectedDayCard();
       renderDailyLog();
@@ -10032,6 +10044,7 @@
     });
     if (target === "dashboard") {
       renderCoachNudges();
+      renderAthleteActivitySummary();
       renderSelectedDayCard();
       renderDailyLog();
     }

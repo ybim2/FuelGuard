@@ -7,6 +7,7 @@ const root = path.join(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 const migration = read("supabase/migrations/20260808122312_fuel_guard_performance.sql");
 const accessMigration = read("supabase/migrations/20260808201101_performance_access_ux.sql");
+const platformMigration = read("supabase/migrations/20260809083545_platform_admin_access.sql");
 const accessMigrationWithoutComments = accessMigration.replace(/--[^\n]*/g, "");
 const migrationWithoutComments = migration.replace(/--[^\n]*/g, "");
 const html = read("performance/index.html");
@@ -34,7 +35,8 @@ test("Performance requests secure RPC payloads instead of raw athlete histories"
     "fuel_performance_overview",
     "fuel_performance_pathway",
     "fuel_performance_staff_access",
-    "fuel_performance_reports"
+    "fuel_performance_reports",
+    "fuel_performance_athlete_detail"
   ]) assert.match(js, new RegExp(`rpc\\(\\"${rpc}\\"`));
   assert.doesNotMatch(js, /\.from\(["']fuel_logs["']\)/);
   assert.doesNotMatch(js, /\.from\(["']garmin_activity_summaries["']\)/);
@@ -221,8 +223,56 @@ test("Performance UI is desktop-first, responsive and accessibility-labelled", (
   assert.match(html, /aria-labelledby="overviewTitle"/);
 });
 
+test("platform administration is explicit, revocable, auditable and visibly contextual", () => {
+  assert.match(platformMigration, /create table private\.fuel_platform_admins/);
+  assert.match(platformMigration, /create table private\.fuel_platform_admin_organisation_access/);
+  assert.match(platformMigration, /create table private\.fuel_platform_admin_audit_events/);
+  assert.match(platformMigration, /fuel_platform_admin_has_organisation_access/);
+  assert.match(platformMigration, /Platform administrator identity is immutable/);
+  assert.match(platformMigration, /Platform administrator organisation access identity is immutable/);
+  assert.match(platformMigration, /revoke all on table private\.fuel_platform_admins\s+from public, anon, authenticated/);
+  assert.doesNotMatch(platformMigration.replace(/--[^\n]*/g, ""), /raw_user_meta_data|user_metadata|service_role/);
+  assert.match(html, /id="platformAdminBanner"/);
+  assert.match(html, /Fuel Guard Admin/);
+  assert.match(js, /fuel_platform_admin_context/);
+  assert.match(html, /Viewing/);
+});
+
+test("organisation switching clears prior data before the new RPC requests", () => {
+  const handler = js.match(/\$\("organisationPicker"\)\.addEventListener\("change"[\s\S]*?\n\s*\}\);/)?.[0] || "";
+  assert.match(handler, /resetOrganisationData\(\)/);
+  assert.ok(handler.indexOf("resetOrganisationData()") < handler.indexOf("state.organisationId = event.target.value"));
+  assert.match(handler, /Switching organisation/);
+});
+
+test("Performance athlete detail uses shared training-fuel semantics and a permissioned intervention workflow", () => {
+  assert.match(html, /id="athleteDetailPanel"/);
+  assert.match(html, /fuel-guard-domain\.js/);
+  assert.match(js, /domain\.getWorkoutFuelContexts/);
+  assert.match(js, /Pre-training fuel/);
+  assert.match(js, /Post-training fuel/);
+  assert.match(js, /No pre-training fuel recorded/);
+  assert.match(js, /Insufficient training data/);
+  assert.match(js, /fuel_performance_create_intervention/);
+  assert.match(js, /fuel_performance_update_intervention/);
+  assert.match(platformMigration, /private\.fuel_performance_can_access_athlete/);
+  assert.match(platformMigration, /'manage_interventions'/);
+  assert.match(platformMigration, /alter table public\.fuel_performance_interventions enable row level security/);
+  assert.match(platformMigration, /revoke all on table public\.fuel_performance_interventions\s+from public, anon, authenticated/);
+});
+
+test("demo hierarchy initialization is explicit and atomic", () => {
+  assert.match(html, /Create demo gym structure/);
+  assert.match(html, /not fake dashboard values/);
+  assert.match(js, /fuel_performance_create_demo_structure/);
+  const initializer = platformMigration.match(/create or replace function public\.fuel_performance_create_demo_structure[\s\S]*?\$\$;/)?.[0] || "";
+  assert.match(initializer, /Demo structure requires an empty organisation/);
+  for (const location of ["Bedford", "Cambridge", "Oxford"]) assert.match(initializer, new RegExp(location));
+  assert.match(initializer, /Personal Training/);
+});
+
 test("service worker versions and routes Athlete, Coach and Performance independently", () => {
-  assert.match(sw, /mobile-pwa-v115-athlete-training-access/);
+  assert.match(sw, /mobile-pwa-v116-performance-demo-readiness/);
   assert.match(sw, /\.\/performance\/index\.html/);
   assert.match(sw, /\.\/performance\/performance\.css/);
   assert.match(sw, /\.\/performance\/performance\.js/);
@@ -234,7 +284,7 @@ test("service worker versions and routes Athlete, Coach and Performance independ
 });
 
 test("pgTAP covers the gym case, nested isolation, consent, suppression and direct attacks", () => {
-  assert.match(pgtap, /select plan\(60\)/);
+  assert.match(pgtap, /select plan\(94\)/);
   assert.match(pgtap, /PT A cannot access PT B client/);
   assert.match(pgtap, /pathway excludes the sibling Northampton location/);
   assert.match(pgtap, /Bedford manager aggregate includes both Bedford PT programmes/);
@@ -250,4 +300,8 @@ test("pgTAP covers the gym case, nested isolation, consent, suppression and dire
   assert.match(pgtap, /Owner bootstrap does not grant athlete detail to the new account/);
   assert.match(pgtap, /Access manager can add a Fuel Guard account by exact email/);
   assert.match(pgtap, /Unauthorised staff cannot enumerate organisation account emails/);
+  assert.match(pgtap, /Staff cannot grant themselves an additional capability/);
+  assert.match(pgtap, /Platform administrator receives no implicit customer organisation access/);
+  assert.match(pgtap, /Organisation-context revocation removes Performance access immediately/);
+  assert.match(pgtap, /Revoked platform administrator cannot attack athlete detail by direct ID/);
 });

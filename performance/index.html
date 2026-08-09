@@ -7,7 +7,7 @@
   <meta name="description" content="Fuel Guard Performance provides permissioned organisational fuelling oversight." />
   <title>Fuel Guard Performance</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
-  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v115-athlete-training-access" />
+  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v116-performance-demo-readiness" />
 </head>
 <body>
   <header class="performance-topbar">
@@ -23,6 +23,11 @@
       <button id="refreshButton" class="icon-button" type="button" aria-label="Refresh Performance data" hidden>↻</button>
     </div>
   </header>
+
+  <div id="platformAdminBanner" class="platform-admin-banner" role="status" hidden>
+    <strong>Fuel Guard Admin</strong>
+    <span>Viewing <span id="platformAdminOrganisation">organisation</span></span>
+  </div>
 
   <main class="performance-page">
     <section id="loadingPanel" class="performance-card centred-card" role="status" aria-live="polite">
@@ -118,6 +123,10 @@
               <label>Timezone<input id="unitTimezoneInput" maxlength="80" value="Europe/London" /></label>
             </div>
             <button id="saveUnitButton" class="secondary-button" type="button">Add unit</button>
+            <div class="demo-structure-action">
+              <div><strong>Preparing a clearly labelled demo?</strong><p>Create a starter group with Bedford, Cambridge and Oxford Personal Training units. This writes real organisation structure, not fake dashboard values.</p></div>
+              <button id="createDemoStructureButton" class="text-button" type="button">Create demo gym structure</button>
+            </div>
             <p id="unitStatus" class="status-line" aria-live="polite"></p>
           </section>
         </section>
@@ -204,14 +213,25 @@
         </section>
       </div>
     </div>
+
+    <section id="athleteDetailPanel" class="athlete-detail-backdrop" aria-labelledby="athleteDetailTitle" hidden>
+      <article class="athlete-detail-panel">
+        <div class="athlete-detail-heading">
+          <div><p class="eyebrow">Permissioned athlete/client detail</p><h2 id="athleteDetailTitle">Athlete detail</h2></div>
+          <button id="closeAthleteDetailButton" class="icon-button detail-close" type="button" aria-label="Close athlete detail">×</button>
+        </div>
+        <div id="athleteDetailContent" aria-live="polite"></div>
+      </article>
+    </section>
   </main>
 
   <p id="globalStatus" class="global-status" aria-live="polite"></p>
 
-  <script src="../build-info.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="../api/supabase-config.js?v=mobile-pwa-v115-athlete-training-access"></script>
+  <script src="../build-info.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../app-pwa.js?v=mobile-pwa-v115-athlete-training-access"></script>
-  <script src="performance.js?v=mobile-pwa-v115-athlete-training-access"></script>
+  <script src="../app-pwa.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="performance.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
 </body>
 </html>
