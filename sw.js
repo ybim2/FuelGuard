@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v124-points-reviews-profiles";
-const BUILD_VERSION = "2026-08-09T22:41:13Z";
+const APP_VERSION = "mobile-pwa-v125-daily-gap-goal";
+const BUILD_VERSION = "2026-08-09T23:18:06Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v124-points-reviews-profiles-20260809T224113Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v125-daily-gap-goal-20260809T231806Z";
 const APP_SHELL = [
   "./",
   "./index.html",

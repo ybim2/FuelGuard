@@ -1,8 +1,8 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v124-points-reviews-profiles",
-  buildVersion: "2026-08-09T22:41:13Z",
-  sourceCheckpoint: "v124-points-reviews-profiles",
-  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v124-points-reviews-profiles",
+  canonicalApp: "mobile-pwa-v125-daily-gap-goal",
+  buildVersion: "2026-08-09T23:18:06Z",
+  sourceCheckpoint: "v125-daily-gap-goal",
+  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v125-daily-gap-goal",
   serviceWorkerScope: "/",
-  cacheName: "fuel-guard-mobile-pwa-v124-points-reviews-profiles-20260809T224113Z"
+  cacheName: "fuel-guard-mobile-pwa-v125-daily-gap-goal-20260809T231806Z"
 });
