@@ -1,9 +1,10 @@
 .training-fuel-card {
-  margin-top: 16px;
-  padding: 18px;
-  border: 1px solid rgba(16, 32, 25, .12);
-  border-radius: 22px;
-  background: linear-gradient(180deg, #fffdf8, #fbf7ee);
+  margin: 0;
+  padding: 24px 0;
+  border: 0;
+  border-top: 1px solid rgba(16, 32, 25, .1);
+  border-radius: 0;
+  background: transparent;
   color: #102019;
 }
 
@@ -102,10 +103,10 @@
 }
 
 .training-fuel-session {
-  padding: 14px;
+  padding: 16px;
   border: 1px solid rgba(16, 32, 25, .1);
-  border-radius: 17px;
-  background: #fff;
+  border-radius: 16px;
+  background: #fffdf8;
 }
 
 .training-fuel-session-head p {
@@ -162,8 +163,8 @@
 
 @media (max-width: 560px) {
   .training-fuel-card {
-    padding: 15px;
-    border-radius: 19px;
+    padding: 22px 0;
+    border-radius: 0;
   }
 
   .training-fuel-summary-grid,

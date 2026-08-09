@@ -179,13 +179,13 @@
         <div class="training-fuel-pair">
           <section>
             <span>Before training</span>
-            <strong>${previous ? domain().escapeHtml(domain().duration(context.preFuelGapMinutes)) : "No prior fuel logged"}</strong>
-            <small>${previous ? domain().escapeHtml(`Last fuel: ${domain().formatClockInTimeZone(previous.date, timeZone)}`) : "No earlier fuel event is available."}</small>
+            <strong>${previous ? domain().escapeHtml(`${domain().duration(context.preFuelGapMinutes)} since last fuel`) : "No pre-training fuel logged"}</strong>
+            <small>${previous ? domain().escapeHtml(`Fuel logged at ${domain().formatClockInTimeZone(previous.date, timeZone)}`) : "No earlier fuel event is available."}</small>
           </section>
           <section>
             <span>After training</span>
-            <strong>${next ? domain().escapeHtml(domain().duration(context.postFuelGapMinutes)) : "No post-session fuel logged"}</strong>
-            <small>${next ? domain().escapeHtml(`Next fuel: ${domain().formatClockInTimeZone(next.date, timeZone)}`) : "No later fuel event is available."}</small>
+            <strong>${next ? domain().escapeHtml(`${domain().duration(context.postFuelGapMinutes)} post-training to fuel`) : "No post-training fuel logged"}</strong>
+            <small>${next ? domain().escapeHtml(`Fuel logged at ${domain().formatClockInTimeZone(next.date, timeZone)}`) : "No later fuel event is available."}</small>
           </section>
         </div>
       </article>
@@ -253,7 +253,7 @@
       <section class="training-fuel-card" aria-label="Pre/Post Training Fuel">
         <div class="training-fuel-heading">
           <div>
-            <p>Analysis</p>
+            <p>Training context</p>
             <h3>Pre/Post Training Fuel</h3>
             <span>See when fuel was logged before and after each completed session.</span>
           </div>

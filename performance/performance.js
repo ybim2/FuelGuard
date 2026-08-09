@@ -22,8 +22,10 @@
     staff: null,
     shares: [],
     reports: null,
+    staffAccounts: {},
     tab: "overview",
     busy: false,
+    recovering: false,
     toastTimer: null
   };
 
@@ -59,6 +61,7 @@
   function setPanelVisibility(name) {
     $("loadingPanel").hidden = name !== "loading";
     $("authPanel").hidden = name !== "auth";
+    $("recoveryPanel").hidden = name !== "recovery";
     $("accessPanel").hidden = name !== "access";
     $("appShell").hidden = name !== "app";
     $("organisationPickerLabel").hidden = name !== "app";
@@ -76,6 +79,7 @@
   function friendlyError(error) {
     const message = String(error?.message || error || "The request could not be completed.");
     if (/invalid login credentials/i.test(message)) return "Those login details did not work.";
+    if (/no fuel guard account matches|email address|organisation name/i.test(message)) return message;
     if (/failed to fetch|network|load failed/i.test(message)) return "Fuel Guard could not reach Supabase. Check your connection and try again.";
     if (/access denied|permission|row-level|42501/i.test(message)) return "Your current scope or capability does not allow that action.";
     if (/cohort|unit|staff member|athlete|organisation|reporting period|sharing request/i.test(message)) return message;
@@ -229,7 +233,7 @@
           return `<span class="scope-chip ${item.status === "active" ? "" : "revoked"}">${safe(label)}</span>`;
         }).join("");
         return `<article class="staff-row">
-          <div><strong>${safe(person.displayName)}</strong><small>${safe(person.membershipRole)} · ${safe(person.status)}</small></div>
+          <div><strong>${safe(person.displayName)}</strong><small>${safe(state.staffAccounts[person.userId] || "Fuel Guard account")} · ${safe(person.membershipRole)} · ${safe(person.status)}</small></div>
           <div><strong>Who they can access</strong><div class="chip-list">${scopes || '<span class="scope-chip revoked">No active scope</span>'}</div></div>
           <div><strong>What they can do</strong><div class="chip-list">${capabilities || '<span class="capability-chip revoked">No capabilities</span>'}</div></div>
           <div><strong>Last meaningful activity</strong><small>${safe(dateTime(person.lastMeaningfulActivityAt))}</small></div>
@@ -336,11 +340,15 @@
       requests.push(hasCapability("manage_staff_access") || hasCapability("view_athlete_detail")
         ? rpc("fuel_performance_athlete_shares", { p_organisation_id: state.organisationId })
         : Promise.resolve({ shares: [] }));
-      const [overview, reports, staff, shareData] = await Promise.all(requests);
+      requests.push(hasCapability("manage_staff_access")
+        ? rpc("fuel_performance_staff_accounts", { p_organisation_id: state.organisationId })
+        : Promise.resolve([]));
+      const [overview, reports, staff, shareData, staffAccounts] = await Promise.all(requests);
       state.overview = overview;
       state.reports = reports;
       state.staff = staff;
       state.shares = Array.isArray(shareData?.shares) ? shareData.shares : [];
+      state.staffAccounts = Object.fromEntries((Array.isArray(staffAccounts) ? staffAccounts : []).map(account => [account.user_id, account.email]));
       renderAll();
       toast("Performance data refreshed.");
     } catch (error) {
@@ -353,6 +361,10 @@
   }
 
   async function resolveAccess() {
+    if (state.recovering) {
+      setPanelVisibility("recovery");
+      return;
+    }
     setPanelVisibility("loading");
     if (!state.session) {
       setPanelVisibility("auth");
@@ -361,6 +373,7 @@
     try {
       state.contexts = await rpc("fuel_performance_context");
       if (!Array.isArray(state.contexts) || !state.contexts.length) {
+        $("accessIdentity").textContent = state.session?.user?.email || "your Fuel Guard account";
         setPanelVisibility("access");
         return;
       }
@@ -371,6 +384,7 @@
       await loadOrganisation({ preserveStatus: true });
     } catch (error) {
       toast(friendlyError(error));
+      $("accessIdentity").textContent = state.session?.user?.email || "your Fuel Guard account";
       setPanelVisibility("access");
     }
   }
@@ -389,10 +403,99 @@
     if (error) $("authStatus").textContent = friendlyError(error);
   }
 
+  async function createAccount() {
+    const email = $("emailInput").value.trim();
+    const password = $("passwordInput").value;
+    if (!email || !password) {
+      $("authStatus").textContent = "Enter your email and a password to create your Fuel Guard account.";
+      return;
+    }
+    $("createAccountButton").disabled = true;
+    $("authStatus").textContent = "Creating your Fuel Guard account…";
+    const { data, error } = await state.client.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/performance/` }
+    });
+    $("createAccountButton").disabled = false;
+    if (error) {
+      $("authStatus").textContent = friendlyError(error);
+      return;
+    }
+    $("authStatus").textContent = data?.session
+      ? "Account created. Performance access is checked separately."
+      : "Account created. Check your email to confirm it, then sign in here. Performance access is granted separately.";
+  }
+
+  async function forgotPassword() {
+    const email = $("emailInput").value.trim();
+    if (!email) {
+      $("authStatus").textContent = "Enter your Fuel Guard account email first.";
+      return;
+    }
+    $("forgotPasswordButton").disabled = true;
+    $("authStatus").textContent = "Sending password reset email…";
+    const { error } = await state.client.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/performance/`
+    });
+    $("forgotPasswordButton").disabled = false;
+    $("authStatus").textContent = error
+      ? friendlyError(error)
+      : "If that Fuel Guard account exists, a password reset email has been sent.";
+  }
+
+  async function updatePassword() {
+    const password = $("newPasswordInput").value;
+    const confirmation = $("confirmPasswordInput").value;
+    if (password.length < 8) {
+      $("recoveryStatus").textContent = "Use at least 8 characters.";
+      return;
+    }
+    if (password !== confirmation) {
+      $("recoveryStatus").textContent = "The passwords do not match.";
+      return;
+    }
+    $("updatePasswordButton").disabled = true;
+    const { error } = await state.client.auth.updateUser({ password });
+    $("updatePasswordButton").disabled = false;
+    if (error) {
+      $("recoveryStatus").textContent = friendlyError(error);
+      return;
+    }
+    state.recovering = false;
+    $("newPasswordInput").value = "";
+    $("confirmPasswordInput").value = "";
+    await resolveAccess();
+  }
+
+  async function createOrganisation() {
+    const name = $("newOrganisationInput").value.trim();
+    if (!name) {
+      $("bootstrapStatus").textContent = "Enter an organisation name.";
+      return;
+    }
+    $("createOrganisationButton").disabled = true;
+    $("bootstrapStatus").textContent = "Creating the organisation workspace…";
+    try {
+      await rpc("fuel_performance_create_organisation", { p_name: name });
+      $("newOrganisationInput").value = "";
+      $("bootstrapStatus").textContent = "Organisation created. Resolving your scoped administrator access…";
+      await resolveAccess();
+    } catch (error) {
+      $("bootstrapStatus").textContent = friendlyError(error);
+    } finally {
+      $("createOrganisationButton").disabled = false;
+    }
+  }
+
   async function signOut() {
     await state.client.auth.signOut();
     state.contexts = [];
     state.organisationId = "";
+    state.staffAccounts = {};
+    state.recovering = false;
+    state.tab = "overview";
+    showTab("overview");
     setPanelVisibility("auth");
   }
 
@@ -412,20 +515,20 @@
 
   async function saveMembership(event) {
     event.preventDefault();
-    const userId = $("membershipUserInput").value.trim();
-    if (!UUID_RE.test(userId)) {
-      $("accessStatus").textContent = "Enter a valid approved staff account UUID.";
+    const email = $("membershipEmailInput").value.trim();
+    if (!email) {
+      $("accessStatus").textContent = "Enter the staff member’s Fuel Guard account email.";
       return;
     }
     try {
-      await rpc("fuel_performance_set_staff_membership", {
+      await rpc("fuel_performance_set_staff_membership_by_email", {
         p_organisation_id: state.organisationId,
-        p_user_id: userId,
+        p_email: email,
         p_role: $("membershipRolePicker").value,
         p_active: $("membershipStatusPicker").value === "active"
       });
-      $("membershipUserInput").value = "";
-      $("accessStatus").textContent = "Staff membership saved. Membership alone grants no athlete-data access.";
+      $("membershipEmailInput").value = "";
+      $("accessStatus").textContent = "Staff account added. Now assign scope and only the capabilities they need; membership alone grants no athlete-data access.";
       await loadOrganisation({ preserveStatus: true });
     } catch (error) { $("accessStatus").textContent = friendlyError(error); }
   }
@@ -522,10 +625,18 @@
 
   function bind() {
     $("signInButton").addEventListener("click", signIn);
+    $("createAccountButton").addEventListener("click", createAccount);
+    $("forgotPasswordButton").addEventListener("click", forgotPassword);
+    $("updatePasswordButton").addEventListener("click", updatePassword);
+    $("cancelRecoveryButton").addEventListener("click", () => {
+      state.recovering = false;
+      setPanelVisibility(state.session ? "access" : "auth");
+    });
     $("passwordInput").addEventListener("keydown", event => { if (event.key === "Enter") signIn(); });
     $("accessSignOutButton").addEventListener("click", signOut);
     $("signOutButton").addEventListener("click", signOut);
     $("retryAccessButton").addEventListener("click", resolveAccess);
+    $("createOrganisationButton").addEventListener("click", createOrganisation);
     $("refreshButton").addEventListener("click", () => loadOrganisation());
     $("organisationPicker").addEventListener("change", async event => {
       state.organisationId = event.target.value;
@@ -565,9 +676,15 @@
     });
     const { data } = await state.client.auth.getSession();
     state.session = data?.session || null;
-    state.client.auth.onAuthStateChange((_event, session) => {
+    state.client.auth.onAuthStateChange((event, session) => {
       const changed = state.session?.user?.id !== session?.user?.id;
       state.session = session;
+      if (event === "PASSWORD_RECOVERY") {
+        state.recovering = true;
+        setPanelVisibility("recovery");
+        return;
+      }
+      if (event === "SIGNED_OUT") state.recovering = false;
       if (changed) window.setTimeout(resolveAccess, 0);
     });
     await resolveAccess();

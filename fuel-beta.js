@@ -2440,6 +2440,11 @@
       const dayText = dayType ? dayTypeLabel(dayType) : "Normal";
       saved.textContent = `Saved: ${dayText}.`;
     }
+    document.querySelectorAll("[data-day-type-choice]").forEach(button => {
+      const selected = String(button.dataset.dayTypeChoice || "") === dayType;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-checked", String(selected));
+    });
   }
 
   function setCsvImportStatus(message) {
@@ -4572,6 +4577,13 @@
     const lastHydration = lastLogForDay(key, isHydrationLog);
     const hasFuel = Boolean(lastFuel);
     const progressStyle = stylePercent(goalCopy.progress);
+    const selectedDayType = dayTypeForKey(key);
+    const dayTypeChoices = [
+      ["", "Normal"],
+      ["work", "Working"],
+      ["holiday", "Holiday"],
+      ["competition", "Competition"]
+    ];
     return `
       <section class="beta-today-status-card beta-primary-card ${safeText(tone)}" aria-label="Current fuelling status">
         <div class="beta-today-status-main">
@@ -4580,20 +4592,19 @@
           <p>${safeText(currentStatusSupportCopy(snapshot.status, hasFuel))}</p>
         </div>
         <div class="beta-live-status-panel">
-          <div class="beta-live-gap-grid">
-            <div>
-              <span>Last fuel</span>
-              <strong>${safeText(snapshot.timeSinceFuel === "No fuel logged" ? "Not logged yet" : `${snapshot.timeSinceFuel} ago`)}</strong>
-            </div>
-            <div>
-              <span>Last hydration</span>
-              <strong>${safeText(hydrationSince === "Not logged yet" ? hydrationSince : `${hydrationSince} ago`)}</strong>
-            </div>
-          </div>
           <strong class="beta-gap-countdown">${safeText(goalCopy.primary)}</strong>
           <div class="beta-gap-progress" aria-hidden="true"><span style="width:${progressStyle}"></span></div>
           <small>${safeText(goalCopy.secondary)}</small>
         </div>
+        <section class="beta-day-type-inline" aria-labelledby="dayTypeTitle">
+          <div class="beta-day-type-inline-heading">
+            <span id="dayTypeTitle">Day type</span>
+            <strong>Today</strong>
+          </div>
+          <div class="beta-day-type-chips" role="radiogroup" aria-label="Day type for today">
+            ${dayTypeChoices.map(([value, label]) => `<button type="button" role="radio" class="beta-day-type-chip${selectedDayType === value ? " selected" : ""}" aria-checked="${selectedDayType === value}" data-day-type-choice="${safeText(value)}">${safeText(label)}</button>`).join("")}
+          </div>
+        </section>
         <div class="beta-today-status-grid">
           ${dailyMetricCard("Last fuel", lastFuel ? formatClock(lastFuel.date) : "Not logged", hasFuel ? `${snapshot.timeSinceFuel} ago` : "No fuel logged yet", "fuel")}
           ${dailyMetricCard("Last hydration", lastHydration ? formatClock(lastHydration.date) : "Not logged", lastHydration ? `${hydrationSince} ago` : "No hydration logged yet", "hydration")}
@@ -10306,6 +10317,14 @@
     save();
     renderAll();
     window.fuelGuardCloud?.syncLogsForDay(key);
+  });
+  document.addEventListener("click", event => {
+    const choice = event.target.closest("[data-day-type-choice]");
+    if (!choice) return;
+    const select = document.getElementById("fuelDayType");
+    if (!select) return;
+    select.value = choice.dataset.dayTypeChoice || "";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   document.getElementById("fuelTrainingSession")?.addEventListener("change", event => {
     const key = selectedDataDateKey();

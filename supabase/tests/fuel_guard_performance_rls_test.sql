@@ -1,5 +1,5 @@
 begin;
-select plan(50);
+select plan(60);
 
 -- ABC Fitness gym/location/PT/client fixture plus an isolated organisation.
 insert into auth.users (
@@ -17,6 +17,7 @@ from (values
   ('81000000-0000-0000-0000-000000000006'::uuid, 'admin@abc.test'),
   ('81000000-0000-0000-0000-000000000007'::uuid, 'northampton.pt@abc.test'),
   ('81000000-0000-0000-0000-000000000008'::uuid, 'owner@other.test'),
+  ('81000000-0000-0000-0000-000000000009'::uuid, 'new.performance@abc.test'),
   ('82000000-0000-0000-0000-000000000001'::uuid, 'athlete1@abc.test'),
   ('82000000-0000-0000-0000-000000000002'::uuid, 'athlete2@abc.test'),
   ('82000000-0000-0000-0000-000000000003'::uuid, 'athlete3@abc.test'),
@@ -38,6 +39,7 @@ from (values
   ('81000000-0000-0000-0000-000000000006'::uuid, 'Organisation Admin'),
   ('81000000-0000-0000-0000-000000000007'::uuid, 'Northampton PT'),
   ('81000000-0000-0000-0000-000000000008'::uuid, 'Other Owner'),
+  ('81000000-0000-0000-0000-000000000009'::uuid, 'New Performance User'),
   ('82000000-0000-0000-0000-000000000001'::uuid, 'Athlete 1'),
   ('82000000-0000-0000-0000-000000000002'::uuid, 'Athlete 2'),
   ('82000000-0000-0000-0000-000000000003'::uuid, 'Athlete 3'),
@@ -314,6 +316,52 @@ set local role anon;
 select set_config('request.jwt.claim.sub', '', true);
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
 select throws_ok($$select * from public.fuel_performance_context()$$, '42501', null, 'Anonymous caller cannot execute Performance context');
+
+-- 51-60: shared-account onboarding remains permissioned and non-enumerable.
+select throws_ok(
+  $$select public.fuel_performance_create_organisation('Anonymous Organisation')$$,
+  '42501', null, 'Anonymous caller cannot create a Performance organisation');
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000009', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000009","role":"authenticated"}', true);
+select results_eq($$select count(*) from public.fuel_performance_context()$$, array[0::bigint], 'New Fuel Guard account starts without Performance access');
+select lives_ok(
+  $$select public.fuel_performance_create_organisation('New Performance Workspace')$$,
+  'New account can create a secure organisation workspace');
+select results_eq($$select count(*) from public.fuel_performance_context()$$, array[1::bigint], 'Owner bootstrap makes the new organisation available');
+select ok(not private.fuel_performance_has_capability(
+  (select id from public.fuel_organisations where name = 'New Performance Workspace'),
+  'view_athlete_detail'
+), 'Owner bootstrap does not grant athlete detail to the new account');
+select ok(private.fuel_performance_has_capability(
+  (select id from public.fuel_organisations where name = 'New Performance Workspace'),
+  'manage_staff_access'
+), 'Owner bootstrap grants explicit staff-access management');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000002', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok(
+  $$select * from public.fuel_performance_staff_accounts('83000000-0000-0000-0000-000000000001')$$,
+  '42501', 'Performance access denied.', 'Unauthorised staff cannot enumerate organisation account emails');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000006', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.fuel_performance_set_staff_membership_by_email(
+      '83000000-0000-0000-0000-000000000001', 'NEW.PERFORMANCE@ABC.TEST', 'staff', true
+    )$$,
+  'Access manager can add a Fuel Guard account by exact email');
+select results_eq(
+  $$select email from public.fuel_performance_staff_accounts('83000000-0000-0000-0000-000000000001') where user_id = '81000000-0000-0000-0000-000000000009'$$,
+  array['new.performance@abc.test'::text],
+  'Staff & Access resolves the newly added account email');
+select throws_ok(
+  $$select public.fuel_performance_set_staff_membership_by_email(
+      '83000000-0000-0000-0000-000000000002', 'new.performance@abc.test', 'staff', true
+    )$$,
+  '42501', 'Performance access denied.', 'Cross-organisation email membership attack is denied');
 
 select * from finish();
 rollback;

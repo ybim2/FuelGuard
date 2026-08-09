@@ -204,28 +204,58 @@ test("withholds aggregate averages and pattern claims for insufficient data", ()
   assert.equal(summary.enoughForPatterns, false);
 });
 
-test("athlete UI renders the exact worked example with actual event times", () => {
-  const html = renderAthleteTrainingFuel({
-    maximumFuelGapMinutes: 180,
-    demandBlocks: [{
-      id: "evening-run",
-      type: "training",
-      sessionType: "run",
-      title: "Evening Run",
-      startTime: "2026-08-07T20:00:00Z",
-      endTime: "2026-08-07T20:50:00Z"
-    }],
-    logs: [
-      log("2026-08-07T15:30:00Z", { athleteId: "" }),
-      log("2026-08-07T22:05:00Z", { athleteId: "" })
-    ]
-  });
+test("athlete UI derives exact pre/post wording for multiple real session timings", () => {
+  const examples = [
+    {
+      title: "Example A",
+      fuelBefore: "2026-08-07T15:18:00Z",
+      start: "2026-08-07T18:30:00Z",
+      end: "2026-08-07T19:15:00Z",
+      fuelAfter: "2026-08-07T19:57:00Z",
+      beforeCopy: "3h 12m since last fuel",
+      afterCopy: "42m post-training to fuel"
+    },
+    {
+      title: "Example B",
+      fuelBefore: "2026-08-07T17:03:00Z",
+      start: "2026-08-07T20:00:00Z",
+      end: "2026-08-07T20:48:00Z",
+      fuelAfter: "2026-08-07T22:15:00Z",
+      beforeCopy: "2h 57m since last fuel",
+      afterCopy: "1h 27m post-training to fuel"
+    },
+    {
+      title: "Example C",
+      fuelBefore: "2026-08-07T17:45:00Z",
+      start: "2026-08-07T18:30:00Z",
+      end: "2026-08-07T19:30:00Z",
+      fuelAfter: "2026-08-07T19:44:00Z",
+      beforeCopy: "45m since last fuel",
+      afterCopy: "14m post-training to fuel"
+    }
+  ];
 
-  assert.match(html, /Evening Run/);
-  assert.match(html, /4h 30m/);
-  assert.match(html, /1h 15m/);
-  assert.match(html, /Last fuel:/);
-  assert.match(html, /Next fuel:/);
+  examples.forEach(example => {
+    const html = renderAthleteTrainingFuel({
+      maximumFuelGapMinutes: 180,
+      demandBlocks: [{
+        id: example.title,
+        type: "training",
+        sessionType: "run",
+        title: example.title,
+        startTime: example.start,
+        endTime: example.end
+      }],
+      logs: [
+        log(example.fuelBefore, { athleteId: "" }),
+        log(example.fuelAfter, { athleteId: "" })
+      ]
+    });
+
+    assert.match(html, new RegExp(example.title));
+    assert.match(html, new RegExp(example.beforeCopy));
+    assert.match(html, new RegExp(example.afterCopy));
+  });
 });
 
 test("athlete UI renders missing events explicitly without a fabricated zero", () => {
@@ -240,8 +270,8 @@ test("athlete UI renders missing events explicitly without a fabricated zero", (
     logs: [log("2026-08-07T15:30:00Z", { athleteId: "" })]
   });
 
-  assert.match(noPrior, /No prior fuel logged/);
-  assert.match(noPost, /No post-session fuel logged/);
+  assert.match(noPrior, /No pre-training fuel logged/);
+  assert.match(noPost, /No post-training fuel logged/);
   assert.doesNotMatch(`${noPrior}${noPost}`, />0m</);
 });
 
@@ -322,8 +352,8 @@ test("athlete and coach UIs include loading, empty, full-context, and mobile sta
   assert.match(athleteJs, /Loading recent training sessions/);
   assert.match(athleteJs, /Log fuel around your training to start seeing patterns/);
   assert.match(athleteJs, /Connect your training data to see how your fuelling lines up with your sessions/);
-  assert.match(athleteJs, /No prior fuel logged/);
-  assert.match(athleteJs, /No post-session fuel logged/);
+  assert.match(athleteJs, /No pre-training fuel logged/);
+  assert.match(athleteJs, /No post-training fuel logged/);
   assert.match(athleteJs, /averagePreFuelGapMinutes/);
   assert.match(athleteCss, /@media \(max-width: 560px\)/);
   assert.match(coachJs, /function renderCoachWorkoutFuel/);

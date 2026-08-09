@@ -8099,6 +8099,147 @@ body.beta-mvp .beta-coach-nudge-item span {
   }
 }
 
+/* v115: one continuous Athlete Log surface with status-led day context. */
+body.beta-mvp,
+body.beta-mvp #dashboard {
+  background: #ffffff;
+}
+
+body.beta-mvp .beta-today-shell {
+  gap: 0;
+  width: min(100%, 760px);
+  margin-inline: auto;
+  padding: 0 clamp(16px, 4vw, 34px) 28px;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-today-status-card {
+  gap: 16px;
+  padding: 26px 0 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-live-status-panel {
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body.beta-mvp .beta-day-type-inline {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 0;
+  border-top: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-bottom: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+}
+
+body.beta-mvp .beta-day-type-inline-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.beta-mvp .beta-day-type-inline-heading span {
+  color: var(--fg-text-strong);
+  font-size: .86rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-day-type-inline-heading strong {
+  color: var(--fg-muted);
+  font-size: .72rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-day-type-chips {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  padding: 1px 1px 3px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.beta-mvp .beta-day-type-chips::-webkit-scrollbar {
+  display: none;
+}
+
+body.beta-mvp .beta-day-type-chip {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .14);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--fg-brand-dark);
+  font-size: .8rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body.beta-mvp .beta-day-type-chip.selected {
+  border-color: var(--fg-brand-dark);
+  background: var(--fg-brand-dark);
+  color: #ffffff;
+}
+
+body.beta-mvp .beta-today-status-card .beta-today-status-grid {
+  gap: 0;
+  border-bottom: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+}
+
+body.beta-mvp .beta-today-status-card .beta-today-status-grid > * {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-today-status-card .beta-today-status-grid > *:nth-child(odd) {
+  border-right: 1px solid rgba(var(--fg-brand-dark-rgb), .08);
+}
+
+body.beta-mvp .beta-rhythm-section-card,
+body.beta-mvp .beta-fuelling-patterns-section {
+  margin: 0;
+  padding: 22px 0;
+  border: 0;
+  border-top: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.beta-mvp .beta-quick-actions-card {
+  position: static;
+  z-index: auto;
+}
+
+body.beta-mvp .beta-today-log .beta-today-timeline-panel,
+body.beta-mvp .beta-fuelling-pattern-chart-card {
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  body.beta-mvp .beta-quick-actions-card {
+    position: static;
+    bottom: auto;
+  }
+}
+
 /* v114: keep the active account and product surfaces obvious without turning Athlete into admin UI. */
 body.beta-mvp .beta-topbar {
   min-height: calc(96px + env(safe-area-inset-top, 0px));

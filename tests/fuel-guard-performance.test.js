@@ -6,6 +6,8 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 const migration = read("supabase/migrations/20260808122312_fuel_guard_performance.sql");
+const accessMigration = read("supabase/migrations/20260808201101_performance_access_ux.sql");
+const accessMigrationWithoutComments = accessMigration.replace(/--[^\n]*/g, "");
 const migrationWithoutComments = migration.replace(/--[^\n]*/g, "");
 const html = read("performance/index.html");
 const css = read("performance/performance.css");
@@ -67,6 +69,32 @@ test("organisation admin bootstrap excludes sensitive athlete detail", () => {
   assert.match(bootstrap, /view_org_aggregates/);
   assert.doesNotMatch(bootstrap, /view_athlete_detail/);
   assert.doesNotMatch(bootstrap, /manage_interventions/);
+});
+
+test("Performance account UX keeps shared identity separate from Performance permission", () => {
+  assert.match(html, /existing Fuel Guard account/);
+  assert.match(html, /id="createAccountButton"/);
+  assert.match(html, /id="forgotPasswordButton"/);
+  assert.match(html, /does not grant access to any organisation or athlete data/);
+  assert.match(html, /Performance access isn’t enabled yet/);
+  assert.match(html, /id="accessIdentity"/);
+  assert.match(html, /Sign out \/ Switch account/);
+  assert.match(js, /auth\.signUp/);
+  assert.match(js, /auth\.resetPasswordForEmail/);
+  assert.match(js, /auth\.updateUser/);
+  assert.match(js, /\$\("accessIdentity"\)\.textContent = state\.session\?\.user\?\.email/);
+  assert.match(js, /state\.tab = "overview";\s*showTab\("overview"\)/);
+  assert.doesNotMatch(js, /signUp[\s\S]{0,400}fuel_performance_set_(?:capability|scope|staff_membership)/);
+  assert.match(css, /html \{[^}]*overflow-x: hidden;/);
+  assert.match(css, /body \{[^}]*overflow-x: hidden;/);
+  assert.match(css, /\.access-identity strong \{[\s\S]*?overflow-wrap: anywhere;/);
+});
+
+test("safe organisation bootstrap grants management without athlete-detail capability", () => {
+  assert.match(html, /without automatic athlete-detail access/);
+  assert.match(js, /fuel_performance_create_organisation/);
+  assert.match(accessMigration, /insert into public\.fuel_organisations \(name, created_by\)/);
+  assert.doesNotMatch(accessMigration, /view_athlete_detail|manage_interventions/);
 });
 
 test("athlete organisation sharing is explicit, athlete-activated, revocable and immutable", () => {
@@ -168,13 +196,19 @@ test("missing and suppressed data are never presented as zero", () => {
 test("Staff & Access provides narrow management RPCs for scope and capability", () => {
   assert.match(js, /fuel_performance_set_capability/);
   assert.match(js, /fuel_performance_set_scope/);
-  assert.match(js, /fuel_performance_set_staff_membership/);
+  assert.match(js, /fuel_performance_set_staff_membership_by_email/);
+  assert.match(js, /fuel_performance_staff_accounts/);
   assert.match(js, /fuel_performance_set_athlete_unit/);
   assert.match(js, /fuel_performance_invite_athlete/);
   assert.match(js, /fuel_performance_save_unit/);
   assert.match(migration, /Staff member is not active in this organisation/);
   assert.match(migration, /Athlete is not actively sharing with this organisation/);
   assert.match(migration, /Parent unit is outside your scope/);
+  assert.match(html, /id="membershipEmailInput"/);
+  assert.doesNotMatch(html, /id="membershipUserInput"/);
+  assert.match(accessMigration, /Authorise before looking up the account/);
+  assert.match(accessMigration, /private\.fuel_performance_has_capability\(p_organisation_id, 'manage_staff_access'\)/);
+  assert.doesNotMatch(accessMigrationWithoutComments, /auth\.role\(\)|raw_user_meta_data|user_metadata|service_role/);
 });
 
 test("Performance UI is desktop-first, responsive and accessibility-labelled", () => {
@@ -188,7 +222,7 @@ test("Performance UI is desktop-first, responsive and accessibility-labelled", (
 });
 
 test("service worker versions and routes Athlete, Coach and Performance independently", () => {
-  assert.match(sw, /mobile-pwa-v114-performance-platform/);
+  assert.match(sw, /mobile-pwa-v115-athlete-training-access/);
   assert.match(sw, /\.\/performance\/index\.html/);
   assert.match(sw, /\.\/performance\/performance\.css/);
   assert.match(sw, /\.\/performance\/performance\.js/);
@@ -200,7 +234,7 @@ test("service worker versions and routes Athlete, Coach and Performance independ
 });
 
 test("pgTAP covers the gym case, nested isolation, consent, suppression and direct attacks", () => {
-  assert.match(pgtap, /select plan\(50\)/);
+  assert.match(pgtap, /select plan\(60\)/);
   assert.match(pgtap, /PT A cannot access PT B client/);
   assert.match(pgtap, /pathway excludes the sibling Northampton location/);
   assert.match(pgtap, /Bedford manager aggregate includes both Bedford PT programmes/);
@@ -212,4 +246,8 @@ test("pgTAP covers the gym case, nested isolation, consent, suppression and dire
   assert.match(pgtap, /Inactive staff immediately lose Performance context/);
   assert.match(pgtap, /cannot reassign an athlete by direct RPC/);
   assert.match(pgtap, /Anonymous caller cannot execute Performance context/);
+  assert.match(pgtap, /New account can create a secure organisation workspace/);
+  assert.match(pgtap, /Owner bootstrap does not grant athlete detail to the new account/);
+  assert.match(pgtap, /Access manager can add a Fuel Guard account by exact email/);
+  assert.match(pgtap, /Unauthorised staff cannot enumerate organisation account emails/);
 });

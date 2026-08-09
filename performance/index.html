@@ -7,7 +7,7 @@
   <meta name="description" content="Fuel Guard Performance provides permissioned organisational fuelling oversight." />
   <title>Fuel Guard Performance</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
-  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v114-performance-platform" />
+  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v115-athlete-training-access" />
 </head>
 <body>
   <header class="performance-topbar">
@@ -34,22 +34,50 @@
     <section id="authPanel" class="performance-card centred-card" hidden>
       <span class="brand-mark">FG</span>
       <h1>Fuel Guard Performance</h1>
-      <p>Sign in with your organisational staff account. Access is resolved from server-side scope and capability grants.</p>
+      <p>Use your existing Fuel Guard account to continue. Athlete, Coach and Performance all use the same account.</p>
       <div class="form-grid compact-form">
         <label>Email<input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com" /></label>
         <label>Password<input id="passwordInput" type="password" autocomplete="current-password" placeholder="Password" /></label>
       </div>
-      <button id="signInButton" class="primary-button" type="button">Sign in</button>
+      <div class="button-row auth-actions">
+        <button id="signInButton" class="primary-button" type="button">Sign in</button>
+        <button id="createAccountButton" class="secondary-button" type="button">Create account</button>
+        <button id="forgotPasswordButton" class="text-button" type="button">Forgot password?</button>
+      </div>
+      <p class="account-explainer">Creating an account creates your Fuel Guard identity. It does not grant access to any organisation or athlete data.</p>
       <p id="authStatus" class="status-line" aria-live="polite"></p>
+    </section>
+
+    <section id="recoveryPanel" class="performance-card centred-card" hidden>
+      <span class="brand-mark">FG</span>
+      <h1>Reset your password</h1>
+      <p>Choose a new password for your Fuel Guard account.</p>
+      <div class="form-grid compact-form">
+        <label>New password<input id="newPasswordInput" type="password" autocomplete="new-password" placeholder="New password" /></label>
+        <label>Confirm password<input id="confirmPasswordInput" type="password" autocomplete="new-password" placeholder="Confirm password" /></label>
+      </div>
+      <div class="button-row">
+        <button id="updatePasswordButton" class="primary-button" type="button">Update password</button>
+        <button id="cancelRecoveryButton" class="text-button" type="button">Back to sign in</button>
+      </div>
+      <p id="recoveryStatus" class="status-line" aria-live="polite"></p>
     </section>
 
     <section id="accessPanel" class="performance-card centred-card" hidden>
       <span class="brand-mark">FG</span>
-      <h1>Performance access unavailable</h1>
-      <p>This account has no active Performance organisation, scope, and <em>view Performance</em> capability combination.</p>
+      <h1>Performance access isn’t enabled yet</h1>
+      <p class="access-identity"><span>You’re signed in as</span><strong id="accessIdentity">your Fuel Guard account</strong></p>
+      <p>Ask an organisation administrator to add this account in <strong>Staff &amp; Access</strong>, then assign its scope and Performance capabilities.</p>
       <div class="button-row">
         <button id="retryAccessButton" class="secondary-button" type="button">Check access again</button>
-        <button id="accessSignOutButton" class="text-button" type="button">Sign out</button>
+        <button id="accessSignOutButton" class="text-button" type="button">Sign out / Switch account</button>
+      </div>
+      <div class="bootstrap-panel">
+        <strong>Starting a new organisation?</strong>
+        <p>Create its secure Performance workspace. You become the scoped organisation administrator, without automatic athlete-detail access.</p>
+        <label>Organisation name<input id="newOrganisationInput" maxlength="160" placeholder="Organisation name" /></label>
+        <button id="createOrganisationButton" class="secondary-button" type="button">Create organisation</button>
+        <p id="bootstrapStatus" class="status-line" aria-live="polite"></p>
       </div>
     </section>
 
@@ -98,11 +126,11 @@
           <div class="page-heading"><div><p class="eyebrow">Responsibility and least privilege</p><h1 id="staffTitle">Staff &amp; Access</h1></div></div>
           <div id="staffContent"></div>
           <section id="accessManager" class="performance-card management-card" hidden>
-            <div><p class="eyebrow">Access control</p><h2>Assign scope and capability</h2><p><strong>Scope</strong> controls who a person can see. <strong>Capability</strong> controls what they can do.</p></div>
+            <div><p class="eyebrow">Access control</p><h2>Assign scope and capability</h2><p>Add an existing Fuel Guard account by email. <strong>Scope</strong> controls who a person can see. <strong>Capability</strong> controls what they can do.</p></div>
             <div class="management-grid">
               <form id="membershipForm" class="management-form">
-                <h3>Staff membership</h3>
-                <label>Staff account ID<input id="membershipUserInput" placeholder="Approved staff UUID" /></label>
+                <h3>Add staff account</h3>
+                <label>Fuel Guard account email<input id="membershipEmailInput" type="email" autocomplete="email" placeholder="jordan@example.com" /></label>
                 <label>Administration level<select id="membershipRolePicker"><option value="staff">Staff</option><option value="admin">Organisation admin</option></select></label>
                 <label>Status<select id="membershipStatusPicker"><option value="active">Active</option><option value="revoked">Inactive</option></select></label>
                 <button class="secondary-button" type="submit">Save membership</button>
@@ -180,10 +208,10 @@
 
   <p id="globalStatus" class="global-status" aria-live="polite"></p>
 
-  <script src="../build-info.js?v=mobile-pwa-v114-performance-platform"></script>
-  <script src="../api/supabase-config.js?v=mobile-pwa-v114-performance-platform"></script>
+  <script src="../build-info.js?v=mobile-pwa-v115-athlete-training-access"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v115-athlete-training-access"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../app-pwa.js?v=mobile-pwa-v114-performance-platform"></script>
-  <script src="performance.js?v=mobile-pwa-v114-performance-platform"></script>
+  <script src="../app-pwa.js?v=mobile-pwa-v115-athlete-training-access"></script>
+  <script src="performance.js?v=mobile-pwa-v115-athlete-training-access"></script>
 </body>
 </html>

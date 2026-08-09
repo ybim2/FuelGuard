@@ -51,6 +51,6 @@ test("main shell exposes Athlete, Coach and Performance without granting access"
   assert.match(html, /href="\/" aria-current="page">Athlete<\/a>/);
   assert.match(html, /href="\/coach\/">Coach<\/a>/);
   assert.match(html, /href="\/performance\/">Performance<\/a>/);
-  assert.match(html, /product-shell\.js\?v=mobile-pwa-v114-performance-platform/);
+  assert.match(html, /product-shell\.js\?v=mobile-pwa-v115-athlete-training-access/);
   assert.match(sw, /\.\/product-shell\.js/);
 });

@@ -59,6 +59,7 @@ test("Log is a status-first beta instrument panel", () => {
   const progressRender = functionBody(js, "renderTodayProgress", "renderCompactDailySummary");
 
   const status = indexOfRequired(dashboard, 'id="fuelTodayStatus"');
+  const dayTypeStorage = indexOfRequired(dashboard, 'id="fuelDayType"');
   const actions = indexOfRequired(dashboard, "Quick actions");
   const patterns = indexOfRequired(dashboard, 'id="fuelLogPatterns"');
   const timeline = indexOfRequired(dashboard, "Today’s timeline");
@@ -67,7 +68,6 @@ test("Log is a status-first beta instrument panel", () => {
   const logHydration = indexOfRequired(dashboard, 'id="graphLogHydrationButton"');
   const logSleepy = indexOfRequired(dashboard, 'id="graphLogSleepyButton"');
   const undo = indexOfRequired(dashboard, 'id="undoLatestFoodLog"');
-  const dayContext = indexOfRequired(dashboard, "Day context");
   const sleepyRecorder = functionBody(js, "recordSleepy", "logById");
   const checkinRecorder = functionBody(js, "recordCheckinEvent", "undoLatestRhythmLog");
   const undoStart = indexOfRequired(js, "function undoLatestRhythmLog");
@@ -79,13 +79,13 @@ test("Log is a status-first beta instrument panel", () => {
   const dayTypeControls = functionBody(js, "renderDayTypeControls", "setCsvImportStatus");
 
   assert.ok(status < actions, "Status should be the first Log section");
+  assert.ok(status < dayTypeStorage && dayTypeStorage < actions, "Day Type storage should remain immediately below status for compatibility");
   assert.ok(actions < timeline, "Quick actions should sit directly after status");
   assert.ok(timeline < dailyLog, "Timeline entries should appear inside the Today’s Timeline card");
   assert.ok(logFuel < logHydration, "Hydrate should sit beside Fuel");
   assert.ok(logHydration < logSleepy, "Sleepy should replace the old combined quick action as the third option");
   assert.ok(dailyLog < undo, "Undo should sit inside the Today’s Timeline card");
   assert.ok(timeline < patterns, "Today’s Patterns should sit below Today’s Timeline");
-  assert.ok(patterns < dayContext, "Day context should be the optional final Log section");
   assert.match(dashboard, />Fuel<\/span>/);
   assert.match(dashboard, />Hydrate<\/span>/);
   assert.match(dashboard, />Sleepy<\/span>/);
@@ -112,8 +112,14 @@ test("Log is a status-first beta instrument panel", () => {
   assert.match(goalCopySource, /fuel-gap target/);
   assert.match(goalCopySource, /goal - elapsed/);
   assert.match(statusRender, /beta-gap-progress/);
+  assert.match(statusRender, /beta-day-type-inline/);
+  assert.match(statusRender, /beta-day-type-chips/);
+  assert.match(statusRender, /data-day-type-choice/);
   assert.match(statusRender, /Last fuel/);
   assert.match(statusRender, /Last hydration/);
+  assert.equal((statusRender.match(/Last fuel/g) || []).length, 1, "Last fuel should not be duplicated in the upper status panel");
+  assert.equal((statusRender.match(/Last hydration/g) || []).length, 1, "Last hydration should not be duplicated in the upper status panel");
+  assert.doesNotMatch(statusRender, /beta-live-gap-grid/);
   assert.match(statusRender, /Fuel logs/);
   assert.match(statusRender, /Hydration logs/);
   assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
@@ -206,13 +212,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the update-safe Performance release", () => {
+test("PWA cache and asset versions are bumped for the Athlete training/access UX release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v114-performance-platform";
+  const version = "mobile-pwa-v115-athlete-training-access";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -222,7 +228,7 @@ test("PWA cache and asset versions are bumped for the update-safe Performance re
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260808T185724Z/);
+  assert.match(sw, /20260808T201217Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

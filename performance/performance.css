@@ -24,8 +24,8 @@
 }
 
 * { box-sizing: border-box; }
-html { min-height: 100%; background: var(--canvas); }
-body { min-height: 100vh; margin: 0; color: var(--ink); background: var(--canvas); }
+html { min-height: 100%; overflow-x: hidden; background: var(--canvas); }
+body { min-height: 100vh; margin: 0; overflow-x: hidden; color: var(--ink); background: var(--canvas); }
 button, input, select { font: inherit; }
 button, select { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible {
@@ -130,6 +130,30 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .centred-card { width: min(520px, calc(100% - 32px)); margin: clamp(40px, 12vh, 120px) auto; text-align: center; }
 .centred-card .brand-mark { margin-bottom: 18px; }
 .centred-card h1 { margin-bottom: 10px; }
+.account-explainer,
+.access-identity,
+.bootstrap-panel {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #e8e5dd;
+  border-radius: 13px;
+  background: var(--surface-soft);
+  text-align: left;
+}
+.account-explainer strong,
+.account-explainer span,
+.access-identity strong,
+.access-identity span {
+  display: block;
+}
+.account-explainer span,
+.access-identity span { margin-top: 4px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.access-identity strong { overflow-wrap: anywhere; }
+.auth-actions { margin-top: 8px; }
+.bootstrap-panel { display: grid; gap: 10px; }
+.bootstrap-panel h2, .bootstrap-panel p { margin: 0; }
+.bootstrap-panel p { font-size: .82rem; }
+.bootstrap-panel label { text-align: left; }
 
 .metric-grid { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 12px; }
 .metric-card { min-height: 130px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 15px; }
