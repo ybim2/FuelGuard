@@ -25,10 +25,11 @@ const DEFAULT_STATE = {
     },
     trainingMode: {
       presets: {
-        fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
-        hydration: { id: "", carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0 }
+        fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 },
+        hydration: { id: "", carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 }
       },
       plan: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
+      advancedPlanEnabled: false,
       activeSession: null,
       sessions: [],
       lastSyncedAt: "",
@@ -133,6 +134,7 @@ function load() {
             ...defaults.fuelGap.trainingMode.plan,
             ...(isPlainObject(parsedFuelGap.trainingMode?.plan) ? parsedFuelGap.trainingMode.plan : {})
           },
+          advancedPlanEnabled: Boolean(parsedFuelGap.trainingMode?.advancedPlanEnabled),
           activeSession: isPlainObject(parsedFuelGap.trainingMode?.activeSession) ? parsedFuelGap.trainingMode.activeSession : null,
           sessions: Array.isArray(parsedFuelGap.trainingMode?.sessions) ? parsedFuelGap.trainingMode.sessions : []
         },
@@ -263,6 +265,7 @@ function fuelGapState() {
   });
   if (!isPlainObject(state.fuelGap.trainingMode.plan)) state.fuelGap.trainingMode.plan = { ...DEFAULT_STATE.fuelGap.trainingMode.plan };
   state.fuelGap.trainingMode.plan = { ...DEFAULT_STATE.fuelGap.trainingMode.plan, ...state.fuelGap.trainingMode.plan };
+  state.fuelGap.trainingMode.advancedPlanEnabled = Boolean(state.fuelGap.trainingMode.advancedPlanEnabled);
   if (!isPlainObject(state.fuelGap.trainingMode.activeSession)) state.fuelGap.trainingMode.activeSession = null;
   if (!Array.isArray(state.fuelGap.trainingMode.sessions)) state.fuelGap.trainingMode.sessions = [];
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {

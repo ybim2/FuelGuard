@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation keeps Training directly beside Log, with Settings in the header", () => {
+test("primary navigation keeps Training directly beside Daily, with Settings in the header", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -36,11 +36,11 @@ test("primary navigation keeps Training directly beside Log, with Settings in th
   const mobileNav = html.slice(indexOfRequired(html, '<nav class="mobile-bottom-nav beta-mobile-nav"'), indexOfRequired(html, '<script src="build-info.js'));
 
   assert.deepEqual([...desktopNav.matchAll(/data-screen="([^"]+)"[^>]*>([^<]+)<\/button>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"],
+    ["dashboard", "Daily"],
     ["training", "Training"]
   ]);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"],
+    ["dashboard", "Daily"],
     ["training", "Training"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
@@ -52,7 +52,7 @@ test("primary navigation keeps Training directly beside Log, with Settings in th
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
-test("Log is a status-first beta instrument panel", () => {
+test("Daily is a status-first beta instrument panel", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const dashboard = section(html, "dashboard", "checklist");
@@ -220,7 +220,7 @@ test("PWA cache and asset versions are bumped for the Athlete training/access UX
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v117-training-mode";
+  const version = "mobile-pwa-v118-training-review";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -230,7 +230,7 @@ test("PWA cache and asset versions are bumped for the Athlete training/access UX
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T101718Z/);
+  assert.match(sw, /20260809T120541Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

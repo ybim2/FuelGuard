@@ -8433,6 +8433,23 @@ body.beta-mvp .beta-topbar-logo {
   top: calc(10px + env(safe-area-inset-top, 0px));
   left: calc(8px + env(safe-area-inset-left, 0px));
   z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  font-size: .94rem;
+}
+
+body.beta-mvp .beta-header-settings-button {
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  min-height: 46px;
+}
+
+body.beta-mvp .beta-header-settings-button svg {
+  width: 27px;
+  height: 27px;
+  stroke-width: 2.15;
 }
 
 body.beta-mvp .beta-topbar-context {
@@ -8473,4 +8490,110 @@ body.beta-mvp .mobile-bottom-nav {
   body.beta-mvp .beta-topbar-context { width: min(calc(100vw - 120px), 300px); }
   body.beta-mvp .beta-main-account strong { max-width: calc(100vw - 138px); font-size: .74rem; }
   body.beta-mvp .mobile-bottom-nav .mobile-nav-item { min-width: 0; }
+}
+
+/* Training review integration: one Daily stream, session lanes, and restrained longer-term patterns. */
+body.beta-mvp .beta-event-timeline-copy small {
+  overflow: hidden;
+  color: #65736d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.beta-mvp .beta-training-pattern-lanes {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 0 4px;
+}
+
+body.beta-mvp .beta-training-pattern-lane {
+  display: grid;
+  grid-template-columns: minmax(108px, 30%) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-training-pattern-label {
+  display: grid;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-training-pattern-label strong,
+body.beta-mvp .beta-training-pattern-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.beta-mvp .beta-training-pattern-label strong { font-size: .8rem; }
+body.beta-mvp .beta-training-pattern-label span { color: #65736d; font-size: .68rem; }
+
+body.beta-mvp .beta-training-pattern-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: #dde7e1;
+}
+
+body.beta-mvp .beta-training-pattern-track i {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: .58rem;
+  font-style: normal;
+  font-weight: 950;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 3px 10px rgba(16, 24, 32, .18);
+}
+
+body.beta-mvp .beta-training-pattern-track i.fuel,
+body.beta-mvp .beta-training-pattern-legend i.fuel { background: var(--fg-protected); }
+body.beta-mvp .beta-training-pattern-track i.hydration,
+body.beta-mvp .beta-training-pattern-legend i.hydration { background: var(--fg-hydration); }
+
+body.beta-mvp .beta-training-pattern-legend {
+  display: flex;
+  justify-content: end;
+  gap: 12px;
+  color: #65736d;
+  font-size: .68rem;
+}
+
+body.beta-mvp .beta-training-pattern-legend span { display: flex; align-items: center; gap: 5px; }
+body.beta-mvp .beta-training-pattern-legend i { width: 9px; height: 9px; border-radius: 50%; }
+body.beta-mvp .beta-training-pattern-empty { padding: 14px 0; color: #65736d; }
+
+body.beta-mvp .beta-your-patterns-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+body.beta-mvp .beta-your-pattern-card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .72);
+}
+
+body.beta-mvp .beta-your-pattern-card span,
+body.beta-mvp .beta-your-pattern-card small { color: #65736d; font-size: .72rem; }
+body.beta-mvp .beta-your-pattern-card strong { color: var(--fg-brand-dark); font-size: 1rem; }
+body.beta-mvp .beta-your-patterns-empty { margin: 12px 0 0; }
+
+@media (max-width: 430px) {
+  body.beta-mvp .beta-training-pattern-lane { grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+  body.beta-mvp .beta-your-patterns-grid { grid-template-columns: 1fr; }
 }

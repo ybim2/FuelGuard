@@ -153,7 +153,7 @@ test("Training sessions remain associated with strict pre and post context", () 
   assert.equal(context.postFuelGapMinutes, 30);
 });
 
-test("Training icon is directly beside Log and opens a dedicated surface", () => {
+test("Training icon is directly beside Daily and opens a dedicated surface", () => {
   const html = read("index.html");
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   assert.ok(nav.indexOf('data-mobile-tab="log"') < nav.indexOf('data-mobile-tab="training"'));

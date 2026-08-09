@@ -1,12 +1,13 @@
 begin;
-select plan(20);
+select plan(29);
 
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('91000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'training-mode-a@fuelguard.test', '', now(), '{}', '{}', now(), now()),
-  ('91000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'training-mode-b@fuelguard.test', '', now(), '{}', '{}', now(), now());
+  ('91000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'training-mode-b@fuelguard.test', '', now(), '{}', '{}', now(), now()),
+  ('91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'training-mode-coach@fuelguard.test', '', now(), '{}', '{}', now(), now());
 
 select ok((select relrowsecurity from pg_class where oid = 'public.fuel_training_mode_presets'::regclass), 'Training presets have RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.fuel_training_mode_sessions'::regclass), 'Training sessions have RLS enabled');
@@ -17,26 +18,37 @@ select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000001
 select set_config('request.jwt.claims', '{"sub":"91000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
 insert into public.fuel_training_mode_presets (
-  id, user_id, event_type, name, carbs_g, fluid_ml, sodium_mg, caffeine_mg
+  id, user_id, event_type, name, carbs_g, fluid_ml, sodium_mg, caffeine_mg, intended_interval_minutes
 ) values
-  ('92000000-0000-4000-8000-000000000001', '91000000-0000-0000-0000-000000000001', 'fuel', 'Fuel', 30, 0, 0, 0),
-  ('92000000-0000-4000-8000-000000000002', '91000000-0000-0000-0000-000000000001', 'hydration', 'Hydrate', 10, 200, 250, 0);
+  ('92000000-0000-4000-8000-000000000001', '91000000-0000-0000-0000-000000000001', 'fuel', 'Fuel', 30, 0, 0, 0, 30),
+  ('92000000-0000-4000-8000-000000000002', '91000000-0000-0000-0000-000000000001', 'hydration', 'Hydrate', 10, 200, 250, 0, 20);
 
 insert into public.fuel_training_mode_sessions (
   id, user_id, title, session_type, status, started_at,
   fuel_preset_id, hydration_preset_id,
   fuel_carbs_g, fuel_fluid_ml, fuel_sodium_mg, fuel_caffeine_mg,
   hydration_carbs_g, hydration_fluid_ml, hydration_sodium_mg, hydration_caffeine_mg,
+  fuel_interval_minutes, hydration_interval_minutes, plan_source,
   plan_carbs_g_per_hour, plan_fluid_ml_per_hour, plan_sodium_mg_per_hour
 ) values (
   '93000000-0000-4000-8000-000000000001', '91000000-0000-0000-0000-000000000001',
   'Long ride', 'bike', 'active', '2026-08-09T08:00:00Z',
   '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000002',
-  30, 0, 0, 0, 10, 200, 250, 0, 60, 500, 600
+  30, 0, 0, 0, 10, 200, 250, 0, 30, 20, 'derived', 90, 600, 750
 );
 
 select results_eq($$select count(*) from public.fuel_training_mode_presets$$, array[2::bigint], 'Athlete reads own Training presets');
 select results_eq($$select count(*) from public.fuel_training_mode_sessions$$, array[1::bigint], 'Athlete reads own active Training session');
+select results_eq(
+  $$select intended_interval_minutes from public.fuel_training_mode_presets where event_type = 'hydration'$$,
+  array[20],
+  'Hydration interval strategy persists with the preset'
+);
+select results_eq(
+  $$select fuel_interval_minutes, hydration_interval_minutes, plan_source from public.fuel_training_mode_sessions$$,
+  $$values (30, 20, 'derived'::text)$$,
+  'Derived plan provenance and both intended intervals persist with the session'
+);
 
 insert into public.fuel_logs (
   id, user_id, logged_at, type, source,
@@ -131,6 +143,15 @@ insert into public.fuel_training_mode_sessions (
 insert into public.fuel_milestone_achievements (user_id, category, threshold)
 values ('91000000-0000-0000-0000-000000000002', 'fuel', 50);
 
+insert into public.fuel_coach_athletes (
+  id, coach_id, athlete_id, status, accepted_at
+) values (
+  '95000000-0000-4000-8000-000000000001',
+  '91000000-0000-0000-0000-000000000003',
+  '91000000-0000-0000-0000-000000000001',
+  'active', now()
+);
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claims', '{"sub":"91000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -162,6 +183,58 @@ select throws_ok(
   $$delete from public.fuel_training_mode_sessions where id = '93000000-0000-4000-8000-000000000001'$$,
   '42501', null,
   'Training session deletion is not exposed to authenticated clients'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000003', true);
+select set_config('request.jwt.claims', '{"sub":"91000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+
+select results_eq(
+  $$select count(*) from public.fuel_training_mode_sessions where user_id = '91000000-0000-0000-0000-000000000001'$$,
+  array[1::bigint],
+  'Active direct coach can retrieve the authorised athlete Training session'
+);
+select results_eq(
+  $$select carbs_g, fluid_ml, sodium_mg, caffeine_mg from public.fuel_logs where training_mode_session_id = '93000000-0000-4000-8000-000000000001'$$,
+  $$values (10, 200, 250, 0)$$,
+  'Active direct coach can retrieve authorised Training quantities'
+);
+select results_eq(
+  $$select count(*) from public.fuel_training_mode_presets where user_id = '91000000-0000-0000-0000-000000000001'$$,
+  array[0::bigint],
+  'Coach access does not expose mutable athlete preset rows'
+);
+select results_eq(
+  $$with changed as (
+      update public.fuel_training_mode_sessions set title = 'Coach rewrite'
+      where id = '93000000-0000-4000-8000-000000000001' returning 1
+    ) select count(*) from changed$$,
+  array[0::bigint],
+  'Coach Training access remains read-only'
+);
+select results_eq(
+  $$select count(*) from public.fuel_training_mode_sessions where user_id = '91000000-0000-0000-0000-000000000002'$$,
+  array[0::bigint],
+  'Direct coach cannot retrieve another athlete Training session'
+);
+
+reset role;
+update public.fuel_coach_athletes
+set status = 'revoked', revoked_at = now(), updated_at = now()
+where id = '95000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000003', true);
+select set_config('request.jwt.claims', '{"sub":"91000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select results_eq(
+  $$select count(*) from public.fuel_training_mode_sessions where id = '93000000-0000-4000-8000-000000000001'$$,
+  array[0::bigint],
+  'Revocation immediately blocks Training session direct-ID access'
+);
+select results_eq(
+  $$select count(*) from public.fuel_logs where training_mode_session_id = '93000000-0000-4000-8000-000000000001'$$,
+  array[0::bigint],
+  'Revocation immediately blocks Training quantity access'
 );
 
 select * from finish();

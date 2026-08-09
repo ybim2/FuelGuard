@@ -2703,6 +2703,11 @@
   }
 
   function timelineSourceLabel(log) {
+    const trainingSessionId = String(log?.trainingModeSessionId || log?.training_mode_session_id || "");
+    if (trainingSessionId) {
+      const session = (betaState().trainingMode?.sessions || []).find(item => String(item.id) === trainingSessionId);
+      return `Training · ${session?.title || "Session"}`;
+    }
     const source = String(log?.source || log?.entryMethod || "manual").toLowerCase();
     if (!source || source === "manual" || source === "live") return "Manual";
     if (source === "csv_import" || source === "import" || source === "esp32") return "Imported";
@@ -6132,6 +6137,7 @@
     const todayStatusTarget = document.getElementById("fuelTodayStatus");
     const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
     const logPatternsTarget = document.getElementById("fuelLogPatterns");
+    const yourPatternsTarget = document.getElementById("athleteYourPatterns");
     renderPlanSubtabs();
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
@@ -6139,6 +6145,7 @@
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
     if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
     if (logPatternsTarget) logPatternsTarget.innerHTML = renderFuellingPatternGraphs(todayKey);
+    if (yourPatternsTarget) yourPatternsTarget.innerHTML = renderYourPatterns();
     if (windowTarget) windowTarget.innerHTML = "";
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
@@ -9507,6 +9514,15 @@
       nounPlural: "sleepy events",
       empty: "No sleepy events logged today",
       question: "When during the day have I felt sleepy?"
+    },
+    {
+      id: "training",
+      label: "Training",
+      icon: "chart",
+      noun: "training event",
+      nounPlural: "training events",
+      empty: "No Training Mode sessions today",
+      question: "Where did today’s Training sessions and intake events happen?"
     }
   ];
 
@@ -9520,6 +9536,7 @@
   }
 
   function logMatchesPattern(log, type) {
+    if (type === "training") return Boolean(log.trainingModeSessionId || log.training_mode_session_id);
     if (type === "hydration") return isHydrationLog(log);
     if (type === "sleepy") return isSleepyLog(log);
     return isFuelLog(log);
@@ -9615,6 +9632,44 @@
     `;
   }
 
+  function trainingSessionsForPattern(key = todayViewKey()) {
+    return window.FuelGuardDomain.trainingPatternLanes({
+      logs: logsForDay(key),
+      sessions: betaState().trainingMode?.sessions || [],
+      key
+    });
+  }
+
+  function renderTrainingPatternLanes(key = todayViewKey()) {
+    const lanes = trainingSessionsForPattern(key);
+    if (!lanes.length) return `<article class="beta-training-pattern-empty"><p>No Training Mode sessions today.</p></article>`;
+    return `
+      <div class="beta-training-pattern-lanes" role="img" aria-label="Training sessions with Fuel and Hydration events">
+        ${lanes.map(({ session, events: sessionLogs }) => {
+          const startedAt = logDate(session.startedAt || session.started_at);
+          const endedAt = logDate(session.endedAt || session.ended_at) || new Date();
+          const durationMs = Math.max(1, endedAt - startedAt);
+          return `
+            <article class="beta-training-pattern-lane">
+              <div class="beta-training-pattern-label">
+                <strong>${safeText(session.title || "Training session")}</strong>
+                <span>${safeText(formatClock(startedAt))}–${safeText(formatClock(endedAt))}</span>
+              </div>
+              <div class="beta-training-pattern-track">
+                ${sessionLogs.map(log => {
+                  const left = clamp(((log.date - startedAt) / durationMs) * 100, 0, 100);
+                  const type = isHydrationLog(log) && !isFuelLog(log) ? "hydration" : "fuel";
+                  return `<i class="${type}" style="left:${stylePercent(left)}" title="${safeText(logTypeLabel(log))} · ${safeText(formatClock(log.date))}"><span>${type === "fuel" ? "F" : "H"}</span></i>`;
+                }).join("")}
+              </div>
+            </article>
+          `;
+        }).join("")}
+        <div class="beta-training-pattern-legend"><span><i class="fuel"></i>Fuel</span><span><i class="hydration"></i>Hydration</span></div>
+      </div>
+    `;
+  }
+
   function renderFuellingPatternGraphs(key = todayViewKey()) {
     selectedLogPatternType = normalizeLogPatternType(selectedLogPatternType);
     const pattern = logPatternDefinition(selectedLogPatternType);
@@ -9632,7 +9687,33 @@
             <button class="${type.id === selectedLogPatternType ? "active" : ""}" type="button" data-log-pattern-type="${safeText(type.id)}" aria-pressed="${type.id === selectedLogPatternType ? "true" : "false"}">${safeText(type.label)}</button>
           `).join("")}
         </nav>
-        ${renderFuellingPatternBarChart(key, selectedLogPatternType)}
+        ${selectedLogPatternType === "training" ? renderTrainingPatternLanes(key) : renderFuellingPatternBarChart(key, selectedLogPatternType)}
+      </section>
+    `;
+  }
+
+  function renderYourPatterns() {
+    const result = window.FuelGuardDomain.behaviouralPatternInsights({
+      logs: betaState().logs,
+      sessions: betaState().trainingMode?.sessions || []
+    });
+    return `
+      <section class="beta-trend-habit-section beta-your-patterns-section" aria-label="Your Patterns">
+        <div class="beta-weekly-section-head">
+          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
+          <div><h3>Your Patterns</h3><p>Longer-term observations appear only when enough of your own data exists.</p></div>
+        </div>
+        ${result.insights.length ? `
+          <div class="beta-your-patterns-grid">
+            ${result.insights.map(insight => `
+              <article class="beta-your-pattern-card">
+                <span>${safeText(insight.label)}</span>
+                <strong>${safeText(insight.value)}</strong>
+                <small>${safeText(insight.detail)}</small>
+              </article>
+            `).join("")}
+          </div>
+        ` : `<p class="muted beta-your-patterns-empty">Keep using Daily and Training Mode to build reproducible patterns. No low-confidence percentage is shown.</p>`}
       </section>
     `;
   }

@@ -2,8 +2,8 @@
 (() => {
   const PRESETS_TABLE = "fuel_training_mode_presets";
   const SESSIONS_TABLE = "fuel_training_mode_sessions";
-  const SESSION_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,fuel_preset_id,hydration_preset_id,fuel_carbs_g,fuel_fluid_ml,fuel_sodium_mg,fuel_caffeine_mg,hydration_carbs_g,hydration_fluid_ml,hydration_sodium_mg,hydration_caffeine_mg,plan_carbs_g_per_hour,plan_fluid_ml_per_hour,plan_sodium_mg_per_hour,plan_caffeine_mg_per_hour,created_at,updated_at";
-  const PRESET_COLUMNS = "id,user_id,event_type,name,carbs_g,fluid_ml,sodium_mg,caffeine_mg,is_default,updated_at";
+  const SESSION_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,fuel_preset_id,hydration_preset_id,fuel_carbs_g,fuel_fluid_ml,fuel_sodium_mg,fuel_caffeine_mg,hydration_carbs_g,hydration_fluid_ml,hydration_sodium_mg,hydration_caffeine_mg,fuel_interval_minutes,hydration_interval_minutes,plan_source,plan_carbs_g_per_hour,plan_fluid_ml_per_hour,plan_sodium_mg_per_hour,plan_caffeine_mg_per_hour,created_at,updated_at";
+  const PRESET_COLUMNS = "id,user_id,event_type,name,carbs_g,fluid_ml,sodium_mg,caffeine_mg,intended_interval_minutes,is_default,updated_at";
   const QUANTITIES = [
     { field: "carbsG", label: "Carbohydrate", short: "Carbs", unit: "g" },
     { field: "fluidMl", label: "Fluid", short: "Fluid", unit: "ml" },
@@ -24,10 +24,11 @@
     if (!gap.trainingMode || typeof gap.trainingMode !== "object" || Array.isArray(gap.trainingMode)) {
       gap.trainingMode = {
         presets: {
-          fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
-          hydration: { id: "", carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0 }
+          fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 },
+          hydration: { id: "", carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 }
         },
         plan: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
+        advancedPlanEnabled: false,
         activeSession: null,
         sessions: [],
         lastSyncedAt: "",
@@ -65,8 +66,8 @@
     if (!training.presets || typeof training.presets !== "object") training.presets = {};
     if (!training.presets[type] || typeof training.presets[type] !== "object") training.presets[type] = {};
     const defaults = type === "fuel"
-      ? { carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 }
-      : { carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0 };
+      ? { carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 }
+      : { carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 };
     training.presets[type] = { id: "", dirty: false, ...defaults, ...training.presets[type] };
     if (!training.presets[type].id) training.presets[type].id = uuid();
     return training.presets[type];
@@ -93,11 +94,57 @@
   }
 
   function planInputs(plan = state()?.plan || {}) {
+    const disabled = state()?.advancedPlanEnabled ? "" : " disabled";
     return QUANTITIES.map(item => `
       <label>${escape(item.short)} <span>${item.unit}/hour</span>
-        <input type="number" min="0" max="${domain()?.TRAINING_QUANTITY_LIMITS?.[item.field] || 10000}" step="1" inputmode="numeric" value="${Number(plan[item.field] || 0)}" data-training-plan="${item.field}">
+        <input type="number" min="0" max="${domain()?.TRAINING_QUANTITY_LIMITS?.[item.field] || 10000}" step="1" inputmode="numeric" value="${Number(plan[item.field] || 0)}" data-training-plan="${item.field}"${disabled}>
       </label>
     `).join("");
+  }
+
+  function intervalInput(type, value) {
+    return `<label>${type === "fuel" ? "Fuel" : "Hydrate"} every <span>minutes</span>
+      <input type="number" min="5" max="360" step="5" inputmode="numeric" value="${Number(value || (type === "fuel" ? 30 : 20))}" data-training-interval="${type}">
+    </label>`;
+  }
+
+  function setupPlan({ readForm = false } = {}) {
+    const training = state();
+    const fuel = readForm ? collectPreset("fuel") : ensurePreset("fuel");
+    const hydration = readForm ? collectPreset("hydration") : ensurePreset("hydration");
+    const fuelIntervalMinutes = readForm ? readNumber('[data-training-interval="fuel"]') : fuel.intervalMinutes;
+    const hydrationIntervalMinutes = readForm ? readNumber('[data-training-interval="hydration"]') : hydration.intervalMinutes;
+    const useAdvancedPlan = readForm
+      ? Boolean(document.getElementById("trainingAdvancedPlan")?.checked)
+      : Boolean(training.advancedPlanEnabled);
+    return domain().trainingHourlyPlan({
+      fuelPreset: fuel,
+      hydrationPreset: hydration,
+      fuelIntervalMinutes,
+      hydrationIntervalMinutes,
+      advancedPlan: readForm ? collectPlan() : training.plan,
+      useAdvancedPlan
+    });
+  }
+
+  function derivedPlanMarkup(plan) {
+    return `
+      <div class="training-mode-derived-plan-heading">
+        <strong>${plan.source === "advanced" ? "Advanced hourly targets" : "Derived hourly plan"}</strong>
+        <span>${plan.source === "advanced" ? "Manual override" : `Fuel every ${plan.intervals.fuel} min · Hydrate every ${plan.intervals.hydration} min`}</span>
+      </div>
+      <div class="training-mode-derived-plan-grid">
+        ${QUANTITIES.map(item => `<span>${escape(item.short)}<strong>${domain().wholeMeasurement(plan.effective[item.field], `${item.unit}/h`)}</strong></span>`).join("")}
+      </div>
+    `;
+  }
+
+  function renderDerivedPlanPreview() {
+    const target = document.getElementById("trainingDerivedPlan");
+    if (!target) return;
+    target.innerHTML = derivedPlanMarkup(setupPlan({ readForm: true }));
+    const advanced = Boolean(document.getElementById("trainingAdvancedPlan")?.checked);
+    document.querySelectorAll("[data-training-plan]").forEach(input => { input.disabled = !advanced; });
   }
 
   function setupMarkup() {
@@ -113,7 +160,7 @@
       <section class="training-mode-section training-mode-session-setup">
         <div class="training-mode-heading">
           <div><span>Session</span><h2>Set up your training</h2></div>
-          <small>Daily Log remains quantity-free.</small>
+          <small>Daily Mode remains quantity-free.</small>
         </div>
         <div class="training-mode-session-fields">
           <label>Session name<input id="trainingModeTitle" type="text" maxlength="120" value="Training session" placeholder="Long ride"></label>
@@ -131,9 +178,15 @@
         <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Hydrate action</h2></div><small>Drinks may include carbohydrate and sodium.</small></div>
         <div class="training-mode-quantity-grid">${quantityInputs("hydration")}</div>
       </section>
+      <section class="training-mode-section training-mode-strategy">
+        <div class="training-mode-heading"><div><span>Timing strategy</span><h2>How often do you intend to tap?</h2></div><small>Fuel Guard derives your hourly plan.</small></div>
+        <div class="training-mode-interval-grid">${intervalInput("fuel", training.presets.fuel.intervalMinutes)}${intervalInput("hydration", training.presets.hydration.intervalMinutes)}</div>
+        <div id="trainingDerivedPlan" class="training-mode-derived-plan">${derivedPlanMarkup(setupPlan())}</div>
+      </section>
       <details class="training-mode-section training-mode-plan">
-        <summary>Your optional plan</summary>
-        <p>Choose your own planned rates. Fuel Guard tracks execution; it does not prescribe a strategy.</p>
+        <summary>Advanced targets</summary>
+        <p>Optionally override the derived rates. Fuel Guard tracks execution; it does not prescribe a strategy.</p>
+        <label class="training-mode-advanced-toggle"><input id="trainingAdvancedPlan" type="checkbox"${training.advancedPlanEnabled ? " checked" : ""}> Use manual hourly targets</label>
         <div class="training-mode-quantity-grid">${planInputs(training.plan)}</div>
       </details>
       <section class="training-mode-start-panel">
@@ -153,8 +206,7 @@
   }
 
   function unitValue(value, unit) {
-    const number = Number(value || 0);
-    return `${Number.isInteger(number) ? number.toLocaleString("en-GB") : number.toFixed(1)}${unit}`;
+    return domain().wholeMeasurement(value, unit);
   }
 
   function sessionSummary(session, now = new Date()) {
@@ -230,7 +282,7 @@
 
   function presetSummary(session, type) {
     const context = domain().trainingEventContext(session, type);
-    return QUANTITIES.filter(item => context[item.field] > 0).map(item => `${context[item.field]}${item.unit} ${item.short.toLowerCase()}`).join(" · ");
+    return QUANTITIES.filter(item => context[item.field] > 0).map(item => `${unitValue(context[item.field], item.unit)} ${item.short.toLowerCase()}`).join(" · ");
   }
 
   function prePostMarkup(session) {
@@ -256,7 +308,10 @@
           const summary = sessionSummary(session, new Date(session.endedAt));
           return `<article class="training-mode-review-card">
             <div><span>${new Date(session.startedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><h3>${escape(session.title)}</h3><small>${durationText(summary.durationSeconds)} · ${summary.eventCount} events</small></div>
-            <div class="training-mode-review-totals">${QUANTITIES.map(item => `<span>${item.short}<strong>${unitValue(summary.totals[item.field], item.unit)}</strong><small>${unitValue(summary.perHour[item.field], item.unit)}/h</small></span>`).join("")}</div>
+            <div class="training-mode-review-totals">${QUANTITIES.map(item => {
+              const progress = domain().trainingPlanProgress(summary, session.plan || {})[item.field];
+              return `<span>${item.short}<strong>${unitValue(summary.totals[item.field], item.unit)}</strong><small>${unitValue(summary.perHour[item.field], item.unit)}/h${progress.plannedRate > 0 ? ` · ${progress.state === "on_plan" ? "on plan" : progress.state}` : ""}</small></span>`;
+            }).join("")}</div>
             ${prePostMarkup(session)}
           </article>`;
         }).join("")}
@@ -284,6 +339,7 @@
   function collectPreset(type) {
     const next = { ...ensurePreset(type), dirty: true };
     QUANTITIES.forEach(item => { next[item.field] = readNumber(`[data-training-preset="${type}"][data-training-field="${item.field}"]`); });
+    next.intervalMinutes = Math.min(360, Math.max(5, readNumber(`[data-training-interval="${type}"]`) || (type === "fuel" ? 30 : 20)));
     return next;
   }
 
@@ -307,7 +363,9 @@
     if (!window.confirm("Start Training Mode with these one-tap presets?")) return;
     training.presets.fuel = { ...fuel, ...fuelValidation.preset };
     training.presets.hydration = { ...hydration, ...hydrationValidation.preset };
+    const planned = setupPlan({ readForm: true });
     training.plan = collectPlan();
+    training.advancedPlanEnabled = planned.source === "advanced";
     const startedAt = new Date().toISOString();
     const session = {
       id: uuid(),
@@ -326,7 +384,10 @@
       hydrationFluidMl: hydration.fluidMl,
       hydrationSodiumMg: hydration.sodiumMg,
       hydrationCaffeineMg: hydration.caffeineMg,
-      plan: { ...training.plan },
+      fuelIntervalMinutes: planned.intervals.fuel,
+      hydrationIntervalMinutes: planned.intervals.hydration,
+      planSource: planned.source,
+      plan: { ...planned.effective },
       createdAt: startedAt,
       updatedAt: startedAt
     };
@@ -365,6 +426,7 @@
       fluid_ml: value.fluidMl,
       sodium_mg: value.sodiumMg,
       caffeine_mg: value.caffeineMg,
+      intended_interval_minutes: value.intervalMinutes,
       is_default: true,
       updated_at: new Date().toISOString()
     };
@@ -389,6 +451,9 @@
       hydration_fluid_ml: session.hydrationFluidMl,
       hydration_sodium_mg: session.hydrationSodiumMg,
       hydration_caffeine_mg: session.hydrationCaffeineMg,
+      fuel_interval_minutes: session.fuelIntervalMinutes || 30,
+      hydration_interval_minutes: session.hydrationIntervalMinutes || 20,
+      plan_source: session.planSource || "derived",
       plan_carbs_g_per_hour: session.plan?.carbsG || 0,
       plan_fluid_ml_per_hour: session.plan?.fluidMl || 0,
       plan_sodium_mg_per_hour: session.plan?.sodiumMg || 0,
@@ -415,6 +480,9 @@
       hydrationFluidMl: row.hydration_fluid_ml,
       hydrationSodiumMg: row.hydration_sodium_mg,
       hydrationCaffeineMg: row.hydration_caffeine_mg,
+      fuelIntervalMinutes: row.fuel_interval_minutes || 30,
+      hydrationIntervalMinutes: row.hydration_interval_minutes || 20,
+      planSource: row.plan_source || "derived",
       plan: {
         carbsG: row.plan_carbs_g_per_hour,
         fluidMl: row.plan_fluid_ml_per_hour,
@@ -433,6 +501,7 @@
       fluidMl: row.fluid_ml,
       sodiumMg: row.sodium_mg,
       caffeineMg: row.caffeine_mg,
+      intervalMinutes: row.intended_interval_minutes || (row.event_type === "fuel" ? 30 : 20),
       dirty: false,
       updatedAt: row.updated_at
     };
@@ -539,6 +608,12 @@
       statusMessage = "Refreshing Training Mode…";
       render();
       return syncCloud({ refreshLogs: true });
+    }
+  });
+
+  document.addEventListener("input", event => {
+    if (event.target.closest("[data-training-preset], [data-training-interval], [data-training-plan], #trainingAdvancedPlan")) {
+      renderDerivedPlanPreview();
     }
   });
 

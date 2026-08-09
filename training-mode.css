@@ -104,7 +104,8 @@ body.beta-mvp #training {
 }
 
 .training-mode-session-fields,
-.training-mode-quantity-grid {
+.training-mode-quantity-grid,
+.training-mode-interval-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -114,8 +115,13 @@ body.beta-mvp #training {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.training-mode-interval-grid {
+  margin-bottom: 14px;
+}
+
 .training-mode-session-fields label,
-.training-mode-quantity-grid label {
+.training-mode-quantity-grid label,
+.training-mode-interval-grid label {
   display: grid;
   gap: 6px;
   min-width: 0;
@@ -125,14 +131,16 @@ body.beta-mvp #training {
 }
 
 .training-mode-session-fields label span,
-.training-mode-quantity-grid label span {
+.training-mode-quantity-grid label span,
+.training-mode-interval-grid label span {
   color: #77827d;
   font-size: .68rem;
 }
 
 .training-mode-session-fields input,
 .training-mode-session-fields select,
-.training-mode-quantity-grid input {
+.training-mode-quantity-grid input,
+.training-mode-interval-grid input {
   width: 100%;
   min-width: 0;
   min-height: 48px;
@@ -144,6 +152,63 @@ body.beta-mvp #training {
   font: inherit;
   font-size: 1rem;
   font-weight: 850;
+}
+
+.training-mode-quantity-grid input:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.training-mode-derived-plan {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid rgba(32, 190, 103, .22);
+  border-radius: 18px;
+  background: rgba(32, 190, 103, .07);
+}
+
+.training-mode-derived-plan-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #53635b;
+  font-size: .74rem;
+}
+
+.training-mode-derived-plan-heading strong { color: #101820; }
+
+.training-mode-derived-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.training-mode-derived-plan-grid span {
+  display: grid;
+  gap: 3px;
+  color: #65736d;
+  font-size: .7rem;
+}
+
+.training-mode-derived-plan-grid strong {
+  color: #101820;
+  font-size: .86rem;
+}
+
+.training-mode-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #415249;
+  font-size: .8rem;
+  font-weight: 850;
+}
+
+.training-mode-advanced-toggle input {
+  width: 20px;
+  height: 20px;
 }
 
 .training-mode-plan summary {
@@ -382,6 +447,14 @@ body.beta-mvp #training {
 
   .training-mode-session-fields {
     grid-template-columns: 1fr;
+  }
+
+  .training-mode-derived-plan-heading {
+    display: grid;
+  }
+
+  .training-mode-derived-plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

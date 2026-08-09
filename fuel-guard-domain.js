@@ -305,13 +305,35 @@
     ].join("|");
   }
 
+  function comparableActivityType(value) {
+    const type = String(value || "training").trim().toLowerCase();
+    if (/ride|cycling|bike|biking/.test(type)) return "bike";
+    if (/run|running|jog/.test(type)) return "run";
+    if (/swim/.test(type)) return "swim";
+    if (/triathlon|brick/.test(type)) return "multisport";
+    return type.replace(/[^a-z0-9]+/g, "_") || "training";
+  }
+
+  function crossProviderActivityMatch(left, right) {
+    if (!left || !right) return false;
+    if (!left.athleteId || left.athleteId !== right.athleteId) return false;
+    if (!left.source || !right.source || left.source === right.source) return false;
+    if (comparableActivityType(left.type) !== comparableActivityType(right.type)) return false;
+    const startDifference = Math.abs(left.startAt - right.startAt) / 1000;
+    const durationDifference = Math.abs(left.durationSeconds - right.durationSeconds);
+    const durationTolerance = Math.max(120, Math.min(left.durationSeconds, right.durationSeconds) * 0.05);
+    return startDifference <= 120 && durationDifference <= durationTolerance;
+  }
+
   function normalizeWorkouts(workouts = []) {
     const unique = new Map();
     (Array.isArray(workouts) ? workouts : []).forEach(row => {
       const workout = normalizeWorkout(row);
       if (!workout) return;
       const key = workoutDedupeKey(workout);
-      if (!unique.has(key)) unique.set(key, workout);
+      if (unique.has(key)) return;
+      const providerDuplicate = [...unique.values()].some(candidate => crossProviderActivityMatch(candidate, workout));
+      if (!providerDuplicate) unique.set(key, workout);
     });
     return Array.from(unique.values()).sort((a, b) => b.startAt - a.startAt || String(a.id).localeCompare(String(b.id)));
   }
@@ -659,6 +681,174 @@
         state: !rate ? "unplanned" : difference < -tolerance ? "behind" : difference > tolerance ? "ahead" : "on_plan"
       }];
     }));
+  }
+
+  function trainingHourlyPlan({
+    fuelPreset = {},
+    hydrationPreset = {},
+    fuelIntervalMinutes = 30,
+    hydrationIntervalMinutes = 20,
+    advancedPlan = {},
+    useAdvancedPlan = false
+  } = {}) {
+    const intervals = {
+      fuel: clamp(Math.round(Number(fuelIntervalMinutes) || 30), 5, 360),
+      hydration: clamp(Math.round(Number(hydrationIntervalMinutes) || 20), 5, 360)
+    };
+    const presets = {
+      fuel: normalizeTrainingPreset(fuelPreset),
+      hydration: normalizeTrainingPreset(hydrationPreset)
+    };
+    const derived = Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => {
+      const rate = (presets.fuel[field] * 60 / intervals.fuel)
+        + (presets.hydration[field] * 60 / intervals.hydration);
+      return [field, Math.round(rate)];
+    }));
+    const advanced = normalizeTrainingPreset(advancedPlan);
+    return {
+      intervals,
+      derived,
+      effective: useAdvancedPlan ? advanced : derived,
+      source: useAdvancedPlan ? "advanced" : "derived"
+    };
+  }
+
+  function wholeMeasurement(value, unit = "") {
+    const rounded = Math.round(Number(value) || 0);
+    return `${rounded.toLocaleString("en-GB")}${unit}`;
+  }
+
+  function behaviouralPatternInsights({ logs = [], sessions = [], timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const normalizedLogs = logsWithDates(logs);
+    const fuelLogs = normalizedLogs.filter(isFuelLog);
+    const byDay = new Map();
+    fuelLogs.forEach(log => {
+      const key = dateKeyInTimeZone(log.date, zone);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(log);
+    });
+    const gaps = [];
+    byDay.forEach((dayLogs, key) => {
+      dayLogs.sort((a, b) => a.date - b.date);
+      for (let index = 1; index < dayLogs.length; index += 1) {
+        const start = dayLogs[index - 1].date;
+        const end = dayLogs[index].date;
+        gaps.push({
+          key,
+          start,
+          end,
+          minutes: Math.round((end - start) / 60000),
+          startMinute: minutesIntoDayInTimeZone(start, zone),
+          endMinute: minutesIntoDayInTimeZone(end, zone)
+        });
+      }
+    });
+
+    const insights = [];
+    if (gaps.length >= 3) {
+      const average = Math.round(averageFinite(gaps.map(gap => gap.minutes)));
+      insights.push({
+        id: "average-fuel-interval",
+        label: "Average fuelling interval",
+        value: duration(average),
+        detail: `Observed across ${gaps.length} same-day fuel intervals.`,
+        sampleCount: gaps.length
+      });
+    }
+
+    const recurring = mostCommonWindow(gaps, gap => gapWindow(gap));
+    const recurringDays = new Set((recurring?.items || []).map(gap => gap.key)).size;
+    if (recurring && recurring.count >= 2 && recurringDays >= 2) {
+      insights.push({
+        id: "recurring-gap-window",
+        label: "Largest recurring gap",
+        value: recurring.label.replace("-", "–"),
+        detail: `Observed on ${recurringDays} days; this is a timing association, not a diagnosis.`,
+        sampleCount: recurring.count
+      });
+    }
+
+    const completedSessions = (Array.isArray(sessions) ? sessions : [])
+      .filter(session => String(session.status || "completed") === "completed" && parseDate(session.startedAt || session.started_at) && parseDate(session.endedAt || session.ended_at));
+    const trainingDays = new Set(completedSessions.map(session => dateKeyInTimeZone(session.startedAt || session.started_at, zone)));
+    const averageDayGap = key => averageFinite(gaps.filter(gap => gap.key === key).map(gap => gap.minutes));
+    const trainingDayGaps = [...trainingDays].map(averageDayGap).filter(Number.isFinite);
+    const ordinaryDayGaps = [...byDay.keys()].filter(key => !trainingDays.has(key)).map(averageDayGap).filter(Number.isFinite);
+    if (trainingDayGaps.length >= 2 && ordinaryDayGaps.length >= 2) {
+      const trainingAverage = averageFinite(trainingDayGaps);
+      const ordinaryAverage = averageFinite(ordinaryDayGaps);
+      const differencePct = ordinaryAverage > 0 ? Math.round(((trainingAverage - ordinaryAverage) / ordinaryAverage) * 100) : 0;
+      insights.push({
+        id: "training-day-comparison",
+        label: "Training days",
+        value: `${Math.abs(differencePct)}% ${differencePct >= 0 ? "longer" : "shorter"} average fuel interval`,
+        detail: `Observed across ${trainingDayGaps.length} training and ${ordinaryDayGaps.length} non-training days.`,
+        sampleCount: trainingDayGaps.length + ordinaryDayGaps.length
+      });
+    }
+
+    const sleepyLogs = normalizedLogs.filter(isSleepyLog);
+    if (sleepyLogs.length >= 3) {
+      const afterLongGap = sleepyLogs.filter(sleepy => {
+        const previousFuel = fuelLogs.filter(fuel => fuel.date < sleepy.date && dateKeyInTimeZone(fuel.date, zone) === dateKeyInTimeZone(sleepy.date, zone)).at(-1);
+        return previousFuel && (sleepy.date - previousFuel.date) / 60000 > 180;
+      }).length;
+      const pct = Math.round((afterLongGap / sleepyLogs.length) * 100);
+      insights.push({
+        id: "sleepy-after-long-gap",
+        label: "Sleepy and fuel gaps",
+        value: `${pct}% occurred over 3h after fuel`,
+        detail: `Observed across ${sleepyLogs.length} Sleepy events; this does not establish cause.`,
+        sampleCount: sleepyLogs.length
+      });
+    }
+
+    if (completedSessions.length >= 3) {
+      const workouts = completedSessions.map(session => ({
+        id: session.id,
+        athleteId: session.userId || session.user_id || "",
+        source: "training_mode",
+        type: session.sessionType || session.session_type || "training",
+        title: session.title,
+        startAt: session.startedAt || session.started_at,
+        endAt: session.endedAt || session.ended_at
+      }));
+      const contexts = getWorkoutFuelContexts(workouts, normalizedLogs);
+      const compliant = contexts.filter(context => Number.isFinite(context.postFuelGapMinutes) && context.postFuelGapMinutes <= 120).length;
+      insights.push({
+        id: "post-training-fuel",
+        label: "Post-training fuel compliance",
+        value: `${Math.round((compliant / contexts.length) * 100)}%`,
+        detail: `Fuel within 2h after ${contexts.length} completed Training Mode sessions.`,
+        sampleCount: contexts.length
+      });
+    }
+
+    return { insights, enoughData: insights.length > 0, gapSampleCount: gaps.length };
+  }
+
+  function trainingPatternLanes({ logs = [], sessions = [], key = dateKey(), timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const normalizedLogs = logsWithDates(logs);
+    const trainingLogs = normalizedLogs.filter(log => trainingLogSessionId(log));
+    const referencedIds = new Set(trainingLogs.map(trainingLogSessionId));
+    const matched = (Array.isArray(sessions) ? sessions : []).filter(session => {
+      const startedAt = parseDate(session.startedAt || session.started_at);
+      return (startedAt && dateKeyInTimeZone(startedAt, zone) === key) || referencedIds.has(String(session.id || ""));
+    }).map(session => ({ ...session }));
+    referencedIds.forEach(id => {
+      if (!matched.some(session => String(session.id) === id)) {
+        const events = trainingLogs.filter(log => trainingLogSessionId(log) === id);
+        matched.push({ id, title: "Training session", sessionType: "training", startedAt: events[0]?.date, endedAt: events.at(-1)?.date });
+      }
+    });
+    return matched
+      .map(session => ({
+        session,
+        events: trainingLogs.filter(log => trainingLogSessionId(log) === String(session.id))
+      }))
+      .sort((left, right) => parseDate(left.session.startedAt || left.session.started_at) - parseDate(right.session.startedAt || right.session.started_at));
   }
 
   function maximumFuelGapMinutes(targets = {}) {
@@ -1838,6 +2028,7 @@
     logsForDay,
     normalizeWorkout,
     normalizeWorkouts,
+    crossProviderActivityMatch,
     getWorkoutFuelContext,
     getWorkoutFuelContexts,
     aggregateWorkoutFuelContexts,
@@ -1858,6 +2049,10 @@
     trainingLogSessionId,
     trainingSessionIntakeSummary,
     trainingPlanProgress,
+    trainingHourlyPlan,
+    wholeMeasurement,
+    behaviouralPatternInsights,
+    trainingPatternLanes,
     latestLog,
     maximumFuelGapMinutes,
     fuelGapStatus,
