@@ -85,6 +85,57 @@ test("Garmin cloud rows preserve source and event types", () => {
   assert.equal(api.rowToLog({ ...base, type: "fuel_hydration" }).type, "fuel_hydration");
 });
 
+test("Training Mode context and canonical quantities round-trip through fuel_logs", () => {
+  const api = loadFuelSupabase();
+  const user = { id: "22222222-2222-4222-8222-222222222222" };
+  const sessionId = "33333333-3333-4333-8333-333333333333";
+  const presetId = "44444444-4444-4444-8444-444444444444";
+  const row = api.rowForLog({
+    timestamp: "2026-08-09T08:30:00.000Z",
+    type: "hydration",
+    source: "garmin",
+    externalEventId: "training-hydrate-1",
+    trainingModeSessionId: sessionId,
+    trainingModePresetId: presetId,
+    carbsG: 10,
+    fluidMl: 200,
+    sodiumMg: 250,
+    caffeineMg: 0
+  }, user);
+
+  assert.deepEqual({
+    session: row.training_mode_session_id,
+    preset: row.training_mode_preset_id,
+    carbs: row.carbs_g,
+    fluid: row.fluid_ml,
+    sodium: row.sodium_mg,
+    caffeine: row.caffeine_mg
+  }, { session: sessionId, preset: presetId, carbs: 10, fluid: 200, sodium: 250, caffeine: 0 });
+
+  const log = api.rowToLog({
+    id: "11111111-1111-4111-8111-111111111111",
+    user_id: user.id,
+    logged_at: row.logged_at,
+    type: row.type,
+    source: row.source,
+    external_event_id: row.external_event_id,
+    training_mode_session_id: row.training_mode_session_id,
+    training_mode_preset_id: row.training_mode_preset_id,
+    carbs_g: row.carbs_g,
+    fluid_ml: row.fluid_ml,
+    sodium_mg: row.sodium_mg,
+    caffeine_mg: row.caffeine_mg,
+    notes: null,
+    created_at: row.logged_at
+  });
+  assert.equal(log.trainingModeSessionId, sessionId);
+  assert.equal(log.trainingModePresetId, presetId);
+  assert.deepEqual(
+    { carbsG: log.carbsG, fluidMl: log.fluidMl, sodiumMg: log.sodiumMg, caffeineMg: log.caffeineMg },
+    { carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0 }
+  );
+});
+
 test("Sleepy check-ins round-trip as observational cloud logs", () => {
   const api = loadFuelSupabase();
   const row = api.rowForLog({

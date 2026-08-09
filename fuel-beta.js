@@ -1240,13 +1240,20 @@
   function setDayType(key, value) {
     const gap = betaState();
     const nextValue = normalizeDayType(value);
-    if (nextValue) gap.dayTypes[key] = nextValue;
+    if (window.FuelGuardDomain?.applyDayTypeState) {
+      window.FuelGuardDomain.applyDayTypeState(gap, key, nextValue);
+    } else if (window.FuelGuardDomain?.applyDayTypeOverride) {
+      window.FuelGuardDomain.applyDayTypeOverride(gap.dayTypes, key, nextValue);
+      if (gap.archive?.[key]) gap.archive[key].dayType = nextValue || "";
+    } else if (nextValue) gap.dayTypes[key] = nextValue;
     else delete gap.dayTypes[key];
 
-    gap.logs.forEach(log => {
-      const date = logDate(log);
-      if (date && dateKey(date) === key) log.dayType = nextValue || "";
-    });
+    if (!window.FuelGuardDomain?.applyDayTypeState) {
+      gap.logs.forEach(log => {
+        const date = logDate(log);
+        if (date && dateKey(date) === key) log.dayType = nextValue || "";
+      });
+    }
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
     if (typeof addActivityEntry === "function") {
@@ -2133,6 +2140,11 @@
       updatedAt: loggedAt.toISOString(),
       syncStatus: "pending"
     };
+    if (options.trainingMode) {
+      const context = window.FuelGuardTrainingMode?.contextForEvent?.(normalizedType, loggedAt) || null;
+      if (!context?.trainingModeSessionId) return Promise.resolve({ status: "error", persisted: false, reason: "training_mode_inactive" });
+      Object.assign(log, context);
+    }
     betaState().logs.push(log);
     if (includesFuel && !options.bypassCooldown) setCooldown();
     if (includesFuel) applyOpportunityMatchesForDay(key);
@@ -2151,6 +2163,7 @@
     setQuickLogConfirmation(normalizedType, loggedAt);
     save();
     renderAll();
+    window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
     return persistQuickLog(log, normalizedType, loggedAt);
   }
 
@@ -2161,6 +2174,13 @@
   function recordHydration() {
     recordRhythmLog("hydration", { source: "manual" });
   }
+
+  window.recordTrainingModeEvent = function recordTrainingModeEvent(type) {
+    return recordRhythmLog(type === "hydration" ? "hydration" : "fuel", {
+      source: "manual",
+      trainingMode: true
+    });
+  };
 
   function recordSleepy() {
     recordCheckinEvent({
@@ -2428,7 +2448,10 @@
   }
 
   function renderDayTypeControls() {
-    const key = selectedDataDateKey();
+    // These controls are rendered inside the Today status card. They must not
+    // inherit a stale History selection, otherwise clearing an override can
+    // update a different day and leave the visible chip highlighted.
+    const key = todayViewKey();
     const dayTypeSelect = document.getElementById("fuelDayType");
     const sessionSelect = document.getElementById("fuelTrainingSession");
     const dayType = dayTypeForKey(key);
@@ -10034,7 +10057,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "training", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -10049,6 +10072,7 @@
       renderDailyLog();
     }
     if (target === "checklist") renderSettings();
+    if (target === "training") window.FuelGuardTrainingMode?.render?.();
   };
 
   async function clearBetaData() {
@@ -10325,7 +10349,7 @@
     }
   });
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
-    const key = selectedDataDateKey();
+    const key = todayViewKey();
     setDayType(key, event.target.value);
     save();
     renderAll();

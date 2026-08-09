@@ -16,6 +16,18 @@
   const MIN_TEAM_PATTERN_ATHLETES = 2;
   const MIN_COMPARISON_LOGGED_DAYS = 3;
   const MIN_COMPARISON_METRIC_DAYS = 2;
+  const MILESTONE_THRESHOLDS = Object.freeze({
+    streak: Object.freeze([5, 10, 30, 50]),
+    fuel: Object.freeze([50, 100, 500, 1000]),
+    hydration: Object.freeze([50, 100, 500, 1000])
+  });
+  const TRAINING_QUANTITY_FIELDS = Object.freeze(["carbsG", "fluidMl", "sodiumMg", "caffeineMg"]);
+  const TRAINING_QUANTITY_LIMITS = Object.freeze({
+    carbsG: 500,
+    fluidMl: 5000,
+    sodiumMg: 10000,
+    caffeineMg: 1000
+  });
   const TIME_BANDS = [
     { id: "overnight", label: "00:00-06:00", start: 0, end: 360 },
     { id: "early_morning", label: "06:00-08:00", start: 360, end: 480 },
@@ -210,6 +222,12 @@
       source: String(row?.source || "manual").toLowerCase(),
       dayType: row?.day_type || row?.dayType || "",
       trainingSession: row?.training_session || row?.trainingSession || "",
+      trainingModeSessionId: row?.training_mode_session_id || row?.trainingModeSessionId || "",
+      trainingModePresetId: row?.training_mode_preset_id || row?.trainingModePresetId || "",
+      carbsG: row?.carbs_g ?? row?.carbsG ?? null,
+      fluidMl: row?.fluid_ml ?? row?.fluidMl ?? null,
+      sodiumMg: row?.sodium_mg ?? row?.sodiumMg ?? null,
+      caffeineMg: row?.caffeine_mg ?? row?.caffeineMg ?? null,
       notes,
       checkin,
       externalEventId: row?.external_event_id || row?.externalEventId || ""
@@ -437,13 +455,26 @@
     });
   }
 
+  function validActivityUsageLog(log) {
+    if (!log || typeof log !== "object" || !logDate(log)) return false;
+    if (log.deleted_at || log.deletedAt || log.revoked_at || log.revokedAt || log.valid === false) return false;
+    const source = String(log.source || "manual").trim().toLowerCase();
+    if (["test", "fixture", "invalid"].includes(source)) return false;
+    const type = String(log.type || log.logType || log.log_type || "").trim().toLowerCase();
+    return ["fuel", "hydration", "fuel_hydration"].includes(type) && !checkinPayload(log);
+  }
+
   // A usage day contains at least one real fuel or hydration moment. The
   // current streak ends today when today has a usage day; otherwise it may end
   // yesterday so an in-progress day does not break the streak before midnight.
   // Fuel+hydration moments count once in each lifetime total. Check-ins such as
   // Sleepy are neither fuel nor hydration and never affect these numbers.
   function activityUsageSummary(logs = [], now = new Date()) {
-    const valid = logsWithDates(logs);
+    const valid = (Array.isArray(logs) ? logs : [])
+      .filter(validActivityUsageLog)
+      .map(normalizeLog)
+      .filter(Boolean)
+      .sort((a, b) => a.date - b.date);
     const fuelMoments = valid.filter(isFuelLog);
     const hydrationMoments = valid.filter(isHydrationLog);
     const usageDays = new Set([...fuelMoments, ...hydrationMoments].map(log => dateKey(log.date)));
@@ -459,6 +490,175 @@
       fuelMoments: fuelMoments.length,
       hydrationMoments: hydrationMoments.length
     };
+  }
+
+  function applyDayTypeOverride(dayTypes = {}, key, value) {
+    const target = dayTypes && typeof dayTypes === "object" && !Array.isArray(dayTypes) ? dayTypes : {};
+    const date = String(key || "");
+    const next = String(value || "").trim().toLowerCase();
+    if (!date) return target;
+    if (["work", "holiday", "competition"].includes(next)) target[date] = next;
+    else delete target[date];
+    return target;
+  }
+
+  function applyDayTypeState(fuelGap = {}, key, value) {
+    const date = String(key || "");
+    const next = ["work", "holiday", "competition"].includes(String(value || "").trim().toLowerCase())
+      ? String(value).trim().toLowerCase()
+      : "";
+    if (!date || !fuelGap || typeof fuelGap !== "object" || Array.isArray(fuelGap)) return next;
+    if (!fuelGap.dayTypes || typeof fuelGap.dayTypes !== "object" || Array.isArray(fuelGap.dayTypes)) fuelGap.dayTypes = {};
+    applyDayTypeOverride(fuelGap.dayTypes, date, next);
+    if (fuelGap.archive?.[date] && typeof fuelGap.archive[date] === "object") {
+      fuelGap.archive[date].dayType = next;
+      fuelGap.archive[date].dayTypeLabel = next === "work"
+        ? "Working Day"
+        : next === "holiday"
+          ? "Holiday"
+          : next === "competition"
+            ? "Competition Day"
+            : "Not set";
+    }
+    if (Array.isArray(fuelGap.logs)) {
+      fuelGap.logs.forEach(log => {
+        const loggedAt = logDate(log);
+        if (loggedAt && dateKey(loggedAt) === date) log.dayType = next;
+      });
+    }
+    return next;
+  }
+
+  function milestoneKey(category, threshold) {
+    return `${String(category || "")}:${Number(threshold)}`;
+  }
+
+  function milestoneValue(summary = {}, category) {
+    if (category === "streak") return Number(summary.dayStreak || 0);
+    if (category === "fuel") return Number(summary.fuelMoments || 0);
+    if (category === "hydration") return Number(summary.hydrationMoments || 0);
+    return 0;
+  }
+
+  function milestoneLabel(category, threshold) {
+    const formatted = Number(threshold).toLocaleString("en-GB");
+    if (category === "streak") return `${formatted} day streak`;
+    if (category === "fuel") return `${formatted} fuelling moments`;
+    return `${formatted} hydration moments`;
+  }
+
+  function earnedMilestones(summary = {}) {
+    return Object.entries(MILESTONE_THRESHOLDS).flatMap(([category, thresholds]) =>
+      thresholds.filter(threshold => milestoneValue(summary, category) >= threshold).map(threshold => ({
+        key: milestoneKey(category, threshold),
+        category,
+        threshold,
+        label: milestoneLabel(category, threshold)
+      }))
+    );
+  }
+
+  function newlyCrossedMilestones(previousSummary, currentSummary = {}, acknowledgedKeys = []) {
+    if (!previousSummary || typeof previousSummary !== "object") return [];
+    const acknowledged = new Set((Array.isArray(acknowledgedKeys) ? acknowledgedKeys : []).map(String));
+    return earnedMilestones(currentSummary).filter(milestone =>
+      milestoneValue(previousSummary, milestone.category) < milestone.threshold
+      && !acknowledged.has(milestone.key)
+    );
+  }
+
+  function quantityValue(value) {
+    if (value === null || value === undefined || value === "") return 0;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number) : NaN;
+  }
+
+  function normalizeTrainingPreset(preset = {}) {
+    const normalized = {};
+    TRAINING_QUANTITY_FIELDS.forEach(field => {
+      const value = quantityValue(preset[field] ?? preset[field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)]);
+      normalized[field] = Number.isFinite(value) ? value : 0;
+    });
+    return normalized;
+  }
+
+  function validateTrainingPreset(preset = {}) {
+    const normalized = normalizeTrainingPreset(preset);
+    const errors = TRAINING_QUANTITY_FIELDS.flatMap(field => {
+      const value = normalized[field];
+      if (!Number.isInteger(value) || value < 0) return [`${field} must be a whole number at or above zero.`];
+      if (value > TRAINING_QUANTITY_LIMITS[field]) return [`${field} is above the supported per-event limit.`];
+      return [];
+    });
+    if (!TRAINING_QUANTITY_FIELDS.some(field => normalized[field] > 0)) {
+      errors.push("At least one training quantity must be above zero.");
+    }
+    return { valid: errors.length === 0, errors, preset: normalized };
+  }
+
+  function trainingEventContext(session, eventType) {
+    if (!session || !["fuel", "hydration", "fuel_hydration"].includes(eventType)) return null;
+    const useHydrationPreset = eventType === "hydration";
+    const prefix = useHydrationPreset ? "hydration" : "fuel";
+    const preset = normalizeTrainingPreset({
+      carbsG: session[`${prefix}CarbsG`] ?? session[`${prefix}_carbs_g`],
+      fluidMl: session[`${prefix}FluidMl`] ?? session[`${prefix}_fluid_ml`],
+      sodiumMg: session[`${prefix}SodiumMg`] ?? session[`${prefix}_sodium_mg`],
+      caffeineMg: session[`${prefix}CaffeineMg`] ?? session[`${prefix}_caffeine_mg`]
+    });
+    return {
+      trainingModeSessionId: session.id || session.sessionId || "",
+      trainingModePresetId: session[`${prefix}PresetId`] ?? session[`${prefix}_preset_id`] ?? "",
+      ...preset
+    };
+  }
+
+  function applyTrainingEventContext(log = {}, session = null, eventType = log?.type) {
+    const context = trainingEventContext(session, String(eventType || "").toLowerCase());
+    return context ? { ...log, ...context } : { ...log };
+  }
+
+  function trainingLogSessionId(log = {}) {
+    return String(log.trainingModeSessionId || log.training_mode_session_id || "");
+  }
+
+  function trainingSessionIntakeSummary({ session = {}, logs = [], now = new Date() } = {}) {
+    const startedAt = parseDate(session.startedAt || session.started_at);
+    const endedAt = parseDate(session.endedAt || session.ended_at);
+    const effectiveEnd = endedAt || parseDate(now) || new Date();
+    const durationSeconds = startedAt ? Math.max(0, Math.round((effectiveEnd - startedAt) / 1000)) : 0;
+    const sessionId = String(session.id || session.sessionId || "");
+    const matching = (Array.isArray(logs) ? logs : []).filter(log => sessionId && trainingLogSessionId(log) === sessionId);
+    const totals = { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 };
+    matching.forEach(log => {
+      const preset = normalizeTrainingPreset(log);
+      TRAINING_QUANTITY_FIELDS.forEach(field => { totals[field] += preset[field]; });
+    });
+    const hours = durationSeconds / 3600;
+    const perHour = Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => [
+      field,
+      hours > 0 ? Math.round((totals[field] / hours) * 10) / 10 : 0
+    ]));
+    return { sessionId, durationSeconds, eventCount: matching.length, totals, perHour, logs: matching };
+  }
+
+  function trainingPlanProgress(summary = {}, plan = {}) {
+    const hours = Math.max(0, Number(summary.durationSeconds || 0) / 3600);
+    return Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => {
+      const rawRate = plan[field] ?? plan[`${field}PerHour`] ?? plan[field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)] ?? 0;
+      const rate = Math.max(0, Number(rawRate) || 0);
+      const actual = Number(summary.totals?.[field] || 0);
+      const expected = Math.round(rate * hours * 10) / 10;
+      const difference = Math.round((actual - expected) * 10) / 10;
+      const tolerance = Math.max(1, rate * 0.1);
+      return [field, {
+        actual,
+        plannedRate: rate,
+        expected,
+        difference,
+        state: !rate ? "unplanned" : difference < -tolerance ? "behind" : difference > tolerance ? "ahead" : "on_plan"
+      }];
+    }));
   }
 
   function maximumFuelGapMinutes(targets = {}) {
@@ -1613,6 +1813,9 @@
     CHECKIN_NOTE_PREFIX,
     SLEEPY_CHECKIN_TYPE,
     DEFAULT_NUDGE_MESSAGE,
+    MILESTONE_THRESHOLDS,
+    TRAINING_QUANTITY_FIELDS,
+    TRAINING_QUANTITY_LIMITS,
     escapeHtml,
     parseDate,
     logDate,
@@ -1639,7 +1842,22 @@
     getWorkoutFuelContexts,
     aggregateWorkoutFuelContexts,
     workoutFuelSummariesByAthlete,
+    validActivityUsageLog,
     activityUsageSummary,
+    applyDayTypeOverride,
+    applyDayTypeState,
+    milestoneKey,
+    milestoneValue,
+    milestoneLabel,
+    earnedMilestones,
+    newlyCrossedMilestones,
+    normalizeTrainingPreset,
+    validateTrainingPreset,
+    trainingEventContext,
+    applyTrainingEventContext,
+    trainingLogSessionId,
+    trainingSessionIntakeSummary,
+    trainingPlanProgress,
     latestLog,
     maximumFuelGapMinutes,
     fuelGapStatus,

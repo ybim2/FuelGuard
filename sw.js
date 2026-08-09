@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v116-performance-demo-readiness";
-const BUILD_VERSION = "2026-08-09T08:50:29Z";
+const APP_VERSION = "mobile-pwa-v117-training-mode";
+const BUILD_VERSION = "2026-08-09T10:17:18Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v116-performance-demo-readiness-20260809T085029Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v117-training-mode-20260809T101718Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,6 +31,7 @@ const APP_SHELL = [
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
   "./training-fuel.css",
+  "./training-mode.css",
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
@@ -41,6 +42,8 @@ const APP_SHELL = [
   "./app-pwa.js",
   "./fuel-beta.js",
   "./training-fuel.js",
+  "./training-mode.js",
+  "./athlete-milestones.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
   "./manifest.webmanifest",

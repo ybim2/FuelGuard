@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation has only Log, with Settings in the header", () => {
+test("primary navigation keeps Training directly beside Log, with Settings in the header", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -36,17 +36,19 @@ test("primary navigation has only Log, with Settings in the header", () => {
   const mobileNav = html.slice(indexOfRequired(html, '<nav class="mobile-bottom-nav beta-mobile-nav"'), indexOfRequired(html, '<script src="build-info.js'));
 
   assert.deepEqual([...desktopNav.matchAll(/data-screen="([^"]+)"[^>]*>([^<]+)<\/button>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"]
+    ["dashboard", "Log"],
+    ["training", "Training"]
   ]);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"]
+    ["dashboard", "Log"],
+    ["training", "Training"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
-  assert.match(html, /grid-template-columns: 1fr !important;/);
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: 1fr !important;/);
+  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(html, /data-screen="history"|data-mobile-screen="history"|<section id="history"|data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
-  assert.match(appUi, /\["dashboard", "checklist"\]/);
-  assert.match(beta, /\["dashboard", "checklist"\]/);
+  assert.match(appUi, /\["dashboard", "training", "checklist"\]/);
+  assert.match(beta, /\["dashboard", "training", "checklist"\]/);
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
@@ -218,7 +220,7 @@ test("PWA cache and asset versions are bumped for the Athlete training/access UX
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v116-performance-demo-readiness";
+  const version = "mobile-pwa-v117-training-mode";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -228,13 +230,16 @@ test("PWA cache and asset versions are bumped for the Athlete training/access UX
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T085029Z/);
+  assert.match(sw, /20260809T101718Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
   assert.match(sw, /fuel-guard-domain\.js/);
   assert.match(sw, /training-fuel\.css/);
   assert.match(sw, /training-fuel\.js/);
+  assert.match(sw, /training-mode\.css/);
+  assert.match(sw, /training-mode\.js/);
+  assert.match(sw, /athlete-milestones\.js/);
   assert.match(html, /training-fuel\.css/);
   assert.match(html, /training-fuel\.js/);
 });

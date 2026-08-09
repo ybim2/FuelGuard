@@ -72,6 +72,7 @@ class FakeSupabase {
     this.authSessions = [];
     this.deviceTokens = [];
     this.logs = [];
+    this.trainingModeSessions = [];
     this.nextAuth = 1;
     this.nextDevice = 1;
     this.nextLog = 1;
@@ -111,6 +112,9 @@ class FakeSupabase {
     const order = query.get("order") || "";
     if (order.startsWith("created_at.desc")) {
       next = next.slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    }
+    if (order.startsWith("started_at.desc")) {
+      next = next.slice().sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || "")));
     }
     const limit = Number(query.get("limit") || 0);
     return limit ? next.slice(0, limit) : next;
@@ -191,6 +195,10 @@ class FakeSupabase {
       }
     }
 
+    if (path === "/rest/v1/fuel_training_mode_sessions" && method === "GET") {
+      return okJson(this.filter(this.trainingModeSessions, parsed.searchParams));
+    }
+
     throw new Error(`Unhandled fake Supabase request: ${method} ${path}`);
   }
 
@@ -258,6 +266,91 @@ test("Garmin user_id cannot be forged and logs map to the approving user", async
   assert.equal(fake.logs[0].user_id, USERS["user-token-a"].id);
   assert.equal(fake.logs[0].source, "garmin");
   assert.equal(fake.logs[0].type, "fuel");
+  assert.equal(fake.logs[0].training_mode_session_id, undefined);
+  assert.equal(fake.logs[0].carbs_g, undefined);
+}));
+
+test("Garmin Fuel uses the active Training Mode Fuel preset only inside the session", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.trainingModeSessions.push({
+    id: "session-a",
+    user_id: USERS["user-token-a"].id,
+    status: "active",
+    started_at: "2026-07-18T08:00:00.000Z",
+    ended_at: null,
+    fuel_preset_id: "preset-fuel",
+    hydration_preset_id: "preset-hydration",
+    fuel_carbs_g: 30,
+    fuel_fluid_ml: 0,
+    fuel_sodium_mg: 0,
+    fuel_caffeine_mg: 0,
+    hydration_carbs_g: 10,
+    hydration_fluid_ml: 200,
+    hydration_sodium_mg: 250,
+    hydration_caffeine_mg: 0
+  });
+  const res = await call(auth.garminLogHandler, { token: paired.deviceToken, body: VALID_EVENT });
+  assert.equal(res.statusCode, 201);
+  assert.equal(fake.logs[0].training_mode_session_id, "session-a");
+  assert.equal(fake.logs[0].training_mode_preset_id, "preset-fuel");
+  assert.deepEqual(
+    [fake.logs[0].carbs_g, fake.logs[0].fluid_ml, fake.logs[0].sodium_mg, fake.logs[0].caffeine_mg],
+    [30, 0, 0, 0]
+  );
+}));
+
+test("Garmin Hydrate preserves mixed Training Mode carbohydrate fluid and sodium quantities", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.trainingModeSessions.push({
+    id: "session-hydration",
+    user_id: USERS["user-token-a"].id,
+    status: "completed",
+    started_at: "2026-07-18T08:00:00.000Z",
+    ended_at: "2026-07-18T09:00:00.000Z",
+    fuel_preset_id: "preset-fuel",
+    hydration_preset_id: "preset-hydration",
+    fuel_carbs_g: 30,
+    fuel_fluid_ml: 0,
+    fuel_sodium_mg: 0,
+    fuel_caffeine_mg: 0,
+    hydration_carbs_g: 10,
+    hydration_fluid_ml: 200,
+    hydration_sodium_mg: 250,
+    hydration_caffeine_mg: 0
+  });
+  const event = { ...VALID_EVENT, type: "hydration", external_event_id: "hydrate-1", logged_at: "2026-07-18T08:30:00.000Z" };
+  const res = await call(auth.garminLogHandler, { token: paired.deviceToken, body: event });
+  assert.equal(res.statusCode, 201);
+  assert.equal(fake.logs[0].training_mode_preset_id, "preset-hydration");
+  assert.deepEqual(
+    [fake.logs[0].carbs_g, fake.logs[0].fluid_ml, fake.logs[0].sodium_mg, fake.logs[0].caffeine_mg],
+    [10, 200, 250, 0]
+  );
+}));
+
+test("Garmin events after Training Mode ends remain ordinary quantity-free timing logs", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.trainingModeSessions.push({
+    id: "ended-session",
+    user_id: USERS["user-token-a"].id,
+    status: "completed",
+    started_at: "2026-07-18T06:00:00.000Z",
+    ended_at: "2026-07-18T07:00:00.000Z",
+    fuel_preset_id: "preset-fuel",
+    hydration_preset_id: "preset-hydration",
+    fuel_carbs_g: 30,
+    fuel_fluid_ml: 0,
+    fuel_sodium_mg: 0,
+    fuel_caffeine_mg: 0,
+    hydration_carbs_g: 0,
+    hydration_fluid_ml: 250,
+    hydration_sodium_mg: 0,
+    hydration_caffeine_mg: 0
+  });
+  const res = await call(auth.garminLogHandler, { token: paired.deviceToken, body: VALID_EVENT });
+  assert.equal(res.statusCode, 201);
+  assert.equal(fake.logs[0].training_mode_session_id, undefined);
+  assert.equal(fake.logs[0].carbs_g, undefined);
 }));
 
 test("Garmin Sleepy logs persist as the canonical PWA Sleepy check-in", async () => withFake(async (fake) => {

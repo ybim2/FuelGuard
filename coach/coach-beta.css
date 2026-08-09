@@ -1559,3 +1559,36 @@ body.coach-beta {
     width: 100%;
   }
 }
+
+/* v117 final precedence overrides. */
+body.coach-beta,
+.coach-shell,
+#coachAppShell .coach-panel {
+  background: #ffffff;
+}
+
+#coachAppShell .coach-card {
+  margin: 0;
+  padding: 18px 2px;
+  border: 0;
+  border-top: 1px solid rgba(16, 32, 25, .11);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#coachAppShell .coach-card + .coach-card,
+#coachAppShell .coach-card + .coach-list,
+#coachAppShell .coach-list + .coach-card,
+#coachAppShell .coach-panel > * + * {
+  margin-top: 0;
+}
+
+#coachAppShell .coach-panel > :first-child .coach-card:first-child,
+#coachAppShell .coach-panel > .coach-card:first-child {
+  border-top: 0;
+}
+
+@media (min-width: 760px) {
+  .coach-shell { padding-inline: 24px; }
+}
