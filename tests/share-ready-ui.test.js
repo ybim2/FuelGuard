@@ -27,30 +27,28 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation has only Log, with Settings in the header", () => {
+test("primary navigation keeps Training directly beside Daily, with Settings in the header", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
   const beta = read("fuel-beta.js");
-  const desktopNav = html.slice(indexOfRequired(html, '<nav class="side-nav beta-nav">'), indexOfRequired(html, '<button class="beta-header-settings-button"'));
   const mobileNav = html.slice(indexOfRequired(html, '<nav class="mobile-bottom-nav beta-mobile-nav"'), indexOfRequired(html, '<script src="build-info.js'));
 
-  assert.deepEqual([...desktopNav.matchAll(/data-screen="([^"]+)"[^>]*>([^<]+)<\/button>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"]
-  ]);
+  assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
-    ["dashboard", "Log"]
+    ["dashboard", "Daily"],
+    ["training", "Training"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
-  assert.match(html, /grid-template-columns: 1fr !important;/);
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: 1fr !important;/);
+  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(html, /data-screen="history"|data-mobile-screen="history"|<section id="history"|data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
-  assert.match(appUi, /\["dashboard", "checklist"\]/);
-  assert.match(beta, /\["dashboard", "checklist"\]/);
+  assert.match(appUi, /\["dashboard", "training", "checklist"\]/);
+  assert.match(beta, /\["dashboard", "training", "checklist"\]/);
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
-test("Log is a status-first beta instrument panel", () => {
+test("Daily is a status-first beta instrument panel", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const dashboard = section(html, "dashboard", "checklist");
@@ -212,13 +210,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Athlete training/access UX release", () => {
+test("PWA cache and asset versions are bumped for the Athlete app fixes release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v116-performance-demo-readiness";
+  const version = "mobile-pwa-v123-canonical-email";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -228,13 +226,18 @@ test("PWA cache and asset versions are bumped for the Athlete training/access UX
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T085029Z/);
+  assert.match(sw, /20260809T192957Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
   assert.match(sw, /fuel-guard-domain\.js/);
-  assert.match(sw, /training-fuel\.css/);
-  assert.match(sw, /training-fuel\.js/);
-  assert.match(html, /training-fuel\.css/);
-  assert.match(html, /training-fuel\.js/);
+  assert.doesNotMatch(sw, /training-fuel\.css/);
+  assert.doesNotMatch(sw, /training-fuel\.js/);
+  assert.match(sw, /training-mode\.css/);
+  assert.match(sw, /training-mode\.js/);
+  assert.match(sw, /athlete-milestones\.js/);
+  assert.match(sw, /transactional-email-client\.js/);
+  assert.doesNotMatch(html, /training-fuel\.css/);
+  assert.doesNotMatch(html, /training-fuel\.js/);
+  assert.match(coachHtml, /transactional-email-client\.js/);
 });

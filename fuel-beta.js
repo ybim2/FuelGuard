@@ -1240,13 +1240,20 @@
   function setDayType(key, value) {
     const gap = betaState();
     const nextValue = normalizeDayType(value);
-    if (nextValue) gap.dayTypes[key] = nextValue;
+    if (window.FuelGuardDomain?.applyDayTypeState) {
+      window.FuelGuardDomain.applyDayTypeState(gap, key, nextValue);
+    } else if (window.FuelGuardDomain?.applyDayTypeOverride) {
+      window.FuelGuardDomain.applyDayTypeOverride(gap.dayTypes, key, nextValue);
+      if (gap.archive?.[key]) gap.archive[key].dayType = nextValue || "";
+    } else if (nextValue) gap.dayTypes[key] = nextValue;
     else delete gap.dayTypes[key];
 
-    gap.logs.forEach(log => {
-      const date = logDate(log);
-      if (date && dateKey(date) === key) log.dayType = nextValue || "";
-    });
+    if (!window.FuelGuardDomain?.applyDayTypeState) {
+      gap.logs.forEach(log => {
+        const date = logDate(log);
+        if (date && dateKey(date) === key) log.dayType = nextValue || "";
+      });
+    }
 
     storeArchive(key, { endedAt: gap.archive[key]?.endedAt || (gap.dayEndedDate === key ? gap.dayEndedAt : "") });
     if (typeof addActivityEntry === "function") {
@@ -2133,6 +2140,11 @@
       updatedAt: loggedAt.toISOString(),
       syncStatus: "pending"
     };
+    if (options.trainingMode) {
+      const context = window.FuelGuardTrainingMode?.contextForEvent?.(normalizedType, loggedAt) || null;
+      if (!context?.trainingModeSessionId) return Promise.resolve({ status: "error", persisted: false, reason: "training_mode_inactive" });
+      Object.assign(log, context);
+    }
     betaState().logs.push(log);
     if (includesFuel && !options.bypassCooldown) setCooldown();
     if (includesFuel) applyOpportunityMatchesForDay(key);
@@ -2151,6 +2163,7 @@
     setQuickLogConfirmation(normalizedType, loggedAt);
     save();
     renderAll();
+    window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
     return persistQuickLog(log, normalizedType, loggedAt);
   }
 
@@ -2161,6 +2174,13 @@
   function recordHydration() {
     recordRhythmLog("hydration", { source: "manual" });
   }
+
+  window.recordTrainingModeEvent = function recordTrainingModeEvent(type) {
+    return recordRhythmLog(type === "hydration" ? "hydration" : "fuel", {
+      source: "manual",
+      trainingMode: true
+    });
+  };
 
   function recordSleepy() {
     recordCheckinEvent({
@@ -2428,7 +2448,10 @@
   }
 
   function renderDayTypeControls() {
-    const key = selectedDataDateKey();
+    // These controls are rendered inside the Today status card. They must not
+    // inherit a stale History selection, otherwise clearing an override can
+    // update a different day and leave the visible chip highlighted.
+    const key = todayViewKey();
     const dayTypeSelect = document.getElementById("fuelDayType");
     const sessionSelect = document.getElementById("fuelTrainingSession");
     const dayType = dayTypeForKey(key);
@@ -2680,6 +2703,11 @@
   }
 
   function timelineSourceLabel(log) {
+    const trainingSessionId = String(log?.trainingModeSessionId || log?.training_mode_session_id || "");
+    if (trainingSessionId) {
+      const session = (betaState().trainingMode?.sessions || []).find(item => String(item.id) === trainingSessionId);
+      return `Training · ${session?.title || "Session"}`;
+    }
     const source = String(log?.source || log?.entryMethod || "manual").toLowerCase();
     if (!source || source === "manual" || source === "live") return "Manual";
     if (source === "csv_import" || source === "import" || source === "esp32") return "Imported";
@@ -9484,6 +9512,15 @@
       nounPlural: "sleepy events",
       empty: "No sleepy events logged today",
       question: "When during the day have I felt sleepy?"
+    },
+    {
+      id: "training",
+      label: "Training",
+      icon: "chart",
+      noun: "training event",
+      nounPlural: "training events",
+      empty: "No Training Mode sessions today",
+      question: "Where did today’s Training sessions and intake events happen?"
     }
   ];
 
@@ -9497,6 +9534,7 @@
   }
 
   function logMatchesPattern(log, type) {
+    if (type === "training") return Boolean(log.trainingModeSessionId || log.training_mode_session_id);
     if (type === "hydration") return isHydrationLog(log);
     if (type === "sleepy") return isSleepyLog(log);
     return isFuelLog(log);
@@ -9592,6 +9630,44 @@
     `;
   }
 
+  function trainingSessionsForPattern(key = todayViewKey()) {
+    return window.FuelGuardDomain.trainingPatternLanes({
+      logs: logsForDay(key),
+      sessions: betaState().trainingMode?.sessions || [],
+      key
+    });
+  }
+
+  function renderTrainingPatternLanes(key = todayViewKey()) {
+    const lanes = trainingSessionsForPattern(key);
+    if (!lanes.length) return `<article class="beta-training-pattern-empty"><p>No Training Mode sessions today.</p></article>`;
+    return `
+      <div class="beta-training-pattern-lanes" role="img" aria-label="Training sessions with Fuel and Hydration events">
+        ${lanes.map(({ session, events: sessionLogs }) => {
+          const startedAt = logDate(session.startedAt || session.started_at);
+          const endedAt = logDate(session.endedAt || session.ended_at) || new Date();
+          const durationMs = Math.max(1, endedAt - startedAt);
+          return `
+            <article class="beta-training-pattern-lane">
+              <div class="beta-training-pattern-label">
+                <strong>${safeText(session.title || "Training session")}</strong>
+                <span>${safeText(formatClock(startedAt))}–${safeText(formatClock(endedAt))}</span>
+              </div>
+              <div class="beta-training-pattern-track">
+                ${sessionLogs.map(log => {
+                  const left = clamp(((log.date - startedAt) / durationMs) * 100, 0, 100);
+                  const type = isHydrationLog(log) && !isFuelLog(log) ? "hydration" : "fuel";
+                  return `<i class="${type}" style="left:${stylePercent(left)}" title="${safeText(logTypeLabel(log))} · ${safeText(formatClock(log.date))}"><span>${type === "fuel" ? "F" : "H"}</span></i>`;
+                }).join("")}
+              </div>
+            </article>
+          `;
+        }).join("")}
+        <div class="beta-training-pattern-legend"><span><i class="fuel"></i>Fuel</span><span><i class="hydration"></i>Hydration</span></div>
+      </div>
+    `;
+  }
+
   function renderFuellingPatternGraphs(key = todayViewKey()) {
     selectedLogPatternType = normalizeLogPatternType(selectedLogPatternType);
     const pattern = logPatternDefinition(selectedLogPatternType);
@@ -9609,7 +9685,7 @@
             <button class="${type.id === selectedLogPatternType ? "active" : ""}" type="button" data-log-pattern-type="${safeText(type.id)}" aria-pressed="${type.id === selectedLogPatternType ? "true" : "false"}">${safeText(type.label)}</button>
           `).join("")}
         </nav>
-        ${renderFuellingPatternBarChart(key, selectedLogPatternType)}
+        ${selectedLogPatternType === "training" ? renderTrainingPatternLanes(key) : renderFuellingPatternBarChart(key, selectedLogPatternType)}
       </section>
     `;
   }
@@ -10034,7 +10110,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "training", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -10049,6 +10125,7 @@
       renderDailyLog();
     }
     if (target === "checklist") renderSettings();
+    if (target === "training") window.FuelGuardTrainingMode?.render?.();
   };
 
   async function clearBetaData() {
@@ -10325,7 +10402,7 @@
     }
   });
   document.getElementById("fuelDayType")?.addEventListener("change", event => {
-    const key = selectedDataDateKey();
+    const key = todayViewKey();
     setDayType(key, event.target.value);
     save();
     renderAll();
@@ -10471,15 +10548,53 @@
         patch.revoked_at = null;
       }
       if (nextStatus === "revoked") patch.revoked_at = now;
-      const { error } = await client
+      const expectedStatus = nextStatus === "revoked" ? "active" : "pending";
+      const updateResult = await client
         .from(COACH_RELATIONSHIPS_TABLE)
         .update(patch)
         .eq("id", id)
-        .eq("athlete_id", user.id);
-      if (error) throw error;
+        .eq("athlete_id", user.id)
+        .eq("status", expectedStatus)
+        .select("id,status,accepted_at,updated_at")
+        .maybeSingle();
+      if (updateResult.error) throw updateResult.error;
+      let relationship = updateResult.data;
+      if (!relationship) {
+        const currentResult = await client
+          .from(COACH_RELATIONSHIPS_TABLE)
+          .select("id,status,accepted_at,updated_at")
+          .eq("id", id)
+          .eq("athlete_id", user.id)
+          .maybeSingle();
+        if (currentResult.error) throw currentResult.error;
+        if (currentResult.data?.status !== nextStatus) throw new Error("Coach connection was already changed.");
+        relationship = currentResult.data;
+      }
+      let emailWarning = "";
+      const notificationKind = nextStatus === "active"
+        ? "coach_approved"
+        : nextStatus === "declined"
+          ? "coach_declined"
+          : "";
+      if (notificationKind) {
+        try {
+          await window.FuelGuardTransactionalEmail.sendNotification({
+            accessToken: window.fuelGuardCloud.accessToken(),
+            kind: notificationKind,
+            entityId: relationship.id
+          });
+        } catch (emailError) {
+          console.error("Coach connection decision email delivery failed", {
+            relationshipId: relationship.id,
+            kind: notificationKind,
+            error: String(emailError?.message || emailError)
+          });
+          emailWarning = " The relationship was updated, but its email could not be delivered.";
+        }
+      }
       coachSharingState.loadedFor = "";
-      coachSharingState.status = successMessage;
       await loadCoachSharingRelationships(true);
+      coachSharingState.status = `${successMessage}${emailWarning}`;
     } catch (error) {
       setCoachSharingStatus(coachSharingSetupError(error)
         ? "Coach access setup is not applied yet."

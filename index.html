@@ -13,10 +13,10 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v116-performance-demo-readiness" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v116-performance-demo-readiness" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v116-performance-demo-readiness" />
-  <link rel="stylesheet" href="training-fuel.css?v=mobile-pwa-v116-performance-demo-readiness" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v123-canonical-email" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v123-canonical-email" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v123-canonical-email" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v123-canonical-email" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -51,7 +51,7 @@
       width: 100vw;
       max-width: 100vw;
       display: grid !important;
-      grid-template-columns: 1fr !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
       overflow: hidden;
     }
 
@@ -107,9 +107,6 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="brand beta-brand-marker" aria-label="Fuel Guard"><div class="logo">FG</div></div>
-      <nav class="side-nav beta-nav">
-        <button class="nav-item active" data-screen="dashboard">Log</button>
-      </nav>
     </aside>
 
     <main class="app">
@@ -184,7 +181,12 @@
 
           <section id="fuelLogPatterns"></section>
 
-          <section id="trainingFuelAnalysis" aria-live="polite"></section>
+          <section class="beta-rhythm-section-card beta-milestones-card" aria-label="Milestones">
+            <div class="section-heading-row">
+              <div><h3>Milestones</h3><p class="muted">Build the habit and see what comes next.</p></div>
+            </div>
+            <div id="athleteMilestones"></div>
+          </section>
         </article>
 
         <article class="card insight dismissible beta-hidden-feature" id="dashboardTip" aria-hidden="true">
@@ -192,6 +194,10 @@
           <p id="dashboardInsight">Live Fuel Status is your default daily check-in.</p>
           <button class="tip-close" data-close-tip="dashboardTip" aria-label="Close tip">x</button>
         </article>
+      </section>
+
+      <section id="training" class="screen" aria-label="Fuel Guard Training Mode">
+        <div id="trainingModeSurface" class="training-mode-surface"></div>
       </section>
 
       <section id="checklist" class="screen">
@@ -287,7 +293,7 @@
 
         <article class="card beta-maximum-gap-card">
           <h2>Maximum Fuel Gap</h2>
-          <p class="muted">Choose how long you want to allow between fuel logs. This powers the Log-page countdown and status.</p>
+          <p class="muted">Choose how long you want to allow between fuel logs. This powers the Daily-page countdown and status.</p>
           <div class="form-grid beta-settings-grid beta-responsive-form-grid">
             <label>Maximum gap<select id="maximumFuelGapPreset">
               <option value="150">2h 30m</option>
@@ -350,7 +356,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v116-performance-demo-readiness</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v123-canonical-email</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -359,27 +365,35 @@
     </main>
   </div>
 
+  <aside id="athleteMilestoneToast" class="beta-milestone-toast" role="status" aria-live="polite" hidden></aside>
+
   <nav class="mobile-bottom-nav beta-mobile-nav" aria-label="Mobile primary navigation">
     <button class="mobile-nav-item active" type="button" data-mobile-screen="dashboard" data-mobile-tab="log">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m6 15 3-4 3 3 5-7 1 2"/></svg>
-      <span>Log</span>
+      <span>Daily</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="training" data-mobile-tab="training">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v4"/><path d="M17 4v4"/><path d="M5 8h14"/><path d="M6 12h4l2-3 2 6 2-3h2"/><path d="M5 20h14"/></svg>
+      <span>Training</span>
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="build-info.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v123-canonical-email"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="app-state.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="product-shell.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="app-ui.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="training-fuel.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v116-performance-demo-readiness"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="app-state.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="product-shell.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="app-ui.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="training-mode.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v123-canonical-email"></script>
 </body>
 </html>

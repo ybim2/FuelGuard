@@ -342,13 +342,14 @@ test("coach access helper is tied to an active direct athlete relationship", () 
   assert.match(helper, /relationship\.status = 'active'/);
 });
 
-test("athlete and coach UIs include loading, empty, full-context, and mobile states", () => {
+test("training context stays available in Training/Coach code but is removed from Athlete Daily", () => {
   const html = read("index.html");
   const athleteJs = read("training-fuel.js");
   const athleteCss = read("training-fuel.css");
   const coachJs = read("coach/coach-beta.js");
 
-  assert.match(html, /id="trainingFuelAnalysis"/);
+  assert.doesNotMatch(html, /id="trainingFuelAnalysis"/);
+  assert.doesNotMatch(html, /training-fuel\.js/);
   assert.match(athleteJs, /Loading recent training sessions/);
   assert.match(athleteJs, /Log fuel around your training to start seeing patterns/);
   assert.match(athleteJs, /Connect your training data to see how your fuelling lines up with your sessions/);

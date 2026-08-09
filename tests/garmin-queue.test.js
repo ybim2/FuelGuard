@@ -606,7 +606,7 @@ test("Garmin zero-secret connection uses Authentication OAuth and production end
   assert.match(source, /Authentication\.makeOAuthRequest/);
   assert.match(source, /connectiq:\/\/oauth/);
   assert.match(source, /Cryptography\.randomBytes\(24\)/);
-  assert.match(source, /PRODUCTION_BASE_URL = "https:\/\/fuel-guard-iota\.vercel\.app"/);
+  assert.match(source, /PRODUCTION_BASE_URL = "https:\/\/fuelguardapp\.com"/);
   assert.match(source, /TOKEN_KEY = "fg_device_token"/);
   assert.doesNotMatch(source, /GARMIN_BETA_TOKEN/);
   assert.doesNotMatch(source, /VERCEL_AUTOMATION_BYPASS_SECRET/);
@@ -620,6 +620,7 @@ test("Garmin scripts no longer depend on alpha token or Vercel bypass helpers", 
   assert.doesNotMatch(endpointScript, /VERCEL_AUTOMATION_BYPASS_SECRET/);
   assert.doesNotMatch(endpointScript, /GARMIN_BETA_TOKEN/);
   assert.doesNotMatch(endpointScript, /x-vercel-protection-bypass/);
+  assert.match(endpointScript, /https:\/\/fuelguardapp\.com\/api\/garmin\/log/);
   assert.doesNotMatch(helperScript, /GARMIN_BETA_TOKEN/);
   assert.doesNotMatch(helperScript, /VERCEL_AUTOMATION_BYPASS_SECRET/);
 });

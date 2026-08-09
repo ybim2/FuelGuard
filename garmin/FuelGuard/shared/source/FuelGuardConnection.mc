@@ -45,7 +45,7 @@ class FuelGuardAuthRequestException extends Lang.Exception {
 module FuelGuardConnection {
     const APP_QUICK_LOG = "quick_log";
     const APP_ACTIVITY_LOGGER = "activity_logger";
-    const PRODUCTION_BASE_URL = "https://fuel-guard-iota.vercel.app";
+    const PRODUCTION_BASE_URL = "https://fuelguardapp.com";
     const CONNECT_URL = PRODUCTION_BASE_URL + "/garmin/connect/";
     const RESULT_URL = "connectiq://oauth";
     const LOG_PATH = "/api/garmin/log";

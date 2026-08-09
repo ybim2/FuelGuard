@@ -37,4 +37,4 @@ Generate `GARMIN_TOKEN_PEPPER` as a high-entropy server-only secret. It is used 
 
 The opt-in Garmin health-pattern layer uses `/api/garmin/health` with the same paired device-token authentication as Garmin logging. It stores only Connect IQ-local watch samples and derived daily features; it does not use Garmin Health API, Garmin Activity API cloud access, sleep, HRV Status, Training Readiness or Recovery Time data.
 
-Supabase's built-in email sender has very low testing limits and is not intended for beta or production auth email volume. Before wider testing, configure a custom SMTP provider in Supabase Auth settings so sign-up confirmation and password reset emails are not constrained by the default sender's tight limits.
+Supabase's built-in email sender has very low testing limits and is not intended for beta or production auth email volume. Fuel Guard uses Resend custom SMTP for Supabase Auth messages and an authenticated server endpoint for Coach/organisation invitation messages. Configure and accept the complete flow described in `docs/resend-transactional-email.md` before wider beta testing.

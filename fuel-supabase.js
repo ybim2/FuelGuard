@@ -4,6 +4,7 @@
   const TARGETS_TABLE = "fuel_targets";
   const DEMAND_BLOCKS_TABLE = "fuel_demand_blocks";
   const WORK_BREAKS_TABLE = "fuel_work_breaks";
+  const LOG_SELECT_COLUMNS = "id,user_id,logged_at,type,source,external_event_id,day_type,training_session,training_mode_session_id,training_mode_preset_id,carbs_g,fluid_ml,sodium_mg,caffeine_mg,notes,created_at";
   const TARGET_SELECT_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,maximum_fuel_gap_minutes,updated_at,created_at";
   const TARGET_SELECT_LEGACY_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at";
   const STATUS_EVENT = "fuelguard:cloud-status";
@@ -165,6 +166,12 @@
     return date ? date.toISOString() : "";
   }
 
+  function nullableQuantity(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number) : null;
+  }
+
   function rowFingerprint(row) {
     const timestamp = timestampForRow(row);
     if (!timestamp) return "";
@@ -174,6 +181,12 @@
       normalizeSource(row?.source),
       row?.day_type || "",
       row?.training_session || "",
+      row?.training_mode_session_id || "",
+      row?.training_mode_preset_id || "",
+      nullableQuantity(row?.carbs_g),
+      nullableQuantity(row?.fluid_ml),
+      nullableQuantity(row?.sodium_mg),
+      nullableQuantity(row?.caffeine_mg),
       row?.notes || ""
     ].join("|");
   }
@@ -187,6 +200,12 @@
       normalizeSource(log?.source),
       log?.dayType || "",
       log?.trainingSession || "",
+      log?.trainingModeSessionId || "",
+      log?.trainingModePresetId || "",
+      nullableQuantity(log?.carbsG),
+      nullableQuantity(log?.fluidMl),
+      nullableQuantity(log?.sodiumMg),
+      nullableQuantity(log?.caffeineMg),
       log?.note || log?.notes || ""
     ].join("|");
   }
@@ -249,6 +268,12 @@
       externalEventId: row.external_event_id || "",
       dayType: row.day_type || "",
       trainingSession: row.training_session || "",
+      trainingModeSessionId: row.training_mode_session_id || "",
+      trainingModePresetId: row.training_mode_preset_id || "",
+      carbsG: nullableQuantity(row.carbs_g),
+      fluidMl: nullableQuantity(row.fluid_ml),
+      sodiumMg: nullableQuantity(row.sodium_mg),
+      caffeineMg: nullableQuantity(row.caffeine_mg),
       checkin: checkin || null,
       note: row.notes || "",
       syncStatus: SYNCED
@@ -273,6 +298,12 @@
       external_event_id: log.externalEventId || log.external_event_id || null,
       day_type: log.dayType || null,
       training_session: log.trainingSession || null,
+      training_mode_session_id: log.trainingModeSessionId || log.training_mode_session_id || null,
+      training_mode_preset_id: log.trainingModePresetId || log.training_mode_preset_id || null,
+      carbs_g: nullableQuantity(log.carbsG ?? log.carbs_g),
+      fluid_ml: nullableQuantity(log.fluidMl ?? log.fluid_ml),
+      sodium_mg: nullableQuantity(log.sodiumMg ?? log.sodium_mg),
+      caffeine_mg: nullableQuantity(log.caffeineMg ?? log.caffeine_mg),
       notes: crash ? CRASH_NOTE : checkin ? checkinNote : log.note || log.notes || null
     };
     if (id) row.id = id;
@@ -828,6 +859,12 @@
     localLog.externalEventId = row.external_event_id || localLog.externalEventId || "";
     localLog.dayType = row.day_type || localLog.dayType || "";
     localLog.trainingSession = row.training_session || localLog.trainingSession || "";
+    localLog.trainingModeSessionId = row.training_mode_session_id || "";
+    localLog.trainingModePresetId = row.training_mode_preset_id || "";
+    localLog.carbsG = nullableQuantity(row.carbs_g);
+    localLog.fluidMl = nullableQuantity(row.fluid_ml);
+    localLog.sodiumMg = nullableQuantity(row.sodium_mg);
+    localLog.caffeineMg = nullableQuantity(row.caffeine_mg);
     if (checkin) localLog.checkin = checkin;
     localLog.note = row.notes || localLog.note || "";
   }
@@ -839,6 +876,11 @@
       && normalizeSource(log.source) === normalizeSource(row.source)
       && (log.dayType || "") === (row.day_type || "")
       && (log.trainingSession || "") === (row.training_session || "")
+      && (log.trainingModeSessionId || "") === (row.training_mode_session_id || "")
+      && nullableQuantity(log.carbsG) === nullableQuantity(row.carbs_g)
+      && nullableQuantity(log.fluidMl) === nullableQuantity(row.fluid_ml)
+      && nullableQuantity(log.sodiumMg) === nullableQuantity(row.sodium_mg)
+      && nullableQuantity(log.caffeineMg) === nullableQuantity(row.caffeine_mg)
       && (log.note || log.notes || "") === (row.notes || "");
   }
 
@@ -869,7 +911,7 @@
     if (!client || !currentUser) return [];
     const { data, error } = await client
       .from(TABLE)
-      .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
+      .select(LOG_SELECT_COLUMNS)
       .eq("user_id", currentUser.id)
       .order("logged_at", { ascending: true });
     if (error) throw error;
@@ -892,7 +934,7 @@
       const { data, error } = await client
         .from(TABLE)
         .upsert(withId.map(item => item.row), { onConflict: "id" })
-        .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at");
+        .select(LOG_SELECT_COLUMNS);
       if (error) throw error;
       (data || []).forEach(row => {
         const item = withId.find(candidate => rowIdentityKeys(row).some(key => logIdentityKeys(candidate.log).includes(key)));
@@ -908,7 +950,7 @@
       const { data, error } = await client
         .from(TABLE)
         .insert(withoutId.map(item => item.row))
-        .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at");
+        .select(LOG_SELECT_COLUMNS);
       if (error) throw error;
       (data || []).forEach((row, index) => {
         const rowKeys = new Set(rowIdentityKeys(row));

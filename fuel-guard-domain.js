@@ -16,6 +16,18 @@
   const MIN_TEAM_PATTERN_ATHLETES = 2;
   const MIN_COMPARISON_LOGGED_DAYS = 3;
   const MIN_COMPARISON_METRIC_DAYS = 2;
+  const MILESTONE_THRESHOLDS = Object.freeze({
+    streak: Object.freeze([3, 5, 7, 14, 30, 50, 100]),
+    fuel: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
+    hydration: Object.freeze([10, 25, 50, 100, 250, 500, 1000])
+  });
+  const TRAINING_QUANTITY_FIELDS = Object.freeze(["carbsG", "fluidMl", "sodiumMg", "caffeineMg"]);
+  const TRAINING_QUANTITY_LIMITS = Object.freeze({
+    carbsG: 500,
+    fluidMl: 5000,
+    sodiumMg: 10000,
+    caffeineMg: 1000
+  });
   const TIME_BANDS = [
     { id: "overnight", label: "00:00-06:00", start: 0, end: 360 },
     { id: "early_morning", label: "06:00-08:00", start: 360, end: 480 },
@@ -210,6 +222,12 @@
       source: String(row?.source || "manual").toLowerCase(),
       dayType: row?.day_type || row?.dayType || "",
       trainingSession: row?.training_session || row?.trainingSession || "",
+      trainingModeSessionId: row?.training_mode_session_id || row?.trainingModeSessionId || "",
+      trainingModePresetId: row?.training_mode_preset_id || row?.trainingModePresetId || "",
+      carbsG: row?.carbs_g ?? row?.carbsG ?? null,
+      fluidMl: row?.fluid_ml ?? row?.fluidMl ?? null,
+      sodiumMg: row?.sodium_mg ?? row?.sodiumMg ?? null,
+      caffeineMg: row?.caffeine_mg ?? row?.caffeineMg ?? null,
       notes,
       checkin,
       externalEventId: row?.external_event_id || row?.externalEventId || ""
@@ -287,13 +305,35 @@
     ].join("|");
   }
 
+  function comparableActivityType(value) {
+    const type = String(value || "training").trim().toLowerCase();
+    if (/ride|cycling|bike|biking/.test(type)) return "bike";
+    if (/run|running|jog/.test(type)) return "run";
+    if (/swim/.test(type)) return "swim";
+    if (/triathlon|brick/.test(type)) return "multisport";
+    return type.replace(/[^a-z0-9]+/g, "_") || "training";
+  }
+
+  function crossProviderActivityMatch(left, right) {
+    if (!left || !right) return false;
+    if (!left.athleteId || left.athleteId !== right.athleteId) return false;
+    if (!left.source || !right.source || left.source === right.source) return false;
+    if (comparableActivityType(left.type) !== comparableActivityType(right.type)) return false;
+    const startDifference = Math.abs(left.startAt - right.startAt) / 1000;
+    const durationDifference = Math.abs(left.durationSeconds - right.durationSeconds);
+    const durationTolerance = Math.max(120, Math.min(left.durationSeconds, right.durationSeconds) * 0.05);
+    return startDifference <= 120 && durationDifference <= durationTolerance;
+  }
+
   function normalizeWorkouts(workouts = []) {
     const unique = new Map();
     (Array.isArray(workouts) ? workouts : []).forEach(row => {
       const workout = normalizeWorkout(row);
       if (!workout) return;
       const key = workoutDedupeKey(workout);
-      if (!unique.has(key)) unique.set(key, workout);
+      if (unique.has(key)) return;
+      const providerDuplicate = [...unique.values()].some(candidate => crossProviderActivityMatch(candidate, workout));
+      if (!providerDuplicate) unique.set(key, workout);
     });
     return Array.from(unique.values()).sort((a, b) => b.startAt - a.startAt || String(a.id).localeCompare(String(b.id)));
   }
@@ -437,13 +477,26 @@
     });
   }
 
+  function validActivityUsageLog(log) {
+    if (!log || typeof log !== "object" || !logDate(log)) return false;
+    if (log.deleted_at || log.deletedAt || log.revoked_at || log.revokedAt || log.valid === false) return false;
+    const source = String(log.source || "manual").trim().toLowerCase();
+    if (["test", "fixture", "invalid"].includes(source)) return false;
+    const type = String(log.type || log.logType || log.log_type || "").trim().toLowerCase();
+    return ["fuel", "hydration", "fuel_hydration"].includes(type) && !checkinPayload(log);
+  }
+
   // A usage day contains at least one real fuel or hydration moment. The
   // current streak ends today when today has a usage day; otherwise it may end
   // yesterday so an in-progress day does not break the streak before midnight.
   // Fuel+hydration moments count once in each lifetime total. Check-ins such as
   // Sleepy are neither fuel nor hydration and never affect these numbers.
   function activityUsageSummary(logs = [], now = new Date()) {
-    const valid = logsWithDates(logs);
+    const valid = (Array.isArray(logs) ? logs : [])
+      .filter(validActivityUsageLog)
+      .map(normalizeLog)
+      .filter(Boolean)
+      .sort((a, b) => a.date - b.date);
     const fuelMoments = valid.filter(isFuelLog);
     const hydrationMoments = valid.filter(isHydrationLog);
     const usageDays = new Set([...fuelMoments, ...hydrationMoments].map(log => dateKey(log.date)));
@@ -459,6 +512,547 @@
       fuelMoments: fuelMoments.length,
       hydrationMoments: hydrationMoments.length
     };
+  }
+
+  function applyDayTypeOverride(dayTypes = {}, key, value) {
+    const target = dayTypes && typeof dayTypes === "object" && !Array.isArray(dayTypes) ? dayTypes : {};
+    const date = String(key || "");
+    const next = String(value || "").trim().toLowerCase();
+    if (!date) return target;
+    if (["work", "holiday", "competition"].includes(next)) target[date] = next;
+    else delete target[date];
+    return target;
+  }
+
+  function applyDayTypeState(fuelGap = {}, key, value) {
+    const date = String(key || "");
+    const next = ["work", "holiday", "competition"].includes(String(value || "").trim().toLowerCase())
+      ? String(value).trim().toLowerCase()
+      : "";
+    if (!date || !fuelGap || typeof fuelGap !== "object" || Array.isArray(fuelGap)) return next;
+    if (!fuelGap.dayTypes || typeof fuelGap.dayTypes !== "object" || Array.isArray(fuelGap.dayTypes)) fuelGap.dayTypes = {};
+    applyDayTypeOverride(fuelGap.dayTypes, date, next);
+    if (fuelGap.archive?.[date] && typeof fuelGap.archive[date] === "object") {
+      fuelGap.archive[date].dayType = next;
+      fuelGap.archive[date].dayTypeLabel = next === "work"
+        ? "Working Day"
+        : next === "holiday"
+          ? "Holiday"
+          : next === "competition"
+            ? "Competition Day"
+            : "Not set";
+    }
+    if (Array.isArray(fuelGap.logs)) {
+      fuelGap.logs.forEach(log => {
+        const loggedAt = logDate(log);
+        if (loggedAt && dateKey(loggedAt) === date) log.dayType = next;
+      });
+    }
+    return next;
+  }
+
+  function milestoneKey(category, threshold) {
+    return `${String(category || "")}:${Number(threshold)}`;
+  }
+
+  function milestoneValue(summary = {}, category) {
+    if (category === "streak") return Number(summary.dayStreak || 0);
+    if (category === "fuel") return Number(summary.fuelMoments || 0);
+    if (category === "hydration") return Number(summary.hydrationMoments || 0);
+    return 0;
+  }
+
+  function milestoneLabel(category, threshold) {
+    const formatted = Number(threshold).toLocaleString("en-GB");
+    if (category === "streak") return `${formatted} day streak`;
+    if (category === "fuel") return `${formatted} fuelling moments`;
+    return `${formatted} hydration moments`;
+  }
+
+  function earnedMilestones(summary = {}) {
+    return Object.entries(MILESTONE_THRESHOLDS).flatMap(([category, thresholds]) =>
+      thresholds.filter(threshold => milestoneValue(summary, category) >= threshold).map(threshold => ({
+        key: milestoneKey(category, threshold),
+        category,
+        threshold,
+        label: milestoneLabel(category, threshold)
+      }))
+    );
+  }
+
+  function newlyCrossedMilestones(previousSummary, currentSummary = {}, acknowledgedKeys = []) {
+    if (!previousSummary || typeof previousSummary !== "object") return [];
+    const acknowledged = new Set((Array.isArray(acknowledgedKeys) ? acknowledgedKeys : []).map(String));
+    return earnedMilestones(currentSummary).filter(milestone =>
+      milestoneValue(previousSummary, milestone.category) < milestone.threshold
+      && !acknowledged.has(milestone.key)
+    );
+  }
+
+  function quantityValue(value) {
+    if (value === null || value === undefined || value === "") return 0;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number) : NaN;
+  }
+
+  function normalizeTrainingPreset(preset = {}) {
+    const normalized = {};
+    TRAINING_QUANTITY_FIELDS.forEach(field => {
+      const value = quantityValue(preset[field] ?? preset[field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)]);
+      normalized[field] = Number.isFinite(value) ? value : 0;
+    });
+    return normalized;
+  }
+
+  function validateTrainingPreset(preset = {}) {
+    const normalized = normalizeTrainingPreset(preset);
+    const errors = TRAINING_QUANTITY_FIELDS.flatMap(field => {
+      const value = normalized[field];
+      if (!Number.isInteger(value) || value < 0) return [`${field} must be a whole number at or above zero.`];
+      if (value > TRAINING_QUANTITY_LIMITS[field]) return [`${field} is above the supported per-event limit.`];
+      return [];
+    });
+    if (!TRAINING_QUANTITY_FIELDS.some(field => normalized[field] > 0)) {
+      errors.push("At least one training quantity must be above zero.");
+    }
+    return { valid: errors.length === 0, errors, preset: normalized };
+  }
+
+  function trainingEventContext(session, eventType) {
+    if (!session || !["fuel", "hydration", "fuel_hydration"].includes(eventType)) return null;
+    const useHydrationPreset = eventType === "hydration";
+    const prefix = useHydrationPreset ? "hydration" : "fuel";
+    const preset = normalizeTrainingPreset({
+      carbsG: session[`${prefix}CarbsG`] ?? session[`${prefix}_carbs_g`],
+      fluidMl: session[`${prefix}FluidMl`] ?? session[`${prefix}_fluid_ml`],
+      sodiumMg: session[`${prefix}SodiumMg`] ?? session[`${prefix}_sodium_mg`],
+      caffeineMg: session[`${prefix}CaffeineMg`] ?? session[`${prefix}_caffeine_mg`]
+    });
+    return {
+      trainingModeSessionId: session.id || session.sessionId || "",
+      trainingModePresetId: session[`${prefix}PresetId`] ?? session[`${prefix}_preset_id`] ?? "",
+      ...preset
+    };
+  }
+
+  function applyTrainingEventContext(log = {}, session = null, eventType = log?.type) {
+    const context = trainingEventContext(session, String(eventType || "").toLowerCase());
+    return context ? { ...log, ...context } : { ...log };
+  }
+
+  function trainingLogSessionId(log = {}) {
+    return String(log.trainingModeSessionId || log.training_mode_session_id || "");
+  }
+
+  function trainingSessionIntakeSummary({ session = {}, logs = [], now = new Date() } = {}) {
+    const startedAt = parseDate(session.startedAt || session.started_at);
+    const endedAt = parseDate(session.endedAt || session.ended_at);
+    const effectiveEnd = endedAt || parseDate(now) || new Date();
+    const durationSeconds = startedAt ? Math.max(0, Math.round((effectiveEnd - startedAt) / 1000)) : 0;
+    const sessionId = String(session.id || session.sessionId || "");
+    const matching = (Array.isArray(logs) ? logs : []).filter(log => sessionId && trainingLogSessionId(log) === sessionId);
+    const totals = { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 };
+    matching.forEach(log => {
+      const preset = normalizeTrainingPreset(log);
+      TRAINING_QUANTITY_FIELDS.forEach(field => { totals[field] += preset[field]; });
+    });
+    const hours = durationSeconds / 3600;
+    const perHour = Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => [
+      field,
+      hours > 0 ? Math.round((totals[field] / hours) * 10) / 10 : 0
+    ]));
+    return { sessionId, durationSeconds, eventCount: matching.length, totals, perHour, logs: matching };
+  }
+
+  const MIN_VALID_TRAINING_RATE_SECONDS = 15 * 60;
+
+  function completedTrainingSessionMetrics({ session = {}, logs = [], now = new Date() } = {}) {
+    const summary = trainingSessionIntakeSummary({ session, logs, now });
+    const endedAt = parseDate(session.endedAt || session.ended_at);
+    const completed = String(session.status || "") === "completed" && Boolean(endedAt);
+    const validDuration = completed && summary.durationSeconds >= MIN_VALID_TRAINING_RATE_SECONDS;
+    const validLoggedIntake = validDuration && summary.eventCount > 0;
+    const actualPerHour = Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => [
+      field,
+      validLoggedIntake ? summary.perHour[field] : null
+    ]));
+    return {
+      ...summary,
+      completed,
+      validDuration,
+      validLoggedIntake,
+      actualPerHour,
+      minimumRateDurationSeconds: MIN_VALID_TRAINING_RATE_SECONDS
+    };
+  }
+
+  function completedTrainingSessionAverages({ sessions = [], logs = [], now = new Date(), limit = 6 } = {}) {
+    const recent = (Array.isArray(sessions) ? sessions : [])
+      .filter(session => String(session.status || "") === "completed" && parseDate(session.endedAt || session.ended_at))
+      .sort((a, b) => parseDate(b.startedAt || b.started_at) - parseDate(a.startedAt || a.started_at))
+      .slice(0, Math.max(1, Number(limit) || 6));
+    const metrics = recent.map(session => completedTrainingSessionMetrics({
+      session,
+      logs,
+      now: parseDate(session.endedAt || session.ended_at) || now
+    }));
+    const durationMetrics = metrics.filter(metric => metric.validDuration);
+    const intakeMetrics = metrics.filter(metric => metric.validLoggedIntake);
+    return {
+      sessionCount: metrics.length,
+      validDurationCount: durationMetrics.length,
+      validIntakeCount: intakeMetrics.length,
+      averages: {
+        carbsGPerSession: intakeMetrics.length ? averageFinite(intakeMetrics.map(metric => metric.totals.carbsG)) : null,
+        carbsGPerHour: intakeMetrics.length ? averageFinite(intakeMetrics.map(metric => metric.actualPerHour.carbsG)) : null,
+        fluidMlPerSession: intakeMetrics.length ? averageFinite(intakeMetrics.map(metric => metric.totals.fluidMl)) : null,
+        durationSeconds: durationMetrics.length ? averageFinite(durationMetrics.map(metric => metric.durationSeconds)) : null
+      },
+      metrics
+    };
+  }
+
+  function trainingPlanProgress(summary = {}, plan = {}) {
+    const hours = Math.max(0, Number(summary.durationSeconds || 0) / 3600);
+    return Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => {
+      const rawRate = plan[field] ?? plan[`${field}PerHour`] ?? plan[field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)] ?? 0;
+      const rate = Math.max(0, Number(rawRate) || 0);
+      const actual = Number(summary.totals?.[field] || 0);
+      const expected = Math.round(rate * hours * 10) / 10;
+      const difference = Math.round((actual - expected) * 10) / 10;
+      const tolerance = Math.max(1, rate * 0.1);
+      return [field, {
+        actual,
+        plannedRate: rate,
+        expected,
+        difference,
+        state: !rate ? "unplanned" : difference < -tolerance ? "behind" : difference > tolerance ? "ahead" : "on_plan"
+      }];
+    }));
+  }
+
+  function trainingHourlyPlan({
+    fuelPreset = {},
+    hydrationPreset = {},
+    fuelIntervalMinutes = 30,
+    hydrationIntervalMinutes = 20,
+    advancedPlan = {},
+    useAdvancedPlan = false
+  } = {}) {
+    const intervals = {
+      fuel: clamp(Math.round(Number(fuelIntervalMinutes) || 30), 5, 360),
+      hydration: clamp(Math.round(Number(hydrationIntervalMinutes) || 20), 5, 360)
+    };
+    const presets = {
+      fuel: normalizeTrainingPreset(fuelPreset),
+      hydration: normalizeTrainingPreset(hydrationPreset)
+    };
+    const derived = Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => {
+      const rate = (presets.fuel[field] * 60 / intervals.fuel)
+        + (presets.hydration[field] * 60 / intervals.hydration);
+      return [field, Math.round(rate)];
+    }));
+    const advanced = normalizeTrainingPreset(advancedPlan);
+    return {
+      intervals,
+      derived,
+      effective: useAdvancedPlan ? advanced : derived,
+      source: useAdvancedPlan ? "advanced" : "derived"
+    };
+  }
+
+  function wholeMeasurement(value, unit = "") {
+    const rounded = Math.round(Number(value) || 0);
+    return `${rounded.toLocaleString("en-GB")}${unit}`;
+  }
+
+  function trainingPlannedSessionTotals(plan = {}, estimatedDurationMinutes = 60) {
+    const minutes = clamp(Math.round(Number(estimatedDurationMinutes) || 60), 15, 1440);
+    const hours = minutes / 60;
+    const totals = Object.fromEntries(TRAINING_QUANTITY_FIELDS.map(field => [
+      field,
+      Math.round(Math.max(0, Number(plan[field] || 0)) * hours)
+    ]));
+    return { estimatedDurationMinutes: minutes, totals };
+  }
+
+  function todayAthleteInsights({ logs = [], sessions = [], key, now = new Date(), timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const referenceNow = parseDate(now) || new Date();
+    const targetKey = validDateKey(key) || dateKeyInTimeZone(referenceNow, zone);
+    const normalizedLogs = logsWithDates(logs);
+    const dayLogs = normalizedLogs.filter(log => dateKeyInTimeZone(log.date, zone) === targetKey);
+    const fuelLogs = dayLogs.filter(isFuelLog);
+    const hydrationLogs = dayLogs.filter(isHydrationLog);
+    const sleepyLogs = dayLogs.filter(isSleepyLog);
+    const insights = [
+      {
+        id: "fuel-moments-today",
+        label: "Fuel today",
+        value: `${fuelLogs.length}`,
+        detail: `${fuelLogs.length === 1 ? "Fuelling moment" : "Fuelling moments"} recorded today.`
+      },
+      {
+        id: "hydration-moments-today",
+        label: "Hydration today",
+        value: `${hydrationLogs.length}`,
+        detail: `${hydrationLogs.length === 1 ? "Hydration moment" : "Hydration moments"} recorded today.`
+      }
+    ];
+
+    const fuelGaps = fuelLogs.slice(1).map((log, index) => ({
+      start: fuelLogs[index].date,
+      end: log.date,
+      minutes: Math.max(0, Math.round((log.date - fuelLogs[index].date) / 60000))
+    }));
+    if (fuelGaps.length) {
+      const average = Math.round(averageFinite(fuelGaps.map(gap => gap.minutes)));
+      const largest = fuelGaps.slice().sort((left, right) => right.minutes - left.minutes)[0];
+      insights.push({
+        id: "average-fuel-interval-today",
+        label: "Average fuel interval today",
+        value: duration(average),
+        detail: `Across ${fuelGaps.length} completed interval${fuelGaps.length === 1 ? "" : "s"} today.`
+      });
+      insights.push({
+        id: "largest-fuel-gap-today",
+        label: "Largest fuel gap today",
+        value: `${formatClockInTimeZone(largest.start, zone)}–${formatClockInTimeZone(largest.end, zone)}`,
+        detail: `${duration(largest.minutes)} between recorded Fuel moments.`
+      });
+    } else if (fuelLogs.length) {
+      const latestFuel = fuelLogs.at(-1);
+      const currentMinutes = Math.max(0, Math.round((referenceNow - latestFuel.date) / 60000));
+      insights.push({
+        id: "current-fuel-gap-today",
+        label: "Current fuel gap",
+        value: duration(currentMinutes),
+        detail: `Since Fuel at ${formatClockInTimeZone(latestFuel.date, zone)}.`
+      });
+    }
+
+    if (hydrationLogs.length) {
+      const latestHydration = hydrationLogs.at(-1);
+      const currentMinutes = Math.max(0, Math.round((referenceNow - latestHydration.date) / 60000));
+      insights.push({
+        id: "current-hydration-gap-today",
+        label: "Current hydration gap",
+        value: duration(currentMinutes),
+        detail: `Since Hydrate at ${formatClockInTimeZone(latestHydration.date, zone)}.`
+      });
+    }
+
+    const latestSleepy = sleepyLogs.at(-1);
+    if (latestSleepy) {
+      const previousFuel = normalizedLogs.filter(log => isFuelLog(log) && log.date < latestSleepy.date).at(-1);
+      insights.push({
+        id: "sleepy-fuel-gap-today",
+        label: "Latest Sleepy timing",
+        value: previousFuel ? `${duration(Math.round((latestSleepy.date - previousFuel.date) / 60000))} after last fuel` : "No earlier Fuel recorded",
+        detail: `Sleepy recorded at ${formatClockInTimeZone(latestSleepy.date, zone)}.`
+      });
+    }
+
+    const daySessions = (Array.isArray(sessions) ? sessions : [])
+      .filter(session => {
+        const start = parseDate(session.startedAt || session.started_at);
+        return start && dateKeyInTimeZone(start, zone) === targetKey;
+      })
+      .sort((left, right) => parseDate(right.startedAt || right.started_at) - parseDate(left.startedAt || left.started_at));
+    const session = daySessions[0];
+    if (session) {
+      const startAt = parseDate(session.startedAt || session.started_at);
+      const endedAt = parseDate(session.endedAt || session.ended_at);
+      const context = getWorkoutFuelContext({
+        id: session.id,
+        athleteId: session.userId || session.user_id || "",
+        source: "training_mode",
+        type: session.sessionType || session.session_type || "training",
+        title: session.title || "Training session",
+        startAt,
+        endAt: endedAt || referenceNow
+      }, normalizedLogs);
+      insights.push({
+        id: "training-fuel-before-today",
+        label: `Before ${session.title || "training"}`,
+        value: context?.hasPreviousFuel ? `${duration(context.preFuelGapMinutes)} before session` : "No earlier Fuel recorded",
+        detail: context?.hasPreviousFuel
+          ? `Last Fuel ${formatClockInTimeZone(context.previousFuelEvent.date, zone)} · session ${formatClockInTimeZone(startAt, zone)}.`
+          : `Session started at ${formatClockInTimeZone(startAt, zone)}.`
+      });
+      if (endedAt) {
+        insights.push({
+          id: "training-fuel-after-today",
+          label: `After ${session.title || "training"}`,
+          value: context?.hasPostFuel ? `${duration(context.postFuelGapMinutes)} post workout to fuel` : "Waiting for post-workout Fuel",
+          detail: context?.hasPostFuel
+            ? `Session ended ${formatClockInTimeZone(endedAt, zone)} · next Fuel ${formatClockInTimeZone(context.nextFuelEvent.date, zone)}.`
+            : `Session ended at ${formatClockInTimeZone(endedAt, zone)}.`
+        });
+      }
+    }
+
+    return { key: targetKey, insights, counts: { fuel: fuelLogs.length, hydration: hydrationLogs.length, sleepy: sleepyLogs.length } };
+  }
+
+  function athleteTrainingInsights({ logs = [], sessions = [], now = new Date(), timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const normalizedLogs = logsWithDates(logs);
+    const completed = (Array.isArray(sessions) ? sessions : [])
+      .filter(session => String(session.status || "completed") === "completed" && parseDate(session.startedAt || session.started_at) && parseDate(session.endedAt || session.ended_at));
+    const contexts = completed.map(session => getWorkoutFuelContext({
+      id: session.id,
+      athleteId: session.userId || session.user_id || "",
+      source: "training_mode",
+      type: session.sessionType || session.session_type || "training",
+      title: session.title || "Training session",
+      startAt: session.startedAt || session.started_at,
+      endAt: session.endedAt || session.ended_at
+    }, normalizedLogs)).filter(Boolean);
+    const preGaps = contexts.map(context => context.preFuelGapMinutes).filter(Number.isFinite);
+    const postGaps = contexts.map(context => context.postFuelGapMinutes).filter(Number.isFinite);
+    const sessionInsights = [];
+    if (preGaps.length) sessionInsights.push({ id: "average-pre-session-gap", label: "Average pre-session fuel gap", value: duration(Math.round(averageFinite(preGaps))), detail: `${preGaps.length} recorded session${preGaps.length === 1 ? "" : "s"}.` });
+    if (postGaps.length) {
+      sessionInsights.push({ id: "average-post-session-gap", label: "Average post-session refuel", value: duration(Math.round(averageFinite(postGaps))), detail: `${postGaps.length} recorded post-workout Fuel moment${postGaps.length === 1 ? "" : "s"}.` });
+      sessionInsights.push({ id: "longest-post-session-gap", label: "Longest recent post-session delay", value: duration(Math.max(...postGaps)), detail: "Measured from session finish to first Fuel." });
+    }
+    const today = todayAthleteInsights({ logs: normalizedLogs, sessions, now, timeZone: zone });
+    const dayInsightIds = new Set(["fuel-moments-today", "hydration-moments-today", "average-fuel-interval-today", "largest-fuel-gap-today", "current-fuel-gap-today", "current-hydration-gap-today", "sleepy-fuel-gap-today"]);
+    return { sessionInsights, dayInsights: today.insights.filter(insight => dayInsightIds.has(insight.id)) };
+  }
+
+  function behaviouralPatternInsights({ logs = [], sessions = [], timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const normalizedLogs = logsWithDates(logs);
+    const fuelLogs = normalizedLogs.filter(isFuelLog);
+    const byDay = new Map();
+    fuelLogs.forEach(log => {
+      const key = dateKeyInTimeZone(log.date, zone);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(log);
+    });
+    const gaps = [];
+    byDay.forEach((dayLogs, key) => {
+      dayLogs.sort((a, b) => a.date - b.date);
+      for (let index = 1; index < dayLogs.length; index += 1) {
+        const start = dayLogs[index - 1].date;
+        const end = dayLogs[index].date;
+        gaps.push({
+          key,
+          start,
+          end,
+          minutes: Math.round((end - start) / 60000),
+          startMinute: minutesIntoDayInTimeZone(start, zone),
+          endMinute: minutesIntoDayInTimeZone(end, zone)
+        });
+      }
+    });
+
+    const insights = [];
+    if (gaps.length >= 3) {
+      const average = Math.round(averageFinite(gaps.map(gap => gap.minutes)));
+      insights.push({
+        id: "average-fuel-interval",
+        label: "Average fuelling interval",
+        value: duration(average),
+        detail: `Observed across ${gaps.length} same-day fuel intervals.`,
+        sampleCount: gaps.length
+      });
+    }
+
+    const recurring = mostCommonWindow(gaps, gap => gapWindow(gap));
+    const recurringDays = new Set((recurring?.items || []).map(gap => gap.key)).size;
+    if (recurring && recurring.count >= 2 && recurringDays >= 2) {
+      insights.push({
+        id: "recurring-gap-window",
+        label: "Largest recurring gap",
+        value: recurring.label.replace("-", "–"),
+        detail: `Observed on ${recurringDays} days; this is a timing association, not a diagnosis.`,
+        sampleCount: recurring.count
+      });
+    }
+
+    const completedSessions = (Array.isArray(sessions) ? sessions : [])
+      .filter(session => String(session.status || "completed") === "completed" && parseDate(session.startedAt || session.started_at) && parseDate(session.endedAt || session.ended_at));
+    const trainingDays = new Set(completedSessions.map(session => dateKeyInTimeZone(session.startedAt || session.started_at, zone)));
+    const averageDayGap = key => averageFinite(gaps.filter(gap => gap.key === key).map(gap => gap.minutes));
+    const trainingDayGaps = [...trainingDays].map(averageDayGap).filter(Number.isFinite);
+    const ordinaryDayGaps = [...byDay.keys()].filter(key => !trainingDays.has(key)).map(averageDayGap).filter(Number.isFinite);
+    if (trainingDayGaps.length >= 2 && ordinaryDayGaps.length >= 2) {
+      const trainingAverage = averageFinite(trainingDayGaps);
+      const ordinaryAverage = averageFinite(ordinaryDayGaps);
+      const differencePct = ordinaryAverage > 0 ? Math.round(((trainingAverage - ordinaryAverage) / ordinaryAverage) * 100) : 0;
+      insights.push({
+        id: "training-day-comparison",
+        label: "Training days",
+        value: `${Math.abs(differencePct)}% ${differencePct >= 0 ? "longer" : "shorter"} average fuel interval`,
+        detail: `Observed across ${trainingDayGaps.length} training and ${ordinaryDayGaps.length} non-training days.`,
+        sampleCount: trainingDayGaps.length + ordinaryDayGaps.length
+      });
+    }
+
+    const sleepyLogs = normalizedLogs.filter(isSleepyLog);
+    if (sleepyLogs.length >= 3) {
+      const afterLongGap = sleepyLogs.filter(sleepy => {
+        const previousFuel = fuelLogs.filter(fuel => fuel.date < sleepy.date && dateKeyInTimeZone(fuel.date, zone) === dateKeyInTimeZone(sleepy.date, zone)).at(-1);
+        return previousFuel && (sleepy.date - previousFuel.date) / 60000 > 180;
+      }).length;
+      const pct = Math.round((afterLongGap / sleepyLogs.length) * 100);
+      insights.push({
+        id: "sleepy-after-long-gap",
+        label: "Sleepy and fuel gaps",
+        value: `${pct}% occurred over 3h after fuel`,
+        detail: `Observed across ${sleepyLogs.length} Sleepy events; this does not establish cause.`,
+        sampleCount: sleepyLogs.length
+      });
+    }
+
+    if (completedSessions.length >= 3) {
+      const workouts = completedSessions.map(session => ({
+        id: session.id,
+        athleteId: session.userId || session.user_id || "",
+        source: "training_mode",
+        type: session.sessionType || session.session_type || "training",
+        title: session.title,
+        startAt: session.startedAt || session.started_at,
+        endAt: session.endedAt || session.ended_at
+      }));
+      const contexts = getWorkoutFuelContexts(workouts, normalizedLogs);
+      const compliant = contexts.filter(context => Number.isFinite(context.postFuelGapMinutes) && context.postFuelGapMinutes <= 120).length;
+      insights.push({
+        id: "post-training-fuel",
+        label: "Post-training fuel compliance",
+        value: `${Math.round((compliant / contexts.length) * 100)}%`,
+        detail: `Fuel within 2h after ${contexts.length} completed Training Mode sessions.`,
+        sampleCount: contexts.length
+      });
+    }
+
+    return { insights, enoughData: insights.length > 0, gapSampleCount: gaps.length };
+  }
+
+  function trainingPatternLanes({ logs = [], sessions = [], key = dateKey(), timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const normalizedLogs = logsWithDates(logs);
+    const trainingLogs = normalizedLogs.filter(log => trainingLogSessionId(log));
+    const referencedIds = new Set(trainingLogs.map(trainingLogSessionId));
+    const matched = (Array.isArray(sessions) ? sessions : []).filter(session => {
+      const startedAt = parseDate(session.startedAt || session.started_at);
+      return (startedAt && dateKeyInTimeZone(startedAt, zone) === key) || referencedIds.has(String(session.id || ""));
+    }).map(session => ({ ...session }));
+    referencedIds.forEach(id => {
+      if (!matched.some(session => String(session.id) === id)) {
+        const events = trainingLogs.filter(log => trainingLogSessionId(log) === id);
+        matched.push({ id, title: "Training session", sessionType: "training", startedAt: events[0]?.date, endedAt: events.at(-1)?.date });
+      }
+    });
+    return matched
+      .map(session => ({
+        session,
+        events: trainingLogs.filter(log => trainingLogSessionId(log) === String(session.id))
+      }))
+      .sort((left, right) => parseDate(left.session.startedAt || left.session.started_at) - parseDate(right.session.startedAt || right.session.started_at));
   }
 
   function maximumFuelGapMinutes(targets = {}) {
@@ -1613,6 +2207,9 @@
     CHECKIN_NOTE_PREFIX,
     SLEEPY_CHECKIN_TYPE,
     DEFAULT_NUDGE_MESSAGE,
+    MILESTONE_THRESHOLDS,
+    TRAINING_QUANTITY_FIELDS,
+    TRAINING_QUANTITY_LIMITS,
     escapeHtml,
     parseDate,
     logDate,
@@ -1635,11 +2232,36 @@
     logsForDay,
     normalizeWorkout,
     normalizeWorkouts,
+    crossProviderActivityMatch,
     getWorkoutFuelContext,
     getWorkoutFuelContexts,
     aggregateWorkoutFuelContexts,
     workoutFuelSummariesByAthlete,
+    validActivityUsageLog,
     activityUsageSummary,
+    applyDayTypeOverride,
+    applyDayTypeState,
+    milestoneKey,
+    milestoneValue,
+    milestoneLabel,
+    earnedMilestones,
+    newlyCrossedMilestones,
+    normalizeTrainingPreset,
+    validateTrainingPreset,
+    trainingEventContext,
+    applyTrainingEventContext,
+    trainingLogSessionId,
+    trainingSessionIntakeSummary,
+    completedTrainingSessionMetrics,
+    completedTrainingSessionAverages,
+    trainingPlanProgress,
+    trainingHourlyPlan,
+    trainingPlannedSessionTotals,
+    wholeMeasurement,
+    todayAthleteInsights,
+    athleteTrainingInsights,
+    behaviouralPatternInsights,
+    trainingPatternLanes,
     latestLog,
     maximumFuelGapMinutes,
     fuelGapStatus,

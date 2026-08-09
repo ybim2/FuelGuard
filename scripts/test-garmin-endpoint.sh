@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-endpoint="${GARMIN_API_ENDPOINT:-https://fuel-guard-iota.vercel.app/api/garmin/log}"
+endpoint="${GARMIN_API_ENDPOINT:-https://fuelguardapp.com/api/garmin/log}"
 if [[ -z "${GARMIN_DEVICE_TOKEN:-}" ]]; then
   cat >&2 <<'EOF'
 Set GARMIN_DEVICE_TOKEN to a device token obtained through the Garmin zero-secret pairing flow.

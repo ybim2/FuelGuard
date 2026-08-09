@@ -25,7 +25,7 @@ function localLog(userId, key, hour, minute, type = "fuel", extra = {}) {
   });
 }
 
-test("Coach Beta is a separate route and athlete Log navigation remains simple", () => {
+test("Coach Beta is a separate route and athlete Daily navigation remains simple", () => {
   const athleteHtml = read("index.html");
   const athleteJs = read("fuel-beta.js");
   const coachHtml = read("coach/index.html");
@@ -82,7 +82,7 @@ test("Coach Beta is a separate route and athlete Log navigation remains simple",
   assert.doesNotMatch(coachJs, /ATHLETE_ID_PATTERN|function exactAthleteRequestRow|data-request-athlete|coachInviteAthleteId|coachAthleteSearch/);
 
   assert.doesNotMatch(athleteHtml, /data-coach-tab|Coach Beta|coachDashboardPanel/);
-  assert.match(athleteHtml, /data-mobile-screen="dashboard"[\s\S]*<span>Log<\/span>/);
+  assert.match(athleteHtml, /data-mobile-screen="dashboard"[\s\S]*<span>Daily<\/span>/);
   assert.match(athleteHtml, /id="coachSharingCard"/);
   assert.match(athleteHtml, /Coach Access/);
   assert.match(athleteHtml, /id="coachAthleteCode"/);

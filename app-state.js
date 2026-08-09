@@ -18,6 +18,23 @@ const DEFAULT_STATE = {
     demandBlocks: [],
     workBreaks: [],
     planRealism: {},
+    milestones: {
+      lastSummary: null,
+      achievements: [],
+      syncedAt: ""
+    },
+    trainingMode: {
+      presets: {
+        fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 },
+        hydration: { id: "", carbsG: 0, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 }
+      },
+      plan: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
+      estimatedDurationMinutes: 60,
+      activeSession: null,
+      sessions: [],
+      lastSyncedAt: "",
+      lastError: ""
+    },
     graphMode: "fuel",
     fuelWindowMinutes: 720,
     maximumFuelGapMinutes: 180,
@@ -94,6 +111,33 @@ function load() {
         demandBlocks: Array.isArray(parsedFuelGap.demandBlocks) ? parsedFuelGap.demandBlocks : [],
         workBreaks: Array.isArray(parsedFuelGap.workBreaks) ? parsedFuelGap.workBreaks : [],
         planRealism: isPlainObject(parsedFuelGap.planRealism) ? parsedFuelGap.planRealism : {},
+        milestones: {
+          ...defaults.fuelGap.milestones,
+          ...(isPlainObject(parsedFuelGap.milestones) ? parsedFuelGap.milestones : {}),
+          lastSummary: isPlainObject(parsedFuelGap.milestones?.lastSummary) ? parsedFuelGap.milestones.lastSummary : null,
+          achievements: Array.isArray(parsedFuelGap.milestones?.achievements) ? parsedFuelGap.milestones.achievements : []
+        },
+        trainingMode: {
+          ...defaults.fuelGap.trainingMode,
+          ...(isPlainObject(parsedFuelGap.trainingMode) ? parsedFuelGap.trainingMode : {}),
+          presets: {
+            fuel: {
+              ...defaults.fuelGap.trainingMode.presets.fuel,
+              ...(isPlainObject(parsedFuelGap.trainingMode?.presets?.fuel) ? parsedFuelGap.trainingMode.presets.fuel : {})
+            },
+            hydration: {
+              ...defaults.fuelGap.trainingMode.presets.hydration,
+              ...(isPlainObject(parsedFuelGap.trainingMode?.presets?.hydration) ? parsedFuelGap.trainingMode.presets.hydration : {})
+            }
+          },
+          plan: {
+            ...defaults.fuelGap.trainingMode.plan,
+            ...(isPlainObject(parsedFuelGap.trainingMode?.plan) ? parsedFuelGap.trainingMode.plan : {})
+          },
+          estimatedDurationMinutes: Math.min(1440, Math.max(15, Number(parsedFuelGap.trainingMode?.estimatedDurationMinutes) || 60)),
+          activeSession: isPlainObject(parsedFuelGap.trainingMode?.activeSession) ? parsedFuelGap.trainingMode.activeSession : null,
+          sessions: Array.isArray(parsedFuelGap.trainingMode?.sessions) ? parsedFuelGap.trainingMode.sessions : []
+        },
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)
           : defaults.fuelGap.fuelWindowMinutes,
@@ -208,6 +252,22 @@ function fuelGapState() {
   if (!Array.isArray(state.fuelGap.demandBlocks)) state.fuelGap.demandBlocks = [];
   if (!Array.isArray(state.fuelGap.workBreaks)) state.fuelGap.workBreaks = [];
   if (!isPlainObject(state.fuelGap.planRealism)) state.fuelGap.planRealism = {};
+  if (!isPlainObject(state.fuelGap.milestones)) state.fuelGap.milestones = JSON.parse(JSON.stringify(DEFAULT_STATE.fuelGap.milestones));
+  if (!isPlainObject(state.fuelGap.milestones.lastSummary)) state.fuelGap.milestones.lastSummary = null;
+  if (!Array.isArray(state.fuelGap.milestones.achievements)) state.fuelGap.milestones.achievements = [];
+  if (!isPlainObject(state.fuelGap.trainingMode)) state.fuelGap.trainingMode = JSON.parse(JSON.stringify(DEFAULT_STATE.fuelGap.trainingMode));
+  if (!isPlainObject(state.fuelGap.trainingMode.presets)) state.fuelGap.trainingMode.presets = JSON.parse(JSON.stringify(DEFAULT_STATE.fuelGap.trainingMode.presets));
+  ["fuel", "hydration"].forEach(type => {
+    state.fuelGap.trainingMode.presets[type] = {
+      ...DEFAULT_STATE.fuelGap.trainingMode.presets[type],
+      ...(isPlainObject(state.fuelGap.trainingMode.presets[type]) ? state.fuelGap.trainingMode.presets[type] : {})
+    };
+  });
+  if (!isPlainObject(state.fuelGap.trainingMode.plan)) state.fuelGap.trainingMode.plan = { ...DEFAULT_STATE.fuelGap.trainingMode.plan };
+  state.fuelGap.trainingMode.plan = { ...DEFAULT_STATE.fuelGap.trainingMode.plan, ...state.fuelGap.trainingMode.plan };
+  state.fuelGap.trainingMode.estimatedDurationMinutes = Math.min(1440, Math.max(15, Number(state.fuelGap.trainingMode.estimatedDurationMinutes) || 60));
+  if (!isPlainObject(state.fuelGap.trainingMode.activeSession)) state.fuelGap.trainingMode.activeSession = null;
+  if (!Array.isArray(state.fuelGap.trainingMode.sessions)) state.fuelGap.trainingMode.sessions = [];
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
     state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
   }

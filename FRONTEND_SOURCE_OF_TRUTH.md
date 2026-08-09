@@ -2,9 +2,10 @@
 
 ## Canonical App
 
-The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders one primary bottom-navigation screen:
+The canonical frontend is the root-level mobile-first Fuel Guard PWA. It renders two related primary bottom-navigation screens:
 
 - Log
+- Training
 
 Settings is still part of the canonical app, but it opens from the sticky header settings icon instead of the bottom navigation.
 
@@ -15,15 +16,16 @@ Fuel Guard Performance is a third, separate organisational surface at `/performa
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v116-performance-demo-readiness
+Canonical app: mobile-pwa-v123-canonical-email
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
 
 ## Current Screen Ownership
 
-- Log: default opening screen with current fuel/hydration status including daily log counts, a today-only chronological Fuelling Patterns bar chart, and an expanded Today’s timeline that owns compact Log Fuel, Log Hydration, and Undo actions.
-- Settings: account and sync, connected Garmin apps, legacy CSV import, destructive data clearing, app update, app version, and privacy.
+- Log: default opening screen with current fuel/hydration status including daily log counts, a today-only chronological Fuelling Patterns bar chart, and an expanded Today’s timeline that owns compact Log Fuel, Log Hydration, and Undo actions. Daily Mode remains quantity-free.
+- Training: explicit endurance-session mode with configure-once Fuel/Hydrate presets, one-tap logging, session intake/rates, user-selected plan comparison, and completed-session review.
+- Settings: account and sync, connected Garmin apps, milestone history, legacy CSV import, destructive data clearing, app update, app version, and privacy.
 
 Insights, Analysis and Plan are no longer visible product screens. Dormant planning/demand and analysis helper code may remain only where it supports existing records, migrations, Garmin-derived insights, or calculations used by the active screens.
 
@@ -50,13 +52,15 @@ Do not reintroduce them unless the user explicitly asks for them.
 
 - `index.html`: static app shell, screen markup, and script/style imports
 - `build-info.js`: visible build metadata used by Settings and PWA update checks
-- `styles.css`, `mobile-pwa.css`, `mobile-ux-overrides.css`, `fuel-beta.css`: active styles
+- `styles.css`, `mobile-pwa.css`, `mobile-ux-overrides.css`, `fuel-beta.css`, `training-mode.css`: active styles
 - `app-state.js`: local app state and persistence helpers
 - `fuel-supabase.js`: Supabase Auth plus cloud log, target, and demand-planning sync layer
 - `product-shell.js`: live-session main-header identity and Athlete/Coach/Performance product navigation support
 - `api/supabase-config.js`: Vercel runtime public Supabase config endpoint
 - `app-ui.js`: base screen switching and shared UI rendering
 - `fuel-beta.js`: canonical mobile PWA behavior for Log and header-accessible Settings
+- `training-mode.js`: Athlete Training Mode presets, lifecycle, intake/rates, cloud sync, and review UI
+- `athlete-milestones.js`: derived usage milestone reconciliation, cloud acknowledgement, and restrained UI
 - `fuel-beta-ui-polish.js`: mobile PWA ordering and small UI polish
 - `day-type-overrides.js`: day type and training session support
 - `fuel-guard-domain.js`: shared Fuel Guard log/status helpers used by the athlete app shell and Coach Beta
@@ -150,8 +154,8 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v116-performance-demo-readiness`.
+The current canonical version is `mobile-pwa-v123-canonical-email`.
 
 ## Future Frontend Changes
 
-Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has the Log bottom tab, with Settings reachable from the sticky header icon.
+Future Codex chats should make UI changes only in the active files listed above. Before editing UI, verify the rendered app still has Log and Training beside each other in bottom navigation, with Settings reachable from the sticky header icon.

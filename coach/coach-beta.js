@@ -20,6 +20,7 @@
     savedGroups: "fuel_saved_groups",
     savedGroupMembers: "fuel_saved_group_members",
     garminActivities: "garmin_activity_summaries",
+    trainingModeSessions: "fuel_training_mode_sessions",
     demandBlocks: "fuel_demand_blocks",
     trainingSessions: "fuel_training_sessions",
     trainingAssignments: "fuel_training_session_athletes",
@@ -69,6 +70,7 @@
     savedGroups: [],
     savedGroupMembers: [],
     garminActivities: [],
+    trainingModeSessions: [],
     demandBlocks: [],
     trainingSessions: [],
     trainingAssignments: [],
@@ -299,6 +301,16 @@
     }).filter(Boolean);
     const workouts = domain.normalizeWorkouts([
       ...state.garminActivities,
+      ...state.trainingModeSessions.map(session => ({
+        id: session.id,
+        athleteId: session.user_id,
+        source: "training_mode",
+        sourceActivityId: session.id,
+        type: session.session_type,
+        title: session.title,
+        startAt: session.started_at,
+        endAt: session.ended_at
+      })),
       ...state.demandBlocks.map(block => ({
         ...block,
         athleteId: block.user_id,
@@ -1426,6 +1438,120 @@
     `;
   }
 
+  function trainingModeSessionsForAthlete(athleteId) {
+    return state.trainingModeSessions
+      .filter(session => String(session.user_id) === String(athleteId) && session.status === "completed" && session.ended_at)
+      .sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
+  }
+
+  function trainingModeSessionModel(row) {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      sessionType: row.session_type,
+      status: row.status,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      plan: {
+        carbsG: row.plan_carbs_g_per_hour,
+        fluidMl: row.plan_fluid_ml_per_hour,
+        sodiumMg: row.plan_sodium_mg_per_hour,
+        caffeineMg: row.plan_caffeine_mg_per_hour
+      }
+    };
+  }
+
+  function coachTrainingSessionContext(row) {
+    const session = trainingModeSessionModel(row);
+    const logs = state.logs.filter(log => String(log.userId) === String(row.user_id));
+    const summary = domain.trainingSessionIntakeSummary({ session, logs, now: new Date(session.endedAt) });
+    const context = domain.getWorkoutFuelContext({
+      id: session.id,
+      athleteId: session.userId,
+      source: "training_mode",
+      type: session.sessionType,
+      title: session.title,
+      startAt: session.startedAt,
+      endAt: session.endedAt
+    }, logs);
+    return { session, summary, context, progress: domain.trainingPlanProgress(summary, session.plan) };
+  }
+
+  function renderCoachTrainingFuel(item) {
+    const sessions = trainingModeSessionsForAthlete(item.athlete.userId);
+    if (!sessions.length) {
+      return `<section class="coach-card coach-training-mode-card"><div class="coach-card-heading compact"><div><h2>Training Fuel</h2><p>Completed Training Mode sessions shared by this athlete.</p></div></div><div class="coach-empty compact">No completed Training Mode sessions are available in the last 14 days.</div></section>`;
+    }
+    const quantities = [
+      ["Carbohydrate", "carbsG", "g"],
+      ["Fluid", "fluidMl", "ml"],
+      ["Sodium", "sodiumMg", "mg"],
+      ["Caffeine", "caffeineMg", "mg"]
+    ];
+    return `
+      <section class="coach-card coach-training-mode-card">
+        <div class="coach-card-heading compact"><div><h2>Training Fuel</h2><p>Pre, during, and post-session execution from the athlete’s actively shared Training Mode records.</p></div></div>
+        <div class="coach-training-mode-list">
+          ${sessions.slice(0, 5).map(row => {
+            const { session, summary, context, progress } = coachTrainingSessionContext(row);
+            const fuelEvents = summary.logs.filter(domain.isFuelLog).length;
+            const hydrationEvents = summary.logs.filter(domain.isHydrationLog).length;
+            return `
+              <article class="coach-training-mode-session">
+                <header>
+                  <div><strong>${safe(session.title)}</strong><span>${safe(workoutTitle({ type: session.sessionType }))} · ${safe(domain.dateKeyInTimeZone(session.startedAt, state.timeZone))}</span></div>
+                  <span>${safe(domain.formatClockInTimeZone(session.startedAt, state.timeZone))}–${safe(domain.formatClockInTimeZone(session.endedAt, state.timeZone))} · ${safe(domain.duration(summary.durationSeconds / 60))}</span>
+                </header>
+                <div class="coach-training-phase-row">
+                  <span>Before<strong>${safe(context?.hasPreviousFuel ? `Pre-training fuel · ${domain.duration(context.preFuelGapMinutes)} before` : "No pre-training fuel recorded")}</strong></span>
+                  <span>During<strong>${safe(`${fuelEvents} Fuel · ${hydrationEvents} Hydrate`)}</strong></span>
+                  <span>After<strong>${safe(context?.hasPostFuel ? `Post-training fuel · ${domain.duration(context.postFuelGapMinutes)} after` : "No post-training fuel recorded yet")}</strong></span>
+                </div>
+                <div class="coach-training-quantity-grid">
+                  ${quantities.map(([label, field, unit]) => {
+                    const plan = progress[field];
+                    const execution = plan.plannedRate > 0
+                      ? `${domain.wholeMeasurement(plan.plannedRate, `${unit}/h`)} planned · ${plan.state === "on_plan" ? "on plan" : plan.state === "behind" ? "behind plan" : "ahead of plan"}`
+                      : "No plan set";
+                    return `<span>${safe(label)}<strong>${safe(domain.wholeMeasurement(summary.totals[field], unit))} · ${safe(domain.wholeMeasurement(summary.perHour[field], `${unit}/h`))}</strong><small>${safe(execution)}</small></span>`;
+                  }).join("")}
+                </div>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderCoachBehaviourPatterns(item) {
+    const athleteId = item.athlete.userId;
+    const sessions = trainingModeSessionsForAthlete(athleteId).map(trainingModeSessionModel);
+    const logs = state.logs.filter(log => String(log.userId) === String(athleteId));
+    const insights = domain.behaviouralPatternInsights({ logs, sessions, timeZone: state.timeZone }).insights;
+    if (sessions.length >= 3) {
+      const plannedStates = sessions.flatMap(session => {
+        const summary = domain.trainingSessionIntakeSummary({ session, logs, now: new Date(session.endedAt) });
+        return Object.values(domain.trainingPlanProgress(summary, session.plan)).filter(metric => metric.plannedRate > 0);
+      });
+      if (plannedStates.length >= 3) {
+        const onPlan = plannedStates.filter(metric => metric.state === "on_plan").length;
+        insights.push({
+          label: "Training Mode execution",
+          value: `${Math.round((onPlan / plannedStates.length) * 100)}% within plan tolerance`,
+          detail: `Observed across ${plannedStates.length} planned session measurements; no causal claim is made.`
+        });
+      }
+    }
+    return `
+      <section class="coach-card coach-behaviour-patterns-card">
+        <div class="coach-card-heading compact"><div><h2>Recent patterns</h2><p>Thresholded behavioural observations from actively shared data.</p></div></div>
+        ${insights.length ? `<div class="coach-behaviour-pattern-grid">${insights.map(insight => `<article><span>${safe(insight.label)}</span><strong>${safe(insight.value)}</strong><small>${safe(insight.detail)}</small></article>`).join("")}</div>` : `<div class="coach-empty compact">More shared observations are needed before a pattern is shown.</div>`}
+      </section>
+    `;
+  }
+
   function renderAthleteDetail() {
     const target = $("coachAthleteDetail");
     if (!target) return;
@@ -1461,6 +1587,10 @@
           </article>
         </div>
       </section>
+
+      ${renderCoachBehaviourPatterns(item)}
+
+      ${renderCoachTrainingFuel(item)}
 
       ${renderCoachWorkoutFuel(item)}
 
@@ -1966,6 +2096,7 @@
         state.nudges = [];
         state.dataHealthRows = [];
         state.garminActivities = [];
+        state.trainingModeSessions = [];
         state.demandBlocks = [];
         state.workoutFuelContexts = [];
         state.workoutFuelSummaries = [];
@@ -2003,6 +2134,7 @@
       state.dataHealthRows = [];
       state.schedules = [];
       state.garminActivities = [];
+      state.trainingModeSessions = [];
       state.demandBlocks = [];
       state.workoutFuelContexts = [];
       state.workoutFuelSummaries = [];
@@ -2031,7 +2163,7 @@
         const dashboardBounds = domain.periodQueryBounds(dashboardPeriod, state.timeZone);
         const { data: logs, error: logsError } = await state.client
           .from(TABLES.logs)
-          .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,notes,created_at")
+          .select("id,user_id,logged_at,type,source,external_event_id,day_type,training_session,training_mode_session_id,training_mode_preset_id,carbs_g,fluid_ml,sodium_mg,caffeine_mg,notes,created_at")
           .in("user_id", athleteIds)
           .gte("logged_at", dashboardBounds.start.toISOString())
           .lt("logged_at", dashboardBounds.endExclusive.toISOString())
@@ -2040,7 +2172,7 @@
         state.logs = (logs || []).map(domain.normalizeLog).filter(Boolean);
 
         const workoutWindowEnd = new Date();
-        const [garminResult, demandResult] = await Promise.all([
+        const [garminResult, demandResult, trainingModeResult] = await Promise.all([
           state.client
             .from(TABLES.garminActivities)
             .select("id,user_id,source,source_activity_id,activity_type,started_at,duration_seconds")
@@ -2055,12 +2187,22 @@
             .eq("type", "training")
             .gte("end_time", workoutWindowStart.toISOString())
             .lte("end_time", workoutWindowEnd.toISOString())
-            .order("start_time", { ascending: false })
+            .order("start_time", { ascending: false }),
+          state.client
+            .from(TABLES.trainingModeSessions)
+            .select("*")
+            .in("user_id", athleteIds)
+            .eq("status", "completed")
+            .gte("started_at", workoutWindowStart.toISOString())
+            .lte("started_at", workoutWindowEnd.toISOString())
+            .order("started_at", { ascending: false })
         ]);
         if (garminResult.error) throw garminResult.error;
         if (demandResult.error) throw demandResult.error;
+        if (trainingModeResult.error) throw trainingModeResult.error;
         state.garminActivities = garminResult.data || [];
         state.demandBlocks = demandResult.data || [];
+        state.trainingModeSessions = trainingModeResult.data || [];
 
         const { data: targets, error: targetsError } = await state.client
           .from(TABLES.targets)
@@ -2262,6 +2404,7 @@
     state.nudges = [];
     state.dataHealthRows = [];
     state.garminActivities = [];
+    state.trainingModeSessions = [];
     state.demandBlocks = [];
     state.workoutFuelContexts = [];
     state.workoutFuelSummaries = [];
@@ -2596,11 +2739,22 @@
           athlete_id: athleteId,
           ...mutableRelationship
         });
-      const { error } = await write;
+      const { data: savedRelationship, error } = await write.select("id").single();
       if (error) throw error;
       state.athleteCodeResult = { ...result, relationship_status: "pending" };
-      state.athleteCodeStatus = "Connection request sent. Athlete data stays private until they approve.";
-      state.athleteCodeStatusDetail = "";
+      try {
+        await window.FuelGuardTransactionalEmail.sendInvitation({
+          accessToken: state.session?.access_token,
+          kind: "coach_athlete",
+          entityId: savedRelationship.id
+        });
+        state.athleteCodeStatus = "Connection request sent and email delivered. Athlete data stays private until they approve.";
+        state.athleteCodeStatusDetail = "";
+      } catch (emailError) {
+        console.error("Coach connection email delivery failed", { relationshipId: savedRelationship.id, error: String(emailError?.message || emailError) });
+        state.athleteCodeStatus = "Connection request saved. Athlete data stays private until they approve.";
+        state.athleteCodeStatusDetail = "The email could not be delivered, but the request remains available in Fuel Guard.";
+      }
       setStatus(state.athleteCodeStatus);
       await loadCoachData({ reason: "sharing-requested" });
       renderAthleteCodeResult();

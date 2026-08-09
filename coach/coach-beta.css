@@ -1559,3 +1559,111 @@ body.coach-beta {
     width: 100%;
   }
 }
+
+/* v117 final precedence overrides. */
+body.coach-beta,
+.coach-shell,
+#coachAppShell .coach-panel {
+  background: #ffffff;
+}
+
+#coachAppShell .coach-card {
+  margin: 0;
+  padding: 18px 2px;
+  border: 0;
+  border-top: 1px solid rgba(16, 32, 25, .11);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#coachAppShell .coach-card + .coach-card,
+#coachAppShell .coach-card + .coach-list,
+#coachAppShell .coach-list + .coach-card,
+#coachAppShell .coach-panel > * + * {
+  margin-top: 0;
+}
+
+#coachAppShell .coach-panel > :first-child .coach-card:first-child,
+#coachAppShell .coach-panel > .coach-card:first-child {
+  border-top: 0;
+}
+
+@media (min-width: 760px) {
+  .coach-shell { padding-inline: 24px; }
+}
+
+/* Training Mode review detail remains compact and athlete-scoped. */
+.coach-training-mode-list,
+.coach-training-mode-session,
+.coach-behaviour-pattern-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.coach-training-mode-session {
+  padding: 16px;
+  border: 1px solid var(--coach-line);
+  border-radius: 16px;
+  background: #f8faf8;
+}
+
+.coach-training-mode-session header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.coach-training-mode-session header > div,
+.coach-training-mode-session header > div span {
+  display: grid;
+  gap: 3px;
+}
+
+.coach-training-mode-session header span,
+.coach-training-phase-row > span,
+.coach-training-quantity-grid > span,
+.coach-behaviour-pattern-grid article span,
+.coach-behaviour-pattern-grid article small {
+  color: var(--coach-muted);
+  font-size: .74rem;
+}
+
+.coach-training-phase-row,
+.coach-training-quantity-grid,
+.coach-behaviour-pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.coach-training-phase-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.coach-training-phase-row > span,
+.coach-training-quantity-grid > span,
+.coach-behaviour-pattern-grid article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.coach-training-phase-row strong,
+.coach-training-quantity-grid strong,
+.coach-behaviour-pattern-grid strong {
+  color: var(--coach-text);
+  font-size: .84rem;
+  line-height: 1.35;
+}
+
+.coach-training-quantity-grid small { color: var(--coach-muted); font-size: .7rem; }
+
+@media (max-width: 620px) {
+  .coach-training-mode-session header { display: grid; }
+  .coach-training-phase-row,
+  .coach-training-quantity-grid,
+  .coach-behaviour-pattern-grid { grid-template-columns: 1fr; }
+}
