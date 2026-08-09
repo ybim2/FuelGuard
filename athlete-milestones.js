@@ -2,6 +2,8 @@
 (() => {
   const TABLE = "fuel_milestone_achievements";
   let syncing = false;
+  let pointsSyncing = false;
+  let pointsProfile = null;
   let toastTimer = 0;
 
   function domain() {
@@ -95,6 +97,69 @@
     `;
   }
 
+  function localPoints(currentSummary = summary()) {
+    const progress = domain()?.athletePointProgress?.(currentSummary) || { earnedPoints: 0, milestones: [], nextMilestone: null };
+    return {
+      totalPoints: progress.earnedPoints,
+      athletePoints: progress.earnedPoints,
+      coachPoints: 0,
+      currentStreak: Number(currentSummary.dayStreak || 0),
+      fuelMoments: Number(currentSummary.fuelMoments || 0),
+      milestones: progress.milestones.map(item => ({
+        eventType: item.eventType,
+        roleContext: "athlete",
+        threshold: item.threshold,
+        points: item.points,
+        title: item.title,
+        currentValue: item.currentValue,
+        earnedAt: item.earned ? "local" : null
+      })),
+      roles: ["athlete"],
+      recentAwards: []
+    };
+  }
+
+  function renderPoints(currentSummary = summary()) {
+    if (!domain()) return;
+    const cloud = window.fuelGuardCloud;
+    const signedIn = Boolean(cloud?.client && cloud.user?.id);
+    const data = pointsProfile || localPoints(currentSummary);
+    const milestones = Array.isArray(data.milestones) ? data.milestones : [];
+    const next = milestones
+      .filter(item => !item.earnedAt && Number(item.threshold) > Number(item.currentValue || 0))
+      .sort((a, b) => (Number(a.threshold) - Number(a.currentValue || 0)) - (Number(b.threshold) - Number(b.currentValue || 0)))[0] || null;
+    const daily = document.getElementById("athleteDailyPoints");
+    if (daily) {
+      const progress = next ? Math.min(100, Math.round(Number(next.currentValue || 0) / Number(next.threshold || 1) * 100)) : 100;
+      daily.innerHTML = `
+        <div><span>FG Points</span><strong>${Number(data.athletePoints || 0).toLocaleString("en-GB")}</strong></div>
+        <div><span>Current streak</span><strong>${Number(data.currentStreak || 0)} day${Number(data.currentStreak || 0) === 1 ? "" : "s"}</strong></div>
+        <div class="beta-points-next"><span>${next ? `Next · ${domain().escapeHtml(next.title)} · +${Number(next.points || 0)}` : "All current milestones reached"}</span><strong>${next ? `${Number(next.currentValue || 0)} / ${Number(next.threshold || 0)}` : "✓"}</strong><i><b style="width:${progress}%"></b></i></div>
+      `;
+    }
+    const profile = document.getElementById("athletePointsProfile");
+    if (profile) {
+      const unlocked = milestones.filter(item => item.earnedAt).length;
+      profile.innerHTML = `
+        <section class="beta-points-profile-summary">
+          <div><span>Total FG Points</span><strong>${Number(data.totalPoints || 0).toLocaleString("en-GB")}</strong></div>
+          <div><span>Current streak</span><strong>${Number(data.currentStreak || 0)} day${Number(data.currentStreak || 0) === 1 ? "" : "s"}</strong></div>
+          <div><span>Milestones unlocked</span><strong>${unlocked}</strong></div>
+          <div><span>Fuel moments</span><strong>${Number(data.fuelMoments || 0).toLocaleString("en-GB")}</strong></div>
+          <div><span>Roles</span><strong>${(data.roles || ["athlete"]).map(role => domain().escapeHtml(role)).join(" · ")}</strong></div>
+        </section>
+        <div class="beta-points-milestone-grid">
+          ${milestones.map(item => `<article class="${item.earnedAt ? "earned" : "locked"}">
+            <span>${item.earnedAt ? "Unlocked" : `${Number(item.currentValue || 0)} / ${Number(item.threshold || 0)}`}</span>
+            <strong>${domain().escapeHtml(item.title || item.eventType)}</strong>
+            <small>+${Number(item.points || 0)} points</small>
+          </article>`).join("")}
+        </div>
+        <p class="row-note">${signedIn ? "Points are awarded once from verified Fuel Guard records." : "Sign in to store point awards across devices."} Rewards are coming soon.</p>
+      `;
+    }
+  }
+
   function acknowledgeLocal(key) {
     const state = milestoneState();
     const achievement = state?.achievements.find(item => item.key === key);
@@ -143,6 +208,7 @@
     state.lastSummary = current;
     if (typeof save === "function") save();
     renderHistory(current);
+    renderPoints(current);
     if (allowToast && crossed.length) {
       const next = state.achievements.find(item => item.key === crossed[crossed.length - 1].key);
       if (next && !next.acknowledgedAt) showToast(next);
@@ -181,10 +247,34 @@
       renderHistory(current);
       const unacknowledged = state.achievements.find(item => earnedKeys.has(item.key) && !item.acknowledgedAt);
       if (unacknowledged) showToast(unacknowledged);
+      await syncPoints();
     } catch {
       // Local acknowledgement remains authoritative until the next safe sync.
     } finally {
       syncing = false;
+    }
+  }
+
+  async function syncPoints() {
+    if (pointsSyncing) return;
+    const cloud = window.fuelGuardCloud;
+    if (!cloud?.client || !cloud.user?.id) {
+      pointsProfile = null;
+      renderPoints();
+      return;
+    }
+    pointsSyncing = true;
+    try {
+      const { data, error } = await cloud.client.rpc("fuel_points_profile", {
+        p_time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+      });
+      if (error) throw error;
+      pointsProfile = data || null;
+    } catch {
+      // Keep the locally derived preview if the additive migration is not ready.
+    } finally {
+      pointsSyncing = false;
+      renderPoints();
     }
   }
 
@@ -204,7 +294,9 @@
   window.FuelGuardMilestones = {
     evaluate,
     syncCloud,
+    syncPoints,
     renderHistory,
+    renderPoints,
     _test: { mergeAchievements }
   };
 })();

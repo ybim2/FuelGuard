@@ -21,6 +21,14 @@
     fuel: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
     hydration: Object.freeze([10, 25, 50, 100, 250, 500, 1000])
   });
+  const ATHLETE_POINT_MILESTONES = Object.freeze([
+    Object.freeze({ eventType: "athlete_streak_3", category: "streak", threshold: 3, points: 25, title: "3-day streak" }),
+    Object.freeze({ eventType: "athlete_streak_7", category: "streak", threshold: 7, points: 50, title: "7-day streak" }),
+    Object.freeze({ eventType: "athlete_streak_30", category: "streak", threshold: 30, points: 150, title: "30-day streak" }),
+    Object.freeze({ eventType: "athlete_fuel_25", category: "fuel", threshold: 25, points: 25, title: "25 fuel moments" }),
+    Object.freeze({ eventType: "athlete_fuel_100", category: "fuel", threshold: 100, points: 75, title: "100 fuel moments" }),
+    Object.freeze({ eventType: "athlete_fuel_250", category: "fuel", threshold: 250, points: 150, title: "250 fuel moments" })
+  ]);
   const TRAINING_QUANTITY_FIELDS = Object.freeze(["carbsG", "fluidMl", "sodiumMg", "caffeineMg"]);
   const TRAINING_QUANTITY_LIMITS = Object.freeze({
     carbsG: 500,
@@ -587,6 +595,25 @@
       milestoneValue(previousSummary, milestone.category) < milestone.threshold
       && !acknowledged.has(milestone.key)
     );
+  }
+
+  function athletePointProgress(summary = {}) {
+    const valueFor = milestone => milestone.category === "streak"
+      ? Number(summary.dayStreak || 0)
+      : Number(summary.fuelMoments || 0);
+    const milestones = ATHLETE_POINT_MILESTONES.map(milestone => ({
+      ...milestone,
+      currentValue: valueFor(milestone),
+      earned: valueFor(milestone) >= milestone.threshold,
+      remaining: Math.max(0, milestone.threshold - valueFor(milestone))
+    }));
+    const earnedPoints = milestones.filter(item => item.earned).reduce((total, item) => total + item.points, 0);
+    const nextMilestones = milestones.filter(item => !item.earned).sort((a, b) => {
+      const aProgress = a.threshold ? a.currentValue / a.threshold : 0;
+      const bProgress = b.threshold ? b.currentValue / b.threshold : 0;
+      return bProgress - aProgress || a.threshold - b.threshold;
+    });
+    return { earnedPoints, milestones, nextMilestone: nextMilestones[0] || null };
   }
 
   function quantityValue(value) {
@@ -1310,6 +1337,15 @@
     if (preset === "season") {
       return periodFromKeys(`${todayKey.slice(0, 4)}-01-01`, todayKey, "season", zone);
     }
+    if (preset === "week") {
+      const selected = validDateKey(customEnd);
+      if (!selected) return weeklyReportingPeriod({ now, timeZone: zone });
+      const [year, month, day] = selected.split("-").map(Number);
+      const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+      const daysSinceMonday = (weekday + 6) % 7;
+      const startKey = shiftDateKey(selected, -daysSinceMonday);
+      return periodFromKeys(startKey, shiftDateKey(startKey, 6), "week", zone);
+    }
     const weeks = Number(String(preset).match(/^(\d+)_weeks$/)?.[1]) || 12;
     return periodFromKeys(shiftDateKey(todayKey, -(weeks * 7 - 1)), todayKey, `${weeks}_weeks`, zone);
   }
@@ -1649,6 +1685,102 @@
       coachNotes: String(coachNotes || "").trim(),
       timeZone: current.timeZone,
       metrics: current
+    };
+  }
+
+  function buildWeeklyCoachReview(options = {}) {
+    const base = buildAthleteReviewReport(options);
+    const scoredDays = base.metrics.days.map(day => ({
+      ...day,
+      score: day.fuelLogs.length * 4 + day.hydrationLogs.length + (day.withinTarget === true ? 3 : 0)
+        - day.gaps.filter(gap => gap.exceededTarget).length * 2
+    }));
+    const strongest = scoredDays.filter(day => day.logged).sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))[0] || null;
+    const weakest = [...scoredDays].sort((a, b) => a.score - b.score || a.key.localeCompare(b.key))[0] || null;
+    const longGaps = [...base.metrics.exceededGaps]
+      .sort((a, b) => b.minutes - a.minutes)
+      .slice(0, 3)
+      .map(gap => ({ date: gap.key, minutes: Math.round(gap.minutes), window: gap.window?.label || "Recorded interval" }));
+    const workoutSummary = options.workoutSummary || {};
+    const contexts = (workoutSummary.contexts || []).filter(context => {
+      const key = dateKeyInTimeZone(context?.workout?.startAt, base.timeZone);
+      return key >= base.period.startKey && key <= base.period.endKey;
+    });
+    const preRecorded = contexts.filter(context => context.hasPreviousFuel).length;
+    const postRecorded = contexts.filter(context => context.hasPostFuel).length;
+    const postGapContexts = contexts
+      .filter(context => context.hasPostFuel && Number.isFinite(context.postFuelGapMinutes))
+      .map(context => ({
+        date: dateKeyInTimeZone(context.workout.endAt, base.timeZone),
+        minutes: Math.round(context.postFuelGapMinutes)
+      }))
+      .sort((a, b) => a.minutes - b.minutes);
+    const postTrainingObservations = [];
+    const strongestPost = postGapContexts.find(context => context.minutes <= 120);
+    const latestPost = [...postGapContexts].reverse().find(context => context.minutes > 120);
+    const missingPost = contexts.filter(context => !context.hasPostFuel).length;
+    if (strongestPost) {
+      postTrainingObservations.push(`Strong recorded example — ${strongestPost.date}: post-session Fuel was recorded ${duration(strongestPost.minutes)} after training.`);
+    }
+    if (latestPost) {
+      postTrainingObservations.push(`Post-training opportunity — ${latestPost.date}: first recorded Fuel was ${duration(latestPost.minutes)} after training.`);
+    }
+    if (missingPost) {
+      postTrainingObservations.push(`${missingPost} shared workout${missingPost === 1 ? " had" : "s had"} no post-session Fuel recorded.`);
+    }
+    if (contexts.length && !postTrainingObservations.length) {
+      postTrainingObservations.push("Post-session Fuel timing was recorded, with no gap beyond two hours in the shared workouts.");
+    }
+    const training = {
+      workoutCount: contexts.length,
+      preFuelRecorded: preRecorded,
+      postFuelRecorded: postRecorded,
+      noPreFuelRecorded: Math.max(0, contexts.length - preRecorded),
+      noPostFuelRecorded: Math.max(0, contexts.length - postRecorded),
+      observations: postTrainingObservations
+    };
+    const recurringPatterns = [];
+    if (base.fuelling.commonGapWindow?.count >= 2) {
+      recurringPatterns.push(`${base.fuelling.commonGapWindow.label} contained ${base.fuelling.commonGapWindow.count} repeated recorded fuel gaps.`);
+    }
+    if (base.sleepy.commonWindow?.count >= 2) {
+      recurringPatterns.push(`${base.sleepy.commonWindow.label} contained ${base.sleepy.commonWindow.count} recorded Sleepy events.`);
+    }
+    if (!recurringPatterns.length) recurringPatterns.push("No recurring timing pattern had enough recorded evidence this week.");
+
+    const strongestText = strongest
+      ? `${strongest.key}: ${strongest.fuelLogs.length} Fuel and ${strongest.hydrationLogs.length} Hydration event${strongest.hydrationLogs.length === 1 ? "" : "s"} recorded${strongest.withinTarget === true ? "; recorded gaps stayed within target" : ""}.`
+      : "No day had enough recorded events to identify a strongest day.";
+    const weakestText = !weakest
+      ? "No day had enough recorded evidence to identify a weakest day."
+      : weakest.fuelLogs.length === 0
+        ? `${weakest.key}: No fuel was recorded. This describes the shared record only.`
+        : `${weakest.key}: ${weakest.fuelLogs.length} Fuel event${weakest.fuelLogs.length === 1 ? " was" : "s were"} recorded${weakest.exceededTarget ? ", with a recorded gap beyond the configured target" : ""}.`;
+    const discussionPrompts = [
+      weakest?.fuelLogs?.length === 0
+        ? `What made logging harder on ${weakest.key}, and is there a gentler way to capture the day?`
+        : "Which part of this week's fuelling rhythm felt easiest to repeat?",
+      longGaps.length
+        ? `What was happening around the ${longGaps[0].window} gap, and what support would be practical next time?`
+        : "Is there a training or work window worth watching next week?",
+      contexts.length
+        ? "Did the recorded pre- and post-training fuel moments match how the sessions felt?"
+        : "Were there training sessions this week that were not present in the shared record?"
+    ];
+    const weeklyReview = { strongestDay: strongestText, weakestDay: weakestText, longGaps, training, recurringPatterns, discussionPrompts };
+    return {
+      ...base,
+      title: `Weekly Coach Review - ${base.athleteName}`,
+      reviewKind: "weekly",
+      weeklyReview,
+      executiveSummary: [
+        `Shared logging was present on ${base.coverage.loggedDays} of ${base.coverage.totalDays} days.`,
+        strongestText,
+        weakestText,
+        contexts.length
+          ? `${preRecorded} of ${contexts.length} shared workouts had a prior Fuel event recorded and ${postRecorded} had a post-session Fuel event recorded.`
+          : "No shared workout record was available for pre/post-training review this week."
+      ]
     };
   }
 
@@ -2208,6 +2340,7 @@
     SLEEPY_CHECKIN_TYPE,
     DEFAULT_NUDGE_MESSAGE,
     MILESTONE_THRESHOLDS,
+    ATHLETE_POINT_MILESTONES,
     TRAINING_QUANTITY_FIELDS,
     TRAINING_QUANTITY_LIMITS,
     escapeHtml,
@@ -2246,6 +2379,7 @@
     milestoneLabel,
     earnedMilestones,
     newlyCrossedMilestones,
+    athletePointProgress,
     normalizeTrainingPreset,
     validateTrainingPreset,
     trainingEventContext,
@@ -2288,6 +2422,7 @@
     athletePeriodMetrics,
     athleteTrend,
     buildAthleteReviewReport,
+    buildWeeklyCoachReview,
     interventionComparison,
     authorizedAthletes,
     buildTeamAnalytics,

@@ -286,7 +286,7 @@ test("scheduled review migration uses explicit grants and active-relationship RL
   assert.doesNotMatch(noComments, /service_role|auth\.role\(\)|security definer/i);
 });
 
-test("Coach Beta exposes the weekly brief, team distinction, and assemble-review-save workflow", () => {
+test("Coach Beta exposes the weekly brief, team distinction, and weekly-review-save workflow", () => {
   const html = read("coach/index.html");
   const js = read("coach/coach-beta.js");
 
@@ -299,7 +299,7 @@ test("Coach Beta exposes the weekly brief, team distinction, and assemble-review
   assert.match(html, /Contract review/);
   assert.match(html, /End-of-season review/);
   assert.match(html, /Custom review/);
-  assert.match(html, /Assemble review/);
+  assert.match(html, /Generate Weekly Review/);
   assert.match(html, /id="coachSaveReviewButton"/);
   assert.match(js, /Weekly Coach Brief/);
   assert.match(js, /Review Team/);

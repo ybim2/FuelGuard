@@ -210,13 +210,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Athlete app fixes release", () => {
+test("PWA cache and asset versions are bumped for the points and weekly reviews release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v123-canonical-email";
+  const version = "mobile-pwa-v124-points-reviews-profiles";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -226,7 +226,7 @@ test("PWA cache and asset versions are bumped for the Athlete app fixes release"
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T192957Z/);
+  assert.match(sw, /20260809T224113Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

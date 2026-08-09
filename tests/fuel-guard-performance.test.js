@@ -34,7 +34,7 @@ test("Performance requests secure RPC payloads instead of raw athlete histories"
     "fuel_performance_context",
     "fuel_performance_overview",
     "fuel_performance_pathway",
-    "fuel_performance_staff_access",
+    "fuel_performance_people_hierarchy",
     "fuel_performance_reports",
     "fuel_performance_athlete_detail"
   ]) assert.match(js, new RegExp(`rpc\\(\\"${rpc}\\"`));
@@ -272,7 +272,7 @@ test("demo hierarchy initialization is explicit and atomic", () => {
 });
 
 test("service worker versions and routes Athlete, Coach and Performance independently", () => {
-  assert.match(sw, /mobile-pwa-v123-canonical-email/);
+  assert.match(sw, /mobile-pwa-v124-points-reviews-profiles/);
   assert.match(sw, /\.\/performance\/index\.html/);
   assert.match(sw, /\.\/performance\/performance\.css/);
   assert.match(sw, /\.\/performance\/performance\.js/);

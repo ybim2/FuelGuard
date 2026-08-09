@@ -3,6 +3,95 @@
   display: none !important;
 }
 
+.beta-points-compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.beta-points-compact > div,
+.beta-points-profile-summary > div {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid rgba(31, 74, 67, 0.12);
+  border-radius: 14px;
+  background: rgba(240, 247, 243, 0.78);
+}
+
+.beta-points-compact span,
+.beta-points-profile-summary span {
+  color: var(--muted, #63736e);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.beta-points-compact strong,
+.beta-points-profile-summary strong {
+  color: var(--ink, #17342e);
+}
+
+.beta-points-compact .beta-points-next {
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.beta-points-next i {
+  grid-column: 1 / -1;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(31, 74, 67, 0.12);
+}
+
+.beta-points-next b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #e89c36;
+}
+
+.beta-points-profile {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.beta-points-profile-summary,
+.beta-points-milestone-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.beta-points-milestone-grid article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(31, 74, 67, 0.12);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.beta-points-milestone-grid article.earned {
+  border-color: rgba(35, 122, 91, 0.38);
+  background: rgba(231, 246, 237, 0.8);
+}
+
+.beta-points-milestone-grid article.locked { opacity: 0.72; }
+.beta-points-milestone-grid span,
+.beta-points-milestone-grid small { color: var(--muted, #63736e); font-size: 0.75rem; }
+
+@media (max-width: 620px) {
+  .beta-points-profile-summary { grid-template-columns: 1fr; }
+  .beta-points-milestone-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .beta-mvp .beta-nav {
   display: grid;
   gap: 8px;

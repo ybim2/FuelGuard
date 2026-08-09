@@ -172,6 +172,8 @@
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let coachSharingBusy = false;
+  let athleteProfileBusy = false;
+  let athleteProfileStatus = "";
   let coachSharingState = {
     loadedFor: "",
     profile: null,
@@ -271,7 +273,7 @@
   }
 
   function coachProfileSelect() {
-    return "user_id,role,coach_enabled,display_name,athlete_code,created_at,updated_at";
+    return "user_id,role,coach_enabled,display_name,first_name,last_name,avatar_url,job_title,athlete_code,created_at,updated_at";
   }
 
   async function ensureAthleteCoachProfile(client, user) {
@@ -358,6 +360,7 @@
         : `Coach access could not load: ${error?.message || "unknown error"}`;
     } finally {
       coachSharingBusy = false;
+      renderAthleteProfile();
       renderCoachSharing();
       renderCoachNudges();
     }
@@ -2682,8 +2685,74 @@
           ? `${cloud.status}${pending}`
         : "Cloud sync needs Supabase public URL/key configuration.";
     }
+    renderAthleteProfile();
     renderCoachSharing();
     renderCsvImportPanel();
+  }
+
+  function renderAthleteProfile() {
+    const card = document.getElementById("athleteProfileCard");
+    const cloud = window.fuelGuardCloud?.accountView?.() || null;
+    const user = coachSharingUser();
+    const profile = coachSharingState.profile || {};
+    if (card) card.hidden = !cloud?.signedIn;
+    const fields = [
+      ["athleteProfileFirstName", profile.first_name || ""],
+      ["athleteProfileLastName", profile.last_name || ""],
+      ["athleteProfileEmail", user?.email || cloud?.email || ""],
+      ["athleteProfileAvatarUrl", profile.avatar_url || ""]
+    ];
+    fields.forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && document.activeElement !== input) input.value = value;
+    });
+    const saveButton = document.getElementById("athleteProfileSaveButton");
+    if (saveButton) saveButton.disabled = athleteProfileBusy || !cloud?.signedIn;
+    const status = document.getElementById("athleteProfileStatus");
+    if (status) status.textContent = athleteProfileBusy ? "Saving profile…" : athleteProfileStatus;
+  }
+
+  async function saveAthleteProfile() {
+    if (athleteProfileBusy) return;
+    const client = coachSharingClient();
+    const user = coachSharingUser();
+    if (!client || !user?.id) {
+      athleteProfileStatus = "Sign in before editing your profile.";
+      renderAthleteProfile();
+      return;
+    }
+    const firstName = document.getElementById("athleteProfileFirstName")?.value.trim() || "";
+    const lastName = document.getElementById("athleteProfileLastName")?.value.trim() || "";
+    const avatarUrl = document.getElementById("athleteProfileAvatarUrl")?.value.trim() || "";
+    const displayName = [firstName, lastName].filter(Boolean).join(" ") || user.email || "Fuel Guard Athlete";
+    athleteProfileBusy = true;
+    athleteProfileStatus = "";
+    renderAthleteProfile();
+    try {
+      const { data, error } = await client.from(COACH_PROFILES_TABLE)
+        .upsert({
+          user_id: user.id,
+          role: coachSharingState.profile?.role || "athlete",
+          coach_enabled: Boolean(coachSharingState.profile?.coach_enabled),
+          display_name: displayName,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          avatar_url: avatarUrl || null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" })
+        .select(coachProfileSelect())
+        .single();
+      if (error) throw error;
+      coachSharingState.profile = data;
+      athleteProfileStatus = "Profile saved.";
+    } catch (error) {
+      athleteProfileStatus = coachSharingSetupError(error)
+        ? "Profile fields are waiting for the additive release migration."
+        : `Profile could not be saved: ${error?.message || "unknown error"}`;
+    } finally {
+      athleteProfileBusy = false;
+      renderAthleteProfile();
+    }
   }
 
   function renderAnalysisList(items) {
@@ -10619,6 +10688,7 @@
 
   document.getElementById("coachCopyAthleteCodeButton")?.addEventListener("click", copyAthleteCode);
   document.getElementById("coachShareAthleteCodeButton")?.addEventListener("click", shareAthleteCode);
+  document.getElementById("athleteProfileSaveButton")?.addEventListener("click", saveAthleteProfile);
   document.addEventListener("click", event => {
     const approve = event.target.closest("[data-approve-coach-sharing]");
     if (approve) {
