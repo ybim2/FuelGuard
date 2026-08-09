@@ -10,7 +10,9 @@ function loadProductShell() {
   const elements = new Map([
     ["mainAccountIdentity", { attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } }],
     ["mainAccountIdentityLabel", { textContent: "" }],
-    ["mainAccountIdentityValue", { textContent: "" }]
+    ["mainAccountIdentityValue", { textContent: "" }],
+    ["coachProductLink", { hidden: false }],
+    ["performanceProductLink", { hidden: false }]
   ]);
   const listeners = new Map();
   const window = {
@@ -44,13 +46,42 @@ test("main identity clears User A before displaying User B", () => {
   assert.doesNotMatch(elements.get("mainAccountIdentityValue").textContent, /user-a/i);
 });
 
-test("main shell exposes Athlete, Coach and Performance without granting access", () => {
+test("main shell keeps Coach and Performance links hidden until server-authorised", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   assert.match(html, /aria-label="Fuel Guard products"/);
   assert.match(html, /href="\/" aria-current="page">Athlete<\/a>/);
-  assert.match(html, /href="\/coach\/">Coach<\/a>/);
-  assert.match(html, /href="\/performance\/">Performance<\/a>/);
-  assert.match(html, /product-shell\.js\?v=mobile-pwa-v115-athlete-training-access/);
+  assert.match(html, /id="coachProductLink" href="\/coach\/" hidden>Coach<\/a>/);
+  assert.match(html, /id="performanceProductLink" href="\/performance\/" hidden>Performance<\/a>/);
+  assert.match(html, /product-shell\.js\?v=mobile-pwa-v116-performance-demo-readiness/);
   assert.match(sw, /\.\/product-shell\.js/);
+});
+
+test("product access is derived from the user profile and Performance context RPC", async () => {
+  const { window } = loadProductShell();
+  const calls = [];
+  const client = {
+    from(table) {
+      calls.push(["from", table]);
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async maybeSingle() { return { data: { coach_enabled: true }, error: null }; }
+      };
+    },
+    async rpc(name) {
+      calls.push(["rpc", name]);
+      return { data: [{ organisation_id: "org-1" }], error: null };
+    }
+  };
+  const result = await window.fuelGuardProductShell._test.authorisedProducts(client, { id: "user-1" });
+  assert.deepEqual({ ...result }, { coach: true, performance: true });
+  assert.deepEqual(calls, [["from", "fuel_user_profiles"], ["rpc", "fuel_performance_context"]]);
+});
+
+test("athlete-only access keeps enterprise product links hidden", async () => {
+  const { elements, window } = loadProductShell();
+  window.fuelGuardProductShell.renderProductAccess({ coach: false, performance: false });
+  assert.equal(elements.get("coachProductLink").hidden, true);
+  assert.equal(elements.get("performanceProductLink").hidden, true);
 });

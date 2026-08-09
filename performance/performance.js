@@ -23,6 +23,8 @@
     shares: [],
     reports: null,
     staffAccounts: {},
+    platformAdmin: { isPlatformAdmin: false, organisations: [] },
+    athleteDetail: null,
     tab: "overview",
     busy: false,
     recovering: false,
@@ -58,6 +60,17 @@
   const hasCapability = capability => currentContext()?.capabilities?.includes(capability) || false;
   const units = () => Array.isArray(state.pathway?.units) ? state.pathway.units : [];
 
+  function resetOrganisationData() {
+    state.overview = null;
+    state.pathway = null;
+    state.staff = null;
+    state.shares = [];
+    state.reports = null;
+    state.staffAccounts = {};
+    state.athleteDetail = null;
+    $("athleteDetailPanel").hidden = true;
+  }
+
   function setPanelVisibility(name) {
     $("loadingPanel").hidden = name !== "loading";
     $("authPanel").hidden = name !== "auth";
@@ -66,6 +79,7 @@
     $("appShell").hidden = name !== "app";
     $("organisationPickerLabel").hidden = name !== "app";
     $("refreshButton").hidden = name !== "app";
+    $("platformAdminBanner").hidden = name !== "app" || !state.platformAdmin.isPlatformAdmin;
   }
 
   function toast(message) {
@@ -111,6 +125,8 @@
     $("saveReportingMinimumButton").disabled = !currentContext()?.can_manage_reports;
     $("unitManager").hidden = !currentContext()?.can_manage_structure;
     $("accessManager").hidden = !currentContext()?.can_manage_access;
+    $("platformAdminOrganisation").textContent = currentContext()?.organisation_name || "organisation";
+    $("platformAdminBanner").hidden = !state.platformAdmin.isPlatformAdmin;
   }
 
   function empty(title, copy) {
@@ -140,7 +156,7 @@
           <div><strong>${safe(item.athleteName)}</strong><small>${safe(item.issue)}</small></div>
           <div><strong>${safe(item.unitName || "Unassigned unit")}</strong><small>${safe(item.responsibleStaffName || "Unassigned staff")}</small></div>
           <div><strong>${item.lastLogAt ? `Last log ${safe(dateTime(item.lastLogAt))}` : "No logging data"}</strong><small>${item.followUpDue ? "Follow-up due" : "Operational signal"}</small></div>
-          <span class="status-badge ${safe(item.status)}">${safe(String(item.status || "open").replaceAll("_", " "))}</span>
+          <div class="attention-actions"><span class="status-badge ${safe(item.status)}">${safe(String(item.status || "open").replaceAll("_", " "))}</span><button class="text-button compact-button" type="button" data-athlete-detail="${safe(item.athleteId)}">Open athlete</button></div>
         </li>`).join("")
       : grouped.length
         ? grouped.map(item => `<li class="unit-row"><div><strong>${safe(item.unitName)}</strong><small>Organisational unit</small></div><div><strong>${number(item.athletesNeedingAttention)}</strong><small>Athletes needing attention</small></div><span class="status-badge open">Review unit</span></li>`).join("")
@@ -294,6 +310,116 @@
     </div>`;
   }
 
+  function trainingSourceLabel(source) {
+    if (source === "garmin") return "Garmin activity";
+    if (source === "coach_schedule") return "Team schedule";
+    return String(source || "Training").replace(/[_-]+/g, " ");
+  }
+
+  function workoutTitle(workout) {
+    return String(workout.title || workout.type || "Training session")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
+  function timingLabel(value, suffix) {
+    return Number.isFinite(value) ? `${window.FuelGuardDomain.duration(value)} ${suffix}` : "Insufficient data";
+  }
+
+  function renderAthleteDetail() {
+    const detail = state.athleteDetail;
+    if (!detail) return;
+    const domain = window.FuelGuardDomain;
+    const athlete = detail.athlete || {};
+    const workouts = domain.normalizeWorkouts(detail.workouts || [])
+      .filter(workout => workout.endAt <= new Date());
+    const contexts = domain.getWorkoutFuelContexts(workouts, detail.fuelEvents || []);
+    const sessions = contexts.length ? contexts.slice(0, 6).map(context => {
+      const workout = context.workout;
+      const before = context.previousFuelEvent;
+      const after = context.nextFuelEvent;
+      return `<article class="training-context-row">
+        <div class="training-context-head"><div><strong>${safe(workoutTitle(workout))}</strong><small>${safe(dateTime(workout.startAt))} · ${safe(trainingSourceLabel(workout.source))}</small></div></div>
+        <div class="training-context-pair">
+          <section><span>Pre-training fuel</span><strong>${before ? safe(timingLabel(context.preFuelGapMinutes, "before training")) : "No pre-training fuel recorded"}</strong><small>${before ? `Fuel logged ${safe(dateTime(before.date))}` : "No earlier fuel event is available in the shared period."}</small></section>
+          <section><span>Post-training fuel</span><strong>${after ? safe(timingLabel(context.postFuelGapMinutes, "after training")) : "No post-training fuel recorded"}</strong><small>${after ? `Fuel logged ${safe(dateTime(after.date))}` : "No later fuel event is available in the shared period."}</small></section>
+        </div>
+      </article>`;
+    }).join("") : empty("Insufficient training data", "No completed Garmin activity or team training session is available in the last 28 days.");
+    const interventions = Array.isArray(detail.interventions) ? detail.interventions : [];
+    const interventionRows = interventions.length ? interventions.map(intervention => `<article class="intervention-row">
+      <div><strong>${safe(intervention.actionText)}</strong><small>${safe(intervention.observation || "Follow-up action")} · ${safe(intervention.responsibleStaffName || "Unassigned")}</small></div>
+      <div><span class="status-badge ${safe(intervention.status)}">${safe(intervention.status)}</span><small>Review ${safe(intervention.reviewDate || "not scheduled")}</small></div>
+      ${intervention.source === "performance" && intervention.status === "active" && hasCapability("manage_interventions") ? `<button class="text-button compact-button" type="button" data-review-intervention="${safe(intervention.id)}">Mark reviewed</button>` : ""}
+    </article>`).join("") : empty("No intervention follow-ups", "Record a clear operational action and review date when follow-up is needed.");
+    const people = Array.isArray(state.staff?.staff) ? state.staff.staff : [];
+    const staffOptions = people.map(person => `<option value="${safe(person.userId)}"${person.userId === athlete.responsibleStaffId ? " selected" : ""}>${safe(person.displayName)}</option>`).join("");
+    const reviewDate = dateInput(new Date(Date.now() + 28 * 86400000));
+    $("athleteDetailTitle").textContent = athlete.name || "Athlete detail";
+    $("athleteDetailContent").innerHTML = `
+      <div class="athlete-detail-meta"><span>${safe(athlete.unitName || "Unassigned unit")}</span><span>Responsible: ${safe(athlete.responsibleStaffName || "Unassigned")}</span></div>
+      <section class="detail-section"><div class="section-heading"><div><h3>Pre/Post Training Fuel</h3><p>Did this athlete fuel before training, and how quickly did they refuel afterward?</p></div></div><div class="training-context-list">${sessions}</div><p class="detail-note">Timing awareness only. Fuel Guard does not assess calories, nutritional adequacy or medical risk.</p></section>
+      <section class="detail-section"><div class="section-heading"><div><h3>Intervention follow-up</h3><p>Organisation-scoped actions remain attributed and reviewable.</p></div></div><div class="intervention-list">${interventionRows}</div>
+        ${hasCapability("manage_interventions") ? `<form id="performanceInterventionForm" class="management-form intervention-form">
+          <h3>Record follow-up</h3>
+          <label>Observation<input id="interventionObservationInput" maxlength="1000" placeholder="What needs operational follow-up?" /></label>
+          <label>Action<input id="interventionActionInput" maxlength="1000" required placeholder="Agreed action" /></label>
+          <label>Responsible staff<select id="interventionStaffPicker"><option value="">Unassigned</option>${staffOptions}</select></label>
+          <label>Review date<input id="interventionReviewDateInput" type="date" value="${reviewDate}" /></label>
+          <button class="secondary-button" type="submit">Record follow-up</button>
+          <p id="interventionStatus" class="status-line" aria-live="polite"></p>
+        </form>` : ""}
+      </section>`;
+    $("athleteDetailPanel").hidden = false;
+    $("performanceInterventionForm")?.addEventListener("submit", createIntervention);
+  }
+
+  async function openAthleteDetail(athleteId) {
+    $("athleteDetailContent").innerHTML = empty("Loading athlete detail", "Resolving permissioned training and fuelling context…");
+    $("athleteDetailPanel").hidden = false;
+    try {
+      state.athleteDetail = await rpc("fuel_performance_athlete_detail", {
+        p_organisation_id: state.organisationId,
+        p_athlete_id: athleteId
+      });
+      renderAthleteDetail();
+    } catch (error) {
+      $("athleteDetailContent").innerHTML = empty("Athlete detail unavailable", friendlyError(error));
+    }
+  }
+
+  async function createIntervention(event) {
+    event.preventDefault();
+    const athleteId = state.athleteDetail?.athlete?.id;
+    try {
+      await rpc("fuel_performance_create_intervention", {
+        p_organisation_id: state.organisationId,
+        p_athlete_id: athleteId,
+        p_responsible_staff_user_id: $("interventionStaffPicker").value || null,
+        p_observation: $("interventionObservationInput").value.trim(),
+        p_action_text: $("interventionActionInput").value.trim(),
+        p_review_date: $("interventionReviewDateInput").value
+      });
+      $("interventionStatus").textContent = "Follow-up recorded with an explicit review date.";
+      await openAthleteDetail(athleteId);
+      await loadOrganisation({ preserveStatus: true });
+    } catch (error) { $("interventionStatus").textContent = friendlyError(error); }
+  }
+
+  async function reviewIntervention(interventionId) {
+    const athleteId = state.athleteDetail?.athlete?.id;
+    try {
+      await rpc("fuel_performance_update_intervention", {
+        p_organisation_id: state.organisationId,
+        p_intervention_id: interventionId,
+        p_status: "reviewed",
+        p_review_notes: "Reviewed in Fuel Guard Performance."
+      });
+      await openAthleteDetail(athleteId);
+      await loadOrganisation({ preserveStatus: true });
+    } catch (error) { toast(friendlyError(error)); }
+  }
+
   function syncUnitPickers() {
     const overview = $("overviewUnitPicker").value;
     const report = $("reportUnitPicker").value;
@@ -371,7 +497,12 @@
       return;
     }
     try {
-      state.contexts = await rpc("fuel_performance_context");
+      const [contexts, platformAdmin] = await Promise.all([
+        rpc("fuel_performance_context"),
+        rpc("fuel_platform_admin_context").catch(() => ({ isPlatformAdmin: false, organisations: [] }))
+      ]);
+      state.contexts = contexts;
+      state.platformAdmin = platformAdmin || { isPlatformAdmin: false, organisations: [] };
       if (!Array.isArray(state.contexts) || !state.contexts.length) {
         $("accessIdentity").textContent = state.session?.user?.email || "your Fuel Guard account";
         setPanelVisibility("access");
@@ -493,6 +624,7 @@
     state.contexts = [];
     state.organisationId = "";
     state.staffAccounts = {};
+    state.platformAdmin = { isPlatformAdmin: false, organisations: [] };
     state.recovering = false;
     state.tab = "overview";
     showTab("overview");
@@ -598,6 +730,26 @@
     } catch (error) { $("unitStatus").textContent = friendlyError(error); }
   }
 
+  async function createDemoStructure() {
+    if (units().length) {
+      $("unitStatus").textContent = "Demo structure is available only in an empty organisation, preventing duplicate or destructive changes.";
+      return;
+    }
+    $("createDemoStructureButton").disabled = true;
+    $("unitStatus").textContent = "Creating the demo group and location hierarchy…";
+    try {
+      await rpc("fuel_performance_create_demo_structure", {
+        p_organisation_id: state.organisationId
+      });
+      $("unitStatus").textContent = "Demo hierarchy created. Add staff, then assign explicit scope and capability grants.";
+      await loadOrganisation({ preserveStatus: true });
+    } catch (error) {
+      $("unitStatus").textContent = friendlyError(error);
+    } finally {
+      $("createDemoStructureButton").disabled = false;
+    }
+  }
+
   async function saveReportingMinimum(event) {
     event.preventDefault();
     const minimum = Number($("reportingMinimumInput").value);
@@ -639,11 +791,23 @@
     $("createOrganisationButton").addEventListener("click", createOrganisation);
     $("refreshButton").addEventListener("click", () => loadOrganisation());
     $("organisationPicker").addEventListener("change", async event => {
+      resetOrganisationData();
       state.organisationId = event.target.value;
       window.localStorage?.setItem(STORAGE_ORG, state.organisationId);
       $("overviewUnitPicker").value = "";
       $("reportUnitPicker").value = "";
+      $("overviewContent").innerHTML = empty("Switching organisation", "Resolving the newly selected organisation and clearing the previous context…");
       await loadOrganisation();
+    });
+    document.addEventListener("click", event => {
+      const athleteButton = event.target.closest("[data-athlete-detail]");
+      if (athleteButton) openAthleteDetail(athleteButton.dataset.athleteDetail);
+      const reviewButton = event.target.closest("[data-review-intervention]");
+      if (reviewButton) reviewIntervention(reviewButton.dataset.reviewIntervention);
+    });
+    $("closeAthleteDetailButton").addEventListener("click", () => {
+      state.athleteDetail = null;
+      $("athleteDetailPanel").hidden = true;
     });
     document.querySelectorAll("[data-performance-tab]").forEach(button => button.addEventListener("click", () => showTab(button.dataset.performanceTab)));
     $("overviewUnitPicker").addEventListener("change", () => loadOrganisation());
@@ -655,6 +819,7 @@
     $("athleteInviteForm").addEventListener("submit", inviteAthlete);
     $("athleteUnitForm").addEventListener("submit", saveAthleteUnit);
     $("saveUnitButton").addEventListener("click", saveUnit);
+    $("createDemoStructureButton").addEventListener("click", createDemoStructure);
     $("reportingMinimumForm").addEventListener("submit", saveReportingMinimum);
   }
 

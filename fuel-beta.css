@@ -5266,6 +5266,31 @@ body.beta-mvp .beta-header-settings-button svg {
   stroke-linejoin: round;
 }
 
+body.beta-mvp .beta-activity-summary {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+body.beta-mvp .beta-activity-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 7px 10px;
+  color: rgba(23, 35, 29, .72);
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(23, 35, 29, .1);
+  border-radius: 999px;
+  font-size: .72rem;
+  line-height: 1;
+}
+
+body.beta-mvp .beta-activity-summary b { font-size: .86rem; }
+body.beta-mvp .beta-activity-summary strong { color: var(--text); font-size: .82rem; }
+
 body.beta-mvp .fuel-gap-card,
 body.beta-mvp .beta-today-shell,
 body.beta-mvp .beta-plan-shell,

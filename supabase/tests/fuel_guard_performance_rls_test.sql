@@ -1,5 +1,5 @@
 begin;
-select plan(60);
+select plan(94);
 
 -- ABC Fitness gym/location/PT/client fixture plus an isolated organisation.
 insert into auth.users (
@@ -18,6 +18,7 @@ from (values
   ('81000000-0000-0000-0000-000000000007'::uuid, 'northampton.pt@abc.test'),
   ('81000000-0000-0000-0000-000000000008'::uuid, 'owner@other.test'),
   ('81000000-0000-0000-0000-000000000009'::uuid, 'new.performance@abc.test'),
+  ('81000000-0000-0000-0000-000000000010'::uuid, 'platform.admin@fuelguard.test'),
   ('82000000-0000-0000-0000-000000000001'::uuid, 'athlete1@abc.test'),
   ('82000000-0000-0000-0000-000000000002'::uuid, 'athlete2@abc.test'),
   ('82000000-0000-0000-0000-000000000003'::uuid, 'athlete3@abc.test'),
@@ -40,6 +41,7 @@ from (values
   ('81000000-0000-0000-0000-000000000007'::uuid, 'Northampton PT'),
   ('81000000-0000-0000-0000-000000000008'::uuid, 'Other Owner'),
   ('81000000-0000-0000-0000-000000000009'::uuid, 'New Performance User'),
+  ('81000000-0000-0000-0000-000000000010'::uuid, 'Fuel Guard Platform Admin'),
   ('82000000-0000-0000-0000-000000000001'::uuid, 'Athlete 1'),
   ('82000000-0000-0000-0000-000000000002'::uuid, 'Athlete 2'),
   ('82000000-0000-0000-0000-000000000003'::uuid, 'Athlete 3'),
@@ -48,6 +50,15 @@ from (values
   ('82000000-0000-0000-0000-000000000006'::uuid, 'Athlete 6'),
   ('82000000-0000-0000-0000-000000000007'::uuid, 'Athlete 7')
 ) profiles(id, display_name);
+
+insert into private.fuel_platform_admins (
+  user_id, status, granted_by, reason
+) values (
+  '81000000-0000-0000-0000-000000000010',
+  'active',
+  '81000000-0000-0000-0000-000000000010',
+  'Release acceptance fixture'
+);
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000001', true);
@@ -167,6 +178,25 @@ from (values
   ('82000000-0000-0000-0000-000000000005'::uuid, now() - interval '4 hours', null::text),
   ('82000000-0000-0000-0000-000000000006'::uuid, now() - interval '30 minutes', null::text)
 ) logs(id, logged_at, notes);
+
+-- This active relationship and intervention belong to the isolated
+-- organisation. They must never leak into ABC Performance athlete detail.
+insert into public.fuel_coach_athletes (
+  id, coach_id, athlete_id, status, accepted_at
+) values (
+  '82500000-0000-0000-0000-000000000001',
+  '81000000-0000-0000-0000-000000000008',
+  '82000000-0000-0000-0000-000000000001',
+  'active', now()
+);
+insert into public.fuel_coach_interventions (
+  id, coach_id, athlete_id, action_text, review_date
+) values (
+  '82600000-0000-0000-0000-000000000001',
+  '81000000-0000-0000-0000-000000000008',
+  '82000000-0000-0000-0000-000000000001',
+  'Other organisation secret', current_date + 28
+);
 
 -- 1-3: all new public relationship tables are RLS-protected.
 select ok(class.relrowsecurity, format('%s has RLS enabled', table_name))
@@ -362,6 +392,258 @@ select throws_ok(
       '83000000-0000-0000-0000-000000000002', 'new.performance@abc.test', 'staff', true
     )$$,
   '42501', 'Performance access denied.', 'Cross-organisation email membership attack is denied');
+
+-- 61-94: platform administration is explicit, isolated, revocable and audited.
+select results_eq(
+  $$select (public.fuel_platform_admin_context()->>'isPlatformAdmin')::boolean$$,
+  array[false],
+  'Ordinary organisation administrator is not a platform administrator');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000010', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
+select results_eq(
+  $$select (public.fuel_platform_admin_context()->>'isPlatformAdmin')::boolean$$,
+  array[true],
+  'Explicit Fuel Guard platform administrator grant is recognised');
+select results_eq(
+  $$select count(*) from public.fuel_performance_context()
+    where organisation_id = '83000000-0000-0000-0000-000000000001'$$,
+  array[0::bigint],
+  'Platform administrator receives no implicit customer organisation access');
+select throws_ok(
+  $$select public.fuel_performance_overview('83000000-0000-0000-0000-000000000001')$$,
+  '42501', 'Performance access denied.',
+  'Platform administrator cannot access an organisation without an explicit context grant');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000001', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.fuel_platform_admin_set_organisation_access_by_email(
+      '83000000-0000-0000-0000-000000000001',
+      'PLATFORM.ADMIN@FUELGUARD.TEST', true, 'Approved demo support access'
+    )$$,
+  'Organisation owner can explicitly authorise an active platform administrator');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000010', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
+select results_eq(
+  $$select count(*) from public.fuel_performance_context()$$,
+  array[1::bigint],
+  'Explicit platform organisation context appears in Performance');
+select results_eq(
+  $$select count(*) from public.fuel_organisation_members where user_id = '81000000-0000-0000-0000-000000000010'$$,
+  array[0::bigint],
+  'Platform administrator remains separate from ordinary organisation membership');
+select ok(
+  private.fuel_performance_can_access_athlete(
+    '83000000-0000-0000-0000-000000000001',
+    '82000000-0000-0000-0000-000000000001', null, true
+  ),
+  'Platform organisation access still requires active sharing and unit assignment');
+select ok(
+  not private.fuel_performance_can_access_athlete(
+    '83000000-0000-0000-0000-000000000001',
+    '82000000-0000-0000-0000-000000000007', null, true
+  ),
+  'Revoked athlete sharing remains inaccessible to a platform administrator');
+
+reset role;
+insert into public.garmin_activity_summaries (
+  user_id, device_id, source, source_activity_id, activity_type,
+  started_at, duration_seconds
+) values (
+  '82000000-0000-0000-0000-000000000001', 'pgtap-demo-device',
+  'garmin_connect_iq_local', 'pgtap-demo-session', 'strength_training',
+  now() - interval '90 minutes', 1800
+);
+insert into public.fuel_logs (user_id, logged_at, type, source)
+values (
+  '82000000-0000-0000-0000-000000000001',
+  now() - interval '45 minutes', 'fuel', 'manual'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000010', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
+select results_eq(
+  $$select jsonb_array_length(public.fuel_performance_athlete_detail(
+      '83000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001'
+    )->'workouts')$$,
+  array[1],
+  'Athlete detail returns the permissioned training session');
+select results_eq(
+  $$select jsonb_array_length(public.fuel_performance_athlete_detail(
+      '83000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001'
+    )->'fuelEvents')$$,
+  array[2],
+  'Athlete detail returns only relevant fuel events for shared timing analysis');
+select lives_ok(
+  $$select public.fuel_performance_create_intervention(
+      '83000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001', null,
+      'Review post-training timing', 'Agree a practical post-session fuel prompt',
+      current_date + 28
+    )$$,
+  'Platform administrator can record an attributed organisation follow-up');
+select results_eq(
+  $$select count(*) from jsonb_array_elements(public.fuel_performance_athlete_detail(
+      '83000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001'
+    )->'interventions') item where item->>'source' = 'performance'$$,
+  array[1::bigint],
+  'Performance follow-up is visible in the permissioned athlete detail');
+select ok(
+  not (
+    public.fuel_performance_athlete_detail(
+      '83000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001'
+    )->'interventions' @> '[{"actionText":"Other organisation secret"}]'::jsonb
+  ),
+  'Cross-organisation coach intervention narrative is excluded from athlete detail');
+select lives_ok(
+  $$select public.fuel_performance_update_intervention(
+      '83000000-0000-0000-0000-000000000001',
+      (select (item->>'id')::uuid
+       from jsonb_array_elements(public.fuel_performance_athlete_detail(
+         '83000000-0000-0000-0000-000000000001',
+         '82000000-0000-0000-0000-000000000001'
+       )->'interventions') item
+       where item->>'source' = 'performance'
+       limit 1),
+      'reviewed', 'Timing follow-up reviewed.'
+    )$$,
+  'Performance follow-up can be reviewed without impersonating a coach');
+select lives_ok(
+  $$select public.fuel_performance_create_organisation('Platform Demo Workspace')$$,
+  'Platform administrator can create a demo organisation without becoming its customer owner');
+select results_eq(
+  $$select count(*) from public.fuel_performance_context()$$,
+  array[2::bigint],
+  'Platform-created demo organisation immediately appears in context');
+select results_eq(
+  $$select count(*) from public.fuel_organisation_members
+    where user_id = '81000000-0000-0000-0000-000000000010'$$,
+  array[0::bigint],
+  'Platform-created organisation does not create ordinary customer membership');
+select lives_ok(
+  $$select public.fuel_performance_create_demo_structure(
+      (select organisation_id from public.fuel_performance_context()
+       where organisation_name = 'Platform Demo Workspace')
+    )$$,
+  'Platform administrator can atomically initialise the demo gym hierarchy');
+select results_eq(
+  $$select jsonb_array_length(public.fuel_performance_pathway(
+      (select organisation_id from public.fuel_performance_context()
+       where organisation_name = 'Platform Demo Workspace')
+    )->'units')$$,
+  array[7],
+  'Demo hierarchy contains the root, three locations and three programmes');
+select throws_ok(
+  $$select public.fuel_performance_create_demo_structure(
+      (select organisation_id from public.fuel_performance_context()
+       where organisation_name = 'Platform Demo Workspace')
+    )$$,
+  '22023', 'Demo structure requires an empty organisation.',
+  'Demo hierarchy cannot be duplicated over existing structure');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000006', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.fuel_performance_set_capability(
+      '83000000-0000-0000-0000-000000000001',
+      '81000000-0000-0000-0000-000000000006', 'view_athlete_detail', true
+    )$$,
+  '42501', 'Staff cannot change their own Performance capabilities.',
+  'Staff cannot grant themselves an additional capability');
+select throws_ok(
+  $$select public.fuel_performance_set_scope(
+      '83000000-0000-0000-0000-000000000001',
+      '81000000-0000-0000-0000-000000000006', 'organisation', null, null, false, true
+    )$$,
+  '42501', 'Staff cannot change their own Performance scope.',
+  'Staff cannot broaden their own scope');
+select throws_ok(
+  $$select public.fuel_performance_set_staff_membership(
+      '83000000-0000-0000-0000-000000000001',
+      '81000000-0000-0000-0000-000000000006', 'admin', true
+    )$$,
+  '42501', 'Staff cannot change their own organisation membership.',
+  'Staff cannot change their own organisation role');
+
+reset role;
+select throws_ok(
+  $$update private.fuel_platform_admin_organisation_access
+    set organisation_id = '83000000-0000-0000-0000-000000000002'
+    where platform_admin_user_id = '81000000-0000-0000-0000-000000000010'$$,
+  '42501', 'Platform administrator organisation access identity is immutable.',
+  'Platform organisation access cannot be repointed');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000001', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.fuel_platform_admin_set_organisation_access_by_email(
+      '83000000-0000-0000-0000-000000000001',
+      'platform.admin@fuelguard.test', false, 'Demo support access complete'
+    )$$,
+  'Organisation owner can revoke platform organisation access');
+
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000010', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
+select results_eq(
+  $$select count(*) from public.fuel_performance_context()
+    where organisation_id = '83000000-0000-0000-0000-000000000001'$$,
+  array[0::bigint],
+  'Organisation-context revocation removes Performance access immediately');
+select throws_ok(
+  $$select public.fuel_performance_athlete_detail(
+      '83000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001'
+    )$$,
+  '42501', 'Performance athlete access denied.',
+  'Revoked platform administrator cannot attack athlete detail by direct ID');
+
+reset role;
+select results_eq(
+  $$select count(*) from private.fuel_platform_admin_audit_events
+    where platform_admin_user_id = '81000000-0000-0000-0000-000000000010'
+      and organisation_id = '83000000-0000-0000-0000-000000000001'$$,
+  array[2::bigint],
+  'Platform organisation grant and revocation are both audited');
+update private.fuel_platform_admins
+set status = 'revoked',
+    revoked_by = '81000000-0000-0000-0000-000000000001',
+    revoked_at = now(),
+    reason = 'Release acceptance complete'
+where user_id = '81000000-0000-0000-0000-000000000010';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000010', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
+select results_eq(
+  $$select (public.fuel_platform_admin_context()->>'isPlatformAdmin')::boolean$$,
+  array[false],
+  'Revoking the root platform-administrator grant takes effect immediately');
+select results_eq(
+  $$select count(*) from public.fuel_performance_context()$$,
+  array[0::bigint],
+  'Revoked root platform administrator has no Performance context');
+reset role;
+select results_eq(
+  $$select count(*) from private.fuel_platform_admin_audit_events
+    where platform_admin_user_id = '81000000-0000-0000-0000-000000000010'
+      and organisation_id is null$$,
+  array[2::bigint],
+  'Root platform-administrator grant and revocation are both audited');
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.fuel_performance_interventions'::regclass),
+  'Performance intervention records are RLS-protected');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000009', true);
+select set_config('request.jwt.claims', '{"sub":"81000000-0000-0000-0000-000000000009","role":"authenticated"}', true);
+select throws_ok(
+  $$select * from private.fuel_platform_admins$$,
+  '42501', null,
+  'Ordinary users cannot read or obtain platform-administrator grants');
 
 select * from finish();
 rollback;

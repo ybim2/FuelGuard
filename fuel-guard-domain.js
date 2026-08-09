@@ -437,6 +437,30 @@
     });
   }
 
+  // A usage day contains at least one real fuel or hydration moment. The
+  // current streak ends today when today has a usage day; otherwise it may end
+  // yesterday so an in-progress day does not break the streak before midnight.
+  // Fuel+hydration moments count once in each lifetime total. Check-ins such as
+  // Sleepy are neither fuel nor hydration and never affect these numbers.
+  function activityUsageSummary(logs = [], now = new Date()) {
+    const valid = logsWithDates(logs);
+    const fuelMoments = valid.filter(isFuelLog);
+    const hydrationMoments = valid.filter(isHydrationLog);
+    const usageDays = new Set([...fuelMoments, ...hydrationMoments].map(log => dateKey(log.date)));
+    const today = dateKey(now);
+    let cursor = usageDays.has(today) ? today : shiftDateKey(today, -1);
+    let dayStreak = 0;
+    while (cursor && usageDays.has(cursor)) {
+      dayStreak += 1;
+      cursor = shiftDateKey(cursor, -1);
+    }
+    return {
+      dayStreak,
+      fuelMoments: fuelMoments.length,
+      hydrationMoments: hydrationMoments.length
+    };
+  }
+
   function maximumFuelGapMinutes(targets = {}) {
     const value = Number(
       targets.maximumFuelGapMinutes ??
@@ -1615,6 +1639,7 @@
     getWorkoutFuelContexts,
     aggregateWorkoutFuelContexts,
     workoutFuelSummariesByAthlete,
+    activityUsageSummary,
     latestLog,
     maximumFuelGapMinutes,
     fuelGapStatus,
