@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-const baseUrl = (process.env.FUEL_GUARD_E2E_BASE_URL || "https://fuel-guard-iota.vercel.app").replace(/\/+$/, "");
+const baseUrl = (process.env.FUEL_GUARD_E2E_BASE_URL || "https://fuelguardapp.com").replace(/\/+$/, "");
 const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
 const supabaseSecret = process.env.SUPABASE_SECRET_KEY || "";
 const supabaseAnon = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";

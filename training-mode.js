@@ -2,7 +2,7 @@
 (() => {
   const PRESETS_TABLE = "fuel_training_mode_presets";
   const SESSIONS_TABLE = "fuel_training_mode_sessions";
-  const SESSION_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,fuel_preset_id,hydration_preset_id,fuel_carbs_g,fuel_fluid_ml,fuel_sodium_mg,fuel_caffeine_mg,hydration_carbs_g,hydration_fluid_ml,hydration_sodium_mg,hydration_caffeine_mg,fuel_interval_minutes,hydration_interval_minutes,plan_source,plan_carbs_g_per_hour,plan_fluid_ml_per_hour,plan_sodium_mg_per_hour,plan_caffeine_mg_per_hour,created_at,updated_at";
+  const SESSION_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,fuel_preset_id,hydration_preset_id,fuel_carbs_g,fuel_fluid_ml,fuel_sodium_mg,fuel_caffeine_mg,hydration_carbs_g,hydration_fluid_ml,hydration_sodium_mg,hydration_caffeine_mg,fuel_interval_minutes,hydration_interval_minutes,plan_source,estimated_duration_minutes,plan_carbs_g_per_hour,plan_fluid_ml_per_hour,plan_sodium_mg_per_hour,plan_caffeine_mg_per_hour,created_at,updated_at";
   const PRESET_COLUMNS = "id,user_id,event_type,name,carbs_g,fluid_ml,sodium_mg,caffeine_mg,intended_interval_minutes,is_default,updated_at";
   const QUANTITIES = [
     { field: "carbsG", label: "Carbohydrate", short: "Carbs", unit: "g" },
@@ -25,10 +25,10 @@
       gap.trainingMode = {
         presets: {
           fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 },
-          hydration: { id: "", carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 }
+          hydration: { id: "", carbsG: 0, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 }
         },
         plan: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
-        advancedPlanEnabled: false,
+        estimatedDurationMinutes: 60,
         activeSession: null,
         sessions: [],
         lastSyncedAt: "",
@@ -67,8 +67,14 @@
     if (!training.presets[type] || typeof training.presets[type] !== "object") training.presets[type] = {};
     const defaults = type === "fuel"
       ? { carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 }
-      : { carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 };
+      : { carbsG: 0, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 };
     training.presets[type] = { id: "", dirty: false, ...defaults, ...training.presets[type] };
+    if (type === "fuel") {
+      training.presets[type].fluidMl = 0;
+      training.presets[type].sodiumMg = 0;
+    } else {
+      training.presets[type].carbsG = 0;
+    }
     if (!training.presets[type].id) training.presets[type].id = uuid();
     return training.presets[type];
   }
@@ -85,21 +91,23 @@
     return domain()?.trainingEventContext?.(active, type) || null;
   }
 
-  function quantityInputs(type, values = preset(type)) {
-    return QUANTITIES.map(item => `
-      <label>${escape(item.short)} <span>${item.unit}</span>
+  function quantityInput(type, item, values = preset(type), label = item.short) {
+    return `
+      <label>${escape(label)} <span>${item.unit}</span>
         <input type="number" min="0" max="${domain()?.TRAINING_QUANTITY_LIMITS?.[item.field] || 10000}" step="1" inputmode="numeric" value="${Number(values[item.field] || 0)}" data-training-preset="${type}" data-training-field="${item.field}">
       </label>
-    `).join("");
+    `;
   }
 
-  function planInputs(plan = state()?.plan || {}) {
-    const disabled = state()?.advancedPlanEnabled ? "" : " disabled";
-    return QUANTITIES.map(item => `
-      <label>${escape(item.short)} <span>${item.unit}/hour</span>
-        <input type="number" min="0" max="${domain()?.TRAINING_QUANTITY_LIMITS?.[item.field] || 10000}" step="1" inputmode="numeric" value="${Number(plan[item.field] || 0)}" data-training-plan="${item.field}"${disabled}>
-      </label>
-    `).join("");
+  function actionInputs(type) {
+    const fields = type === "fuel" ? ["carbsG"] : ["fluidMl", "sodiumMg"];
+    return fields.map(field => quantityInput(type, QUANTITIES.find(item => item.field === field))).join("");
+  }
+
+  function caffeineInputs() {
+    const caffeine = QUANTITIES.find(item => item.field === "caffeineMg");
+    return quantityInput("fuel", caffeine, preset("fuel"), "With Fuel")
+      + quantityInput("hydration", caffeine, preset("hydration"), "With Hydrate");
   }
 
   function intervalInput(type, value) {
@@ -108,33 +116,66 @@
     </label>`;
   }
 
+  function estimatedDurationMinutes({ readForm = false } = {}) {
+    const fallback = Math.min(1440, Math.max(15, Number(state()?.estimatedDurationMinutes) || 60));
+    if (!readForm) return fallback;
+    const presetValue = document.getElementById("trainingEstimatedDuration")?.value || "60";
+    const raw = presetValue === "custom" ? readNumber("#trainingEstimatedDurationCustom") : Number(presetValue);
+    return Math.min(1440, Math.max(15, raw || fallback));
+  }
+
+  function estimatedDurationMarkup() {
+    const minutes = estimatedDurationMinutes();
+    const presets = new Set([30, 60, 90, 120, 180]);
+    const selected = presets.has(minutes) ? String(minutes) : "custom";
+    return `
+      <div class="training-mode-duration-fields">
+        <label>Expected duration <span>planned, not actual</span>
+          <select id="trainingEstimatedDuration">
+            <option value="30"${selected === "30" ? " selected" : ""}>30m</option>
+            <option value="60"${selected === "60" ? " selected" : ""}>1h</option>
+            <option value="90"${selected === "90" ? " selected" : ""}>1h 30m</option>
+            <option value="120"${selected === "120" ? " selected" : ""}>2h</option>
+            <option value="180"${selected === "180" ? " selected" : ""}>3h</option>
+            <option value="custom"${selected === "custom" ? " selected" : ""}>Custom</option>
+          </select>
+        </label>
+        <label data-training-custom-duration${selected === "custom" ? "" : " hidden"}>Custom duration <span>minutes</span>
+          <input id="trainingEstimatedDurationCustom" type="number" min="15" max="1440" step="5" inputmode="numeric" value="${minutes}">
+        </label>
+      </div>
+    `;
+  }
+
   function setupPlan({ readForm = false } = {}) {
     const training = state();
     const fuel = readForm ? collectPreset("fuel") : ensurePreset("fuel");
     const hydration = readForm ? collectPreset("hydration") : ensurePreset("hydration");
     const fuelIntervalMinutes = readForm ? readNumber('[data-training-interval="fuel"]') : fuel.intervalMinutes;
     const hydrationIntervalMinutes = readForm ? readNumber('[data-training-interval="hydration"]') : hydration.intervalMinutes;
-    const useAdvancedPlan = readForm
-      ? Boolean(document.getElementById("trainingAdvancedPlan")?.checked)
-      : Boolean(training.advancedPlanEnabled);
     return domain().trainingHourlyPlan({
       fuelPreset: fuel,
       hydrationPreset: hydration,
       fuelIntervalMinutes,
-      hydrationIntervalMinutes,
-      advancedPlan: readForm ? collectPlan() : training.plan,
-      useAdvancedPlan
+      hydrationIntervalMinutes
     });
   }
 
   function derivedPlanMarkup(plan) {
+    const plannedSession = domain().trainingPlannedSessionTotals(plan.effective, estimatedDurationMinutes({ readForm: Boolean(document.getElementById("trainingEstimatedDuration")) }));
+    const planned = plannedSession.totals;
     return `
       <div class="training-mode-derived-plan-heading">
-        <strong>${plan.source === "advanced" ? "Advanced hourly targets" : "Derived hourly plan"}</strong>
-        <span>${plan.source === "advanced" ? "Manual override" : `Fuel every ${plan.intervals.fuel} min · Hydrate every ${plan.intervals.hydration} min`}</span>
+        <strong>Planned hourly guide</strong>
+        <span>Fuel every ${plan.intervals.fuel} min · Hydrate every ${plan.intervals.hydration} min</span>
       </div>
       <div class="training-mode-derived-plan-grid">
         ${QUANTITIES.map(item => `<span>${escape(item.short)}<strong>${domain().wholeMeasurement(plan.effective[item.field], `${item.unit}/h`)}</strong></span>`).join("")}
+      </div>
+      <div class="training-mode-session-plan">
+        <span>Planned for ${escape(domain().duration(plannedSession.estimatedDurationMinutes))}</span>
+        <strong>Approx. session fuel: ${domain().wholeMeasurement(planned.carbsG, "g")} carbs</strong>
+        <small>${domain().wholeMeasurement(planned.fluidMl, "ml")} fluid · ${domain().wholeMeasurement(planned.sodiumMg, "mg")} sodium${planned.caffeineMg ? ` · ${domain().wholeMeasurement(planned.caffeineMg, "mg")} caffeine` : ""}</small>
       </div>
     `;
   }
@@ -143,8 +184,16 @@
     const target = document.getElementById("trainingDerivedPlan");
     if (!target) return;
     target.innerHTML = derivedPlanMarkup(setupPlan({ readForm: true }));
-    const advanced = Boolean(document.getElementById("trainingAdvancedPlan")?.checked);
-    document.querySelectorAll("[data-training-plan]").forEach(input => { input.disabled = !advanced; });
+    const custom = document.querySelector("[data-training-custom-duration]");
+    if (custom) custom.hidden = document.getElementById("trainingEstimatedDuration")?.value !== "custom";
+  }
+
+  function persistEstimatedDuration() {
+    const training = state();
+    if (!training) return;
+    training.estimatedDurationMinutes = estimatedDurationMinutes({ readForm: true });
+    persist();
+    renderDerivedPlanPreview();
   }
 
   function setupMarkup() {
@@ -169,30 +218,30 @@
             <option value="brick">Brick</option><option value="triathlon">Triathlon</option><option value="race">Race</option><option value="other">Other</option>
           </select></label>
         </div>
+        ${estimatedDurationMarkup()}
       </section>
       <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Fuel action</h2></div><small>Applied to each Training Fuel event.</small></div>
-        <div class="training-mode-quantity-grid">${quantityInputs("fuel")}</div>
+        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Fuel</h2></div><small>Fuel means carbohydrate intake.</small></div>
+        <div class="training-mode-action-inputs fuel">${actionInputs("fuel")}</div>
       </section>
       <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Hydrate action</h2></div><small>Drinks may include carbohydrate and sodium.</small></div>
-        <div class="training-mode-quantity-grid">${quantityInputs("hydration")}</div>
+        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Hydrate</h2></div><small>Hydrate records fluid and sodium.</small></div>
+        <div class="training-mode-action-inputs hydration">${actionInputs("hydration")}</div>
+      </section>
+      <section class="training-mode-section training-mode-caffeine">
+        <div class="training-mode-heading"><div><span>Optional</span><h2>Caffeine</h2></div><small>Add caffeine only when relevant.</small></div>
+        <div class="training-mode-action-inputs caffeine">${caffeineInputs()}</div>
       </section>
       <section class="training-mode-section training-mode-strategy">
         <div class="training-mode-heading"><div><span>Timing strategy</span><h2>How often do you intend to tap?</h2></div><small>Fuel Guard derives your hourly plan.</small></div>
         <div class="training-mode-interval-grid">${intervalInput("fuel", training.presets.fuel.intervalMinutes)}${intervalInput("hydration", training.presets.hydration.intervalMinutes)}</div>
         <div id="trainingDerivedPlan" class="training-mode-derived-plan">${derivedPlanMarkup(setupPlan())}</div>
       </section>
-      <details class="training-mode-section training-mode-plan">
-        <summary>Advanced targets</summary>
-        <p>Optionally override the derived rates. Fuel Guard tracks execution; it does not prescribe a strategy.</p>
-        <label class="training-mode-advanced-toggle"><input id="trainingAdvancedPlan" type="checkbox"${training.advancedPlanEnabled ? " checked" : ""}> Use manual hourly targets</label>
-        <div class="training-mode-quantity-grid">${planInputs(training.plan)}</div>
-      </details>
       <section class="training-mode-start-panel">
         <p>${escape(statusMessage || "Starting Training Mode is explicit. No quantities are added to ordinary Daily Mode logs.")}</p>
         <button class="primary training-mode-start" type="button" data-training-start>Start Training Mode</button>
       </section>
+      ${trainingInsightsMarkup()}
       ${completedSessionsMarkup()}
     `;
   }
@@ -209,27 +258,46 @@
     return domain().wholeMeasurement(value, unit);
   }
 
+  function compactNumber(value, decimals = 0) {
+    const rounded = Number(Number(value || 0).toFixed(decimals));
+    return Number.isFinite(rounded) ? String(rounded) : "0";
+  }
+
+  function trainingValue(value, item, { perHour = false } = {}) {
+    if (!Number.isFinite(Number(value))) return "";
+    const amount = Math.max(0, Number(value));
+    let display = "";
+    if (item.field === "fluidMl" && amount >= 1000) {
+      display = `${compactNumber(amount / 1000, 1)}L`;
+    } else if (item.field === "carbsG" && amount >= 1000) {
+      display = `${compactNumber(amount / 1000, 1)}kg`;
+    } else {
+      display = `${compactNumber(amount, amount < 10 && amount % 1 ? 1 : 0)}${item.unit}`;
+    }
+    return `${display}${perHour ? "/h" : ""}`;
+  }
+
   function sessionSummary(session, now = new Date()) {
     return domain().trainingSessionIntakeSummary({ session, logs: logs(), now });
   }
 
+  function completedSessionMetrics(session) {
+    return domain().completedTrainingSessionMetrics({
+      session,
+      logs: logs(),
+      now: new Date(session.endedAt || session.ended_at)
+    });
+  }
+
   function intakeCards(summary, session) {
-    const progress = domain().trainingPlanProgress(summary, session.plan || {});
     return QUANTITIES.map(item => {
       const total = summary.totals[item.field];
-      const rate = summary.perHour[item.field];
-      const plan = progress[item.field];
-      const planCopy = plan.plannedRate > 0
-        ? `<small class="${plan.state}">${unitValue(plan.expected, item.unit)} planned by now · ${plan.state === "on_plan" ? "on plan" : `${unitValue(Math.abs(plan.difference), item.unit)} ${plan.state === "behind" ? "behind plan" : "ahead of plan"}`}</small>`
-        : `<small>No planned rate set.</small>`;
-      const expectedMax = Math.max(Number(plan.expected || 0), Number(total || 0), 1);
-      const width = Math.min(100, Math.round((Number(total || 0) / expectedMax) * 100));
+      const plannedRate = Math.max(0, Number(session.plan?.[item.field] || 0));
       return `
         <article class="training-mode-intake-card">
           <span>${escape(item.label)}</span>
-          <strong>${unitValue(total, item.unit)} <em>· ${unitValue(rate, item.unit)}/h</em></strong>
-          <div class="training-mode-progress" aria-hidden="true"><i style="width:${width}%"></i></div>
-          ${planCopy}
+          <strong>${unitValue(total, item.unit)}</strong>
+          <small>${plannedRate ? `${unitValue(plannedRate, item.unit)}/h planned` : "No planned intake"}</small>
         </article>
       `;
     }).join("");
@@ -270,7 +338,7 @@
         <button class="training-mode-action hydration" type="button" data-training-log="hydration"><strong>Hydrate</strong><span>${presetSummary(session, "hydration")}</span></button>
       </section>
       <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>Session intake</span><h2>Actual vs your plan</h2></div><button class="secondary" type="button" data-training-refresh>Refresh</button></div>
+        <div class="training-mode-heading"><div><span>Session intake</span><h2>Actual totals so far</h2></div><button class="secondary" type="button" data-training-refresh>Refresh</button></div>
         <div class="training-mode-intake-grid">${intakeCards(summary, session)}</div>
       </section>
       <section class="training-mode-end-panel">
@@ -282,7 +350,8 @@
 
   function presetSummary(session, type) {
     const context = domain().trainingEventContext(session, type);
-    return QUANTITIES.filter(item => context[item.field] > 0).map(item => `${unitValue(context[item.field], item.unit)} ${item.short.toLowerCase()}`).join(" · ");
+    const fields = type === "fuel" ? ["carbsG", "caffeineMg"] : ["fluidMl", "sodiumMg", "caffeineMg"];
+    return fields.map(field => QUANTITIES.find(item => item.field === field)).filter(item => context[item.field] > 0).map(item => `${unitValue(context[item.field], item.unit)} ${item.short.toLowerCase()}`).join(" · ");
   }
 
   function prePostMarkup(session) {
@@ -295,22 +364,55 @@
       type: session.sessionType
     };
     const context = domain().getWorkoutFuelContext(workout, logs());
-    return `<div class="training-mode-review-context"><span>Before <strong>${context.hasPreviousFuel ? `${domain().duration(context.preFuelGapMinutes)} since fuel` : "No prior fuel"}</strong></span><span>After <strong>${context.hasPostFuel ? `${domain().duration(context.postFuelGapMinutes)} to fuel` : "No post-session fuel yet"}</strong></span></div>`;
+    return `<div class="training-mode-review-context"><span>Before session <strong>${context.hasPreviousFuel ? `${domain().duration(context.preFuelGapMinutes)} before session` : "No prior Fuel recorded"}</strong></span><span>After session <strong>${context.hasPostFuel ? `${domain().duration(context.postFuelGapMinutes)} post workout to fuel` : "No post-workout Fuel yet"}</strong></span></div>`;
+  }
+
+  function trainingInsightsMarkup() {
+    const result = domain().athleteTrainingInsights({ logs: logs(), sessions: state()?.sessions || [] });
+    const group = (label, insights) => insights.length ? `
+      <div class="training-mode-insight-group">
+        <h3>${escape(label)}</h3>
+        <div class="training-mode-insight-grid">${insights.map(insight => `
+          <article><span>${escape(insight.label)}</span><strong>${escape(insight.value)}</strong><small>${escape(insight.detail)}</small></article>
+        `).join("")}</div>
+      </div>
+    ` : "";
+    return `
+      <section class="training-mode-section training-mode-insights">
+        <div class="training-mode-heading"><div><span>Useful now</span><h2>Training Insights</h2></div><small>Session context and today’s timing stay separate.</small></div>
+        ${group("From completed sessions", result.sessionInsights)}
+        ${group("From today", result.dayInsights)}
+      </section>
+    `;
   }
 
   function completedSessionsMarkup() {
     const sessions = (state()?.sessions || []).filter(item => item.status === "completed" && item.endedAt).sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt)).slice(0, 6);
     if (!sessions.length) return "";
+    const recent = domain().completedTrainingSessionAverages({ sessions, logs: logs(), limit: 6 });
+    const averageItems = [
+      { label: "Average carbs per session", value: Number.isFinite(recent.averages.carbsGPerSession) ? trainingValue(recent.averages.carbsGPerSession, QUANTITIES[0]) : "" },
+      { label: "Average carbs/hour per session", value: Number.isFinite(recent.averages.carbsGPerHour) ? trainingValue(recent.averages.carbsGPerHour, QUANTITIES[0], { perHour: true }) : "" },
+      { label: "Average fluid per session", value: Number.isFinite(recent.averages.fluidMlPerSession) ? trainingValue(recent.averages.fluidMlPerSession, QUANTITIES[1]) : "" },
+      { label: "Average session duration", value: Number.isFinite(recent.averages.durationSeconds) ? domain().duration(Math.round(recent.averages.durationSeconds / 60)) : "" }
+    ].filter(item => item.value);
     return `
+      ${averageItems.length ? `<section class="training-mode-section training-mode-recent-summary">
+        <div class="training-mode-heading"><div><span>Completed sessions</span><h2>Recent Training Summary</h2></div><small>Simple averages from valid completed sessions only.</small></div>
+        <div class="training-mode-summary-grid">${averageItems.map(item => `<article><span>${escape(item.label)}</span><strong>${escape(item.value)}</strong></article>`).join("")}</div>
+      </section>` : ""}
       <section class="training-mode-section training-mode-review-list">
         <div class="training-mode-heading"><div><span>History</span><h2>Recent Training Mode sessions</h2></div></div>
         ${sessions.map(session => {
-          const summary = sessionSummary(session, new Date(session.endedAt));
+          const summary = completedSessionMetrics(session);
+          const startedAt = new Date(session.startedAt);
+          const endedAt = new Date(session.endedAt);
           return `<article class="training-mode-review-card">
-            <div><span>${new Date(session.startedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><h3>${escape(session.title)}</h3><small>${durationText(summary.durationSeconds)} · ${summary.eventCount} events</small></div>
+            <div><span>${startedAt.toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><h3>${escape(session.title)}</h3><small>${escape(domain().formatClock(startedAt))}–${escape(domain().formatClock(endedAt))} local · ${durationText(summary.durationSeconds)} actual${session.estimatedDurationMinutes ? ` · ${domain().duration(session.estimatedDurationMinutes)} planned` : ""} · ${summary.eventCount} events</small>${summary.validLoggedIntake ? "" : `<small class="training-mode-rate-note">Actual rates unavailable: a completed session needs at least 15 minutes and a logged Training event.</small>`}</div>
             <div class="training-mode-review-totals">${QUANTITIES.map(item => {
-              const progress = domain().trainingPlanProgress(summary, session.plan || {})[item.field];
-              return `<span>${item.short}<strong>${unitValue(summary.totals[item.field], item.unit)}</strong><small>${unitValue(summary.perHour[item.field], item.unit)}/h${progress.plannedRate > 0 ? ` · ${progress.state === "on_plan" ? "on plan" : progress.state}` : ""}</small></span>`;
+              const plannedRate = Math.max(0, Number(session.plan?.[item.field] || 0));
+              const actualRate = summary.actualPerHour[item.field];
+              return `<span>${escape(item.short)}<strong>${escape(trainingValue(summary.totals[item.field], item))} logged</strong>${Number.isFinite(actualRate) ? `<small>Actual rate<strong>${escape(trainingValue(actualRate, item, { perHour: true }))}</strong></small>` : ""}${plannedRate > 0 ? `<small>Planned rate<strong>${escape(trainingValue(plannedRate, item, { perHour: true }))}</strong></small>` : ""}</span>`;
             }).join("")}</div>
             ${prePostMarkup(session)}
           </article>`;
@@ -343,12 +445,6 @@
     return next;
   }
 
-  function collectPlan() {
-    const next = {};
-    QUANTITIES.forEach(item => { next[item.field] = readNumber(`[data-training-plan="${item.field}"]`); });
-    return next;
-  }
-
   async function startSession() {
     const training = state();
     const fuel = collectPreset("fuel");
@@ -364,8 +460,8 @@
     training.presets.fuel = { ...fuel, ...fuelValidation.preset };
     training.presets.hydration = { ...hydration, ...hydrationValidation.preset };
     const planned = setupPlan({ readForm: true });
-    training.plan = collectPlan();
-    training.advancedPlanEnabled = planned.source === "advanced";
+    training.plan = { ...planned.effective };
+    training.estimatedDurationMinutes = estimatedDurationMinutes({ readForm: true });
     const startedAt = new Date().toISOString();
     const session = {
       id: uuid(),
@@ -386,7 +482,8 @@
       hydrationCaffeineMg: hydration.caffeineMg,
       fuelIntervalMinutes: planned.intervals.fuel,
       hydrationIntervalMinutes: planned.intervals.hydration,
-      planSource: planned.source,
+      planSource: "derived",
+      estimatedDurationMinutes: training.estimatedDurationMinutes,
       plan: { ...planned.effective },
       createdAt: startedAt,
       updatedAt: startedAt
@@ -453,7 +550,8 @@
       hydration_caffeine_mg: session.hydrationCaffeineMg,
       fuel_interval_minutes: session.fuelIntervalMinutes || 30,
       hydration_interval_minutes: session.hydrationIntervalMinutes || 20,
-      plan_source: session.planSource || "derived",
+      plan_source: "derived",
+      estimated_duration_minutes: session.estimatedDurationMinutes || 60,
       plan_carbs_g_per_hour: session.plan?.carbsG || 0,
       plan_fluid_ml_per_hour: session.plan?.fluidMl || 0,
       plan_sodium_mg_per_hour: session.plan?.sodiumMg || 0,
@@ -483,6 +581,7 @@
       fuelIntervalMinutes: row.fuel_interval_minutes || 30,
       hydrationIntervalMinutes: row.hydration_interval_minutes || 20,
       planSource: row.plan_source || "derived",
+      estimatedDurationMinutes: row.estimated_duration_minutes || 60,
       plan: {
         carbsG: row.plan_carbs_g_per_hour,
         fluidMl: row.plan_fluid_ml_per_hour,
@@ -612,9 +711,15 @@
   });
 
   document.addEventListener("input", event => {
-    if (event.target.closest("[data-training-preset], [data-training-interval], [data-training-plan], #trainingAdvancedPlan")) {
+    if (event.target.closest("#trainingEstimatedDurationCustom")) {
+      persistEstimatedDuration();
+    } else if (event.target.closest("[data-training-preset], [data-training-interval]")) {
       renderDerivedPlanPreview();
     }
+  });
+
+  document.addEventListener("change", event => {
+    if (event.target.closest("#trainingEstimatedDuration")) persistEstimatedDuration();
   });
 
   window.addEventListener("fuelguard:cloud-status", () => syncCloud());
@@ -630,6 +735,6 @@
     syncCloud,
     contextForEvent,
     activeSession,
-    _test: { sessionFromRow, presetFromRow, durationText }
+    _test: { sessionFromRow, presetFromRow, durationText, estimatedDurationMinutes }
   };
 })();

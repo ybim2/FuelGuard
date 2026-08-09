@@ -648,19 +648,35 @@
   async function saveMembership(event) {
     event.preventDefault();
     const email = $("membershipEmailInput").value.trim();
+    const active = $("membershipStatusPicker").value === "active";
     if (!email) {
       $("accessStatus").textContent = "Enter the staff member’s Fuel Guard account email.";
       return;
     }
     try {
-      await rpc("fuel_performance_set_staff_membership_by_email", {
+      const staffUserId = await rpc("fuel_performance_set_staff_membership_by_email", {
         p_organisation_id: state.organisationId,
         p_email: email,
         p_role: $("membershipRolePicker").value,
-        p_active: $("membershipStatusPicker").value === "active"
+        p_active: active
       });
       $("membershipEmailInput").value = "";
-      $("accessStatus").textContent = "Staff account added. Now assign scope and only the capabilities they need; membership alone grants no athlete-data access.";
+      if (active) {
+        try {
+          await window.FuelGuardTransactionalEmail.sendInvitation({
+            accessToken: state.session?.access_token,
+            kind: "organisation_staff",
+            entityId: staffUserId,
+            contextId: state.organisationId
+          });
+          $("accessStatus").textContent = "Staff account added and email delivered. Now assign scope and only the capabilities they need; membership alone grants no athlete-data access.";
+        } catch (emailError) {
+          console.error("Organisation staff email delivery failed", { staffUserId, organisationId: state.organisationId, error: String(emailError?.message || emailError) });
+          $("accessStatus").textContent = "Staff account added. Its email could not be delivered; now assign scope and only the capabilities they need.";
+        }
+      } else {
+        $("accessStatus").textContent = "Staff membership revoked. Access is recalculated immediately.";
+      }
       await loadOrganisation({ preserveStatus: true });
     } catch (error) { $("accessStatus").textContent = friendlyError(error); }
   }
@@ -691,9 +707,19 @@
       return;
     }
     try {
-      await rpc("fuel_performance_invite_athlete", { p_organisation_id: state.organisationId, p_athlete_id: athleteId });
+      const shareId = await rpc("fuel_performance_invite_athlete", { p_organisation_id: state.organisationId, p_athlete_id: athleteId });
       $("athleteInviteInput").value = "";
-      $("accessStatus").textContent = "Sharing invitation created. No athlete data is available until the athlete accepts.";
+      try {
+        await window.FuelGuardTransactionalEmail.sendInvitation({
+          accessToken: state.session?.access_token,
+          kind: "organisation_athlete",
+          entityId: shareId
+        });
+        $("accessStatus").textContent = "Sharing invitation created and email delivered. No athlete data is available until the athlete accepts.";
+      } catch (emailError) {
+        console.error("Organisation sharing email delivery failed", { shareId, error: String(emailError?.message || emailError) });
+        $("accessStatus").textContent = "Sharing invitation created. Its email could not be delivered, but no athlete data is available until the athlete accepts.";
+      }
       await loadOrganisation({ preserveStatus: true });
     } catch (error) { $("accessStatus").textContent = friendlyError(error); }
   }

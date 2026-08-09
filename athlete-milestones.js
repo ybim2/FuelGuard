@@ -57,14 +57,42 @@
   function renderHistory(currentSummary = summary()) {
     const target = document.getElementById("athleteMilestones");
     if (!target || !domain()) return;
-    const earned = domain().earnedMilestones(currentSummary);
+    const earnedKeys = new Set(domain().earnedMilestones(currentSummary).map(item => item.key));
     const byKey = new Map((milestoneState()?.achievements || []).map(item => [item.key, item]));
-    target.innerHTML = earned.length ? `
-      <div class="beta-milestone-history">
-        ${earned.map(item => `<span data-milestone-key="${domain().escapeHtml(item.key)}"><b aria-hidden="true">${item.category === "streak" ? "🔥" : item.category === "fuel" ? "🍽" : "💧"}</b>${domain().escapeHtml(item.label)}${byKey.has(item.key) ? "" : ""}</span>`).join("")}
+    const categories = [
+      { id: "streak", label: "Streak", icon: "🔥", value: Number(currentSummary.dayStreak || 0), unit: value => value === 1 ? "day" : "days" },
+      { id: "fuel", label: "Fuel", icon: "🍽", value: Number(currentSummary.fuelMoments || 0), unit: value => value === 1 ? "moment" : "moments" },
+      { id: "hydration", label: "Hydration", icon: "💧", value: Number(currentSummary.hydrationMoments || 0), unit: value => value === 1 ? "moment" : "moments" }
+    ];
+    target.innerHTML = `
+      <div class="beta-milestone-paths">
+        ${categories.map(category => {
+          const thresholds = domain().MILESTONE_THRESHOLDS[category.id] || [];
+          const unlocked = thresholds.filter(threshold => earnedKeys.has(domain().milestoneKey(category.id, threshold)));
+          const current = unlocked.at(-1);
+          return `
+            <section class="beta-milestone-row ${category.id}" aria-label="${domain().escapeHtml(category.label)} milestones">
+              <header><span aria-hidden="true">${category.icon}</span><div><h4>${domain().escapeHtml(category.label)}</h4><small>${category.value.toLocaleString("en-GB")} ${category.unit(category.value)}</small></div></header>
+              <div class="beta-milestone-scroll" role="list" tabindex="0" aria-label="Scroll through ${domain().escapeHtml(category.label)} milestones">
+                ${thresholds.map(threshold => {
+                  const key = domain().milestoneKey(category.id, threshold);
+                  const achievement = byKey.get(key);
+                  const unlockedState = earnedKeys.has(key);
+                  const recent = Boolean(achievement?.achievedAt && !achievement.acknowledgedAt);
+                  const state = unlockedState ? "Unlocked" : "Locked";
+                  return `<article class="beta-milestone-tile ${unlockedState ? "unlocked" : "locked"}${threshold === current ? " current" : ""}${recent ? " recent" : ""}" data-milestone-key="${domain().escapeHtml(key)}" role="listitem">
+                    <span>${Number(threshold).toLocaleString("en-GB")}</span>
+                    <strong>${category.id === "streak" ? "DAY STREAK" : category.id === "fuel" ? "FUEL MOMENTS" : "HYDRATION MOMENTS"}</strong>
+                    <small>${unlockedState ? "✓" : "○"} ${state}</small>
+                  </article>`;
+                }).join("")}
+              </div>
+            </section>
+          `;
+        }).join("")}
       </div>
-      <p class="row-note">Milestones recognise consistent Fuel Guard use. There are no points, rankings or streak pressure.</p>
-    ` : `<p class="row-note">Your first milestones begin at a 5-day streak, 50 fuelling moments or 50 hydration moments.</p>`;
+      <p class="row-note">Scroll each row to see completed milestones and what comes next.</p>
+    `;
   }
 
   function acknowledgeLocal(key) {

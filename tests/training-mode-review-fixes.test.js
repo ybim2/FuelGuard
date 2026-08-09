@@ -48,26 +48,25 @@ test("one Training Mode event remains one ordinary Daily event with session cont
 test("Fuel and Hydrate intervals derive combined hourly carbohydrate fluid sodium and caffeine", () => {
   const plan = domain.trainingHourlyPlan({
     fuelPreset: { carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 20 },
-    hydrationPreset: { carbsG: 10, fluidMl: 250, sodiumMg: 300, caffeineMg: 0 },
+    hydrationPreset: { carbsG: 0, fluidMl: 250, sodiumMg: 300, caffeineMg: 0 },
     fuelIntervalMinutes: 30,
     hydrationIntervalMinutes: 20
   });
-  assert.deepEqual(plan.derived, { carbsG: 90, fluidMl: 750, sodiumMg: 900, caffeineMg: 40 });
+  assert.deepEqual(plan.derived, { carbsG: 60, fluidMl: 750, sodiumMg: 900, caffeineMg: 40 });
   assert.deepEqual(plan.effective, plan.derived);
   assert.equal(plan.source, "derived");
 });
 
-test("advanced hourly targets override derived values only when explicitly enabled", () => {
+test("expected duration converts the derived hourly guide into approximate session totals", () => {
   const plan = domain.trainingHourlyPlan({
-    fuelPreset: { carbsG: 30 },
-    hydrationPreset: { fluidMl: 250 },
+    fuelPreset: { carbsG: 30, caffeineMg: 20 },
+    hydrationPreset: { fluidMl: 250, sodiumMg: 300 },
     fuelIntervalMinutes: 30,
-    hydrationIntervalMinutes: 30,
-    advancedPlan: { carbsG: 75, fluidMl: 650, sodiumMg: 500, caffeineMg: 25 },
-    useAdvancedPlan: true
+    hydrationIntervalMinutes: 20
   });
-  assert.deepEqual(plan.effective, { carbsG: 75, fluidMl: 650, sodiumMg: 500, caffeineMg: 25 });
-  assert.equal(plan.source, "advanced");
+  const planned = domain.trainingPlannedSessionTotals(plan.effective, 150);
+  assert.equal(planned.estimatedDurationMinutes, 150);
+  assert.deepEqual(planned.totals, { carbsG: 150, fluidMl: 1875, sodiumMg: 2250, caffeineMg: 100 });
 });
 
 test("Training measurement presentation uses normal nearest-whole-number rounding", () => {
@@ -76,12 +75,12 @@ test("Training measurement presentation uses normal nearest-whole-number roundin
   assert.equal(domain.wholeMeasurement(-1.6, "g"), "-2g");
 });
 
-test("Milestones and Your Patterns now occupy the bottom of Daily instead of Settings", () => {
+test("Milestones remain at the bottom of Daily after the insight cards are removed", () => {
   const html = read("index.html");
   const dashboard = html.slice(html.indexOf('<section id="dashboard"'), html.indexOf('<section id="training"'));
   const settings = html.slice(html.indexOf('<section id="checklist"'), html.indexOf('</main>'));
-  assert.ok(dashboard.indexOf('id="fuelLogPatterns"') < dashboard.indexOf('id="athleteYourPatterns"'));
-  assert.ok(dashboard.indexOf('id="athleteYourPatterns"') < dashboard.indexOf('id="athleteMilestones"'));
+  assert.ok(dashboard.indexOf('id="fuelLogPatterns"') < dashboard.indexOf('id="athleteMilestones"'));
+  assert.doesNotMatch(dashboard, /athleteTodayInsights|trainingFuelAnalysis/);
   assert.doesNotMatch(settings, /id="athleteMilestones"/);
 });
 
@@ -104,7 +103,7 @@ test("Training Today’s Patterns keeps multiple sessions in separate lanes", ()
   assert.deepEqual(lanes.map(lane => lane.events.length), [2, 1]);
 });
 
-test("Your Patterns thresholds average interval and recurring gap observations", () => {
+test("Coach longitudinal patterns threshold average interval and recurring gap observations", () => {
   const logs = [
     fuel("athlete-a", "2026-08-01T08:00:00Z"), fuel("athlete-a", "2026-08-01T14:00:00Z"),
     fuel("athlete-a", "2026-08-02T08:00:00Z"), fuel("athlete-a", "2026-08-02T14:00:00Z"),
@@ -115,7 +114,7 @@ test("Your Patterns thresholds average interval and recurring gap observations",
   assert.equal(result.insights.find(item => item.id === "recurring-gap-window").sampleCount, 2);
 });
 
-test("Your Patterns training-day, Sleepy and post-training observations require real samples", () => {
+test("Coach longitudinal training-day Sleepy and post-training patterns require real samples", () => {
   const logs = [
     fuel("athlete-a", "2026-08-01T07:00:00Z"), fuel("athlete-a", "2026-08-01T13:00:00Z"),
     fuel("athlete-a", "2026-08-02T07:00:00Z"), fuel("athlete-a", "2026-08-02T13:00:00Z"),

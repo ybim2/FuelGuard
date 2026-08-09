@@ -6137,7 +6137,6 @@
     const todayStatusTarget = document.getElementById("fuelTodayStatus");
     const todayTimelineTarget = document.getElementById("fuelTodayTimeline");
     const logPatternsTarget = document.getElementById("fuelLogPatterns");
-    const yourPatternsTarget = document.getElementById("athleteYourPatterns");
     renderPlanSubtabs();
     if (legacyTarget) legacyTarget.innerHTML = "";
     if (statusTarget) statusTarget.innerHTML = renderDailyStatusCard(entry);
@@ -6145,7 +6144,6 @@
     if (todayStatusTarget) todayStatusTarget.innerHTML = renderCurrentFuellingStatus(todayKey);
     if (todayTimelineTarget) todayTimelineTarget.innerHTML = renderTodayTimeline(key);
     if (logPatternsTarget) logPatternsTarget.innerHTML = renderFuellingPatternGraphs(todayKey);
-    if (yourPatternsTarget) yourPatternsTarget.innerHTML = renderYourPatterns();
     if (windowTarget) windowTarget.innerHTML = "";
     if (targetsTarget) targetsTarget.innerHTML = renderDailyTargetProgress(fuelLogs.length, hydrationLogs.length);
     if (weeklyTargetsTarget) {
@@ -9692,32 +9690,6 @@
     `;
   }
 
-  function renderYourPatterns() {
-    const result = window.FuelGuardDomain.behaviouralPatternInsights({
-      logs: betaState().logs,
-      sessions: betaState().trainingMode?.sessions || []
-    });
-    return `
-      <section class="beta-trend-habit-section beta-your-patterns-section" aria-label="Your Patterns">
-        <div class="beta-weekly-section-head">
-          <span class="beta-icon-disc shield">${dailyIcon("chart")}</span>
-          <div><h3>Your Patterns</h3><p>Longer-term observations appear only when enough of your own data exists.</p></div>
-        </div>
-        ${result.insights.length ? `
-          <div class="beta-your-patterns-grid">
-            ${result.insights.map(insight => `
-              <article class="beta-your-pattern-card">
-                <span>${safeText(insight.label)}</span>
-                <strong>${safeText(insight.value)}</strong>
-                <small>${safeText(insight.detail)}</small>
-              </article>
-            `).join("")}
-          </div>
-        ` : `<p class="muted beta-your-patterns-empty">Keep using Daily and Training Mode to build reproducible patterns. No low-confidence percentage is shown.</p>`}
-      </section>
-    `;
-  }
-
   function renderInsightsWeeklySummary(data) {
     const loggedDays = data.currentEntries.filter(entry => (entry.logs || []).length || Number(entry.fuelLogCount || 0) || Number(entry.hydrationLogCount || 0));
     const fuelLogs = data.currentEntries.reduce((sum, entry) => sum + Number(entry.fuelLogCount || 0), 0);
@@ -10576,15 +10548,53 @@
         patch.revoked_at = null;
       }
       if (nextStatus === "revoked") patch.revoked_at = now;
-      const { error } = await client
+      const expectedStatus = nextStatus === "revoked" ? "active" : "pending";
+      const updateResult = await client
         .from(COACH_RELATIONSHIPS_TABLE)
         .update(patch)
         .eq("id", id)
-        .eq("athlete_id", user.id);
-      if (error) throw error;
+        .eq("athlete_id", user.id)
+        .eq("status", expectedStatus)
+        .select("id,status,accepted_at,updated_at")
+        .maybeSingle();
+      if (updateResult.error) throw updateResult.error;
+      let relationship = updateResult.data;
+      if (!relationship) {
+        const currentResult = await client
+          .from(COACH_RELATIONSHIPS_TABLE)
+          .select("id,status,accepted_at,updated_at")
+          .eq("id", id)
+          .eq("athlete_id", user.id)
+          .maybeSingle();
+        if (currentResult.error) throw currentResult.error;
+        if (currentResult.data?.status !== nextStatus) throw new Error("Coach connection was already changed.");
+        relationship = currentResult.data;
+      }
+      let emailWarning = "";
+      const notificationKind = nextStatus === "active"
+        ? "coach_approved"
+        : nextStatus === "declined"
+          ? "coach_declined"
+          : "";
+      if (notificationKind) {
+        try {
+          await window.FuelGuardTransactionalEmail.sendNotification({
+            accessToken: window.fuelGuardCloud.accessToken(),
+            kind: notificationKind,
+            entityId: relationship.id
+          });
+        } catch (emailError) {
+          console.error("Coach connection decision email delivery failed", {
+            relationshipId: relationship.id,
+            kind: notificationKind,
+            error: String(emailError?.message || emailError)
+          });
+          emailWarning = " The relationship was updated, but its email could not be delivered.";
+        }
+      }
       coachSharingState.loadedFor = "";
-      coachSharingState.status = successMessage;
       await loadCoachSharingRelationships(true);
+      coachSharingState.status = `${successMessage}${emailWarning}`;
     } catch (error) {
       setCoachSharingStatus(coachSharingSetupError(error)
         ? "Coach access setup is not applied yet."

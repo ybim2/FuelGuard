@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(31);
 
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -21,20 +21,20 @@ insert into public.fuel_training_mode_presets (
   id, user_id, event_type, name, carbs_g, fluid_ml, sodium_mg, caffeine_mg, intended_interval_minutes
 ) values
   ('92000000-0000-4000-8000-000000000001', '91000000-0000-0000-0000-000000000001', 'fuel', 'Fuel', 30, 0, 0, 0, 30),
-  ('92000000-0000-4000-8000-000000000002', '91000000-0000-0000-0000-000000000001', 'hydration', 'Hydrate', 10, 200, 250, 0, 20);
+  ('92000000-0000-4000-8000-000000000002', '91000000-0000-0000-0000-000000000001', 'hydration', 'Hydrate', 0, 200, 250, 0, 20);
 
 insert into public.fuel_training_mode_sessions (
   id, user_id, title, session_type, status, started_at,
   fuel_preset_id, hydration_preset_id,
   fuel_carbs_g, fuel_fluid_ml, fuel_sodium_mg, fuel_caffeine_mg,
   hydration_carbs_g, hydration_fluid_ml, hydration_sodium_mg, hydration_caffeine_mg,
-  fuel_interval_minutes, hydration_interval_minutes, plan_source,
+  fuel_interval_minutes, hydration_interval_minutes, plan_source, estimated_duration_minutes,
   plan_carbs_g_per_hour, plan_fluid_ml_per_hour, plan_sodium_mg_per_hour
 ) values (
   '93000000-0000-4000-8000-000000000001', '91000000-0000-0000-0000-000000000001',
   'Long ride', 'bike', 'active', '2026-08-09T08:00:00Z',
   '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000002',
-  30, 0, 0, 0, 10, 200, 250, 0, 30, 20, 'derived', 90, 600, 750
+  30, 0, 0, 0, 0, 200, 250, 0, 30, 20, 'derived', 150, 60, 600, 750
 );
 
 select results_eq($$select count(*) from public.fuel_training_mode_presets$$, array[2::bigint], 'Athlete reads own Training presets');
@@ -49,6 +49,18 @@ select results_eq(
   $$values (30, 20, 'derived'::text)$$,
   'Derived plan provenance and both intended intervals persist with the session'
 );
+select results_eq(
+  $$select estimated_duration_minutes from public.fuel_training_mode_sessions$$,
+  array[150],
+  'Expected session duration persists separately from actual timestamps'
+);
+select throws_ok(
+  $$update public.fuel_training_mode_sessions
+    set estimated_duration_minutes = 0
+    where id = '93000000-0000-4000-8000-000000000001'$$,
+  '23514', null,
+  'Expected session duration rejects values below the supported range'
+);
 
 insert into public.fuel_logs (
   id, user_id, logged_at, type, source,
@@ -58,13 +70,13 @@ insert into public.fuel_logs (
   '94000000-0000-4000-8000-000000000001', '91000000-0000-0000-0000-000000000001',
   '2026-08-09T08:30:00Z', 'hydration', 'manual',
   '93000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000002',
-  10, 200, 250, 0
+  0, 200, 250, 0
 );
 
 select results_eq(
   $$select carbs_g, fluid_ml, sodium_mg, caffeine_mg from public.fuel_logs where id = '94000000-0000-4000-8000-000000000001'$$,
-  $$values (10, 200, 250, 0)$$,
-  'Training Hydrate preserves mixed carbohydrate, fluid and sodium quantities in canonical units'
+  $$values (0, 200, 250, 0)$$,
+  'Training Hydrate preserves fluid and sodium without attributing carbohydrate'
 );
 
 insert into public.fuel_logs (id, user_id, logged_at, type, source) values
@@ -95,7 +107,7 @@ select throws_ok(
     ) values (
       '91000000-0000-0000-0000-000000000001', 'Second ride', 'bike', 'active', now(),
       '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000002',
-      30, 0, 0, 0, 10, 200, 250, 0
+      30, 0, 0, 0, 0, 200, 250, 0
     )$$,
   '23505', null,
   'Only one active Training Mode session is allowed per athlete'
@@ -197,7 +209,7 @@ select results_eq(
 );
 select results_eq(
   $$select carbs_g, fluid_ml, sodium_mg, caffeine_mg from public.fuel_logs where training_mode_session_id = '93000000-0000-4000-8000-000000000001'$$,
-  $$values (10, 200, 250, 0)$$,
+  $$values (0, 200, 250, 0)$$,
   'Active direct coach can retrieve authorised Training quantities'
 );
 select results_eq(

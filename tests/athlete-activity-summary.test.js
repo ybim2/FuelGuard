@@ -68,8 +68,8 @@ test("Normal to Holiday to Normal clears the persisted override", () => {
   assert.equal(state.logs[0].dayType, "");
 });
 
-test("streak milestones cross at 5 10 30 and 50 exactly once", () => {
-  for (const threshold of [5, 10, 30, 50]) {
+test("streak milestones cross every configured threshold exactly once", () => {
+  for (const threshold of [3, 5, 7, 14, 30, 50, 100]) {
     const previous = { dayStreak: threshold - 1, fuelMoments: 0, hydrationMoments: 0 };
     const current = { dayStreak: threshold, fuelMoments: 0, hydrationMoments: 0 };
     const first = domain.newlyCrossedMilestones(previous, current, []);
@@ -78,8 +78,8 @@ test("streak milestones cross at 5 10 30 and 50 exactly once", () => {
   }
 });
 
-test("fuel and hydration milestones are independent at 50 100 500 and 1000", () => {
-  for (const threshold of [50, 100, 500, 1000]) {
+test("fuel and hydration milestones are independent at every configured threshold", () => {
+  for (const threshold of [10, 25, 50, 100, 250, 500, 1000]) {
     const previous = { dayStreak: 0, fuelMoments: threshold - 1, hydrationMoments: threshold - 1 };
     const fuel = domain.newlyCrossedMilestones(previous, { ...previous, fuelMoments: threshold }, []);
     const hydration = domain.newlyCrossedMilestones(previous, { ...previous, hydrationMoments: threshold }, []);

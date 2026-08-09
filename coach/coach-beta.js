@@ -2739,11 +2739,22 @@
           athlete_id: athleteId,
           ...mutableRelationship
         });
-      const { error } = await write;
+      const { data: savedRelationship, error } = await write.select("id").single();
       if (error) throw error;
       state.athleteCodeResult = { ...result, relationship_status: "pending" };
-      state.athleteCodeStatus = "Connection request sent. Athlete data stays private until they approve.";
-      state.athleteCodeStatusDetail = "";
+      try {
+        await window.FuelGuardTransactionalEmail.sendInvitation({
+          accessToken: state.session?.access_token,
+          kind: "coach_athlete",
+          entityId: savedRelationship.id
+        });
+        state.athleteCodeStatus = "Connection request sent and email delivered. Athlete data stays private until they approve.";
+        state.athleteCodeStatusDetail = "";
+      } catch (emailError) {
+        console.error("Coach connection email delivery failed", { relationshipId: savedRelationship.id, error: String(emailError?.message || emailError) });
+        state.athleteCodeStatus = "Connection request saved. Athlete data stays private until they approve.";
+        state.athleteCodeStatusDetail = "The email could not be delivered, but the request remains available in Fuel Guard.";
+      }
       setStatus(state.athleteCodeStatus);
       await loadCoachData({ reason: "sharing-requested" });
       renderAthleteCodeResult();

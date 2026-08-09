@@ -67,7 +67,7 @@ test("Training Fuel and Hydrate use their independent configured presets", () =>
     fuelFluidMl: 0,
     fuelSodiumMg: 0,
     fuelCaffeineMg: 0,
-    hydrationCarbsG: 10,
+    hydrationCarbsG: 0,
     hydrationFluidMl: 200,
     hydrationSodiumMg: 250,
     hydrationCaffeineMg: 0
@@ -83,7 +83,7 @@ test("Training Fuel and Hydrate use their independent configured presets", () =>
   assert.deepEqual(domain.trainingEventContext(session, "hydration"), {
     trainingModeSessionId: "session-a",
     trainingModePresetId: "hydrate-a",
-    carbsG: 10,
+    carbsG: 0,
     fluidMl: 200,
     sodiumMg: 250,
     caffeineMg: 0
@@ -94,15 +94,72 @@ test("Training session totals and per-hour rates use elapsed duration", () => {
   const session = { id: "session-a", startedAt: "2026-08-09T08:00:00Z", endedAt: "2026-08-09T10:00:00Z" };
   const logs = [
     { type: "fuel", timestamp: "2026-08-09T08:30:00Z", trainingModeSessionId: "session-a", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
-    { type: "hydration", timestamp: "2026-08-09T09:00:00Z", trainingModeSessionId: "session-a", carbsG: 10, fluidMl: 200, sodiumMg: 250, caffeineMg: 0 },
+    { type: "hydration", timestamp: "2026-08-09T09:00:00Z", trainingModeSessionId: "session-a", carbsG: 0, fluidMl: 200, sodiumMg: 250, caffeineMg: 0 },
     { type: "fuel", timestamp: "2026-08-09T09:30:00Z", trainingModeSessionId: "session-a", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 100 },
     { type: "fuel", timestamp: "2026-08-09T09:45:00Z", trainingModeSessionId: "other", carbsG: 999, fluidMl: 999, sodiumMg: 999, caffeineMg: 999 }
   ];
   const summary = domain.trainingSessionIntakeSummary({ session, logs });
   assert.equal(summary.durationSeconds, 7200);
   assert.equal(summary.eventCount, 3);
-  assert.deepEqual(summary.totals, { carbsG: 70, fluidMl: 200, sodiumMg: 250, caffeineMg: 100 });
-  assert.deepEqual(summary.perHour, { carbsG: 35, fluidMl: 100, sodiumMg: 125, caffeineMg: 50 });
+  assert.deepEqual(summary.totals, { carbsG: 60, fluidMl: 200, sodiumMg: 250, caffeineMg: 100 });
+  assert.deepEqual(summary.perHour, { carbsG: 30, fluidMl: 100, sodiumMg: 125, caffeineMg: 50 });
+});
+
+test("completed Training rates require a valid duration and logged session data", () => {
+  const accidental = domain.completedTrainingSessionMetrics({
+    session: { id: "short", status: "completed", startedAt: "2026-08-09T08:00:00Z", endedAt: "2026-08-09T08:00:12Z" },
+    logs: [{ type: "fuel", timestamp: "2026-08-09T08:00:06Z", trainingModeSessionId: "short", carbsG: 30 }]
+  });
+  assert.equal(accidental.totals.carbsG, 30);
+  assert.equal(accidental.perHour.carbsG, 9000);
+  assert.equal(accidental.validDuration, false);
+  assert.equal(accidental.validLoggedIntake, false);
+  assert.equal(accidental.actualPerHour.carbsG, null);
+
+  const empty = domain.completedTrainingSessionMetrics({
+    session: { id: "empty", status: "completed", startedAt: "2026-08-09T08:00:00Z", endedAt: "2026-08-09T09:00:00Z" },
+    logs: []
+  });
+  assert.equal(empty.validDuration, true);
+  assert.equal(empty.validLoggedIntake, false);
+  assert.equal(empty.actualPerHour.fluidMl, null);
+});
+
+test("recent Training summary uses simple per-session averages without incomplete extrapolation", () => {
+  const sessions = [
+    { id: "one", status: "completed", startedAt: "2026-08-09T08:00:00Z", endedAt: "2026-08-09T09:00:00Z" },
+    { id: "two", status: "completed", startedAt: "2026-08-08T08:00:00Z", endedAt: "2026-08-08T10:00:00Z" },
+    { id: "short", status: "completed", startedAt: "2026-08-07T08:00:00Z", endedAt: "2026-08-07T08:05:00Z" }
+  ];
+  const logs = [
+    { trainingModeSessionId: "one", type: "fuel", timestamp: "2026-08-09T08:30:00Z", carbsG: 60, fluidMl: 1000 },
+    { trainingModeSessionId: "two", type: "fuel", timestamp: "2026-08-08T09:00:00Z", carbsG: 60, fluidMl: 2000 },
+    { trainingModeSessionId: "short", type: "fuel", timestamp: "2026-08-07T08:02:00Z", carbsG: 900, fluidMl: 9000 }
+  ];
+  const result = domain.completedTrainingSessionAverages({ sessions, logs });
+  assert.equal(result.sessionCount, 3);
+  assert.equal(result.validDurationCount, 2);
+  assert.equal(result.validIntakeCount, 2);
+  assert.deepEqual(result.averages, {
+    carbsGPerSession: 60,
+    carbsGPerHour: 45,
+    fluidMlPerSession: 1500,
+    durationSeconds: 5400
+  });
+});
+
+test("recent Training UI shows local start/end times, separate rates, and compact fluid units", () => {
+  const js = read("training-mode.js");
+  assert.match(js, /formatClock\(startedAt\).*formatClock\(endedAt\).*local/s);
+  assert.match(js, /Number\.isFinite\(actualRate\).*Actual rate<strong>/s);
+  assert.match(js, /Planned rate<strong>/);
+  assert.match(js, /amount >= 1000[\s\S]*amount \/ 1000[\s\S]*L/);
+  assert.match(js, /Recent Training Summary/);
+  assert.match(js, /Average carbs per session/);
+  assert.match(js, /Average carbs\/hour per session/);
+  assert.match(js, /Average fluid per session/);
+  assert.match(js, /Average session duration/);
+  assert.doesNotMatch(js.slice(js.indexOf("function completedSessionsMarkup")), /on plan|behind|ahead/);
 });
 
 test("plan progress reports the athlete's execution as behind on or ahead", () => {
@@ -129,10 +186,12 @@ test("active Training Mode session and presets survive app-state refresh", () =>
   training.activeSession = { id: "active-a", status: "active", startedAt: "2026-08-09T08:00:00Z", endedAt: null };
   training.sessions = [training.activeSession];
   training.presets.fuel = { id: "preset-a", carbsG: 35, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 };
+  training.estimatedDurationMinutes = 150;
   first.sandbox.save();
   const refreshed = loadState(JSON.parse(first.storage.get("fuelGuardStateV20")));
   assert.equal(refreshed.sandbox.fuelGapState().trainingMode.activeSession.id, "active-a");
   assert.equal(refreshed.sandbox.fuelGapState().trainingMode.presets.fuel.carbsG, 35);
+  assert.equal(refreshed.sandbox.fuelGapState().trainingMode.estimatedDurationMinutes, 150);
 });
 
 test("historical quantity-free events remain compatible", () => {
@@ -161,6 +220,7 @@ test("Training icon is directly beside Daily and opens a dedicated surface", () 
   assert.match(html, /id="training" class="screen"/);
   assert.match(html, /id="trainingModeSurface"/);
   assert.match(read("app-ui.js"), /"dashboard", "training", "checklist"/);
+  assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
 });
 
 test("Training UI is one-tap while active and keeps quantity entry in setup", () => {
@@ -169,11 +229,14 @@ test("Training UI is one-tap while active and keeps quantity entry in setup", ()
   assert.match(js, /data-training-log="hydration"/);
   assert.match(js, /data-training-preset/);
   assert.match(js, /End Training Mode/);
-  assert.match(js, /Actual vs your plan/);
+  assert.match(js, /Actual totals so far/);
+  assert.match(js, /trainingEstimatedDuration/);
+  assert.doesNotMatch(js, /Advanced Targets|advancedPlanEnabled|data-training-plan/);
 });
 
 test("schema links Training Mode to fuel_logs with user-owned RLS and canonical units", () => {
   const migration = read("supabase/migrations/20260809100532_athlete_training_mode.sql");
+  const durationMigration = read("supabase/migrations/20260809131811_training_mode_expected_duration.sql");
   const rls = read("supabase/tests/athlete_training_mode_rls_test.sql");
   for (const column of ["training_mode_session_id", "training_mode_preset_id", "carbs_g", "fluid_ml", "sodium_mg", "caffeine_mg"]) {
     assert.match(migration, new RegExp(column));
@@ -181,6 +244,9 @@ test("schema links Training Mode to fuel_logs with user-owned RLS and canonical 
   assert.match(migration, /alter table public\.fuel_training_mode_sessions enable row level security/);
   assert.match(migration, /foreign key \(training_mode_session_id, user_id\)/);
   assert.match(rls, /Cross-user Training session direct-ID access is blocked/);
+  assert.match(durationMigration, /estimated_duration_minutes integer not null default 60/);
+  assert.match(durationMigration, /between 15 and 1440/);
+  assert.doesNotMatch(durationMigration, /create policy|grant /i);
   assert.doesNotMatch(migration, /calories|protein|fibre|body_weight|meal_plan/i);
 });
 
