@@ -1,0 +1,69 @@
+body.beta-mvp .athlete-daily-share {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 6px 0 2px;
+}
+
+body.beta-mvp .athlete-daily-share-button {
+  width: auto;
+  min-width: 0;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(185, 255, 102, 0.28);
+  border-radius: 999px;
+  background: rgba(185, 255, 102, 0.07);
+  color: var(--text, #f4faf7);
+  box-shadow: none;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+body.beta-mvp .athlete-daily-share-button:hover,
+body.beta-mvp .athlete-daily-share-button:focus-visible {
+  border-color: rgba(185, 255, 102, 0.55);
+  background: rgba(185, 255, 102, 0.12);
+  transform: translateY(-1px);
+}
+
+body.beta-mvp .athlete-daily-share-button:disabled {
+  opacity: 0.58;
+  transform: none;
+}
+
+body.beta-mvp .athlete-daily-share-button svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: #b9ff66;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+body.beta-mvp .athlete-daily-share-status {
+  max-width: min(100%, 290px);
+  min-height: 1em;
+  margin: 0;
+  color: var(--muted, #9fb0a8);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 390px) {
+  body.beta-mvp .athlete-daily-share {
+    padding-inline: 4px;
+  }
+}
