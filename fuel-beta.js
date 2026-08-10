@@ -10225,7 +10225,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "training", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "training", "impact", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -10242,6 +10242,7 @@
     }
     if (target === "checklist") renderSettings();
     if (target === "training") window.FuelGuardTrainingMode?.render?.();
+    if (target === "impact") window.AthleteImpact?.render?.();
   };
 
   async function clearBetaData() {

@@ -1,0 +1,476 @@
+.impact-surface {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 4px 0 104px;
+  color: #eef8f3;
+}
+
+.impact-surface *,
+.impact-surface *::before,
+.impact-surface *::after {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.impact-hero,
+.impact-section {
+  overflow: hidden;
+  border: 1px solid rgba(176, 211, 193, 0.13);
+  border-radius: 22px;
+  background: linear-gradient(150deg, rgba(18, 43, 34, 0.98), rgba(8, 27, 21, 0.98));
+  box-shadow: 0 16px 42px rgba(1, 10, 7, 0.18);
+}
+
+.impact-hero {
+  position: relative;
+  padding: 25px 22px 22px;
+}
+
+.impact-hero::after {
+  content: "";
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  top: -90px;
+  right: -70px;
+  border-radius: 50%;
+  background: rgba(88, 214, 157, 0.1);
+  filter: blur(2px);
+}
+
+.impact-hero.positive { border-color: rgba(91, 227, 165, 0.34); }
+.impact-hero.negative { border-color: rgba(232, 138, 118, 0.34); }
+.impact-hero.mixed { border-color: rgba(226, 192, 109, 0.3); }
+
+.impact-eyebrow,
+.impact-section-heading > div > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #7dd8ad;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.impact-hero h1,
+.impact-section h2,
+.impact-section h3,
+.impact-hero p,
+.impact-section p {
+  margin-top: 0;
+}
+
+.impact-hero h1 {
+  max-width: 620px;
+  margin-bottom: 10px;
+  font-size: clamp(1.85rem, 7vw, 2.7rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+
+.impact-hero p {
+  max-width: 640px;
+  margin-bottom: 18px;
+  color: #bfd0c7;
+  line-height: 1.55;
+}
+
+.impact-evidence-line {
+  padding-top: 15px;
+  border-top: 1px solid rgba(190, 221, 205, 0.12);
+  color: #9eb5a9;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.impact-section {
+  padding: 19px;
+}
+
+.impact-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 15px;
+}
+
+.impact-section-heading h2 {
+  margin-bottom: 0;
+  font-size: 1.28rem;
+  letter-spacing: -0.025em;
+}
+
+.impact-section-heading small,
+.impact-outcome-card p,
+.impact-note,
+.impact-claims-note,
+.impact-feedback-question,
+.impact-sparkline-empty {
+  color: #91aa9e;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.impact-component-grid,
+.impact-outcome-grid,
+.impact-report-columns,
+.impact-preset-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.impact-component-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.impact-component {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 118px;
+  padding: 14px;
+  border: 1px solid rgba(178, 211, 195, 0.12);
+  border-radius: 16px;
+  background: rgba(3, 18, 13, 0.32);
+}
+
+.impact-component > span {
+  color: #9eb3a8;
+  font-size: 0.72rem;
+}
+
+.impact-component strong {
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.impact-component.positive strong { color: #74dda9; }
+.impact-component.negative strong { color: #ef9d88; }
+.impact-component.mixed strong { color: #e3c878; }
+
+.impact-claims-note {
+  margin: 14px 1px 0;
+  padding-top: 13px;
+  border-top: 1px solid rgba(178, 211, 195, 0.1);
+}
+
+.impact-outcome-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.impact-outcome-card {
+  overflow: hidden;
+  padding: 15px;
+  border: 1px solid rgba(178, 211, 195, 0.14);
+  border-radius: 17px;
+  background: rgba(4, 20, 15, 0.42);
+}
+
+.impact-outcome-card.improved { border-color: rgba(91, 227, 165, 0.3); }
+.impact-outcome-card.declined { border-color: rgba(232, 138, 118, 0.28); }
+
+.impact-outcome-heading,
+.impact-before-now,
+.impact-window-labels,
+.impact-selected-metrics > div,
+.impact-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.impact-outcome-heading span,
+.impact-before-now span,
+.impact-before-now small,
+.impact-window-labels,
+.impact-history-row span,
+.impact-history-row small {
+  color: #8fa79b;
+  font-size: 0.7rem;
+}
+
+.impact-outcome-heading h3 {
+  margin: 3px 0 0;
+  font-size: 1rem;
+}
+
+.impact-outcome-heading > strong {
+  color: #75dcaa;
+  font-size: 1.35rem;
+}
+
+.impact-before-now {
+  margin: 17px 0 11px;
+}
+
+.impact-before-now > div {
+  display: grid;
+  gap: 3px;
+  flex: 1 1 0;
+}
+
+.impact-before-now > div:last-child { text-align: right; }
+.impact-before-now i { color: #6d897b; font-style: normal; }
+
+.impact-sparkline {
+  display: block;
+  width: 100%;
+  height: 72px;
+  margin: 7px 0;
+  overflow: visible;
+}
+
+.impact-sparkline polyline {
+  stroke: #6ddca7;
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.impact-sparkline-empty {
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  margin: 7px 0;
+  border-block: 1px solid rgba(178, 211, 195, 0.08);
+  text-align: center;
+}
+
+.impact-report-heading {
+  align-items: end;
+}
+
+.impact-range-label,
+.impact-sport-select {
+  display: grid;
+  gap: 5px;
+  color: #91aa9e;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.impact-range-label select,
+.impact-sport-select select,
+.impact-form-grid input,
+.impact-form-grid select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(173, 209, 190, 0.2);
+  border-radius: 12px;
+  background: #071b14;
+  color: #eef8f3;
+}
+
+.impact-window-labels {
+  align-items: flex-start;
+  margin: -3px 0 13px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(4, 19, 14, 0.38);
+}
+
+.impact-window-labels span:last-child { text-align: right; }
+
+.impact-report-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.impact-report-columns > article {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(4, 19, 14, 0.34);
+}
+
+.impact-report-columns h3 {
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+
+.impact-signal-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(172, 207, 188, 0.1);
+}
+
+.impact-signal-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.impact-signal-row strong { font-size: 0.8rem; }
+.impact-signal-row span,
+.impact-signal-row small { color: #91aa9e; font-size: 0.68rem; line-height: 1.35; }
+.impact-signal-row.improved small { color: #73dca8; }
+.impact-signal-row.declined small { color: #ed9b86; }
+
+.impact-calculation-note,
+.impact-custom-metric,
+.impact-history-list details {
+  margin-top: 13px;
+  border: 1px solid rgba(172, 207, 188, 0.12);
+  border-radius: 14px;
+  background: rgba(4, 19, 14, 0.28);
+}
+
+.impact-calculation-note summary,
+.impact-custom-metric summary,
+.impact-history-list summary {
+  padding: 13px 14px;
+  cursor: pointer;
+  color: #bed2c7;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.impact-calculation-note p,
+.impact-custom-metric > :not(summary) {
+  margin-inline: 14px;
+}
+
+.impact-feedback-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.impact-feedback-group button,
+.impact-preset {
+  min-height: 48px;
+  border: 1px solid rgba(173, 209, 190, 0.19);
+  border-radius: 13px;
+  background: rgba(5, 24, 17, 0.72);
+  color: #dbeae2;
+}
+
+.impact-feedback-group button.selected {
+  border-color: #6bdca7;
+  background: rgba(67, 171, 124, 0.2);
+  color: #effff7;
+  box-shadow: inset 0 0 0 1px rgba(107, 220, 167, 0.25);
+}
+
+.impact-feedback-question { margin-bottom: 9px; }
+.impact-feedback > .primary { width: 100%; }
+
+.impact-sport-select {
+  max-width: 260px;
+  margin-bottom: 14px;
+}
+
+.impact-selected-metrics {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 13px;
+}
+
+.impact-selected-metrics > div {
+  padding: 9px 10px 9px 13px;
+  border-radius: 13px;
+  background: rgba(5, 24, 17, 0.55);
+  font-size: 0.79rem;
+}
+
+.impact-selected-metrics button {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+.impact-preset-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.impact-preset {
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  text-align: left;
+}
+
+.impact-preset span { color: #8fa79b; font-size: 0.69rem; }
+.impact-preset:disabled { opacity: 0.42; }
+
+.impact-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  margin-bottom: 12px;
+}
+
+.impact-form-grid label {
+  display: grid;
+  gap: 6px;
+  color: #a8bdb2;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.impact-form-grid input,
+.impact-form-grid select { padding-inline: 11px; }
+
+.impact-empty {
+  padding: 15px;
+  border: 1px dashed rgba(173, 209, 190, 0.16);
+  border-radius: 14px;
+  color: #91aa9e;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.impact-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.impact-history-list details { margin-top: 0; }
+.impact-history-list summary { display: flex; justify-content: space-between; gap: 10px; }
+
+.impact-history-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding: 10px 14px;
+  border-top: 1px solid rgba(172, 207, 188, 0.09);
+}
+
+.impact-history-row small { text-align: right; overflow-wrap: anywhere; }
+
+.impact-status-message {
+  position: sticky;
+  top: calc(68px + env(safe-area-inset-top, 0px));
+  z-index: 40;
+  padding: 10px 13px;
+  border: 1px solid rgba(105, 219, 166, 0.28);
+  border-radius: 13px;
+  background: rgba(7, 37, 26, 0.96);
+  color: #dff7eb;
+  font-size: 0.77rem;
+  box-shadow: 0 9px 22px rgba(0, 8, 5, 0.28);
+}
+
+@media (max-width: 640px) {
+  .impact-surface { gap: 11px; }
+  .impact-hero { padding: 22px 17px 19px; }
+  .impact-section { padding: 16px; }
+  .impact-component-grid,
+  .impact-report-columns { grid-template-columns: 1fr; }
+  .impact-component { min-height: 0; }
+  .impact-report-heading { align-items: stretch; flex-direction: column; }
+  .impact-range-label { width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .impact-form-grid { grid-template-columns: 1fr; }
+  .impact-before-now strong { font-size: 0.92rem; }
+  .impact-signal-row { grid-template-columns: 1fr; }
+  .impact-signal-row small { justify-self: start; }
+  .impact-history-row { grid-template-columns: auto 1fr; }
+  .impact-history-row strong { text-align: right; }
+  .impact-history-row small { grid-column: 1 / -1; text-align: left; }
+}

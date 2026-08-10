@@ -191,7 +191,7 @@ test("Post-training and Training Mode nudges are contextual and deduplicatable",
   assert.equal(active[0].minimumIntervalMinutes, 30);
 });
 
-test("Athlete UI exposes Weekly Recap, progression, preferences and safe Coach feedback without cluttering navigation", () => {
+test("Athlete UI exposes Weekly Recap, progression, preferences and safe Coach feedback beside the focused Impact tab", () => {
   const html = read("index.html");
   const retention = read("athlete-retention.js");
   const milestones = read("athlete-milestones.js");
@@ -203,7 +203,9 @@ test("Athlete UI exposes Weekly Recap, progression, preferences and safe Coach f
   assert.match(read("fuel-guard-domain.js"), /This recap describes recorded Fuel Guard activity/);
   assert.match(milestones, /Fuel Guard Progress/);
   assert.match(training, /Training complete/);
-  assert.equal((html.match(/data-mobile-screen=/g) || []).length, 2);
+  const navigation = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf("</nav>", html.indexOf('<nav class="mobile-bottom-nav')));
+  assert.equal((navigation.match(/data-mobile-screen=/g) || []).length, 3);
+  assert.match(navigation, /data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"[\s\S]*data-mobile-screen="impact"/);
 });
 
 test("Retention migration narrows raw report visibility and grants only safe RPCs", () => {

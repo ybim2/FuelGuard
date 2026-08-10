@@ -16,6 +16,21 @@
   const MIN_TEAM_PATTERN_ATHLETES = 2;
   const MIN_COMPARISON_LOGGED_DAYS = 3;
   const MIN_COMPARISON_METRIC_DAYS = 2;
+  const PERFORMANCE_IMPACT_RULES = Object.freeze({
+    comparisonWindowDays: 14,
+    sixWeekDays: 42,
+    minimumGapDaysPerWindow: 5,
+    minimumSessionsPerWindow: 3,
+    minimumFeedbackPerWindow: 3,
+    minimumOutcomeSeparationDays: 14,
+    coverageDirectionPoints: 10,
+    trainingCoverageDirectionPoints: 15,
+    feedbackDirectionPoints: 15,
+    maximumGapDirectionMinutes: 15,
+    longGapRelativeDirection: 0.25,
+    outcomeRelativeStability: 0.01,
+    outcomeAbsoluteStability: 0.01
+  });
   const MILESTONE_THRESHOLDS = Object.freeze({
     streak: Object.freeze([3, 5, 7, 14, 30, 50, 100]),
     fuel: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
@@ -2720,6 +2735,385 @@
     return { items, summary };
   }
 
+  function impactComparisonPeriod({ range = "six_weeks", now = new Date(), timeZone, firstEvidenceAt } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const endKey = dateKeyInTimeZone(now, zone);
+    const firstEvidenceKey = firstEvidenceAt
+      ? validDateKey(firstEvidenceAt) || dateKeyInTimeZone(firstEvidenceAt, zone)
+      : "";
+    const requestedDays = range === "twelve_weeks" ? 84 : PERFORMANCE_IMPACT_RULES.sixWeekDays;
+    const startKey = range === "since_first_evidence" && firstEvidenceKey
+      ? firstEvidenceKey
+      : shiftDateKey(endKey, -(requestedDays - 1));
+    const period = periodFromKeys(startKey, endKey, range, zone);
+    const windowDays = PERFORMANCE_IMPACT_RULES.comparisonWindowDays;
+    const baselineEndKey = shiftDateKey(startKey, Math.min(windowDays, period.totalDays) - 1);
+    const currentStartKey = shiftDateKey(endKey, -(Math.min(windowDays, period.totalDays) - 1));
+    return {
+      ...period,
+      firstEvidenceKey,
+      baseline: periodFromKeys(startKey, baselineEndKey, "impact_baseline", zone),
+      current: periodFromKeys(currentStartKey, endKey, "impact_current", zone),
+      comparable: period.totalDays >= windowDays * 2
+        && Boolean(firstEvidenceKey)
+        && firstEvidenceKey <= baselineEndKey
+    };
+  }
+
+  function impactResultDate(result = {}) {
+    return validDateKey(result.observed_on || result.observedOn || result.date);
+  }
+
+  function performanceOutcomeChange(metric = {}, results = []) {
+    const metricId = String(metric.id || metric.metricId || "");
+    const matching = (Array.isArray(results) ? results : [])
+      .filter(result => !metricId || String(result.metric_id || result.metricId || "") === metricId)
+      .map(result => ({ ...result, observedKey: impactResultDate(result), numericValue: Number(result.value) }))
+      .filter(result => result.observedKey && Number.isFinite(result.numericValue))
+      .sort((left, right) => left.observedKey.localeCompare(right.observedKey)
+        || String(left.created_at || left.createdAt || "").localeCompare(String(right.created_at || right.createdAt || "")));
+    const baseline = matching[0] || null;
+    const current = matching[matching.length - 1] || null;
+    const separationDays = baseline && current ? Math.max(0, daysBetweenKeys(baseline.observedKey, current.observedKey) - 1) : 0;
+    const sufficient = matching.length >= 2 && separationDays >= PERFORMANCE_IMPACT_RULES.minimumOutcomeSeparationDays;
+    if (!sufficient) {
+      return {
+        metric,
+        baseline,
+        current,
+        sampleCount: matching.length,
+        separationDays,
+        sufficient: false,
+        direction: "insufficient",
+        difference: null,
+        changePct: null
+      };
+    }
+
+    const baselineValue = baseline.numericValue;
+    const currentValue = current.numericValue;
+    const difference = currentValue - baselineValue;
+    const threshold = Math.max(
+      Math.abs(baselineValue) * PERFORMANCE_IMPACT_RULES.outcomeRelativeStability,
+      PERFORMANCE_IMPACT_RULES.outcomeAbsoluteStability
+    );
+    let directionalChange = difference;
+    const directionRule = String(metric.direction || "higher");
+    if (directionRule === "lower") directionalChange = -difference;
+    if (directionRule === "target_range") {
+      const minimum = Number(metric.target_min ?? metric.targetMin);
+      const maximum = Number(metric.target_max ?? metric.targetMax);
+      const distance = value => value < minimum ? minimum - value : value > maximum ? value - maximum : 0;
+      directionalChange = distance(baselineValue) - distance(currentValue);
+    }
+    const direction = Math.abs(directionalChange) < threshold
+      ? "stable"
+      : directionalChange > 0 ? "improved" : "declined";
+    return {
+      metric,
+      baseline,
+      current,
+      sampleCount: matching.length,
+      separationDays,
+      sufficient: true,
+      direction,
+      difference,
+      directionalChange,
+      changePct: baselineValue === 0 ? null : difference / Math.abs(baselineValue) * 100
+    };
+  }
+
+  function impactDirection(current, baseline, { favourable = "higher", threshold = 0 } = {}) {
+    if (!Number.isFinite(current) || !Number.isFinite(baseline)) return "insufficient";
+    const raw = current - baseline;
+    if (Math.abs(raw) < threshold) return "stable";
+    const favourableChange = favourable === "lower" ? -raw : raw;
+    return favourableChange > 0 ? "improved" : "declined";
+  }
+
+  function impactSignal({ id, label, baseline, current, unit = "", direction = "insufficient", samples = {} } = {}) {
+    return {
+      id,
+      label,
+      baseline,
+      current,
+      unit,
+      direction,
+      difference: Number.isFinite(current) && Number.isFinite(baseline) ? current - baseline : null,
+      samples
+    };
+  }
+
+  function impactComponentStatus(signals = []) {
+    const eligible = signals.filter(signal => !["insufficient"].includes(signal.direction));
+    const improved = eligible.filter(signal => signal.direction === "improved").length;
+    const declined = eligible.filter(signal => signal.direction === "declined").length;
+    const stable = eligible.filter(signal => signal.direction === "stable").length;
+    let id = "insufficient";
+    if (eligible.length && improved >= 2 && declined === 0) id = "strong_improvement";
+    else if (improved > declined) id = "improving";
+    else if (declined > improved) id = "declining";
+    else if (improved && declined) id = "mixed";
+    else if (eligible.length && stable === eligible.length) id = "stable";
+    const labels = {
+      strong_improvement: "Strong improvement",
+      improving: "Improving",
+      mixed: "Mixed",
+      stable: "Stable",
+      declining: "Declining",
+      insufficient: "Insufficient evidence"
+    };
+    return { id, label: labels[id], eligible: eligible.length, improved, declined, stable, signals };
+  }
+
+  function impactWindowMetrics({ logs = [], workouts = [], feedback = [], targetMinutes, period, timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone || period?.timeZone);
+    const target = Number.isFinite(Number(targetMinutes)) && Number(targetMinutes) > 0
+      ? Number(targetMinutes)
+      : DEFAULT_MAXIMUM_FUEL_GAP_MINUTES;
+    const keys = dateKeysBetween(period.startKey, period.endKey);
+    const scopedLogs = logsWithDates(logs).filter(log => {
+      const key = dateKeyInTimeZone(log.date, zone);
+      return key >= period.startKey && key <= period.endKey;
+    });
+    const dayMetrics = keys.map(key => {
+      const dayLogs = scopedLogs.filter(log => dateKeyInTimeZone(log.date, zone) === key);
+      const fuelLogs = dayLogs.filter(isFuelLog);
+      const hydrationLogs = dayLogs.filter(isHydrationLog);
+      const gaps = [];
+      for (let index = 1; index < fuelLogs.length; index += 1) {
+        const minutes = (fuelLogs[index].date - fuelLogs[index - 1].date) / 60000;
+        if (Number.isFinite(minutes) && minutes > 0 && minutes <= 1080) gaps.push(minutes);
+      }
+      return {
+        key,
+        fuelLogged: fuelLogs.length > 0,
+        hydrationLogged: hydrationLogs.length > 0,
+        measurableGap: gaps.length > 0,
+        maximumGapMinutes: gaps.length ? Math.max(...gaps) : null,
+        longGapCount: gaps.filter(minutes => minutes > target).length
+      };
+    });
+    const measurableDays = dayMetrics.filter(day => day.measurableGap);
+    const workoutContexts = getWorkoutFuelContexts(workouts, logs).filter(context => {
+      const key = dateKeyInTimeZone(context.workout.endAt, zone);
+      return key >= period.startKey && key <= period.endKey;
+    });
+    const preCovered = workoutContexts.filter(context => context.hasPreviousFuel && context.preFuelGapMinutes <= target).length;
+    const postCovered = workoutContexts.filter(context => context.hasPostFuel
+      && context.postFuelGapMinutes <= target
+      && dateKeyInTimeZone(context.nextFuelEvent.date, zone) === dateKeyInTimeZone(context.workout.endAt, zone)).length;
+    const scopedFeedback = (Array.isArray(feedback) ? feedback : []).filter(item => {
+      const key = dateKeyInTimeZone(item.session_ended_at || item.sessionEndedAt, zone);
+      return key >= period.startKey && key <= period.endKey;
+    });
+    const average = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    return {
+      period,
+      totalDays: keys.length,
+      fuelCoveragePct: keys.length ? dayMetrics.filter(day => day.fuelLogged).length / keys.length * 100 : null,
+      hydrationCoveragePct: keys.length ? dayMetrics.filter(day => day.hydrationLogged).length / keys.length * 100 : null,
+      measurableGapDays: measurableDays.length,
+      averageMaximumGapMinutes: average(measurableDays.map(day => day.maximumGapMinutes)),
+      longGapsPerWeek: keys.length ? dayMetrics.reduce((sum, day) => sum + day.longGapCount, 0) / keys.length * 7 : null,
+      sessionCount: workoutContexts.length,
+      preFuelCoveragePct: workoutContexts.length ? preCovered / workoutContexts.length * 100 : null,
+      postFuelCoveragePct: workoutContexts.length ? postCovered / workoutContexts.length * 100 : null,
+      feedbackCount: scopedFeedback.length,
+      lowEnergyPct: scopedFeedback.length ? scopedFeedback.filter(item => item.energy_rating === "low_energy" || item.energyRating === "low_energy").length / scopedFeedback.length * 100 : null,
+      completedAsPlannedPct: scopedFeedback.length ? scopedFeedback.filter(item => item.session_completion === "yes" || item.sessionCompletion === "yes").length / scopedFeedback.length * 100 : null,
+      dayMetrics,
+      workoutContexts,
+      feedback: scopedFeedback
+    };
+  }
+
+  function impactLongGapDirection(current, baseline) {
+    if (!Number.isFinite(current) || !Number.isFinite(baseline)) return "insufficient";
+    if (baseline === 0) return current >= 0.5 ? "declined" : "stable";
+    if (current === 0) return baseline >= 0.5 ? "improved" : "stable";
+    return impactDirection(current, baseline, {
+      favourable: "lower",
+      threshold: Math.abs(baseline) * PERFORMANCE_IMPACT_RULES.longGapRelativeDirection
+    });
+  }
+
+  function impactWindowSignals(baseline, current, comparable) {
+    const complete = comparable
+      && baseline.totalDays === PERFORMANCE_IMPACT_RULES.comparisonWindowDays
+      && current.totalDays === PERFORMANCE_IMPACT_RULES.comparisonWindowDays;
+    const behavior = [
+      impactSignal({
+        id: "fuel_coverage", label: "Fuel logging coverage", baseline: baseline.fuelCoveragePct, current: current.fuelCoveragePct, unit: "%",
+        direction: complete ? impactDirection(current.fuelCoveragePct, baseline.fuelCoveragePct, { threshold: PERFORMANCE_IMPACT_RULES.coverageDirectionPoints }) : "insufficient",
+        samples: { baselineDays: baseline.totalDays, currentDays: current.totalDays }
+      }),
+      impactSignal({
+        id: "hydration_coverage", label: "Hydration logging coverage", baseline: baseline.hydrationCoveragePct, current: current.hydrationCoveragePct, unit: "%",
+        direction: complete ? impactDirection(current.hydrationCoveragePct, baseline.hydrationCoveragePct, { threshold: PERFORMANCE_IMPACT_RULES.coverageDirectionPoints }) : "insufficient",
+        samples: { baselineDays: baseline.totalDays, currentDays: current.totalDays }
+      }),
+      impactSignal({
+        id: "average_maximum_gap", label: "Average maximum daily fuel gap", baseline: baseline.averageMaximumGapMinutes, current: current.averageMaximumGapMinutes, unit: "minutes",
+        direction: baseline.measurableGapDays >= PERFORMANCE_IMPACT_RULES.minimumGapDaysPerWindow && current.measurableGapDays >= PERFORMANCE_IMPACT_RULES.minimumGapDaysPerWindow
+          ? impactDirection(current.averageMaximumGapMinutes, baseline.averageMaximumGapMinutes, { favourable: "lower", threshold: PERFORMANCE_IMPACT_RULES.maximumGapDirectionMinutes }) : "insufficient",
+        samples: { baselineDays: baseline.measurableGapDays, currentDays: current.measurableGapDays }
+      }),
+      impactSignal({
+        id: "long_gaps", label: "Long fuel gaps per week", baseline: baseline.longGapsPerWeek, current: current.longGapsPerWeek, unit: "/week",
+        direction: baseline.measurableGapDays >= PERFORMANCE_IMPACT_RULES.minimumGapDaysPerWindow && current.measurableGapDays >= PERFORMANCE_IMPACT_RULES.minimumGapDaysPerWindow
+          ? impactLongGapDirection(current.longGapsPerWeek, baseline.longGapsPerWeek) : "insufficient",
+        samples: { baselineDays: baseline.measurableGapDays, currentDays: current.measurableGapDays }
+      }),
+      impactSignal({
+        id: "pre_training_coverage", label: "Pre-training fuel coverage", baseline: baseline.preFuelCoveragePct, current: current.preFuelCoveragePct, unit: "%",
+        direction: baseline.sessionCount >= PERFORMANCE_IMPACT_RULES.minimumSessionsPerWindow && current.sessionCount >= PERFORMANCE_IMPACT_RULES.minimumSessionsPerWindow
+          ? impactDirection(current.preFuelCoveragePct, baseline.preFuelCoveragePct, { threshold: PERFORMANCE_IMPACT_RULES.trainingCoverageDirectionPoints }) : "insufficient",
+        samples: { baselineSessions: baseline.sessionCount, currentSessions: current.sessionCount }
+      }),
+      impactSignal({
+        id: "post_training_coverage", label: "Post-training recovery fuel coverage", baseline: baseline.postFuelCoveragePct, current: current.postFuelCoveragePct, unit: "%",
+        direction: baseline.sessionCount >= PERFORMANCE_IMPACT_RULES.minimumSessionsPerWindow && current.sessionCount >= PERFORMANCE_IMPACT_RULES.minimumSessionsPerWindow
+          ? impactDirection(current.postFuelCoveragePct, baseline.postFuelCoveragePct, { threshold: PERFORMANCE_IMPACT_RULES.trainingCoverageDirectionPoints }) : "insufficient",
+        samples: { baselineSessions: baseline.sessionCount, currentSessions: current.sessionCount }
+      })
+    ];
+    const training = [
+      impactSignal({
+        id: "low_energy_sessions", label: "Low-energy sessions", baseline: baseline.lowEnergyPct, current: current.lowEnergyPct, unit: "%",
+        direction: baseline.feedbackCount >= PERFORMANCE_IMPACT_RULES.minimumFeedbackPerWindow && current.feedbackCount >= PERFORMANCE_IMPACT_RULES.minimumFeedbackPerWindow
+          ? impactDirection(current.lowEnergyPct, baseline.lowEnergyPct, { favourable: "lower", threshold: PERFORMANCE_IMPACT_RULES.feedbackDirectionPoints }) : "insufficient",
+        samples: { baselineFeedback: baseline.feedbackCount, currentFeedback: current.feedbackCount }
+      }),
+      impactSignal({
+        id: "completed_as_planned", label: "Sessions completed as planned", baseline: baseline.completedAsPlannedPct, current: current.completedAsPlannedPct, unit: "%",
+        direction: baseline.feedbackCount >= PERFORMANCE_IMPACT_RULES.minimumFeedbackPerWindow && current.feedbackCount >= PERFORMANCE_IMPACT_RULES.minimumFeedbackPerWindow
+          ? impactDirection(current.completedAsPlannedPct, baseline.completedAsPlannedPct, { threshold: PERFORMANCE_IMPACT_RULES.feedbackDirectionPoints }) : "insufficient",
+        samples: { baselineFeedback: baseline.feedbackCount, currentFeedback: current.feedbackCount }
+      })
+    ];
+    return { behavior, training };
+  }
+
+  function overallImpactStatus(components = []) {
+    const eligible = components.filter(component => component.id !== "insufficient");
+    const positive = eligible.filter(component => component.id === "improving" || component.id === "strong_improvement").length;
+    const negative = eligible.filter(component => component.id === "declining").length;
+    const mixed = eligible.filter(component => component.id === "mixed").length;
+    let id = "insufficient";
+    if (eligible.length >= 2) {
+      if (positive >= 2 && negative === 0 && mixed === 0 && eligible.some(component => component.id === "strong_improvement")) id = "strong_positive";
+      else if (positive > negative && mixed === 0) id = "positive";
+      else if (negative > 0 && positive === 0 && mixed === 0) id = "negative";
+      else if (eligible.every(component => component.id === "stable")) id = "stable";
+      else id = "mixed";
+    }
+    const labels = {
+      strong_positive: "Strong positive trend",
+      positive: "Positive trend",
+      mixed: "Mixed evidence",
+      stable: "Stable",
+      negative: "Negative trend",
+      insufficient: "Insufficient evidence"
+    };
+    return { id, label: labels[id], eligible: eligible.length, positive, negative, mixed };
+  }
+
+  function earliestImpactEvidence({ logs = [], results = [], feedback = [], workouts = [] } = {}) {
+    const candidates = [
+      ...logsWithDates(logs).map(log => log.date),
+      ...(Array.isArray(results) ? results : []).map(result => impactResultDate(result)).filter(Boolean),
+      ...(Array.isArray(feedback) ? feedback : []).map(item => item.session_ended_at || item.sessionEndedAt).filter(Boolean),
+      ...normalizeWorkouts(workouts).map(workout => workout.endAt).filter(Boolean)
+    ].map(value => parseDate(value) || (validDateKey(value) ? new Date(`${value}T12:00:00Z`) : null)).filter(Boolean);
+    return candidates.length ? new Date(Math.min(...candidates.map(date => date.getTime()))) : null;
+  }
+
+  function buildAthleteImpactReport({ metrics = [], results = [], logs = [], workouts = [], feedback = [], targets = {}, range = "six_weeks", now = new Date(), timeZone, firstEvidenceAt } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const evidenceStart = parseDate(firstEvidenceAt) || earliestImpactEvidence({ logs, results, feedback, workouts });
+    const reportPeriod = impactComparisonPeriod({ range, now, timeZone: zone, firstEvidenceAt: evidenceStart });
+    const targetMinutes = maximumFuelGapMinutes(targets);
+    const baseline = impactWindowMetrics({ logs, workouts, feedback, targetMinutes, period: reportPeriod.baseline, timeZone: zone });
+    const current = impactWindowMetrics({ logs, workouts, feedback, targetMinutes, period: reportPeriod.current, timeZone: zone });
+    const windowSignals = impactWindowSignals(baseline, current, reportPeriod.comparable);
+    const activeMetrics = (Array.isArray(metrics) ? metrics : [])
+      .filter(metric => !(metric.archived_at || metric.archivedAt))
+      .sort((left, right) => Number(left.display_order || left.displayOrder || 0) - Number(right.display_order || right.displayOrder || 0));
+    const outcomes = activeMetrics.map(metric => {
+      const outcome = performanceOutcomeChange(metric, (Array.isArray(results) ? results : []).filter(result => {
+        const key = impactResultDate(result);
+        return key && key <= reportPeriod.endKey;
+      }));
+      if (outcome.sufficient && outcome.current.observedKey < reportPeriod.startKey) {
+        return { ...outcome, sufficient: false, direction: "insufficient" };
+      }
+      return outcome;
+    });
+    const outcomeSignals = outcomes.map(outcome => impactSignal({
+      id: `outcome_${outcome.metric.id}`,
+      label: outcome.metric.name,
+      baseline: outcome.baseline?.numericValue ?? null,
+      current: outcome.current?.numericValue ?? null,
+      unit: outcome.metric.unit,
+      direction: outcome.direction,
+      samples: { results: outcome.sampleCount, separationDays: outcome.separationDays }
+    }));
+    const components = {
+      behavior: impactComponentStatus(windowSignals.behavior),
+      trainingExperience: impactComponentStatus(windowSignals.training),
+      performanceOutcomes: impactComponentStatus(outcomeSignals)
+    };
+    const overall = overallImpactStatus(Object.values(components));
+    const reportWorkouts = normalizeWorkouts(workouts).filter(workout => {
+      const key = dateKeyInTimeZone(workout.endAt, zone);
+      return key >= reportPeriod.startKey && key <= reportPeriod.endKey;
+    });
+    const reportFeedback = (Array.isArray(feedback) ? feedback : []).filter(item => {
+      const key = dateKeyInTimeZone(item.session_ended_at || item.sessionEndedAt, zone);
+      return key >= reportPeriod.startKey && key <= reportPeriod.endKey;
+    });
+    const reportResults = (Array.isArray(results) ? results : []).filter(result => {
+      const key = impactResultDate(result);
+      return key >= reportPeriod.startKey && key <= reportPeriod.endKey;
+    });
+    const evidenceDays = evidenceStart
+      ? Math.min(reportPeriod.totalDays, daysBetweenKeys(
+        dateKeyInTimeZone(evidenceStart, zone) < reportPeriod.startKey ? reportPeriod.startKey : dateKeyInTimeZone(evidenceStart, zone),
+        reportPeriod.endKey
+      ))
+      : 0;
+    const positiveParts = Object.entries(components)
+      .filter(([_key, component]) => component.id === "improving" || component.id === "strong_improvement")
+      .map(([key]) => key === "behavior" ? "fuelling behaviour" : key === "trainingExperience" ? "training experience" : "selected performance outcomes");
+    const summary = overall.id === "insufficient"
+      ? "Fuel Guard is building your baseline. More comparable days, completed-session feedback or dated performance results are needed before a trend is reported."
+      : positiveParts.length
+        ? `During the same period, ${positiveParts.join(" and ")} improved alongside one another. This is an observed association, not evidence that Fuel Guard caused the change.`
+        : overall.id === "negative"
+          ? "The visible evidence moved in an unfavourable direction during this period. This is an observation to review, not a causal or medical conclusion."
+          : "The available evidence was stable or mixed during this period; Fuel Guard does not infer a cause."
+    return {
+      range,
+      timeZone: zone,
+      period: reportPeriod,
+      targetMinutes,
+      baseline,
+      current,
+      outcomes,
+      signals: { ...windowSignals, outcomes: outcomeSignals },
+      components,
+      overall,
+      summary,
+      evidence: {
+        days: evidenceDays,
+        workouts: reportWorkouts.length,
+        feedback: reportFeedback.length,
+        performanceResults: reportResults.length
+      }
+    };
+  }
+
   function occurrenceToken(value) {
     return String(value || "unknown").replace(/[^a-zA-Z0-9_.-]+/g, "_").slice(0, 100);
   }
@@ -2904,6 +3298,7 @@
     ATHLETE_POINT_LEVELS,
     TRAINING_QUANTITY_FIELDS,
     TRAINING_QUANTITY_LIMITS,
+    PERFORMANCE_IMPACT_RULES,
     escapeHtml,
     parseDate,
     logDate,
@@ -3003,6 +3398,13 @@
     completeScheduledReview,
     reportPeriodForSchedule,
     buildTeamDataHealth,
+    impactComparisonPeriod,
+    performanceOutcomeChange,
+    impactComponentStatus,
+    impactWindowMetrics,
+    overallImpactStatus,
+    earliestImpactEvidence,
+    buildAthleteImpactReport,
     buildCoachAttentionItems,
     attentionSummary
   };

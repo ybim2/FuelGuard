@@ -300,7 +300,7 @@ test("Resend integration remains server-only and Auth continues to own account e
   const relationshipUpdate = athlete.indexOf(".update(patch)", transitionStart);
   const decisionEmail = athlete.indexOf("FuelGuardTransactionalEmail.sendNotification", transitionStart);
   assert.ok(transitionStart >= 0 && relationshipUpdate > transitionStart && decisionEmail > relationshipUpdate);
-  assert.match(athleteHtml, /transactional-email-client\.js\?v=mobile-pwa-v129-pre-practice-streaks/);
+  assert.match(athleteHtml, /transactional-email-client\.js\?v=mobile-pwa-v130-impact-team-sport/);
   assert.match(emailClient, /sendInvitation: sendNotification/);
   assert.match(performance, /kind: "organisation_athlete"/);
   assert.match(performance, /kind: "organisation_staff"/);

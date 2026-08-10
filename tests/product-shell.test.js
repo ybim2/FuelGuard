@@ -53,7 +53,7 @@ test("main shell keeps Coach and Performance links hidden until server-authorise
   assert.match(html, /href="\/" aria-current="page">Athlete<\/a>/);
   assert.match(html, /id="coachProductLink" href="\/coach\/" hidden>Coach<\/a>/);
   assert.match(html, /id="performanceProductLink" href="\/performance\/" hidden>Performance<\/a>/);
-  assert.match(html, /product-shell\.js\?v=mobile-pwa-v129-pre-practice-streaks/);
+  assert.match(html, /product-shell\.js\?v=mobile-pwa-v130-impact-team-sport/);
   assert.match(sw, /\.\/product-shell\.js/);
 });
 
