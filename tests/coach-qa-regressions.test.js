@@ -104,9 +104,10 @@ test("coach UI wires saved groups, shared staff notes, schedules, and real inter
   assert.match(js, /function renderSharedStaffContext/);
   assert.match(js, /author_id: user\.id/);
   assert.match(js, /function createTrainingSession/);
-  assert.match(js, /function trainingAssignmentOptions/);
-  assert.match(js, /session_date: domain\.dateKeyInTimeZone/);
-  assert.match(js, /Athlete thresholds were not changed/);
+  assert.match(js, /fuel_save_team_session/);
+  assert.match(js, /p_starts_at: startsAt\.toISOString\(\)/);
+  assert.match(js, /without duplicate athlete assignments/);
+  assert.doesNotMatch(js, /function trainingAssignmentOptions/);
   assert.match(js, /interventionMetricSnapshot\(comparison\.before\)/);
   assert.match(js, /metrics\.fuelling\?\.averageGapMinutes/);
   assert.match(js, /item\.difference < 0 \? "-"/);

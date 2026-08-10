@@ -1,3 +1,11 @@
-const { garminLogHandler } = require("../../lib/garmin-auth.js");
+const { garminLogHandler, garminTrainingHandler } = require("../../lib/garmin-auth.js");
 
-module.exports = garminLogHandler;
+async function garminEndpointHandler(request, response) {
+  if (request.query?.fuel_guard_action === "training") {
+    return garminTrainingHandler(request, response);
+  }
+  return garminLogHandler(request, response);
+}
+
+module.exports = garminEndpointHandler;
+module.exports.garminTrainingHandler = garminTrainingHandler;

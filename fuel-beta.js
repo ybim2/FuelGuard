@@ -2833,6 +2833,44 @@
     });
   }
 
+  function athleteTeamSessions() {
+    return Array.isArray(window.fuelGuardCloud?.teamSessions) ? window.fuelGuardCloud.teamSessions : [];
+  }
+
+  function teamSessionDayLabel(session, now = new Date()) {
+    const zone = session.timezone_name || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const currentKey = window.FuelGuardDomain?.dateKeyInTimeZone?.(now, zone) || todayKey(now);
+    const sessionKey = session.session_date || window.FuelGuardDomain?.dateKeyInTimeZone?.(session.starts_at, zone) || "";
+    if (sessionKey === currentKey) {
+      const parts = window.FuelGuardDomain?.zonedDateParts?.(session.starts_at, zone);
+      return Number(parts?.hour) >= 17 ? "Tonight" : "Today";
+    }
+    if (sessionKey === window.FuelGuardDomain?.shiftDateKey?.(currentKey, 1)) return "Tomorrow";
+    return sessionKey ? formatDateKey(sessionKey) : "Upcoming";
+  }
+
+  function renderAthleteTeamSessionContext() {
+    const target = document.getElementById("athleteTeamSessionContext");
+    if (!target) return;
+    const now = new Date();
+    const session = athleteTeamSessions()
+      .filter(item => item.status === "scheduled" && new Date(item.ends_at) >= now)
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))[0] || null;
+    target.hidden = !session;
+    if (!session) {
+      target.innerHTML = "";
+      return;
+    }
+    const zone = session.timezone_name || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    target.innerHTML = `
+      <article class="beta-team-session-context">
+        <div><span>${safeText(session.team_name || "Team session")}</span><strong>${safeText(teamSessionDayLabel(session, now))} · ${safeText(session.session_name || String(session.session_type || "Session").replace(/^./, value => value.toUpperCase()))}</strong></div>
+        <time>${safeText(window.FuelGuardDomain?.formatClockInTimeZone?.(session.starts_at, zone) || formatClock(new Date(session.starts_at)))}–${safeText(window.FuelGuardDomain?.formatClockInTimeZone?.(session.ends_at, zone) || formatClock(new Date(session.ends_at)))}</time>
+        ${session.location ? `<small>${safeText(session.location)}</small>` : ""}
+      </article>
+    `;
+  }
+
   function gapZoneReached(entry) {
     if (Number(entry?.crashZoneGapCount || 0) > 0) return "Recovery needed";
     if (Number(entry?.highRiskGapCount || 0) > 0) return "Eat now";
@@ -5911,15 +5949,6 @@
   }
 
 
-  function selectedDaySummaryFilename(key = selectedDataDateKey()) {
-    return `fuel-guard-${key || dateKey()}.png`;
-  }
-
-  function setDailySummaryShareStatus(message) {
-    const status = document.getElementById("dailySummaryShareStatus");
-    if (status) status.textContent = message || "";
-  }
-
   function canvasBlob(canvas) {
     return new Promise((resolve, reject) => {
       if (!canvas?.toBlob) {
@@ -5964,203 +5993,6 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, x + width / 2, y + height / 2 + 1);
-  }
-
-  function drawShareMetric(ctx, { x, y, width, label, value, note, color, percent }) {
-    drawRoundedRect(ctx, x, y, width, 210, 34);
-    ctx.fillStyle = "rgba(255,255,255,0.94)";
-    ctx.fill();
-    ctx.fillStyle = "#34423c";
-    ctx.font = "700 28px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(label, x + 30, y + 26);
-    ctx.fillStyle = "#07130f";
-    ctx.font = "800 54px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText(value, x + 30, y + 66);
-    ctx.fillStyle = "#5b6b64";
-    ctx.font = "500 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText(note, x + 30, y + 132);
-    drawRoundedRect(ctx, x + 30, y + 166, width - 60, 16, 8);
-    ctx.fillStyle = "#dfe8e3";
-    ctx.fill();
-    if (Number.isFinite(percent)) {
-      drawRoundedRect(ctx, x + 30, y + 166, (width - 60) * Math.min(1, Math.max(0, percent / 100)), 16, 8);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-  }
-
-  function drawDailySummaryTimeline(ctx, x, y, width, logs) {
-    const fuelLogs = stackedTimelineLogs(logs.filter(isFuelLog), { closeMinutes: 20, laneStep: 22, maxOffset: 44 });
-    const hydrationLogs = stackedTimelineLogs(logs.filter(isHydrationLog), { closeMinutes: 20, laneStep: 22, maxOffset: 44 });
-    drawRoundedRect(ctx, x, y, width, 240, 36);
-    ctx.fillStyle = "rgba(255,255,255,0.94)";
-    ctx.fill();
-    ctx.fillStyle = "#07130f";
-    ctx.font = "800 34px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText("Daily rhythm", x + 34, y + 28);
-    const trackX = x + 54;
-    const trackY = y + 134;
-    const trackWidth = width - 108;
-    ctx.strokeStyle = "#cfdad4";
-    ctx.lineWidth = 6;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(trackX, trackY);
-    ctx.lineTo(trackX + trackWidth, trackY);
-    ctx.stroke();
-    [0, 360, 720, 1080, 1440].forEach(minute => {
-      const px = trackX + (minute / 1440) * trackWidth;
-      ctx.strokeStyle = "#aab8b0";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(px, trackY - 16);
-      ctx.lineTo(px, trackY + 16);
-      ctx.stroke();
-      ctx.fillStyle = "#5b6b64";
-      ctx.font = "600 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = minute === 0 ? "left" : minute === 1440 ? "right" : "center";
-      ctx.fillText(`${String(Math.floor(minute / 60)).padStart(2, "0")}:00`, px, trackY + 34);
-    });
-    const drawMarker = (log, color, yBase) => {
-      const px = trackX + (minutesIntoDay(log.date) / 1440) * trackWidth;
-      const py = yBase + Number(log.laneOffset || 0);
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(px, py, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    };
-    fuelLogs.forEach(log => drawMarker(log, "#19b86a", trackY - 38));
-    hydrationLogs.forEach(log => drawMarker(log, "#2d7ff9", trackY + 46));
-    drawPill(ctx, x + 34, y + 184, 132, 40, "#dff6ea", "Fuel", "#0b6f3e");
-    drawPill(ctx, x + 182, y + 184, 174, 40, "#e4efff", "Hydration", "#1d5fbf");
-  }
-
-  function createDailySummaryCanvas(entry = selectedDataEntry()) {
-    const key = entry?.date || selectedDataDateKey();
-    const logs = entryLogsWithDates(entry);
-    const fuelLogs = logs.filter(isFuelLog);
-    const hydrationLogs = logs.filter(isHydrationLog);
-    const currentTargets = targets();
-    const fuelPercent = targetPercent(fuelLogs.length, currentTargets.dailyFuelLogs);
-    const hydrationPercent = targetPercent(hydrationLogs.length, currentTargets.dailyHydrationLogs);
-    const canvas = document.createElement("canvas");
-    canvas.width = 1080;
-    canvas.height = 1350;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Image export is not supported in this browser.");
-    ctx.fillStyle = "#07130f";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, "rgba(45,255,136,0.18)");
-    gradient.addColorStop(0.56, "rgba(255,255,255,0.08)");
-    gradient.addColorStop(1, "rgba(35,103,213,0.18)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.arc(118, 118, 56, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#07130f";
-    ctx.font = "900 38px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("FG", 118, 120);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.font = "800 62px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("Fuel Guard", 194, 76);
-    ctx.font = "600 32px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.76)";
-    ctx.fillText(formatDateKey(key), 198, 148);
-
-    const fuelValue = hasTarget(currentTargets.dailyFuelLogs) ? `${fuelLogs.length} / ${currentTargets.dailyFuelLogs}` : String(fuelLogs.length);
-    const hydrationValue = hasTarget(currentTargets.dailyHydrationLogs) ? `${hydrationLogs.length} / ${currentTargets.dailyHydrationLogs}` : String(hydrationLogs.length);
-    drawShareMetric(ctx, {
-      x: 70,
-      y: 260,
-      width: 450,
-      label: "Fuel logs",
-      value: fuelValue,
-      note: hasTarget(currentTargets.dailyFuelLogs) ? `${fuelPercent}% of daily target` : "No daily target set",
-      color: "#19b86a",
-      percent: fuelPercent
-    });
-    drawShareMetric(ctx, {
-      x: 560,
-      y: 260,
-      width: 450,
-      label: "Hydration logs",
-      value: hydrationValue,
-      note: hasTarget(currentTargets.dailyHydrationLogs) ? `${hydrationPercent}% of daily target` : "No daily target set",
-      color: "#2d7ff9",
-      percent: hydrationPercent
-    });
-    drawDailySummaryTimeline(ctx, 70, 540, 940, logs);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 44px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("Your fuelling rhythm", 70, 860);
-    ctx.fillStyle = "rgba(255,255,255,0.78)";
-    ctx.font = "500 31px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    const summaryLines = [
-      `Fuel: ${fuelLogs.length} log${fuelLogs.length === 1 ? "" : "s"}`,
-      `Hydration: ${hydrationLogs.length} log${hydrationLogs.length === 1 ? "" : "s"}`,
-      hasTarget(currentTargets.dailyFuelLogs) ? `Daily fuel target: ${fuelPercent}% complete` : "Set a daily fuel target in Settings",
-      hasTarget(currentTargets.dailyHydrationLogs) ? `Daily hydration target: ${hydrationPercent}% complete` : "Set a daily hydration target in Settings"
-    ];
-    summaryLines.forEach((line, index) => ctx.fillText(line, 70, 938 + index * 52));
-
-    ctx.fillStyle = "rgba(255,255,255,0.58)";
-    ctx.font = "600 25px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("A simple summary of fuel and hydration timing. No private account info included.", 70, 1260);
-    return canvas;
-  }
-
-  async function dailySummaryBlob() {
-    return canvasBlob(createDailySummaryCanvas(selectedDataEntry()));
-  }
-
-  async function downloadDailySummaryImage() {
-    setDailySummaryShareStatus("Creating image...");
-    try {
-      const blob = await dailySummaryBlob();
-      downloadBlob(blob, selectedDaySummaryFilename());
-      setDailySummaryShareStatus("Daily summary image downloaded.");
-    } catch (error) {
-      setDailySummaryShareStatus(`Image download failed: ${error?.message || "unknown error"}`);
-    }
-  }
-
-  async function shareDailySummaryImage() {
-    setDailySummaryShareStatus("Creating image...");
-    try {
-      const blob = await dailySummaryBlob();
-      const filename = selectedDaySummaryFilename();
-      const file = new File([blob], filename, { type: "image/png" });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: "Fuel Guard daily summary", text: "Fuel Guard daily summary" });
-        setDailySummaryShareStatus("Daily summary shared.");
-        return;
-      }
-      downloadBlob(blob, filename);
-      setDailySummaryShareStatus("Sharing image downloaded because native sharing is not available here.");
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        setDailySummaryShareStatus("Share cancelled.");
-        return;
-      }
-      setDailySummaryShareStatus(`Share failed: ${error?.message || "unknown error"}`);
-    }
   }
 
   function selectedDataEntry() {
@@ -10177,6 +10009,7 @@
     if (dashboardActive) {
       renderCoachNudges();
       renderAthleteActivitySummary();
+      renderAthleteTeamSessionContext();
       renderDayTypeControls();
       renderSelectedDayCard();
       renderDailyLog();
@@ -10186,7 +10019,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "training", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "training", "impact", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -10197,11 +10030,13 @@
     if (target === "dashboard") {
       renderCoachNudges();
       renderAthleteActivitySummary();
+      renderAthleteTeamSessionContext();
       renderSelectedDayCard();
       renderDailyLog();
     }
     if (target === "checklist") renderSettings();
     if (target === "training") window.FuelGuardTrainingMode?.render?.();
+    if (target === "impact") window.AthleteImpact?.render?.();
   };
 
   async function clearBetaData() {
@@ -10769,8 +10604,6 @@
     }
   });
   document.getElementById("fuelCsvImportConfirmButton")?.addEventListener("click", commitFuelCsvImport);
-  document.getElementById("shareDailySummaryButton")?.addEventListener("click", shareDailySummaryImage);
-  document.getElementById("downloadDailySummaryButton")?.addEventListener("click", downloadDailySummaryImage);
   window.addEventListener("fuelguard:pwa-update-status", event => {
     const status = document.getElementById("appUpdateStatus");
     if (!status) return;

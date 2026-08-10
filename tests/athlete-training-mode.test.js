@@ -212,14 +212,15 @@ test("Training sessions remain associated with strict pre and post context", () 
   assert.equal(context.postFuelGapMinutes, 30);
 });
 
-test("Training icon is directly beside Daily and opens a dedicated surface", () => {
+test("Training remains directly beside Daily and Impact opens a dedicated surface", () => {
   const html = read("index.html");
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   assert.ok(nav.indexOf('data-mobile-tab="log"') < nav.indexOf('data-mobile-tab="training"'));
   assert.match(nav, /data-mobile-screen="training"/);
+  assert.match(nav, /data-mobile-screen="impact"/);
   assert.match(html, /id="training" class="screen"/);
   assert.match(html, /id="trainingModeSurface"/);
-  assert.match(read("app-ui.js"), /"dashboard", "training", "checklist"/);
+  assert.match(read("app-ui.js"), /"dashboard", "training", "impact", "checklist"/);
   assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
 });
 
@@ -229,7 +230,8 @@ test("Training UI is one-tap while active and keeps quantity entry in setup", ()
   assert.match(js, /data-training-log="hydration"/);
   assert.match(js, /data-training-preset/);
   assert.match(js, /End Training Mode/);
-  assert.match(js, /Actual totals so far/);
+  assert.match(js, /Session stats/);
+  assert.match(js, /Recorded intake/);
   assert.match(js, /trainingEstimatedDuration/);
   assert.doesNotMatch(js, /Advanced Targets|advancedPlanEnabled|data-training-plan/);
 });
@@ -258,9 +260,9 @@ test("Athlete header Settings and Coach use the cleaned continuous visual langua
   assert.match(coachCss, /#coachAppShell \.coach-card \{[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
 });
 
-test("Training navigation remains two usable equal touch targets at 375px", () => {
+test("Athlete navigation keeps three usable equal touch targets at 375px", () => {
   const css = read("fuel-beta.css");
-  assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /mobile-bottom-nav \.mobile-nav-item \{[\s\S]*min-height: calc\(58px/);
   assert.match(css, /@media \(max-width: 390px\)[\s\S]*mobile-bottom-nav \.mobile-nav-item \{ min-width: 0; \}/);
 });

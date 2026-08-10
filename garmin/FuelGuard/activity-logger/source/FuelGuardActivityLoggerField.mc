@@ -36,6 +36,7 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
         FuelGuardConnection.configure(FuelGuardConnection.APP_ACTIVITY_LOGGER);
         if (FuelGuardConnection.connected()) {
             FuelGuardApi.trySync(false);
+            FuelGuardTraining.refresh(false);
         }
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);

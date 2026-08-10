@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation keeps Training directly beside Daily, with Settings in the header", () => {
+test("primary navigation keeps Training beside Daily and adds a focused Impact surface", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -37,14 +37,15 @@ test("primary navigation keeps Training directly beside Daily, with Settings in 
   assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
     ["dashboard", "Daily"],
-    ["training", "Training"]
+    ["training", "Training"],
+    ["impact", "Impact"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
-  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(html, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(html, /data-screen="history"|data-mobile-screen="history"|<section id="history"|data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
-  assert.match(appUi, /\["dashboard", "training", "checklist"\]/);
-  assert.match(beta, /\["dashboard", "training", "checklist"\]/);
+  assert.match(appUi, /\["dashboard", "training", "impact", "checklist"\]/);
+  assert.match(beta, /\["dashboard", "training", "impact", "checklist"\]/);
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
@@ -168,7 +169,8 @@ test("Daily owns the maximum fuel-gap control while Settings preserves internal 
   assert.ok(dayType < maximum && maximum < metrics, "Maximum Fuel Gap should sit directly below Day type on Daily");
   assert.match(dailyStatus, /id="maximumFuelGapCustom"/);
   assert.doesNotMatch(settings, /Maximum Fuel Gap|maximumFuelGapPreset|maximumFuelGapCustom/);
-  assert.doesNotMatch(settings, /Preferences|Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
+  assert.match(settings, /Contextual reminders/);
+  assert.doesNotMatch(settings, /Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
   assert.doesNotMatch(settings, /id="dailyFuelTarget"|id="fuelWindowPreset"|id="fuelGreenHours"/);
   assert.match(js, /function maximumFuelGapMinutes/);
   assert.match(js, /function applyMaximumFuelGapGoal/);
@@ -212,16 +214,17 @@ test("Settings keeps only essential production sections", () => {
   assert.match(settings, /Give this code to your coach so they can send you a connection request\./);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
-  assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
+  assert.match(settings, /Contextual reminders/);
+  assert.doesNotMatch(settings, /Garmin health patterns|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Daily gap-goal release", () => {
+test("PWA cache and asset versions are bumped for the Athlete Impact release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v125-daily-gap-goal";
+  const version = "mobile-pwa-v131-athlete-social-sharing";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -231,7 +234,7 @@ test("PWA cache and asset versions are bumped for the Daily gap-goal release", (
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T231806Z/);
+  assert.match(sw, /20260810T144906Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

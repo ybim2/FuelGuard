@@ -402,6 +402,62 @@ body.beta-mvp #training {
   line-height: 1.4;
 }
 
+.training-mode-complete {
+  border-color: rgba(24, 138, 74, .28);
+  background: linear-gradient(145deg, #fbfffc, #f1faf4);
+  box-shadow: 0 14px 34px rgba(26, 105, 65, .08);
+}
+
+.training-mode-complete-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.training-mode-complete-heading span,
+.training-mode-complete-block h3 {
+  color: #168a46;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.training-mode-complete-heading h2 { margin: 4px 0; }
+.training-mode-complete-heading p { margin: 0; color: #65736d; font-size: .78rem; }
+.training-mode-complete-heading > strong { color: #11663b; font-size: 1.05rem; white-space: nowrap; }
+
+.training-mode-complete-events,
+.training-mode-complete-quantities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.training-mode-complete-events article,
+.training-mode-complete-quantities > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(16, 24, 32, .09);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .82);
+}
+
+.training-mode-complete-events span,
+.training-mode-complete-quantities small,
+.training-mode-complete-quantities em { color: #65736d; font-size: .7rem; font-style: normal; }
+.training-mode-complete-events strong,
+.training-mode-complete-quantities strong { color: #101820; font-size: .92rem; overflow-wrap: anywhere; }
+.training-mode-complete-block { margin-top: 16px; }
+.training-mode-complete-block h3 { margin: 0; }
+.training-mode-complete-block.planned { padding-top: 14px; border-top: 1px solid rgba(16, 24, 32, .09); }
+.training-mode-complete-block.planned h3 { color: #65736d; }
+.training-mode-complete-quantities { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 8px; }
+
 .training-mode-review-totals {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -456,6 +512,28 @@ body.beta-mvp #training {
   color: #101820;
   font-size: 1rem;
 }
+
+.training-mode-live-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.training-mode-live-insight-grid article {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(16, 24, 32, .09);
+  border-radius: 14px;
+  background: #f7f9f7;
+}
+
+.training-mode-live-insight-grid article.supportive { background: rgba(45, 255, 136, .09); }
+.training-mode-live-insight-grid article.attention { background: rgba(239, 163, 49, .12); }
+.training-mode-live-insight-grid span,
+.training-mode-live-insight-grid small { color: #65736d; font-size: .72rem; line-height: 1.38; }
+.training-mode-live-insight-grid strong { color: #101820; font-size: .96rem; line-height: 1.3; }
 
 .training-mode-review-context {
   display: grid;
@@ -530,10 +608,60 @@ body.beta-mvp #training {
   }
 
   .training-mode-insight-grid { grid-template-columns: 1fr; }
+  .training-mode-live-insight-grid { grid-template-columns: 1fr; }
+  .training-mode-complete-events { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .training-mode-complete-events article:last-child { grid-column: 1 / -1; }
+  .training-mode-complete-quantities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 390px) {
   .training-mode-live-actions { gap: 8px; }
   .training-mode-action { min-height: 104px; padding-inline: 10px; }
   .training-mode-intake-grid { grid-template-columns: 1fr; }
+  .training-mode-complete-heading { display: grid; }
+}
+.training-mode-team-session-list {
+  display: grid;
+  gap: 10px;
+}
+
+.training-mode-team-session-list article {
+  align-items: center;
+  background: rgba(239, 248, 243, .92);
+  border: 1px solid rgba(28, 104, 70, .15);
+  border-radius: 14px;
+  display: grid;
+  gap: 5px 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 14px;
+}
+
+.training-mode-team-session-list span,
+.training-mode-team-session-list small {
+  color: #587066;
+  display: block;
+  font-size: 12px;
+}
+
+.training-mode-team-session-list strong {
+  color: #173f2f;
+  display: block;
+  margin-top: 2px;
+}
+
+.training-mode-team-session-list time {
+  color: #1a6e4b;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.training-mode-team-session-list small {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 480px) {
+  .training-mode-team-session-list article {
+    grid-template-columns: 1fr;
+  }
 }

@@ -87,9 +87,9 @@ test("Training plans persist expected duration and calculate approximate session
 
 test("Training setup separates Fuel Hydrate caffeine and planned duration responsibilities", () => {
   const js = read("training-mode.js");
-  assert.match(js, /const fields = type === "fuel" \? \["carbsG"\] : \["fluidMl", "sodiumMg"\]/);
-  assert.match(js, /With Fuel/);
-  assert.match(js, /With Hydrate/);
+  assert.match(js, /const fields = type === "fuel" \? \["carbsG"\] : \["fluidMl", "sodiumMg", "caffeineMg"\]/);
+  assert.match(js, /Fuel means carbohydrate intake/);
+  assert.match(js, /Hydrate records fluid, sodium and optional caffeine/);
   assert.match(js, />30m<|>30m<\/option>/);
   assert.match(js, />1h<|>1h<\/option>/);
   assert.match(js, />1h 30m<|>1h 30m<\/option>/);
@@ -106,7 +106,8 @@ test("Active Training shows honest totals while completed sessions calculate act
   const intakeStart = js.indexOf("function intakeCards");
   const activeEnd = js.indexOf("function presetSummary");
   const activeUi = js.slice(intakeStart, activeEnd);
-  assert.match(activeUi, /Actual totals so far/);
+  assert.match(activeUi, /Session stats/);
+  assert.match(activeUi, /Recorded intake/);
   assert.match(activeUi, /\/h planned/);
   assert.doesNotMatch(activeUi, /summary\.perHour|\/h actual/);
   assert.match(js.slice(js.indexOf("function completedSessionsMarkup")), /summary\.actualPerHour/);
@@ -140,16 +141,14 @@ test("Training Insights separates completed-session evidence from today’s obse
   assert.ok(result.dayInsights.some(item => item.id === "hydration-moments-today"));
 });
 
-test("Milestones render three horizontal paths with locked unlocked current and recent states", () => {
+test("Daily renders the three restored streak visuals with the previous milestone treatment", () => {
   const js = read("athlete-milestones.js");
   const css = read("fuel-beta.css");
-  for (const id of ["streak", "fuel", "hydration"]) assert.match(js, new RegExp(`id: "${id}"`));
-  for (const state of ["locked", "unlocked", "current", "recent"]) assert.match(js, new RegExp(state));
-  assert.match(css, /\.beta-milestone-scroll \{[\s\S]*overflow-x: auto/);
-  assert.match(css, /\.beta-milestone-tile\.locked/);
-  assert.match(css, /\.beta-milestone-tile\.unlocked/);
-  assert.match(css, /\.beta-milestone-tile\.current/);
-  assert.match(css, /\.beta-milestone-tile\.recent/);
+  for (const id of ["day", "fuel", "hydration"]) assert.match(js, new RegExp(`id: "${id}"`));
+  for (const label of ["Day streak", "Fuel streak", "Hydration streak"]) assert.match(js, new RegExp(label));
+  assert.match(js, /beta-milestone-tile beta-streak-visual unlocked current/);
+  assert.match(css, /\.beta-streak-visuals \{[\s\S]*grid-template-columns: repeat\(3/);
+  assert.match(css, /@media \(max-width: 390px\)[\s\S]*\.beta-streak-visuals \{[\s\S]*grid-template-columns: 1fr/);
 });
 
 test("Daily and Training use the same mobile card rhythm", () => {

@@ -18,7 +18,7 @@ test("activity summary counts a streak through today from real fuel and hydratio
     moment("2026-08-08", "fuel_hydration"),
     moment("2026-08-09", "fuel")
   ], new Date("2026-08-09T12:00:00"));
-  assert.deepEqual(summary, { dayStreak: 4, fuelMoments: 3, hydrationMoments: 2 });
+  assert.deepEqual(summary, { dayStreak: 4, fuelStreak: 2, hydrationStreak: 2, fuelMoments: 3, hydrationMoments: 2 });
 });
 
 test("an in-progress empty day keeps a streak ending yesterday", () => {
@@ -37,7 +37,7 @@ test("a completed gap breaks the streak and Sleepy never changes usage totals", 
     moment("2026-08-08", "checkin"),
     moment("2026-08-09", "checkin")
   ], new Date("2026-08-09T18:00:00"));
-  assert.deepEqual(summary, { dayStreak: 0, fuelMoments: 2, hydrationMoments: 0 });
+  assert.deepEqual(summary, { dayStreak: 0, fuelStreak: 0, hydrationStreak: 0, fuelMoments: 2, hydrationMoments: 0 });
 });
 
 test("invalid test deleted and revoked rows do not affect activity totals", () => {
@@ -48,7 +48,7 @@ test("invalid test deleted and revoked rows do not affect activity totals", () =
     { ...moment("2026-08-09", "hydration"), revoked_at: "2026-08-09T10:00:00Z" },
     moment("2026-08-09", "invalid")
   ], new Date("2026-08-09T12:00:00"));
-  assert.deepEqual(summary, { dayStreak: 1, fuelMoments: 1, hydrationMoments: 0 });
+  assert.deepEqual(summary, { dayStreak: 1, fuelStreak: 1, hydrationStreak: 0, fuelMoments: 1, hydrationMoments: 0 });
 });
 
 test("Normal to Holiday to Normal clears the persisted override", () => {

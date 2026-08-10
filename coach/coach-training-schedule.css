@@ -1,1 +1,181 @@
-/* Feature-owned styles for coach-training-schedule.js belong here. */
+.coach-form-wide {
+  grid-column: 1 / -1;
+}
+
+.coach-form-wide textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+
+.coach-team-session-group {
+  margin-top: 1.25rem;
+}
+
+.coach-team-session-row {
+  align-items: center;
+  display: grid;
+  gap: .75rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(10rem, .9fr) auto;
+}
+
+.coach-team-session-row.cancelled {
+  opacity: .72;
+}
+
+.coach-team-session-row > div:first-child small {
+  color: var(--coach-muted, #52625b);
+  display: block;
+  margin-top: .35rem;
+}
+
+.coach-team-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  grid-column: 1 / -1;
+}
+
+.coach-team-session-triage {
+  border-top: 1px solid rgba(31, 72, 55, .14);
+  grid-column: 1 / -1;
+  margin-top: .25rem;
+  padding-top: .85rem;
+}
+
+.coach-team-session-triage > article {
+  align-items: center;
+  display: grid;
+  gap: .65rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: .6rem 0;
+}
+
+.coach-pre-practice-summary {
+  background: #f4f8f5;
+  border: 1px solid rgba(31, 72, 55, .12);
+  border-radius: .85rem;
+  margin: .65rem 0 .3rem;
+  padding: .75rem;
+}
+
+.coach-pre-practice-counts {
+  display: grid;
+  gap: .45rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.coach-pre-practice-counts span {
+  align-items: center;
+  background: #fff;
+  border-radius: .65rem;
+  display: flex;
+  font-size: .7rem;
+  gap: .35rem;
+  justify-content: center;
+  min-width: 0;
+  padding: .45rem .3rem;
+}
+
+.coach-pre-practice-counts span::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: "";
+  height: .48rem;
+  width: .48rem;
+}
+
+.coach-pre-practice-counts .green { color: #14603a; }
+.coach-pre-practice-counts .amber { color: #765400; }
+.coach-pre-practice-counts .red { color: #8b2b20; }
+.coach-pre-practice-counts .grey { color: #5d6863; }
+
+.coach-pre-practice-summary p {
+  color: var(--coach-text, #1f3029);
+  font-size: .82rem;
+  font-weight: 750;
+  margin: .65rem 0 0;
+}
+
+.coach-team-session-triage article div span {
+  color: var(--coach-muted, #52625b);
+  display: block;
+  font-size: .78rem;
+  margin-top: .2rem;
+}
+
+.coach-session-status {
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 800;
+  padding: .35rem .55rem;
+  white-space: nowrap;
+}
+
+.coach-session-status.green,
+.coach-session-status.prompt {
+  background: #dff7e8;
+  color: #145f39;
+}
+
+.coach-session-status.yellow,
+.coach-session-status.amber,
+.coach-session-status.late,
+.coach-session-status.pending {
+  background: #fff1c7;
+  color: #765400;
+}
+
+.coach-session-status.red,
+.coach-session-status.no_fuel {
+  background: #ffe1dd;
+  color: #8b2b20;
+}
+
+.coach-session-status.no_logging,
+.coach-session-status.grey {
+  background: #e8ecea;
+  color: #48534e;
+}
+
+.coach-team-session-brief {
+  display: grid;
+  gap: .65rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin-top: 1rem;
+}
+
+.coach-team-session-brief > div {
+  background: rgba(244, 249, 246, .9);
+  border-radius: .8rem;
+  padding: .75rem;
+}
+
+.coach-team-session-brief span,
+.coach-team-session-brief strong {
+  display: block;
+}
+
+.coach-team-session-brief span {
+  color: var(--coach-muted, #52625b);
+  font-size: .72rem;
+}
+
+.coach-team-session-brief strong {
+  margin-top: .25rem;
+}
+
+@media (max-width: 720px) {
+  .coach-team-session-row,
+  .coach-team-session-triage > article {
+    grid-template-columns: 1fr;
+  }
+
+  .coach-team-session-triage > article button,
+  .coach-session-status {
+    justify-self: start;
+  }
+
+  .coach-pre-practice-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

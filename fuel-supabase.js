@@ -24,6 +24,7 @@
   let recoveryMode = false;
   let lastStatus = "Cloud sync is not configured yet.";
   let targetMaximumGapColumnAvailable = true;
+  let athleteTeamSessions = [];
 
   function config() {
     return window.FUEL_GUARD_SUPABASE_CONFIG || {};
@@ -918,6 +919,20 @@
     return data || [];
   }
 
+  async function fetchAthleteTeamSessions() {
+    if (!client || !user()) {
+      athleteTeamSessions = [];
+      return athleteTeamSessions;
+    }
+    const { data, error } = await client.rpc("fuel_athlete_team_sessions", {
+      p_from: new Date(Date.now() - 14 * 86400000).toISOString(),
+      p_to: new Date(Date.now() + 14 * 86400000).toISOString()
+    });
+    if (error) throw error;
+    athleteTeamSessions = (data || []).slice().sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    return athleteTeamSessions;
+  }
+
   async function uploadLogs(logs) {
     const currentUser = user();
     if (!client || !currentUser || !logs.length) return [];
@@ -1024,6 +1039,11 @@
           planningWarning = demandPlanningTableMissing(planningError)
             ? " Demand planning stayed cached locally until the Supabase demand-planning SQL is applied."
             : ` Demand planning stayed cached locally: ${planningError?.message || "planning sync failed"}.`;
+        }
+        try {
+          await fetchAthleteTeamSessions();
+        } catch (_sessionContextError) {
+          athleteTeamSessions = [];
         }
         if (gap) {
           gap.cloud.lastSyncedAt = new Date().toISOString();
@@ -1202,6 +1222,7 @@
     const { error } = await client.auth.signOut();
     if (error) throw error;
     session = null;
+    athleteTeamSessions = [];
     status("Signed out. Logs remain cached on this device.");
     persistAndRender();
   }
@@ -1297,7 +1318,10 @@
         } else if (recoveryMode) {
           status("You're resetting your password. Enter a new password below.");
         } else if (session?.user && !recoveryMode) syncNow();
-        else status("Signed out. Logs are cached on this device.");
+        else {
+          athleteTeamSessions = [];
+          status("Signed out. Logs are cached on this device.");
+        }
         if (typeof renderAll === "function") renderAll();
       });
 
@@ -1344,6 +1368,9 @@
     signOut,
     accountView,
     accessToken,
+    get teamSessions() {
+      return athleteTeamSessions.map(item => ({ ...item }));
+    },
     get client() {
       return client;
     },

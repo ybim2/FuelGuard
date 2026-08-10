@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v125-daily-gap-goal";
-const BUILD_VERSION = "2026-08-09T23:18:06Z";
+const APP_VERSION = "mobile-pwa-v131-athlete-social-sharing";
+const BUILD_VERSION = "2026-08-10T14:49:06Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v125-daily-gap-goal-20260809T231806Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v131-athlete-social-sharing-20260810T144906Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,6 +31,8 @@ const APP_SHELL = [
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
   "./training-mode.css",
+  "./athlete-impact.css",
+  "./athlete-share.css",
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
@@ -41,8 +43,13 @@ const APP_SHELL = [
   "./app-pwa.js",
   "./fuel-beta.js",
   "./training-mode.js",
+  "./athlete-impact.js",
   "./transactional-email-client.js",
   "./athlete-milestones.js",
+  "./athlete-share-card.js",
+  "./athlete-share.js",
+  "./athlete-retention.js",
+  "./settings-navigation.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
   "./manifest.webmanifest",

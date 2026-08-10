@@ -137,8 +137,9 @@ test("Athlete and Coach surfaces expose profiles, points and weekly completion",
   const athleteJs = read("athlete-milestones.js");
   const coachHtml = read("coach/index.html");
   const coachJs = read("coach/coach-beta.js");
-  assert.match(athleteHtml, /id="athleteDailyPoints"/);
+  assert.doesNotMatch(athleteHtml, /id="athleteDailyPoints"/);
   assert.match(athleteHtml, /id="athleteProfileCard"/);
+  assert.match(athleteHtml, /id="athletePointsProfile"/);
   assert.match(athleteJs, /fuel_points_profile/);
   assert.match(athleteJs, /Milestones unlocked/);
   assert.match(athleteJs, /Rewards are coming soon/);

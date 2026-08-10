@@ -1,8 +1,8 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v125-daily-gap-goal",
-  buildVersion: "2026-08-09T23:18:06Z",
-  sourceCheckpoint: "v125-daily-gap-goal",
-  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v125-daily-gap-goal",
+  canonicalApp: "mobile-pwa-v131-athlete-social-sharing",
+  buildVersion: "2026-08-10T14:49:06Z",
+  sourceCheckpoint: "v131-athlete-social-sharing",
+  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v131-athlete-social-sharing",
   serviceWorkerScope: "/",
-  cacheName: "fuel-guard-mobile-pwa-v125-daily-gap-goal-20260809T231806Z"
+  cacheName: "fuel-guard-mobile-pwa-v131-athlete-social-sharing-20260810T144906Z"
 });

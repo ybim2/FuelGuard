@@ -23,6 +23,12 @@ const DEFAULT_STATE = {
       achievements: [],
       syncedAt: ""
     },
+    nudgePreferences: {
+      maximumGap: true,
+      postTraining: true,
+      trainingMode: true,
+      dismissedKeys: []
+    },
     trainingMode: {
       presets: {
         fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 },
@@ -116,6 +122,13 @@ function load() {
           ...(isPlainObject(parsedFuelGap.milestones) ? parsedFuelGap.milestones : {}),
           lastSummary: isPlainObject(parsedFuelGap.milestones?.lastSummary) ? parsedFuelGap.milestones.lastSummary : null,
           achievements: Array.isArray(parsedFuelGap.milestones?.achievements) ? parsedFuelGap.milestones.achievements : []
+        },
+        nudgePreferences: {
+          ...defaults.fuelGap.nudgePreferences,
+          ...(isPlainObject(parsedFuelGap.nudgePreferences) ? parsedFuelGap.nudgePreferences : {}),
+          dismissedKeys: Array.isArray(parsedFuelGap.nudgePreferences?.dismissedKeys)
+            ? parsedFuelGap.nudgePreferences.dismissedKeys.slice(-30)
+            : []
         },
         trainingMode: {
           ...defaults.fuelGap.trainingMode,

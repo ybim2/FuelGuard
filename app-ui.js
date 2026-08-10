@@ -1,5 +1,5 @@
 function switchScreen(screen) {
-  const target = ["dashboard", "training", "checklist"].includes(screen) ? screen : "dashboard";
+  const target = ["dashboard", "training", "impact", "checklist"].includes(screen) ? screen : "dashboard";
   const targetElement = document.getElementById(target);
   if (!targetElement) return;
 
@@ -18,6 +18,7 @@ function switchScreen(screen) {
 
 function renderAll() {
   if (typeof renderFuelGap === "function") renderFuelGap();
+  window.AthleteImpact?.render?.();
 }
 
 document.querySelectorAll(".nav-item").forEach(button => {
