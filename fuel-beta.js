@@ -172,6 +172,8 @@
   let lastAutoFuelWindowDateKey = "";
   let accountBusy = false;
   let coachSharingBusy = false;
+  let athleteProfileBusy = false;
+  let athleteProfileStatus = "";
   let coachSharingState = {
     loadedFor: "",
     profile: null,
@@ -271,7 +273,7 @@
   }
 
   function coachProfileSelect() {
-    return "user_id,role,coach_enabled,display_name,athlete_code,created_at,updated_at";
+    return "user_id,role,coach_enabled,display_name,first_name,last_name,avatar_url,job_title,athlete_code,created_at,updated_at";
   }
 
   async function ensureAthleteCoachProfile(client, user) {
@@ -358,6 +360,7 @@
         : `Coach access could not load: ${error?.message || "unknown error"}`;
     } finally {
       coachSharingBusy = false;
+      renderAthleteProfile();
       renderCoachSharing();
       renderCoachNudges();
     }
@@ -2617,18 +2620,6 @@
     if (updateStatus && !updateStatus.dataset.userMessage) {
       updateStatus.textContent = "Update status: ready. User logs are stored separately and will not be cleared.";
     }
-    const maxGapPreset = document.getElementById("maximumFuelGapPreset");
-    const maxGapCustom = document.getElementById("maximumFuelGapCustom");
-    const maxGapCustomWrap = document.getElementById("maximumFuelGapCustomWrap");
-    const maxGapStatus = document.getElementById("maximumFuelGapStatus");
-    const maxGapMinutes = maximumFuelGapMinutes();
-    const maxGapPresetValue = maximumFuelGapPresetValue(maxGapMinutes);
-    if (maxGapPreset && document.activeElement !== maxGapPreset) maxGapPreset.value = maxGapPresetValue;
-    if (maxGapCustom && document.activeElement !== maxGapCustom) maxGapCustom.value = String(maxGapMinutes);
-    if (maxGapCustomWrap) maxGapCustomWrap.hidden = maxGapPresetValue !== "custom";
-    if (maxGapStatus) {
-      maxGapStatus.textContent = `Current goal: ${duration(maxGapMinutes)}. Eat soon starts ${duration(30)} before that target.`;
-    }
     const account = accountState();
     const cloud = window.fuelGuardCloud?.accountView?.() || null;
     const recovering = Boolean(cloud?.recovering);
@@ -2682,8 +2673,74 @@
           ? `${cloud.status}${pending}`
         : "Cloud sync needs Supabase public URL/key configuration.";
     }
+    renderAthleteProfile();
     renderCoachSharing();
     renderCsvImportPanel();
+  }
+
+  function renderAthleteProfile() {
+    const card = document.getElementById("athleteProfileCard");
+    const cloud = window.fuelGuardCloud?.accountView?.() || null;
+    const user = coachSharingUser();
+    const profile = coachSharingState.profile || {};
+    if (card) card.hidden = !cloud?.signedIn;
+    const fields = [
+      ["athleteProfileFirstName", profile.first_name || ""],
+      ["athleteProfileLastName", profile.last_name || ""],
+      ["athleteProfileEmail", user?.email || cloud?.email || ""],
+      ["athleteProfileAvatarUrl", profile.avatar_url || ""]
+    ];
+    fields.forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && document.activeElement !== input) input.value = value;
+    });
+    const saveButton = document.getElementById("athleteProfileSaveButton");
+    if (saveButton) saveButton.disabled = athleteProfileBusy || !cloud?.signedIn;
+    const status = document.getElementById("athleteProfileStatus");
+    if (status) status.textContent = athleteProfileBusy ? "Saving profile…" : athleteProfileStatus;
+  }
+
+  async function saveAthleteProfile() {
+    if (athleteProfileBusy) return;
+    const client = coachSharingClient();
+    const user = coachSharingUser();
+    if (!client || !user?.id) {
+      athleteProfileStatus = "Sign in before editing your profile.";
+      renderAthleteProfile();
+      return;
+    }
+    const firstName = document.getElementById("athleteProfileFirstName")?.value.trim() || "";
+    const lastName = document.getElementById("athleteProfileLastName")?.value.trim() || "";
+    const avatarUrl = document.getElementById("athleteProfileAvatarUrl")?.value.trim() || "";
+    const displayName = [firstName, lastName].filter(Boolean).join(" ") || user.email || "Fuel Guard Athlete";
+    athleteProfileBusy = true;
+    athleteProfileStatus = "";
+    renderAthleteProfile();
+    try {
+      const { data, error } = await client.from(COACH_PROFILES_TABLE)
+        .upsert({
+          user_id: user.id,
+          role: coachSharingState.profile?.role || "athlete",
+          coach_enabled: Boolean(coachSharingState.profile?.coach_enabled),
+          display_name: displayName,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          avatar_url: avatarUrl || null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" })
+        .select(coachProfileSelect())
+        .single();
+      if (error) throw error;
+      coachSharingState.profile = data;
+      athleteProfileStatus = "Profile saved.";
+    } catch (error) {
+      athleteProfileStatus = coachSharingSetupError(error)
+        ? "Profile fields are waiting for the additive release migration."
+        : `Profile could not be saved: ${error?.message || "unknown error"}`;
+    } finally {
+      athleteProfileBusy = false;
+      renderAthleteProfile();
+    }
   }
 
   function renderAnalysisList(items) {
@@ -4606,6 +4663,8 @@
     const hasFuel = Boolean(lastFuel);
     const progressStyle = stylePercent(goalCopy.progress);
     const selectedDayType = dayTypeForKey(key);
+    const maxGapMinutes = maximumFuelGapMinutes();
+    const maxGapPreset = maximumFuelGapPresetValue(maxGapMinutes);
     const dayTypeChoices = [
       ["", "Normal"],
       ["work", "Working"],
@@ -4632,6 +4691,23 @@
           <div class="beta-day-type-chips" role="radiogroup" aria-label="Day type for today">
             ${dayTypeChoices.map(([value, label]) => `<button type="button" role="radio" class="beta-day-type-chip${selectedDayType === value ? " selected" : ""}" aria-checked="${selectedDayType === value}" data-day-type-choice="${safeText(value)}">${safeText(label)}</button>`).join("")}
           </div>
+          <section class="beta-maximum-gap-inline" aria-labelledby="maximumFuelGapTitle">
+            <div class="beta-maximum-gap-inline-heading">
+              <span id="maximumFuelGapTitle">Maximum fuel gap</span>
+              <strong>${safeText(duration(maxGapMinutes))}</strong>
+            </div>
+            <div class="beta-maximum-gap-controls">
+              <label>Gap target<select id="maximumFuelGapPreset">
+                <option value="150"${maxGapPreset === "150" ? " selected" : ""}>2h 30m</option>
+                <option value="180"${maxGapPreset === "180" ? " selected" : ""}>3h</option>
+                <option value="210"${maxGapPreset === "210" ? " selected" : ""}>3h 30m</option>
+                <option value="240"${maxGapPreset === "240" ? " selected" : ""}>4h</option>
+                <option value="custom"${maxGapPreset === "custom" ? " selected" : ""}>Custom</option>
+              </select></label>
+              <label id="maximumFuelGapCustomWrap"${maxGapPreset === "custom" ? "" : " hidden"}>Custom minutes<input id="maximumFuelGapCustom" type="number" min="120" max="240" step="5" inputmode="numeric" value="${safeText(maxGapMinutes)}"></label>
+            </div>
+            <p id="maximumFuelGapStatus" class="row-note" aria-live="polite">Eat soon starts ${safeText(duration(30))} before this target.</p>
+          </section>
         </section>
         <div class="beta-today-status-grid">
           ${dailyMetricCard("Last fuel", lastFuel ? formatClock(lastFuel.date) : "Not logged", hasFuel ? `${snapshot.timeSinceFuel} ago` : "No fuel logged yet", "fuel")}
@@ -10423,17 +10499,45 @@
     renderAll();
     window.fuelGuardCloud?.syncLogsForDay(key);
   });
-  document.getElementById("maximumFuelGapPreset")?.addEventListener("change", event => {
-    const value = event.target.value;
-    if (value === "custom") {
-      renderSettings();
-      document.getElementById("maximumFuelGapCustom")?.focus();
+  function commitMaximumFuelGapCustom(input) {
+    const minutes = Number(input?.value);
+    if (!Number.isFinite(minutes) || minutes < 120 || minutes > 240) {
+      const status = document.getElementById("maximumFuelGapStatus");
+      if (status) status.textContent = "Enter a target from 120 to 240 minutes.";
       return;
     }
-    applyMaximumFuelGapGoal(Number(value));
+    applyMaximumFuelGapGoal(minutes);
+  }
+
+  document.addEventListener("change", event => {
+    if (event.target.id === "maximumFuelGapPreset") {
+      const value = event.target.value;
+      if (value === "custom") {
+        const customWrap = document.getElementById("maximumFuelGapCustomWrap");
+        const customInput = document.getElementById("maximumFuelGapCustom");
+        if (customWrap) customWrap.hidden = false;
+        if (customInput) {
+          customInput.value = String(maximumFuelGapMinutes());
+          customInput.focus();
+        }
+        const status = document.getElementById("maximumFuelGapStatus");
+        if (status) status.textContent = "Enter a target from 120 to 240 minutes.";
+        return;
+      }
+      applyMaximumFuelGapGoal(Number(value));
+      return;
+    }
+    if (event.target.id === "maximumFuelGapCustom") {
+      commitMaximumFuelGapCustom(event.target);
+    }
   });
-  document.getElementById("maximumFuelGapCustom")?.addEventListener("change", event => {
-    applyMaximumFuelGapGoal(Number(event.target.value));
+  document.addEventListener("focusout", event => {
+    if (event.target.id === "maximumFuelGapCustom") commitMaximumFuelGapCustom(event.target);
+  });
+  document.addEventListener("keydown", event => {
+    if (event.target.id !== "maximumFuelGapCustom" || event.key !== "Enter") return;
+    event.preventDefault();
+    commitMaximumFuelGapCustom(event.target);
   });
   document.getElementById("fuelDataDate")?.addEventListener("change", event => {
     setSelectedDataDate(event.target.value);
@@ -10619,6 +10723,7 @@
 
   document.getElementById("coachCopyAthleteCodeButton")?.addEventListener("click", copyAthleteCode);
   document.getElementById("coachShareAthleteCodeButton")?.addEventListener("click", shareAthleteCode);
+  document.getElementById("athleteProfileSaveButton")?.addEventListener("click", saveAthleteProfile);
   document.addEventListener("click", event => {
     const approve = event.target.closest("[data-approve-coach-sharing]");
     if (approve) {

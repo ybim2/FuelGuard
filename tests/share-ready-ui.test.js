@@ -155,19 +155,26 @@ test("Today’s Patterns switches between fuel, hydration and sleepy event count
   assert.match(js, /No sleepy events logged today/);
 });
 
-test("Settings hides preference controls while preserving internal defaults", () => {
+test("Daily owns the maximum fuel-gap control while Settings preserves internal defaults", () => {
   const html = read("index.html");
   const js = read("fuel-beta.js");
   const state = read("app-state.js");
   const settings = section(html, "checklist");
+  const dailyStatus = functionBody(js, "renderCurrentFuellingStatus", "hydrationSuggestionForDay");
 
-  assert.match(settings, /Maximum Fuel Gap/);
-  assert.match(settings, /id="maximumFuelGapPreset"/);
-  assert.match(settings, /id="maximumFuelGapCustom"/);
+  const dayType = indexOfRequired(dailyStatus, "beta-day-type-chips");
+  const maximum = indexOfRequired(dailyStatus, 'id="maximumFuelGapPreset"');
+  const metrics = indexOfRequired(dailyStatus, "beta-today-status-grid");
+  assert.ok(dayType < maximum && maximum < metrics, "Maximum Fuel Gap should sit directly below Day type on Daily");
+  assert.match(dailyStatus, /id="maximumFuelGapCustom"/);
+  assert.doesNotMatch(settings, /Maximum Fuel Gap|maximumFuelGapPreset|maximumFuelGapCustom/);
   assert.doesNotMatch(settings, /Preferences|Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
   assert.doesNotMatch(settings, /id="dailyFuelTarget"|id="fuelWindowPreset"|id="fuelGreenHours"/);
   assert.match(js, /function maximumFuelGapMinutes/);
   assert.match(js, /function applyMaximumFuelGapGoal/);
+  assert.match(js, /function commitMaximumFuelGapCustom/);
+  assert.match(js, /event\.target\.id === "maximumFuelGapPreset"/);
+  assert.match(js, /document\.addEventListener\("focusout"/);
   assert.match(js, /function fuelStatusLimits/);
   assert.match(state, /maximumFuelGapMinutes: 180/);
   assert.match(state, /const goalMinutes = Math\.min\(240, Math\.max\(120, Number\(fuelGapState\(\)\.maximumFuelGapMinutes/);
@@ -190,15 +197,13 @@ test("Settings keeps only essential production sections", () => {
   const account = indexOfRequired(settings, "Account &amp; Sync");
   const coachSharing = indexOfRequired(settings, "Coach Access");
   const garmin = indexOfRequired(settings, "Connected Garmin Apps");
-  const maximum = indexOfRequired(settings, "Maximum Fuel Gap");
   const importAndClear = indexOfRequired(settings, "Data import and clearing");
   const version = indexOfRequired(settings, "App version and privacy");
 
   assert.ok(intro < account);
   assert.ok(account < coachSharing);
   assert.ok(coachSharing < garmin);
-  assert.ok(garmin < maximum);
-  assert.ok(maximum < importAndClear);
+  assert.ok(garmin < importAndClear);
   assert.ok(importAndClear < version);
   assert.match(settings, /id="coachAthleteCode"/);
   assert.match(settings, /id="coachCopyAthleteCodeButton"/);
@@ -210,13 +215,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Athlete app fixes release", () => {
+test("PWA cache and asset versions are bumped for the Daily gap-goal release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v123-canonical-email";
+  const version = "mobile-pwa-v125-daily-gap-goal";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -226,7 +231,7 @@ test("PWA cache and asset versions are bumped for the Athlete app fixes release"
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T192957Z/);
+  assert.match(sw, /20260809T231806Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

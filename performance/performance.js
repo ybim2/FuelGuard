@@ -248,10 +248,14 @@
           const label = item.type === "organisation" ? "Entire organisation" : item.type === "unit" ? `${item.unitName || "Unit"}${item.includeDescendants ? " + descendants" : ""}` : item.athleteName || "Individual athlete/client";
           return `<span class="scope-chip ${item.status === "active" ? "" : "revoked"}">${safe(label)}</span>`;
         }).join("");
+        const assignedAthletes = (person.assignedAthletes || []).map(athlete => `<span class="scope-chip">${safe(athlete.displayName)}</span>`).join("");
+        const roles = (person.roles || []).join(" · ") || person.membershipRole;
         return `<article class="staff-row">
-          <div><strong>${safe(person.displayName)}</strong><small>${safe(state.staffAccounts[person.userId] || "Fuel Guard account")} · ${safe(person.membershipRole)} · ${safe(person.status)}</small></div>
+          <div><strong>${safe(person.displayName)}</strong><small>${safe(person.jobTitle || "Fuel Guard staff")} · ${safe(roles)} · ${safe(person.status)}</small><small>${safe(state.staffAccounts[person.userId] || "Fuel Guard account")}</small></div>
+          <div><strong>Assigned athletes / clients</strong><div class="chip-list">${assignedAthletes || '<span class="scope-chip revoked">No direct assignments</span>'}</div></div>
           <div><strong>Who they can access</strong><div class="chip-list">${scopes || '<span class="scope-chip revoked">No active scope</span>'}</div></div>
           <div><strong>What they can do</strong><div class="chip-list">${capabilities || '<span class="capability-chip revoked">No capabilities</span>'}</div></div>
+          <div><strong>Weekly review contribution</strong><small>${number(person.completedWeeklyReviews)} completed · ${number(person.currentReviewStreak)}-week streak · ${number(person.coachPoints)} points</small></div>
           <div><strong>Last meaningful activity</strong><small>${safe(dateTime(person.lastMeaningfulActivityAt))}</small></div>
         </article>`;
       }).join("")}</div>`;
@@ -461,7 +465,7 @@
         rpc("fuel_performance_reports", { p_organisation_id: state.organisationId, p_unit_id: reportUnit, p_from: reportFrom, p_to: reportTo })
       ];
       requests.push(hasCapability("view_staff_activity") || hasCapability("manage_staff_access")
-        ? rpc("fuel_performance_staff_access", { p_organisation_id: state.organisationId })
+        ? rpc("fuel_performance_people_hierarchy", { p_organisation_id: state.organisationId })
         : Promise.resolve({ status: "unavailable", staff: [] }));
       requests.push(hasCapability("manage_staff_access") || hasCapability("view_athlete_detail")
         ? rpc("fuel_performance_athlete_shares", { p_organisation_id: state.organisationId })

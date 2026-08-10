@@ -13,10 +13,10 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v123-canonical-email" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v123-canonical-email" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v123-canonical-email" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v123-canonical-email" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v125-daily-gap-goal" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v125-daily-gap-goal" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v125-daily-gap-goal" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v125-daily-gap-goal" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -185,6 +185,7 @@
             <div class="section-heading-row">
               <div><h3>Milestones</h3><p class="muted">Build the habit and see what comes next.</p></div>
             </div>
+            <div id="athleteDailyPoints" class="beta-points-compact" aria-live="polite"></div>
             <div id="athleteMilestones"></div>
           </section>
         </article>
@@ -251,6 +252,23 @@
           <p id="accountSetupStatus" class="row-note" aria-live="polite"></p>
         </article>
 
+        <article id="athleteProfileCard" class="card beta-profile-card" hidden>
+          <div class="section-heading-row">
+            <div><h2>Athlete Profile</h2><p class="muted">Your identity follows your Fuel Guard roles without changing who can access your data.</p></div>
+          </div>
+          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>First name<input id="athleteProfileFirstName" type="text" maxlength="80" autocomplete="given-name"></label>
+            <label>Last name<input id="athleteProfileLastName" type="text" maxlength="80" autocomplete="family-name"></label>
+            <label>Email<input id="athleteProfileEmail" type="email" readonly></label>
+            <label>Avatar URL (optional)<input id="athleteProfileAvatarUrl" type="url" maxlength="500" placeholder="https://…"></label>
+          </div>
+          <div class="button-row beta-settings-actions">
+            <button id="athleteProfileSaveButton" class="secondary" type="button">Save profile</button>
+          </div>
+          <p id="athleteProfileStatus" class="row-note" aria-live="polite"></p>
+          <div id="athletePointsProfile" class="beta-points-profile"></div>
+        </article>
+
         <article id="coachSharingCard" class="card beta-coach-sharing-card" hidden>
           <h2>Coach Access</h2>
           <p class="muted">Share timing-only Fuel Guard data with a coach. You approve every connection before a coach can see your logs.</p>
@@ -289,22 +307,6 @@
             <button id="garminDevicesRefresh" class="secondary" type="button">Refresh Garmin apps</button>
           </div>
           <p id="garminDevicesStatus" class="row-note" aria-live="polite"></p>
-        </article>
-
-        <article class="card beta-maximum-gap-card">
-          <h2>Maximum Fuel Gap</h2>
-          <p class="muted">Choose how long you want to allow between fuel logs. This powers the Daily-page countdown and status.</p>
-          <div class="form-grid beta-settings-grid beta-responsive-form-grid">
-            <label>Maximum gap<select id="maximumFuelGapPreset">
-              <option value="150">2h 30m</option>
-              <option value="180">3h</option>
-              <option value="210">3h 30m</option>
-              <option value="240">4h</option>
-              <option value="custom">Custom</option>
-            </select></label>
-            <label id="maximumFuelGapCustomWrap">Custom minutes<input id="maximumFuelGapCustom" type="number" min="120" max="240" step="5" inputmode="numeric"></label>
-          </div>
-          <p id="maximumFuelGapStatus" class="row-note" aria-live="polite"></p>
         </article>
 
         <article class="card beta-import-card">
@@ -356,7 +358,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v123-canonical-email</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v125-daily-gap-goal</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -378,22 +380,22 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="build-info.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v125-daily-gap-goal"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="app-state.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="product-shell.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="app-ui.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="training-mode.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v123-canonical-email"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v123-canonical-email"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="app-state.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="product-shell.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="app-ui.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="training-mode.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v125-daily-gap-goal"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v123-canonical-email";
-const BUILD_VERSION = "2026-08-09T19:29:57Z";
+const APP_VERSION = "mobile-pwa-v125-daily-gap-goal";
+const BUILD_VERSION = "2026-08-09T23:18:06Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v123-canonical-email-20260809T192957Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v125-daily-gap-goal-20260809T231806Z";
 const APP_SHELL = [
   "./",
   "./index.html",

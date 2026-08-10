@@ -46,6 +46,7 @@
     client: null,
     session: null,
     profile: null,
+    pointsProfile: null,
     relationships: [],
     athleteProfiles: [],
     logs: [],
@@ -86,8 +87,9 @@
     selectedAthleteId: "",
     selectedReportAthleteId: "",
     selectedScheduleId: "",
-    reportPeriod: "12_weeks",
+    reportPeriod: "week",
     generatedReport: null,
+    savedWeeklyReportId: "",
     reportSaved: false,
     selectedPattern: "fuel",
     athleteCodeQuery: "",
@@ -140,7 +142,7 @@
   }
 
   function profileSelect() {
-    return "user_id,role,coach_enabled,display_name,athlete_code,created_at,updated_at";
+    return "user_id,role,coach_enabled,display_name,first_name,last_name,avatar_url,job_title,athlete_code,created_at,updated_at";
   }
 
   function setStatus(message) {
@@ -162,6 +164,7 @@
     if (/failed to fetch|network|load failed/i.test(message)) return "Could not reach Supabase. Check your connection and try again.";
     if (/supabase public url|anon key|configuration/i.test(message)) return "Coach Beta needs Supabase public URL/key configuration.";
     if (/enter an email and password|enter your email before|sign in first|select an assigned athlete|choose a valid|custom cadence|custom report period|assemble a review|scheduled review is no longer available|enter a group name|enter an organisation name|enter a team name|choose a team|choose an actively shared athlete|choose at least one authorised athlete|valid session start and end|local time does not exist|find an athlete by athlete code|can't add your own athlete|attention action unavailable|attention item has changed|attention action is no longer available|enter a nudge message|enter a note|enter a shared staff note|shared note access is no longer available|intervention not found|open an intervention review first/i.test(message)) return message;
+    if (/weekly review|already completed|no longer editable|coach access denied/i.test(message)) return message;
     if (/fuel_user_profiles|fuel_coach_athletes|fuel_coach_reports|fuel_coach_interventions|fuel_coach_attention_actions|fuel_coach_notes|fuel_coach_nudges|fuel_coach_review_schedules|fuel_organisations|fuel_teams|fuel_team_|fuel_staff_notes|fuel_saved_group|fuel_training_|fuel_demand_blocks|garmin_activity_summaries|fuel_coach_find_athlete_by_code|fuel_coach_data_health|fuel_coach_refresh_due_interventions|athlete_code|coach_label|maximum_fuel_gap_minutes|does not exist|schema cache/i.test(message)) {
       return "Coach access is still warming up. Refresh and try again in a moment.";
     }
@@ -641,6 +644,7 @@
   function renderScheduleDraftContext() {
     const target = $("coachScheduleDraftContext");
     const save = $("coachSaveReviewButton");
+    const complete = $("coachCompleteReviewButton");
     const schedule = state.schedules.find(row => row.id === state.selectedScheduleId) || null;
     if (target) {
       target.hidden = !schedule;
@@ -648,8 +652,27 @@
     }
     if (save) {
       save.hidden = !state.generatedReport || state.reportSaved;
-      save.textContent = schedule ? "Save & complete review" : "Save report";
+      save.textContent = state.generatedReport?.reviewKind === "weekly" ? "Save weekly review draft" : schedule ? "Save & complete review" : "Save report";
     }
+    if (complete) complete.hidden = !state.savedWeeklyReportId;
+  }
+
+  function renderWeeklyReviewHistory() {
+    const target = $("coachWeeklyReviewHistory");
+    if (!target) return;
+    const rows = state.reports.filter(report => report.review_kind === "weekly");
+    target.innerHTML = `
+      <section class="coach-card">
+        <div class="coach-card-heading compact"><div><h2>Weekly review history</h2><p>Completed reviews remain part of the coach/athlete record.</p></div></div>
+        ${rows.length ? `<div class="coach-weekly-history">${rows.map(report => `
+          <article>
+            <div><strong>${safe(profileName(state.athleteProfiles.find(profile => profile.user_id === report.athlete_id), state.relationships.find(relation => relation.athlete_id === report.athlete_id)))}</strong><span>${safe(report.week_start)}–${safe(report.week_end)}</span></div>
+            <span class="coach-review-state ${safe(report.status)}">${safe(report.status)}</span>
+            <p>${safe(report.summary)}</p>
+            ${report.completion_note ? `<small>${safe(report.completion_note)}</small>` : ""}
+          </article>`).join("")}</div>` : `<div class="coach-empty compact">No weekly reviews saved yet.</div>`}
+      </section>
+    `;
   }
 
   function renderNeedsAttention() {
@@ -974,7 +997,8 @@
       preset: $("coachReportPeriod")?.value || state.reportPeriod,
       customStart: $("coachReportStart")?.value,
       customEnd: $("coachReportEnd")?.value,
-      now: new Date()
+      now: new Date(),
+      timeZone: state.timeZone
     });
   }
 
@@ -1000,7 +1024,8 @@
       contexts: report.contexts,
       executiveSummary: report.executiveSummary,
       comparison: report.comparison,
-      weekly: report.weekly
+      weekly: report.weekly,
+      weeklyReview: report.weeklyReview || null
     };
   }
 
@@ -1102,6 +1127,22 @@
             ${report.executiveSummary.map(point => `<li>${safe(point)}</li>`).join("")}
           </ul>
         </section>
+
+        ${report.weeklyReview ? `<section class="coach-report-section coach-weekly-review-evidence">
+          <h3>Weekly evidence and discussion</h3>
+          <div class="coach-weekly-evidence-grid">
+            <article><span>Strongest recorded day</span><p>${safe(report.weeklyReview.strongestDay)}</p></article>
+            <article><span>Weakest recorded day</span><p>${safe(report.weeklyReview.weakestDay)}</p></article>
+            <article><span>Pre/post training</span><p>${safe(`${report.weeklyReview.training.preFuelRecorded} of ${report.weeklyReview.training.workoutCount} workouts had prior Fuel recorded; ${report.weeklyReview.training.postFuelRecorded} had post-session Fuel recorded.`)}</p>${report.weeklyReview.training.observations?.length ? `<ul>${report.weeklyReview.training.observations.map(observation => `<li>${safe(observation)}</li>`).join("")}</ul>` : ""}</article>
+          </div>
+          <h4>Long recorded gaps</h4>
+          ${report.weeklyReview.longGaps.length ? `<ul class="coach-report-list">${report.weeklyReview.longGaps.map(gap => `<li>${safe(`${gap.date} · ${gap.window} · ${domain.duration(gap.minutes)}`)}</li>`).join("")}</ul>` : `<p>No recorded fuel gap exceeded the configured target.</p>`}
+          <h4>Recurring patterns</h4>
+          <ul class="coach-report-list">${report.weeklyReview.recurringPatterns.map(pattern => `<li>${safe(pattern)}</li>`).join("")}</ul>
+          <h4>Discussion prompts</h4>
+          <ul class="coach-report-list">${report.weeklyReview.discussionPrompts.map(prompt => `<li>${safe(prompt)}</li>`).join("")}</ul>
+          <p class="coach-note">These statements describe shared records only. Missing logs are not evidence of intake.</p>
+        </section>` : ""}
 
         <section class="coach-report-section">
           <h3>Data Coverage</h3>
@@ -1313,13 +1354,23 @@
     }
     const periodSelect = $("coachReportPeriod");
     if (periodSelect) periodSelect.value = state.reportPeriod;
-    if ($("coachReportEnd") && !$("coachReportEnd").value) $("coachReportEnd").value = today;
+    if ($("coachReportEnd") && !$("coachReportEnd").value) {
+      const defaultPeriod = state.reportPeriod === "week"
+        ? domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone })
+        : null;
+      $("coachReportStart").value = defaultPeriod?.startKey || "";
+      $("coachReportEnd").value = defaultPeriod?.endKey || today;
+    }
+    if ($("coachGenerateReviewButton")) {
+      $("coachGenerateReviewButton").textContent = state.reportPeriod === "week" ? "Generate Weekly Review" : "Assemble review";
+    }
     if ($("coachInterventionDate") && !$("coachInterventionDate").value) $("coachInterventionDate").value = today;
     if ($("coachInterventionReviewDate") && !$("coachInterventionReviewDate").value) $("coachInterventionReviewDate").value = defaultReviewDate(today);
     if ($("coachScheduleDueDate") && !$("coachScheduleDueDate").value) $("coachScheduleDueDate").value = today;
     renderScheduledReviews();
     renderScheduleDraftContext();
     renderReportPreview();
+    renderWeeklyReviewHistory();
   }
 
   function renderCoachActions(item) {
@@ -1341,7 +1392,7 @@
           <article class="coach-action-panel">
             <strong>Athlete Review Report</strong>
             <p class="coach-note">${safe(latestReport ? latestReport.summary : "No structured review report generated for this athlete yet.")}</p>
-            <button class="secondary" type="button" data-open-report-builder="${safe(item.athlete.userId)}">Generate review</button>
+            <button class="secondary" type="button" data-open-report-builder="${safe(item.athlete.userId)}">Generate Weekly Review</button>
           </article>
           <article class="coach-action-panel">
             <strong>Intervention</strong>
@@ -1882,9 +1933,37 @@
   function renderSettings() {
     const user = coachUser();
     const displayName = $("coachDisplayName");
+    const firstName = $("coachFirstName");
+    const lastName = $("coachLastName");
+    const email = $("coachProfileEmail");
+    const jobTitle = $("coachJobTitle");
+    const avatarUrl = $("coachAvatarUrl");
     const userId = $("coachUserId");
     if (displayName && document.activeElement !== displayName) displayName.value = state.profile?.display_name || "";
+    if (firstName && document.activeElement !== firstName) firstName.value = state.profile?.first_name || "";
+    if (lastName && document.activeElement !== lastName) lastName.value = state.profile?.last_name || "";
+    if (email) email.value = user?.email || "";
+    if (jobTitle && document.activeElement !== jobTitle) jobTitle.value = state.profile?.job_title || "";
+    if (avatarUrl && document.activeElement !== avatarUrl) avatarUrl.value = state.profile?.avatar_url || "";
     if (userId) userId.value = user?.id || "";
+    const points = $("coachPointsProfile");
+    if (points) {
+      const profile = state.pointsProfile || {};
+      const coachAwards = (profile.recentAwards || []).filter(item => item.roleContext === "coach");
+      const coachMilestones = Array.isArray(profile.coachMilestones) ? profile.coachMilestones : [];
+      const nextMilestone = coachMilestones
+        .filter(item => !item.earnedAt && Number(item.threshold) > Number(item.currentValue || 0))
+        .sort((a, b) => (Number(a.threshold) - Number(a.currentValue || 0)) - (Number(b.threshold) - Number(b.currentValue || 0)))[0] || null;
+      points.innerHTML = `
+        <div><span>Coach points</span><strong>${Number(profile.coachPoints || 0).toLocaleString("en-GB")}</strong></div>
+        <div><span>Review streak</span><strong>${Number(profile.currentReviewStreak || 0)} week${Number(profile.currentReviewStreak || 0) === 1 ? "" : "s"}</strong></div>
+        <div><span>Reviews completed</span><strong>${Number(profile.completedWeeklyReviews || 0).toLocaleString("en-GB")}</strong></div>
+        <div><span>Roles</span><strong>${safe((profile.roles || ["coach"]).join(" · "))}</strong></div>
+        <div><span>Recent award</span><strong>${safe(coachAwards[0]?.reason || "Complete a weekly review to begin")}</strong></div>
+        <div><span>Next milestone</span><strong>${nextMilestone ? `${safe(nextMilestone.title)} · ${Number(nextMilestone.currentValue || 0)} / ${Number(nextMilestone.threshold || 0)} · +${Number(nextMilestone.points || 0)}` : "All current milestones reached"}</strong></div>
+        <p>Points recognise completed support workflows. Rewards are coming soon.</p>
+      `;
+    }
     renderRelationships();
     renderTeamSetup();
     renderSavedGroups();
@@ -2106,12 +2185,16 @@
         resetOrganisationData();
         state.roster = [];
         state.weeklyBrief = null;
+        state.pointsProfile = null;
         state.coachLoading = false;
         platformController?.reset();
         setStatus("This account is signed in, but Coach Beta is not enabled for it yet.");
         render();
         return;
       }
+
+      const pointsResult = await state.client.rpc("fuel_points_profile", { p_time_zone: state.timeZone });
+      state.pointsProfile = pointsResult.error ? null : pointsResult.data;
 
       const { data: relationships, error: relationshipError } = await state.client
         .from(TABLES.relationships)
@@ -2390,6 +2473,7 @@
     await state.client?.auth.signOut();
     state.session = null;
     state.profile = null;
+    state.pointsProfile = null;
     state.authResolved = true;
     state.coachLoading = false;
     state.coachAccessBlocked = false;
@@ -2427,7 +2511,9 @@
     await withBusy($("coachSaveProfileButton"), async () => {
       const user = coachUser();
       if (!user) throw new Error("Sign in first.");
-      const displayName = $("coachDisplayName")?.value?.trim() || user.email || "Coach";
+      const firstName = $("coachFirstName")?.value?.trim() || "";
+      const lastName = $("coachLastName")?.value?.trim() || "";
+      const displayName = $("coachDisplayName")?.value?.trim() || [firstName, lastName].filter(Boolean).join(" ") || user.email || "Coach";
       const { data, error } = await state.client
         .from(TABLES.profiles)
         .upsert({
@@ -2435,6 +2521,10 @@
           role: state.profile?.role || "athlete",
           coach_enabled: isCoachEnabled(),
           display_name: displayName,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          avatar_url: $("coachAvatarUrl")?.value?.trim() || null,
+          job_title: $("coachJobTitle")?.value?.trim() || null,
           updated_at: new Date().toISOString()
         }, { onConflict: "user_id" })
         .select(profileSelect())
@@ -2963,7 +3053,8 @@
     const currentLogs = await fetchAthleteLogs(item.athlete.userId, reportPeriod.startKey, reportPeriod.endKey);
     const previousLogs = await fetchAthleteLogs(item.athlete.userId, previous.startKey, previous.endKey);
     const interventions = recordsForAthlete(state.interventions, item);
-    const report = domain.buildAthleteReviewReport({
+    const reportBuilder = reportPeriod.preset === "week" ? domain.buildWeeklyCoachReview : domain.buildAthleteReviewReport;
+    const report = reportBuilder({
       athlete: item.athlete,
       coach: { ...state.profile, email: user.email, id: user.id },
       organisationName: $("coachOrganisationName")?.value?.trim() || "",
@@ -2974,11 +3065,13 @@
       interventions,
       coachNotes: $("coachReportNotes")?.value || "",
       generatedAt: new Date(),
-      timeZone: state.timeZone
+      timeZone: state.timeZone,
+      workoutSummary: workoutFuelSummaryForAthlete(item.athlete.userId)
     });
     report.sourceLogs = currentLogs.concat(previousLogs);
     state.generatedReport = report;
     state.reportSaved = false;
+    state.savedWeeklyReportId = "";
     setStatus("Review assembled. Interpret the evidence, add factual notes, then save.");
     renderReportPreview();
     renderScheduleDraftContext();
@@ -3005,31 +3098,58 @@
       };
       state.generatedReport = report;
       const now = new Date().toISOString();
-      const { data, error } = await state.client
-        .from(TABLES.reports)
-        .insert({
-          coach_id: user.id,
-          athlete_id: item.athlete.userId,
-          report_date: domain.dateKeyInTimeZone(new Date(), state.timeZone),
-          period_start: report.period.startKey,
-          period_end: report.period.endKey,
-          period_type: report.period.preset,
-          title: report.title,
-          summary: report.executiveSummary.join(" "),
-          coach_notes: report.coachNotes || null,
-          organisation_name: report.organisationName || null,
-          metrics: reportPayload(report),
-          previous_metrics: {
-            period: report.previousPeriod,
-            comparison: report.comparison
-          },
-          created_at: now,
-          updated_at: now
-        })
-        .select("*")
-        .single();
+      let data;
+      let error;
+      if (report.reviewKind === "weekly") {
+        const organisationId = state.organisations.length === 1 ? state.organisations[0].id : null;
+        const result = await state.client.rpc("fuel_save_weekly_review", {
+          p_athlete_id: item.athlete.userId,
+          p_week_start: report.period.startKey,
+          p_summary: report.executiveSummary.join(" "),
+          p_coach_note: report.coachNotes || null,
+          p_metrics: reportPayload(report),
+          p_organisation_id: organisationId
+        });
+        data = result.data;
+        error = result.error;
+      } else {
+        const result = await state.client
+          .from(TABLES.reports)
+          .insert({
+            coach_id: user.id,
+            athlete_id: item.athlete.userId,
+            report_date: domain.dateKeyInTimeZone(new Date(), state.timeZone),
+            period_start: report.period.startKey,
+            period_end: report.period.endKey,
+            period_type: report.period.preset,
+            title: report.title,
+            summary: report.executiveSummary.join(" "),
+            coach_notes: report.coachNotes || null,
+            organisation_name: report.organisationName || null,
+            metrics: reportPayload(report),
+            previous_metrics: {
+              period: report.previousPeriod,
+              comparison: report.comparison
+            },
+            created_at: now,
+            updated_at: now
+          })
+          .select("*")
+          .single();
+        data = result.data;
+        error = result.error;
+      }
       if (error) throw error;
       if (data) state.reports = [data, ...state.reports.filter(row => row.id !== data.id)];
+
+      if (report.reviewKind === "weekly") {
+        state.savedWeeklyReportId = data?.id || "";
+        state.reportSaved = true;
+        setStatus("Weekly review draft saved. Check the evidence and mark it complete when the coach conversation is recorded.");
+        renderScheduleDraftContext();
+        renderWeeklyReviewHistory();
+        return;
+      }
 
       const schedule = state.schedules.find(row => row.id === state.selectedScheduleId) || null;
       if (schedule) {
@@ -3058,6 +3178,23 @@
       renderDueReviews();
       renderReportPreview();
       await loadCoachData({ reason: "report-created" });
+    });
+  }
+
+  async function completeWeeklyReview() {
+    await withBusy($("coachCompleteReviewButton"), async () => {
+      if (!state.savedWeeklyReportId) throw new Error("Save the weekly review draft first.");
+      const { data, error } = await state.client.rpc("fuel_complete_weekly_review", {
+        p_report_id: state.savedWeeklyReportId,
+        p_completion_note: $("coachReviewCompletionNote")?.value?.trim() || null
+      });
+      if (error) throw error;
+      state.pointsProfile = data?.points || state.pointsProfile;
+      state.savedWeeklyReportId = "";
+      state.reportSaved = true;
+      if ($("coachReviewCompletionNote")) $("coachReviewCompletionNote").value = "";
+      setStatus(`Weekly review completed. Current coach points: ${Number(state.pointsProfile?.coachPoints || 0).toLocaleString("en-GB")}.`);
+      await loadCoachData({ reason: "weekly-review-completed" });
     });
   }
 
@@ -3118,6 +3255,7 @@
       state.reportPeriod = period.preset;
       state.generatedReport = null;
       state.reportSaved = false;
+      state.savedWeeklyReportId = "";
       state.currentTab = "reports";
       render();
       if ($("coachReportAthlete")) $("coachReportAthlete").value = item.athlete.userId;
@@ -3175,10 +3313,14 @@
   function openReportBuilder(athleteId) {
     state.selectedReportAthleteId = athleteId || state.selectedReportAthleteId;
     state.selectedScheduleId = "";
+    state.reportPeriod = "week";
     state.generatedReport = null;
     state.reportSaved = false;
     state.currentTab = "reports";
     render();
+    const period = domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
+    if ($("coachReportStart")) $("coachReportStart").value = period.startKey;
+    if ($("coachReportEnd")) $("coachReportEnd").value = period.endKey;
     $("coachReportNotes")?.focus();
   }
 
@@ -3595,6 +3737,7 @@
   $("coachFindAthleteButton")?.addEventListener("click", findAthleteByCode);
   $("coachGenerateReviewButton")?.addEventListener("click", generateReport);
   $("coachSaveReviewButton")?.addEventListener("click", saveReport);
+  $("coachCompleteReviewButton")?.addEventListener("click", completeWeeklyReview);
   $("coachCreateScheduleButton")?.addEventListener("click", createReviewSchedule);
   $("coachCreateInterventionButton")?.addEventListener("click", createIntervention);
   $("coachReportAthlete")?.addEventListener("change", event => {
@@ -3602,6 +3745,7 @@
     state.selectedScheduleId = "";
     state.generatedReport = null;
     state.reportSaved = false;
+    state.savedWeeklyReportId = "";
     renderScheduleDraftContext();
     renderReportPreview();
   });
@@ -3610,6 +3754,16 @@
     state.selectedScheduleId = "";
     state.generatedReport = null;
     state.reportSaved = false;
+    state.savedWeeklyReportId = "";
+    if (state.reportPeriod === "week") {
+      const period = domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
+      if ($("coachReportStart")) $("coachReportStart").value = period.startKey;
+      if ($("coachReportEnd")) $("coachReportEnd").value = period.endKey;
+    }
+    const generateButton = $("coachGenerateReviewButton");
+    if (generateButton) {
+      generateButton.textContent = state.reportPeriod === "week" ? "Generate Weekly Review" : "Assemble review";
+    }
     renderScheduleDraftContext();
     renderReportPreview();
   });
