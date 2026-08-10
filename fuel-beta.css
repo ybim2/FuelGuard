@@ -61,6 +61,43 @@
   margin-top: 16px;
 }
 
+.beta-points-level {
+  display: grid;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid rgba(35, 122, 91, .24);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(239, 249, 243, .95), rgba(255, 252, 245, .9));
+}
+
+.beta-points-level-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.beta-points-level-heading > div { display: grid; gap: 3px; }
+.beta-points-level-heading span { color: var(--muted, #63736e); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.beta-points-level-heading strong { color: var(--ink, #17342e); font-size: 1.08rem; }
+.beta-points-level-heading > b { color: #286b50; font-size: .76rem; text-align: right; }
+
+.beta-points-level > i {
+  display: block;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(31, 74, 67, .12);
+}
+
+.beta-points-level > i > b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #23825a, #e89c36); }
+.beta-points-level-ladder { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.beta-points-level-ladder > span { display: grid; gap: 3px; min-width: 0; padding-top: 7px; border-top: 2px solid rgba(31, 74, 67, .12); }
+.beta-points-level-ladder > span.achieved { border-color: #23825a; }
+.beta-points-level-ladder b { color: var(--ink, #17342e); font-size: .69rem; overflow-wrap: anywhere; }
+.beta-points-level-ladder small { color: var(--muted, #63736e); font-size: .65rem; }
+.beta-points-level-ladder .upcoming { opacity: .68; }
+
 .beta-points-profile-summary,
 .beta-points-milestone-grid {
   display: grid;
@@ -87,9 +124,79 @@
 .beta-points-milestone-grid span,
 .beta-points-milestone-grid small { color: var(--muted, #63736e); font-size: 0.75rem; }
 
+.beta-contextual-nudge {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(229, 151, 47, .28);
+  border-radius: 14px;
+  background: rgba(255, 248, 232, .9);
+}
+
+.beta-contextual-nudge[hidden] { display: none !important; }
+.beta-contextual-nudge > div { display: grid; gap: 3px; min-width: 0; }
+.beta-contextual-nudge span { color: #8b5a20; font-size: .66rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.beta-contextual-nudge strong { color: var(--ink, #17342e); font-size: .88rem; }
+.beta-contextual-nudge small { color: var(--muted, #63736e); font-size: .75rem; }
+.beta-contextual-nudge button { flex: 0 0 auto; min-width: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 50%; background: rgba(31, 74, 67, .08); color: var(--ink, #17342e); font-size: 1.15rem; }
+
+.beta-weekly-recap-card #athleteWeeklyRecap { display: grid; gap: 16px; }
+.beta-weekly-recap-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.beta-weekly-recap-heading > div { display: grid; gap: 3px; }
+.beta-weekly-recap-heading span { color: #23825a; font-size: .7rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.beta-weekly-recap-heading h2 { margin: 0; }
+.beta-weekly-recap-heading p { margin: 0; color: var(--muted, #63736e); font-size: .78rem; }
+.beta-weekly-recap-heading > b { padding: 6px 9px; border-radius: 999px; background: rgba(35, 130, 90, .1); color: #286b50; font-size: .72rem; white-space: nowrap; }
+.beta-weekly-recap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.beta-weekly-recap-grid article { display: grid; gap: 5px; min-width: 0; padding: 11px; border: 1px solid rgba(31, 74, 67, .1); border-radius: 13px; background: rgba(246, 250, 247, .9); }
+.beta-weekly-recap-grid span,
+.beta-weekly-recap-pattern small { color: var(--muted, #63736e); font-size: .7rem; }
+.beta-weekly-recap-grid strong,
+.beta-weekly-recap-pattern strong { color: var(--ink, #17342e); font-size: .9rem; overflow-wrap: anywhere; }
+.beta-weekly-recap-pattern,
+.beta-weekly-recap-progress,
+.beta-weekly-recap-focus { display: grid; gap: 8px; padding-top: 13px; border-top: 1px solid rgba(31, 74, 67, .1); }
+.beta-weekly-recap-pattern h3,
+.beta-weekly-recap-progress h3,
+.beta-weekly-recap-focus h3 { margin: 0; color: var(--ink, #17342e); font-size: .86rem; }
+.beta-weekly-recap-pattern > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.beta-weekly-recap-pattern span { display: grid; gap: 4px; }
+.beta-weekly-recap-progress p,
+.beta-weekly-recap-limited { margin: 0; color: var(--muted, #63736e); font-size: .8rem; }
+.beta-weekly-recap-progress ul,
+.beta-weekly-recap-focus ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; color: #385148; font-size: .8rem; }
+
+.beta-nudge-preferences { display: grid; gap: 8px; }
+.beta-nudge-preferences > label { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid rgba(31, 74, 67, .1); border-radius: 13px; background: rgba(246, 250, 247, .75); }
+.beta-nudge-preferences label > span { display: grid; gap: 3px; }
+.beta-nudge-preferences strong { color: var(--ink, #17342e); font-size: .84rem; }
+.beta-nudge-preferences small { color: var(--muted, #63736e); font-size: .72rem; line-height: 1.4; }
+.beta-nudge-preferences input { width: 21px; height: 21px; flex: 0 0 auto; accent-color: #23825a; }
+
+.beta-coach-review-feed { display: grid; gap: 9px; }
+.beta-coach-review-item { display: grid; gap: 5px; padding: 13px; border: 1px solid rgba(35, 122, 91, .2); border-radius: 14px; background: rgba(239, 249, 243, .72); }
+.beta-coach-review-item > span { color: #23825a; font-size: .68rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.beta-coach-review-item > strong { color: var(--ink, #17342e); }
+.beta-coach-review-item > small { color: var(--muted, #63736e); font-size: .72rem; }
+.beta-coach-review-item > p { margin: 4px 0 0; font-size: .76rem; }
+.beta-coach-review-item blockquote { display: grid; gap: 4px; margin: 6px 0 0; padding: 10px; border: 0; border-left: 3px solid #23825a; background: #fff; }
+.beta-coach-review-item blockquote span { color: var(--muted, #63736e); font-size: .67rem; font-weight: 800; text-transform: uppercase; }
+.beta-coach-review-item blockquote p { margin: 0; color: var(--ink, #17342e); font-size: .8rem; line-height: 1.45; }
+
 @media (max-width: 620px) {
   .beta-points-profile-summary { grid-template-columns: 1fr; }
   .beta-points-milestone-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .beta-points-level-heading { align-items: start; flex-direction: column; }
+  .beta-points-level-heading > b { text-align: left; }
+  .beta-points-level-ladder { grid-template-columns: 1fr; }
+  .beta-points-level-ladder > span { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .beta-weekly-recap-heading { display: grid; }
+  .beta-weekly-recap-heading > b { justify-self: start; }
+  .beta-weekly-recap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .beta-weekly-recap-pattern > div { grid-template-columns: 1fr; }
 }
 
 .beta-mvp .beta-nav {

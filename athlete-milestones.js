@@ -105,6 +105,7 @@
       coachPoints: 0,
       currentStreak: Number(currentSummary.dayStreak || 0),
       fuelMoments: Number(currentSummary.fuelMoments || 0),
+      hydrationMoments: Number(currentSummary.hydrationMoments || 0),
       milestones: progress.milestones.map(item => ({
         eventType: item.eventType,
         roleContext: "athlete",
@@ -140,12 +141,19 @@
     const profile = document.getElementById("athletePointsProfile");
     if (profile) {
       const unlocked = milestones.filter(item => item.earnedAt).length;
+      const levels = domain().athletePointLevelProgress(Number(data.totalPoints || 0));
       profile.innerHTML = `
+        <section class="beta-points-level" aria-label="Fuel Guard points progression">
+          <div class="beta-points-level-heading"><div><span>Fuel Guard Progress</span><strong>${domain().escapeHtml(levels.current.title)}</strong></div><b>${levels.next ? `${Number(levels.remaining).toLocaleString("en-GB")} points to ${domain().escapeHtml(levels.next.title)}` : "All current levels reached"}</b></div>
+          <i><b style="width:${levels.progressPct}%"></b></i>
+          <div class="beta-points-level-ladder">${levels.levels.map(level => `<span class="${level.achieved ? "achieved" : "upcoming"}"><b>${level.achieved ? "✓" : "○"} ${domain().escapeHtml(level.title)}</b><small>${Number(level.threshold).toLocaleString("en-GB")} points</small></span>`).join("")}</div>
+        </section>
         <section class="beta-points-profile-summary">
           <div><span>Total FG Points</span><strong>${Number(data.totalPoints || 0).toLocaleString("en-GB")}</strong></div>
           <div><span>Current streak</span><strong>${Number(data.currentStreak || 0)} day${Number(data.currentStreak || 0) === 1 ? "" : "s"}</strong></div>
           <div><span>Milestones unlocked</span><strong>${unlocked}</strong></div>
           <div><span>Fuel moments</span><strong>${Number(data.fuelMoments || 0).toLocaleString("en-GB")}</strong></div>
+          <div><span>Hydration moments</span><strong>${Number((data.hydrationMoments ?? currentSummary.hydrationMoments) || 0).toLocaleString("en-GB")}</strong></div>
           <div><span>Roles</span><strong>${(data.roles || ["athlete"]).map(role => domain().escapeHtml(role)).join(" · ")}</strong></div>
         </section>
         <div class="beta-points-milestone-grid">

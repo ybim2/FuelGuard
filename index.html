@@ -13,10 +13,10 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v125-daily-gap-goal" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v125-daily-gap-goal" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v125-daily-gap-goal" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v125-daily-gap-goal" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v126-athlete-retention" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v126-athlete-retention" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v126-athlete-retention" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v126-athlete-retention" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -142,6 +142,7 @@
         <section id="athleteActivitySummary" class="beta-activity-summary" aria-label="Fuel Guard activity summary"></section>
         <article class="card fuel-gap-card beta-today-shell">
           <section id="fuelTodayStatus"></section>
+          <div id="athleteContextualNudge" class="beta-contextual-nudge" hidden aria-live="polite"></div>
           <div class="beta-day-type-storage" hidden aria-hidden="true">
             <label>Day type<select id="fuelDayType" tabindex="-1">
               <option value="">Normal</option>
@@ -269,6 +270,10 @@
           <div id="athletePointsProfile" class="beta-points-profile"></div>
         </article>
 
+        <article id="athleteWeeklyRecapCard" class="card beta-weekly-recap-card" hidden>
+          <div id="athleteWeeklyRecap" aria-live="polite"></div>
+        </article>
+
         <article id="coachSharingCard" class="card beta-coach-sharing-card" hidden>
           <h2>Coach Access</h2>
           <p class="muted">Share timing-only Fuel Guard data with a coach. You approve every connection before a coach can see your logs.</p>
@@ -289,7 +294,19 @@
             <h3>Connected Coaches</h3>
             <div id="coachSharingList" class="beta-coach-sharing-list"></div>
           </div>
+          <div class="beta-coach-sharing-section">
+            <h3>Weekly Coach Reviews</h3>
+            <div id="athleteCoachReviewFeed" class="beta-coach-review-feed"></div>
+          </div>
           <p id="coachSharingStatus" class="row-note" aria-live="polite"></p>
+        </article>
+
+        <article id="athleteNudgePreferencesCard" class="card beta-nudge-preferences-card" hidden>
+          <div class="section-heading-row">
+            <div><h2>Contextual reminders</h2><p class="muted">Choose which evidence-based prompts Fuel Guard may show. Generic reminder spam is not used.</p></div>
+          </div>
+          <div id="athleteNudgePreferences" class="beta-nudge-preferences"></div>
+          <p id="athleteNudgePreferencesStatus" class="row-note" aria-live="polite"></p>
         </article>
 
         <article id="organisationSharingCard" class="card beta-coach-sharing-card" hidden>
@@ -358,7 +375,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v125-daily-gap-goal</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v126-athlete-retention</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -380,22 +397,23 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="build-info.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v126-athlete-retention"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="app-state.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="product-shell.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="app-ui.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="training-mode.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="app-state.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="product-shell.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="app-ui.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="training-mode.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="athlete-retention.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v126-athlete-retention"></script>
 </body>
 </html>

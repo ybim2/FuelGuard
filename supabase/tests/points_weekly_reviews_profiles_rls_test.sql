@@ -231,9 +231,9 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a1000000-0000-4000-8000-000000000101', true);
 select set_config('request.jwt.claims', '{"sub":"a1000000-0000-4000-8000-000000000101","role":"authenticated"}', true);
 select results_eq(
-  $$select count(*) from public.fuel_coach_reports where review_kind = 'weekly'$$,
-  array[9::bigint],
-  'Athlete can read only their own completed weekly review history'
+  $$select jsonb_array_length(public.fuel_athlete_coach_review_feed(20)->'items')$$,
+  array[9],
+  'Athlete can read only their own completed weekly review acknowledgements through the safe feed'
 );
 select results_eq(
   $$select count(*) from public.fuel_points_ledger where role_context = 'coach'$$,

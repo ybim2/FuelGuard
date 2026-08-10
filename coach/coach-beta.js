@@ -3184,16 +3184,19 @@
   async function completeWeeklyReview() {
     await withBusy($("coachCompleteReviewButton"), async () => {
       if (!state.savedWeeklyReportId) throw new Error("Save the weekly review draft first.");
-      const { data, error } = await state.client.rpc("fuel_complete_weekly_review", {
+      const athleteFeedback = $("coachReviewAthleteFeedback")?.value?.trim() || null;
+      const { data, error } = await state.client.rpc("fuel_complete_weekly_review_with_feedback", {
         p_report_id: state.savedWeeklyReportId,
-        p_completion_note: $("coachReviewCompletionNote")?.value?.trim() || null
+        p_completion_note: $("coachReviewCompletionNote")?.value?.trim() || null,
+        p_athlete_feedback: athleteFeedback
       });
       if (error) throw error;
       state.pointsProfile = data?.points || state.pointsProfile;
       state.savedWeeklyReportId = "";
       state.reportSaved = true;
       if ($("coachReviewCompletionNote")) $("coachReviewCompletionNote").value = "";
-      setStatus(`Weekly review completed. Current coach points: ${Number(state.pointsProfile?.coachPoints || 0).toLocaleString("en-GB")}.`);
+      if ($("coachReviewAthleteFeedback")) $("coachReviewAthleteFeedback").value = "";
+      setStatus(`Weekly review completed${athleteFeedback ? " and athlete-visible feedback shared" : ""}. Current coach points: ${Number(state.pointsProfile?.coachPoints || 0).toLocaleString("en-GB")}.`);
       await loadCoachData({ reason: "weekly-review-completed" });
     });
   }

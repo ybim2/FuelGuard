@@ -168,7 +168,8 @@ test("Daily owns the maximum fuel-gap control while Settings preserves internal 
   assert.ok(dayType < maximum && maximum < metrics, "Maximum Fuel Gap should sit directly below Day type on Daily");
   assert.match(dailyStatus, /id="maximumFuelGapCustom"/);
   assert.doesNotMatch(settings, /Maximum Fuel Gap|maximumFuelGapPreset|maximumFuelGapCustom/);
-  assert.doesNotMatch(settings, /Preferences|Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
+  assert.match(settings, /Contextual reminders/);
+  assert.doesNotMatch(settings, /Advanced settings|Support thresholds and fuelling window|Garmin health patterns/);
   assert.doesNotMatch(settings, /id="dailyFuelTarget"|id="fuelWindowPreset"|id="fuelGreenHours"/);
   assert.match(js, /function maximumFuelGapMinutes/);
   assert.match(js, /function applyMaximumFuelGapGoal/);
@@ -212,7 +213,8 @@ test("Settings keeps only essential production sections", () => {
   assert.match(settings, /Give this code to your coach so they can send you a connection request\./);
   assert.match(settings, /<summary>Legacy CSV import<\/summary>/);
   assert.match(settings, /<summary>Destructive actions<\/summary>/);
-  assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
+  assert.match(settings, /Contextual reminders/);
+  assert.doesNotMatch(settings, /Garmin health patterns|Advanced settings|Daily targets|Support thresholds/);
 });
 
 test("PWA cache and asset versions are bumped for the Daily gap-goal release", () => {
@@ -221,7 +223,7 @@ test("PWA cache and asset versions are bumped for the Daily gap-goal release", (
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v125-daily-gap-goal";
+  const version = "mobile-pwa-v126-athlete-retention";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -231,7 +233,7 @@ test("PWA cache and asset versions are bumped for the Daily gap-goal release", (
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T231806Z/);
+  assert.match(sw, /20260810T085924Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

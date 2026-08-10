@@ -16,7 +16,7 @@ Fuel Guard Performance is a third, separate organisational surface at `/performa
 The Settings page includes the permanent marker:
 
 Fuel Guard Mobile PWA
-Canonical app: mobile-pwa-v125-daily-gap-goal
+Canonical app: mobile-pwa-v126-athlete-retention
 Build version: shown from `build-info.js`
 
 The shared top header contains the Fuel Guard logo and a compact settings icon. It remains sticky across the active screens.
@@ -154,7 +154,7 @@ When changing deployed frontend files:
 7. Open Settings in Safari and the installed PWA, then compare the build marker.
 8. Use Settings > App update > Check for update / Refresh app if the installed PWA is behind.
 
-The current canonical version is `mobile-pwa-v125-daily-gap-goal`.
+The current canonical version is `mobile-pwa-v126-athlete-retention`.
 
 ## Future Frontend Changes
 
