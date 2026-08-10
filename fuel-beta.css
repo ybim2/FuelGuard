@@ -8927,3 +8927,106 @@ body.beta-mvp .beta-today-insight-card strong { color: var(--fg-brand-dark); fon
   body.beta-mvp .beta-training-pattern-lane { grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
   body.beta-mvp .beta-today-insights-grid { grid-template-columns: 1fr; }
 }
+
+/* Settings remains mobile-first while exposing one clear category at a time. */
+body.beta-mvp.app-booting .app-boot-splash span {
+  max-width: 310px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+body.beta-mvp .beta-settings-category-menu {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+body.beta-mvp .beta-settings-category-menu[hidden],
+body.beta-mvp .beta-settings-category-header[hidden],
+body.beta-mvp .beta-settings-intro-card[hidden],
+body.beta-mvp .settings-category-filtered {
+  display: none !important;
+}
+
+body.beta-mvp .beta-settings-category-menu button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  padding: 15px 2px;
+  border: 0;
+  border-bottom: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-brand-dark);
+  text-align: left;
+}
+
+body.beta-mvp .beta-settings-category-menu button span {
+  align-self: end;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+body.beta-mvp .beta-settings-category-menu button small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #65736d;
+  font-size: .76rem;
+  line-height: 1.35;
+}
+
+body.beta-mvp .beta-settings-category-menu button b {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #65736d;
+  font-size: 1.5rem;
+}
+
+body.beta-mvp .beta-settings-category-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid rgba(var(--fg-brand-dark-rgb), .1);
+}
+
+body.beta-mvp .beta-settings-category-header button {
+  min-height: 42px;
+  padding-inline: 12px;
+}
+
+body.beta-mvp .beta-settings-category-header div,
+body.beta-mvp .beta-settings-category-header h2 {
+  min-width: 0;
+  margin: 0;
+}
+
+body.beta-mvp .beta-settings-category-header span {
+  color: #65736d;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body.beta-mvp .beta-settings-category-header h2 {
+  overflow-wrap: anywhere;
+  font-size: clamp(1.15rem, 5vw, 1.45rem);
+}
+
+body.beta-mvp .beta-settings-destination-card .beta-settings-actions {
+  justify-content: start;
+}
+
+@media (max-width: 390px) {
+  body.beta-mvp .beta-settings-category-header { grid-template-columns: 1fr; gap: 9px; }
+  body.beta-mvp .beta-settings-category-header button { justify-self: start; }
+}

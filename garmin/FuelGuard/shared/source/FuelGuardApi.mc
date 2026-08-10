@@ -161,7 +161,7 @@ module FuelGuardApi {
         };
 
         Communications.makeWebRequest(
-            FuelGuardConnection.logEndpoint(),
+            FuelGuardTraining.isCommand(event) ? FuelGuardConnection.trainingEndpoint() : FuelGuardConnection.logEndpoint(),
             event,
             options,
             responseCallback()
@@ -189,9 +189,9 @@ module FuelGuardApi {
         _testDispatchCount += 1;
         _testLastEventId = eventId;
         _testLastAuthorizationHeader = "Bearer " + FuelGuardConnection.token();
-        _testLastEndpoint = FuelGuardConnection.logEndpoint();
+        _testLastEndpoint = FuelGuardTraining.isCommand(event) ? FuelGuardConnection.trainingEndpoint() : FuelGuardConnection.logEndpoint();
 
-        var loggedAt = event["logged_at"];
+        var loggedAt = FuelGuardTraining.isCommand(event) ? event["occurred_at"] : event["logged_at"];
         _testLastLoggedAt = loggedAt instanceof String ? loggedAt as String : null;
 
         _testQueuedBeforeDispatch = false;
@@ -261,6 +261,10 @@ module FuelGuardApi {
 
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
+        var queuedEvent = FuelGuardQueue.peek();
+        if (queuedEvent != null && FuelGuardTraining.isCommand(queuedEvent as Dictionary)) {
+            FuelGuardTraining.handleCommandResponse(responseCode, data);
+        }
         var acknowledged = responseAcknowledged(responseCode, data);
         if (acknowledged) {
             if (context instanceof String) {

@@ -87,9 +87,9 @@ test("Training plans persist expected duration and calculate approximate session
 
 test("Training setup separates Fuel Hydrate caffeine and planned duration responsibilities", () => {
   const js = read("training-mode.js");
-  assert.match(js, /const fields = type === "fuel" \? \["carbsG"\] : \["fluidMl", "sodiumMg"\]/);
-  assert.match(js, /With Fuel/);
-  assert.match(js, /With Hydrate/);
+  assert.match(js, /const fields = type === "fuel" \? \["carbsG"\] : \["fluidMl", "sodiumMg", "caffeineMg"\]/);
+  assert.match(js, /Fuel means carbohydrate intake/);
+  assert.match(js, /Hydrate records fluid, sodium and optional caffeine/);
   assert.match(js, />30m<|>30m<\/option>/);
   assert.match(js, />1h<|>1h<\/option>/);
   assert.match(js, />1h 30m<|>1h 30m<\/option>/);
@@ -106,7 +106,8 @@ test("Active Training shows honest totals while completed sessions calculate act
   const intakeStart = js.indexOf("function intakeCards");
   const activeEnd = js.indexOf("function presetSummary");
   const activeUi = js.slice(intakeStart, activeEnd);
-  assert.match(activeUi, /Actual totals so far/);
+  assert.match(activeUi, /Session stats/);
+  assert.match(activeUi, /Recorded intake/);
   assert.match(activeUi, /\/h planned/);
   assert.doesNotMatch(activeUi, /summary\.perHour|\/h actual/);
   assert.match(js.slice(js.indexOf("function completedSessionsMarkup")), /summary\.actualPerHour/);

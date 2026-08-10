@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v126-athlete-retention";
-const BUILD_VERSION = "2026-08-10T08:59:24Z";
+const APP_VERSION = "mobile-pwa-v127-athlete-coach-performance-ux";
+const BUILD_VERSION = "2026-08-10T09:32:55Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v126-athlete-retention-20260810T085924Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v127-athlete-coach-performance-ux-20260810T093255Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -44,6 +44,7 @@ const APP_SHELL = [
   "./transactional-email-client.js",
   "./athlete-milestones.js",
   "./athlete-retention.js",
+  "./settings-navigation.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
   "./manifest.webmanifest",

@@ -272,7 +272,7 @@ test("demo hierarchy initialization is explicit and atomic", () => {
 });
 
 test("service worker versions and routes Athlete, Coach and Performance independently", () => {
-  assert.match(sw, /mobile-pwa-v126-athlete-retention/);
+  assert.match(sw, /mobile-pwa-v127-athlete-coach-performance-ux/);
   assert.match(sw, /\.\/performance\/index\.html/);
   assert.match(sw, /\.\/performance\/performance\.css/);
   assert.match(sw, /\.\/performance\/performance\.js/);

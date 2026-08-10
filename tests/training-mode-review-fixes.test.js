@@ -75,13 +75,14 @@ test("Training measurement presentation uses normal nearest-whole-number roundin
   assert.equal(domain.wholeMeasurement(-1.6, "g"), "-2g");
 });
 
-test("Milestones remain at the bottom of Daily after the insight cards are removed", () => {
+test("Points and milestone progression remain in Profile rather than duplicating Daily", () => {
   const html = read("index.html");
   const dashboard = html.slice(html.indexOf('<section id="dashboard"'), html.indexOf('<section id="training"'));
   const settings = html.slice(html.indexOf('<section id="checklist"'), html.indexOf('</main>'));
-  assert.ok(dashboard.indexOf('id="fuelLogPatterns"') < dashboard.indexOf('id="athleteMilestones"'));
+  assert.match(dashboard, /id="fuelLogPatterns"/);
+  assert.doesNotMatch(dashboard, /athleteDailyPoints|athleteMilestones/);
   assert.doesNotMatch(dashboard, /athleteTodayInsights|trainingFuelAnalysis/);
-  assert.doesNotMatch(settings, /id="athleteMilestones"/);
+  assert.match(settings, /id="athletePointsProfile"/);
 });
 
 test("Training Today’s Patterns keeps multiple sessions in separate lanes", () => {

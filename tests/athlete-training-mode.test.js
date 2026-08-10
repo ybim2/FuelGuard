@@ -229,7 +229,8 @@ test("Training UI is one-tap while active and keeps quantity entry in setup", ()
   assert.match(js, /data-training-log="hydration"/);
   assert.match(js, /data-training-preset/);
   assert.match(js, /End Training Mode/);
-  assert.match(js, /Actual totals so far/);
+  assert.match(js, /Session stats/);
+  assert.match(js, /Recorded intake/);
   assert.match(js, /trainingEstimatedDuration/);
   assert.doesNotMatch(js, /Advanced Targets|advancedPlanEnabled|data-training-plan/);
 });

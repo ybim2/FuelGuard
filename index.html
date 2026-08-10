@@ -13,10 +13,10 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v126-athlete-retention" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v126-athlete-retention" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v126-athlete-retention" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v126-athlete-retention" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v127-athlete-coach-performance-ux" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v127-athlete-coach-performance-ux" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v127-athlete-coach-performance-ux" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v127-athlete-coach-performance-ux" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -102,7 +102,7 @@
 <body class="beta-mvp app-booting">
   <div class="app-boot-splash" role="status" aria-live="polite">
     <div class="logo" aria-hidden="true">FG</div>
-    <span>Notice the rhythm.</span>
+    <span>Every fuel and hydration moment builds a better fuelling rhythm.</span>
   </div>
   <div class="layout">
     <aside class="sidebar">
@@ -182,13 +182,6 @@
 
           <section id="fuelLogPatterns"></section>
 
-          <section class="beta-rhythm-section-card beta-milestones-card" aria-label="Milestones">
-            <div class="section-heading-row">
-              <div><h3>Milestones</h3><p class="muted">Build the habit and see what comes next.</p></div>
-            </div>
-            <div id="athleteDailyPoints" class="beta-points-compact" aria-live="polite"></div>
-            <div id="athleteMilestones"></div>
-          </section>
         </article>
 
         <article class="card insight dismissible beta-hidden-feature" id="dashboardTip" aria-hidden="true">
@@ -203,12 +196,27 @@
       </section>
 
       <section id="checklist" class="screen">
-        <article class="card beta-settings-intro-card">
+        <article class="card beta-settings-intro-card" data-settings-menu-intro>
           <h2>Profile &amp; Settings</h2>
           <p class="muted beta-supportive-note">Fuel Guard is designed to help you notice fuelling rhythm, not judge food choices. If tracking food or fuelling timing feels distressing, use the app in the gentlest way that supports you.</p>
         </article>
 
-        <article class="card beta-account-card">
+        <nav class="beta-settings-category-menu" aria-label="Settings categories" data-settings-category-menu>
+          <button type="button" data-settings-category-open="account"><span>Account &amp; Profile</span><small>Identity, sign-in, sync, profile and points</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="fuelling"><span>Fuelling</span><small>Daily fuel-gap and fuelling controls</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="training"><span>Training</span><small>Training Mode presets and session controls</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="garmin"><span>Garmin &amp; Devices</span><small>Connected Fuel Guard watch apps</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="notifications"><span>Notifications</span><small>Contextual reminder preferences</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="sharing"><span>Coach &amp; Sharing</span><small>Coach and organisation access</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="support"><span>App &amp; Support</span><small>Data, privacy and app updates</small><b aria-hidden="true">›</b></button>
+        </nav>
+
+        <header class="beta-settings-category-header" data-settings-category-header hidden>
+          <button type="button" class="secondary" data-settings-category-back aria-label="Back to Settings categories">← Settings</button>
+          <div><span>Settings</span><h2 data-settings-category-title tabindex="-1">Account &amp; Profile</h2></div>
+        </header>
+
+        <article class="card beta-account-card" data-settings-category="account">
           <h2>Account &amp; Sync</h2>
           <p class="muted">Log in to sync Fuel Guard logs across devices.</p>
           <div id="accountLoggedOut" class="beta-account-state">
@@ -253,7 +261,7 @@
           <p id="accountSetupStatus" class="row-note" aria-live="polite"></p>
         </article>
 
-        <article id="athleteProfileCard" class="card beta-profile-card" hidden>
+        <article id="athleteProfileCard" class="card beta-profile-card" data-settings-category="account" hidden>
           <div class="section-heading-row">
             <div><h2>Athlete Profile</h2><p class="muted">Your identity follows your Fuel Guard roles without changing who can access your data.</p></div>
           </div>
@@ -270,11 +278,23 @@
           <div id="athletePointsProfile" class="beta-points-profile"></div>
         </article>
 
-        <article id="athleteWeeklyRecapCard" class="card beta-weekly-recap-card" hidden>
+        <article id="athleteWeeklyRecapCard" class="card beta-weekly-recap-card" data-settings-category="account" hidden>
           <div id="athleteWeeklyRecap" aria-live="polite"></div>
         </article>
 
-        <article id="coachSharingCard" class="card beta-coach-sharing-card" hidden>
+        <article class="card beta-settings-destination-card" data-settings-category="fuelling">
+          <h2>Fuelling</h2>
+          <p class="muted">Choose today’s Day type and Maximum fuel gap together on Daily, where the setting can be understood alongside your live status.</p>
+          <div class="button-row beta-settings-actions"><button class="secondary" type="button" data-open-screen="dashboard">Open Daily fuelling controls</button></div>
+        </article>
+
+        <article class="card beta-settings-destination-card" data-settings-category="training">
+          <h2>Training</h2>
+          <p class="muted">Set Fuel and Hydrate presets, start a session and review recorded Training Mode intake from the Training tab.</p>
+          <div class="button-row beta-settings-actions"><button class="secondary" type="button" data-open-screen="training">Open Training Mode</button></div>
+        </article>
+
+        <article id="coachSharingCard" class="card beta-coach-sharing-card" data-settings-category="sharing" hidden>
           <h2>Coach Access</h2>
           <p class="muted">Share timing-only Fuel Guard data with a coach. You approve every connection before a coach can see your logs.</p>
           <div class="beta-athlete-code-panel">
@@ -301,7 +321,7 @@
           <p id="coachSharingStatus" class="row-note" aria-live="polite"></p>
         </article>
 
-        <article id="athleteNudgePreferencesCard" class="card beta-nudge-preferences-card" hidden>
+        <article id="athleteNudgePreferencesCard" class="card beta-nudge-preferences-card" data-settings-category="notifications" hidden>
           <div class="section-heading-row">
             <div><h2>Contextual reminders</h2><p class="muted">Choose which evidence-based prompts Fuel Guard may show. Generic reminder spam is not used.</p></div>
           </div>
@@ -309,14 +329,14 @@
           <p id="athleteNudgePreferencesStatus" class="row-note" aria-live="polite"></p>
         </article>
 
-        <article id="organisationSharingCard" class="card beta-coach-sharing-card" hidden>
+        <article id="organisationSharingCard" class="card beta-coach-sharing-card" data-settings-category="sharing" hidden>
           <h2>Organisation Sharing</h2>
           <p class="muted">An organisation cannot use your Fuel Guard data until you approve its invitation. You can stop sharing at any time without deleting your account or personal history.</p>
           <div id="organisationSharingList" class="beta-coach-sharing-list"></div>
           <p id="organisationSharingStatus" class="row-note" aria-live="polite"></p>
         </article>
 
-        <article id="garminDevicesCard" class="card beta-garmin-devices-card" hidden>
+        <article id="garminDevicesCard" class="card beta-garmin-devices-card" data-settings-category="garmin" hidden>
           <h2>Connected Garmin Apps</h2>
           <p class="muted">Revoke any Garmin app that can add Fuel Guard timestamps to your account.</p>
           <div id="garminDevicesList" class="beta-garmin-devices-list"></div>
@@ -326,7 +346,7 @@
           <p id="garminDevicesStatus" class="row-note" aria-live="polite"></p>
         </article>
 
-        <article class="card beta-import-card">
+        <article class="card beta-import-card" data-settings-category="support">
           <h2>Data import and clearing</h2>
           <details class="beta-settings-disclosure">
             <summary>Legacy CSV import</summary>
@@ -360,7 +380,7 @@
           </details>
         </article>
 
-        <article class="card beta-update-card">
+        <article class="card beta-update-card" data-settings-category="support">
           <h2>App version and privacy</h2>
           <p class="muted">Check for the latest deployed PWA shell without clearing fuel or hydration logs.</p>
           <div class="beta-update-build">
@@ -373,9 +393,9 @@
           <p id="appUpdateStatus" class="row-note" aria-live="polite">Update status: ready.</p>
         </article>
 
-        <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
+        <div class="beta-version-marker beta-settings-footer" data-settings-category="support" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v126-athlete-retention</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v127-athlete-coach-performance-ux</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -397,23 +417,24 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="build-info.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="app-state.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="product-shell.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="app-ui.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="training-mode.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="athlete-retention.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v126-athlete-retention"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v126-athlete-retention"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="app-state.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="product-shell.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="app-ui.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="training-mode.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="athlete-retention.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="settings-navigation.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v127-athlete-coach-performance-ux"></script>
 </body>
 </html>

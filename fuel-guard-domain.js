@@ -781,6 +781,137 @@
     };
   }
 
+  function activeTrainingSessionInsights({ session = {}, logs = [], now = new Date() } = {}) {
+    const summary = trainingSessionIntakeSummary({ session, logs, now });
+    const durationMinutes = summary.durationSeconds / 60;
+    const rateReady = summary.durationSeconds >= MIN_VALID_TRAINING_RATE_SECONDS;
+    const plan = normalizeTrainingPreset(session.plan && typeof session.plan === "object" ? session.plan : {
+      carbsG: session.planCarbsGPerHour ?? session.plan_carbs_g_per_hour,
+      fluidMl: session.planFluidMlPerHour ?? session.plan_fluid_ml_per_hour,
+      sodiumMg: session.planSodiumMgPerHour ?? session.plan_sodium_mg_per_hour,
+      caffeineMg: session.planCaffeineMgPerHour ?? session.plan_caffeine_mg_per_hour
+    });
+    const fuelIntervalMinutes = Math.max(5, Number(session.fuelIntervalMinutes || session.fuel_interval_minutes) || 30);
+    const hydrationIntervalMinutes = Math.max(5, Number(session.hydrationIntervalMinutes || session.hydration_interval_minutes) || 20);
+    const startedAt = parseDate(session.startedAt || session.started_at);
+    const currentAt = parseDate(now) || new Date();
+    const latestMatching = predicate => summary.logs.filter(predicate)
+      .map(log => ({ ...log, date: logDate(log) }))
+      .filter(log => log.date && log.date <= currentAt)
+      .sort((a, b) => b.date - a.date)[0] || null;
+    const latestFuel = latestMatching(isFuelLog);
+    const latestHydration = latestMatching(isHydrationLog);
+    const minutesSince = log => log?.date
+      ? Math.max(0, Math.round((currentAt - log.date) / 60000))
+      : startedAt ? Math.max(0, Math.round((currentAt - startedAt) / 60000)) : null;
+    const fuelGapMinutes = minutesSince(latestFuel);
+    const hydrationGapMinutes = minutesSince(latestHydration);
+    const insights = [];
+
+    if (latestFuel) {
+      insights.push({
+        id: "fuel_timing",
+        label: "Fuel timing",
+        value: `${duration(fuelGapMinutes)} since recorded Fuel`,
+        detail: `Your planned Fuel interval is ${fuelIntervalMinutes} minutes.`,
+        tone: fuelGapMinutes >= fuelIntervalMinutes ? "attention" : "steady"
+      });
+    } else {
+      insights.push({
+        id: "fuel_timing",
+        label: "Fuel timing",
+        value: "No Fuel recorded in this session yet",
+        detail: Number.isFinite(fuelGapMinutes)
+          ? `${duration(fuelGapMinutes)} of session time recorded. Your planned interval is ${fuelIntervalMinutes} minutes.`
+          : `Your planned interval is ${fuelIntervalMinutes} minutes.`,
+        tone: Number.isFinite(fuelGapMinutes) && fuelGapMinutes >= fuelIntervalMinutes ? "attention" : "neutral"
+      });
+    }
+
+    if (!rateReady) {
+      insights.push({
+        id: "rate_evidence",
+        label: "Pace evidence",
+        value: "Session pace is still building",
+        detail: "Hourly pace and projections appear after 15 recorded minutes so short sessions are not over-interpreted.",
+        tone: "neutral"
+      });
+    } else {
+      const paceInsight = (id, label, field, unit) => {
+        const actual = Number(summary.perHour[field] || 0);
+        const planned = Number(plan[field] || 0);
+        if (!actual && !planned) return null;
+        const difference = actual - planned;
+        const tolerance = Math.max(field === "fluidMl" ? 50 : 5, planned * 0.1);
+        const comparison = !planned
+          ? `No ${label.toLowerCase()} target is configured for this session.`
+          : Math.abs(difference) <= tolerance
+            ? `You're roughly on your planned ${label.toLowerCase()} pace of ${wholeMeasurement(planned, `${unit}/h`)}.`
+            : `${wholeMeasurement(actual, `${unit}/h`)} recorded against ${wholeMeasurement(planned, `${unit}/h`)} planned.`;
+        return {
+          id,
+          label: `${label} pace`,
+          value: actual ? `About ${wholeMeasurement(actual, `${unit}/h`)}` : `No ${label.toLowerCase()} recorded yet`,
+          detail: comparison,
+          tone: planned && difference < -tolerance ? "attention" : "steady"
+        };
+      };
+      [
+        paceInsight("carbohydrate_pace", "Carbohydrate", "carbsG", "g"),
+        paceInsight("hydration_pace", "Hydration", "fluidMl", "ml"),
+        plan.sodiumMg > 0 ? paceInsight("sodium_pace", "Sodium", "sodiumMg", "mg") : null
+      ].filter(Boolean).forEach(insight => insights.push(insight));
+
+      const estimatedDurationMinutes = Math.max(durationMinutes, Number(session.estimatedDurationMinutes || session.estimated_duration_minutes) || 0);
+      if (estimatedDurationMinutes >= 30 && plan.carbsG > 0 && summary.totals.carbsG > 0) {
+        const projected = summary.perHour.carbsG * estimatedDurationMinutes / 60;
+        const plannedTotal = plan.carbsG * estimatedDurationMinutes / 60;
+        const difference = Math.round(projected - plannedTotal);
+        if (Math.abs(difference) >= 5) {
+          insights.push({
+            id: "carbohydrate_projection",
+            label: "Projected session intake",
+            value: `${Math.round(projected)}g carbohydrate at current recorded pace`,
+            detail: difference < 0
+              ? `That is around ${Math.abs(difference)}g below the ${Math.round(plannedTotal)}g session plan.`
+              : `That is around ${difference}g above the ${Math.round(plannedTotal)}g session plan.`,
+            tone: difference < 0 ? "attention" : "steady"
+          });
+        }
+      }
+    }
+
+    const candidates = [
+      { label: "Next Fuel", type: "Fuel", gap: fuelGapMinutes, interval: fuelIntervalMinutes, recorded: Boolean(latestFuel) },
+      { label: "Hydration", type: "Hydration", gap: hydrationGapMinutes, interval: hydrationIntervalMinutes, recorded: Boolean(latestHydration) }
+    ].filter(item => Number.isFinite(item.gap))
+      .map(item => ({ ...item, proximity: item.gap / item.interval }))
+      .filter(item => item.proximity >= 0.8)
+      .sort((a, b) => b.proximity - a.proximity);
+    if (candidates[0]) {
+      const next = candidates[0];
+      const overdue = next.gap >= next.interval;
+      insights.push({
+        id: "next_action",
+        label: next.label,
+        value: overdue ? `${next.interval}-minute interval reached` : `${next.interval}-minute interval approaching`,
+        detail: next.recorded
+          ? `The last recorded ${next.type} event was ${duration(next.gap)} ago.`
+          : `No ${next.type.toLowerCase()} has been recorded during ${duration(next.gap)} of this session.`,
+        tone: overdue ? "attention" : "steady"
+      });
+    }
+
+    const priorities = ["next_action", "fuel_timing", "carbohydrate_pace", "hydration_pace", "sodium_pace", "carbohydrate_projection", "rate_evidence"];
+    return {
+      durationMinutes,
+      rateReady,
+      summary,
+      plan,
+      insights: insights.sort((a, b) => priorities.indexOf(a.id) - priorities.indexOf(b.id)).slice(0, 4)
+    };
+  }
+
   function completedTrainingSessionAverages({ sessions = [], logs = [], now = new Date(), limit = 6 } = {}) {
     const recent = (Array.isArray(sessions) ? sessions : [])
       .filter(session => String(session.status || "") === "completed" && parseDate(session.endedAt || session.ended_at))
@@ -2607,6 +2738,7 @@
     trainingSessionIntakeSummary,
     completedTrainingSessionMetrics,
     trainingCompletionSummary,
+    activeTrainingSessionInsights,
     completedTrainingSessionAverages,
     trainingPlanProgress,
     trainingHourlyPlan,

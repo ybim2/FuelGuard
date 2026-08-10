@@ -79,6 +79,20 @@
     return training.presets[type];
   }
 
+  function normalizeCanonicalCaffeine() {
+    const training = state();
+    const fuel = training?.presets?.fuel;
+    const hydration = training?.presets?.hydration;
+    if (!fuel || !hydration) return;
+    const legacyFuelCaffeine = Math.max(0, Number(fuel.caffeineMg) || 0);
+    if (legacyFuelCaffeine > 0 && !(Number(hydration.caffeineMg) > 0)) {
+      hydration.caffeineMg = legacyFuelCaffeine;
+      hydration.dirty = true;
+    }
+    if (legacyFuelCaffeine > 0) fuel.dirty = true;
+    fuel.caffeineMg = 0;
+  }
+
   function activeSession() {
     const active = state()?.activeSession;
     return active?.status === "active" && !active.endedAt ? active : null;
@@ -100,14 +114,8 @@
   }
 
   function actionInputs(type) {
-    const fields = type === "fuel" ? ["carbsG"] : ["fluidMl", "sodiumMg"];
+    const fields = type === "fuel" ? ["carbsG"] : ["fluidMl", "sodiumMg", "caffeineMg"];
     return fields.map(field => quantityInput(type, QUANTITIES.find(item => item.field === field))).join("");
-  }
-
-  function caffeineInputs() {
-    const caffeine = QUANTITIES.find(item => item.field === "caffeineMg");
-    return quantityInput("fuel", caffeine, preset("fuel"), "With Fuel")
-      + quantityInput("hydration", caffeine, preset("hydration"), "With Hydrate");
   }
 
   function intervalInput(type, value) {
@@ -199,6 +207,7 @@
   function setupMarkup() {
     ensurePreset("fuel");
     ensurePreset("hydration");
+    normalizeCanonicalCaffeine();
     const training = state();
     return `
       <section class="training-mode-hero setup">
@@ -225,12 +234,8 @@
         <div class="training-mode-action-inputs fuel">${actionInputs("fuel")}</div>
       </section>
       <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Hydrate</h2></div><small>Hydrate records fluid and sodium.</small></div>
+        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Hydrate</h2></div><small>Hydrate records fluid, sodium and optional caffeine.</small></div>
         <div class="training-mode-action-inputs hydration">${actionInputs("hydration")}</div>
-      </section>
-      <section class="training-mode-section training-mode-caffeine">
-        <div class="training-mode-heading"><div><span>Optional</span><h2>Caffeine</h2></div><small>Add caffeine only when relevant.</small></div>
-        <div class="training-mode-action-inputs caffeine">${caffeineInputs()}</div>
       </section>
       <section class="training-mode-section training-mode-strategy">
         <div class="training-mode-heading"><div><span>Timing strategy</span><h2>How often do you intend to tap?</h2></div><small>Fuel Guard derives your hourly plan.</small></div>
@@ -337,8 +342,9 @@
         <button class="training-mode-action fuel" type="button" data-training-log="fuel"><strong>Fuel</strong><span>${presetSummary(session, "fuel")}</span></button>
         <button class="training-mode-action hydration" type="button" data-training-log="hydration"><strong>Hydrate</strong><span>${presetSummary(session, "hydration")}</span></button>
       </section>
+      ${activeInsightsMarkup(session)}
       <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>Session intake</span><h2>Actual totals so far</h2></div><button class="secondary" type="button" data-training-refresh>Refresh</button></div>
+        <div class="training-mode-heading"><div><span>Session stats</span><h2>Recorded intake</h2></div><button class="secondary" type="button" data-training-refresh>Refresh</button></div>
         <div class="training-mode-intake-grid">${intakeCards(summary, session)}</div>
       </section>
       <section class="training-mode-end-panel">
@@ -350,8 +356,20 @@
 
   function presetSummary(session, type) {
     const context = domain().trainingEventContext(session, type);
-    const fields = type === "fuel" ? ["carbsG", "caffeineMg"] : ["fluidMl", "sodiumMg", "caffeineMg"];
+    const fields = type === "fuel" ? ["carbsG"] : ["fluidMl", "sodiumMg", "caffeineMg"];
     return fields.map(field => QUANTITIES.find(item => item.field === field)).filter(item => context[item.field] > 0).map(item => `${unitValue(context[item.field], item.unit)} ${item.short.toLowerCase()}`).join(" · ");
+  }
+
+  function activeInsightsMarkup(session) {
+    const result = domain().activeTrainingSessionInsights({ session, logs: logs(), now: new Date() });
+    return `
+      <section class="training-mode-section training-mode-live-insights" aria-label="Useful Training Mode insights">
+        <div class="training-mode-heading"><div><span>Useful now</span><h2>Live session insights</h2></div><small>Interpretation from recorded session evidence.</small></div>
+        <div class="training-mode-live-insight-grid">
+          ${result.insights.map(insight => `<article class="${escape(insight.tone || "neutral")}"><span>${escape(insight.label)}</span><strong>${escape(insight.value)}</strong><small>${escape(insight.detail)}</small></article>`).join("")}
+        </div>
+      </section>
+    `;
   }
 
   function prePostMarkup(session) {
@@ -405,7 +423,7 @@
     ` : "";
     return `
       <section class="training-mode-section training-mode-insights">
-        <div class="training-mode-heading"><div><span>Useful now</span><h2>Training Insights</h2></div><small>Session context and today’s timing stay separate.</small></div>
+        <div class="training-mode-heading"><div><span>Longer-term context</span><h2>Training patterns</h2></div><small>Completed-session context and today’s timing stay separate.</small></div>
         ${group("From completed sessions", result.sessionInsights)}
         ${group("From today", result.dayInsights)}
       </section>
@@ -663,6 +681,7 @@
       });
       ensurePreset("fuel");
       ensurePreset("hydration");
+      normalizeCanonicalCaffeine();
       const presetUpsert = await client.from(PRESETS_TABLE).upsert([
         presetRow("fuel", currentUser),
         presetRow("hydration", currentUser)

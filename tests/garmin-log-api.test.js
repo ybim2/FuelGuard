@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const auth = require("../lib/garmin-auth.js");
 const garminLogHandler = require("../api/garmin/log.js");
+const garminTrainingHandler = require("../api/garmin/training.js");
 
 const BASE_ENV = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -73,9 +74,12 @@ class FakeSupabase {
     this.deviceTokens = [];
     this.logs = [];
     this.trainingModeSessions = [];
+    this.trainingCommands = [];
+    this.failTrainingCommand = false;
     this.nextAuth = 1;
     this.nextDevice = 1;
     this.nextLog = 1;
+    this.nextTraining = 1;
     this.fetch = this.fetch.bind(this);
   }
 
@@ -197,6 +201,65 @@ class FakeSupabase {
 
     if (path === "/rest/v1/fuel_training_mode_sessions" && method === "GET") {
       return okJson(this.filter(this.trainingModeSessions, parsed.searchParams));
+    }
+
+    if (path === "/rest/v1/rpc/fuel_garmin_training_command" && method === "POST") {
+      if (this.failTrainingCommand) return okJson({ error: "temporary" }, 503);
+      const body = this.body(options);
+      const device = this.deviceTokens.find(row => row.id === body.p_device_token_id
+        && row.user_id === body.p_user_id && !row.revoked_at);
+      if (!device) return okJson({ error: "forbidden" }, 403);
+      const duplicate = this.trainingCommands.find(row => row.device_token_id === device.id
+        && row.external_action_id === body.p_external_action_id);
+      if (duplicate) return okJson({ ...duplicate.response, duplicate: true });
+      let session = this.trainingModeSessions.find(row => row.user_id === device.user_id && row.status === "active") || null;
+      let result;
+      if (body.p_action === "start") {
+        if (session) result = "already_active";
+        else {
+          session = {
+            id: `training-${this.nextTraining++}`,
+            user_id: device.user_id,
+            title: "Garmin training",
+            session_type: "training",
+            status: "active",
+            started_at: body.p_occurred_at,
+            ended_at: null,
+            fuel_preset_id: "preset-fuel",
+            hydration_preset_id: "preset-hydration",
+            fuel_carbs_g: 30,
+            fuel_fluid_ml: 0,
+            fuel_sodium_mg: 0,
+            fuel_caffeine_mg: 0,
+            hydration_carbs_g: 0,
+            hydration_fluid_ml: 200,
+            hydration_sodium_mg: 250,
+            hydration_caffeine_mg: 40
+          };
+          this.trainingModeSessions.push(session);
+          result = "started";
+        }
+      } else if (session) {
+        session.status = "completed";
+        session.ended_at = body.p_occurred_at;
+        result = "ended";
+      } else result = "no_active";
+      const response = {
+        result,
+        duplicate: false,
+        active: result === "started" || result === "already_active",
+        session_id: session?.id || null,
+        started_at: session?.started_at || null,
+        ended_at: session?.ended_at || null
+      };
+      this.trainingCommands.push({
+        device_token_id: device.id,
+        user_id: device.user_id,
+        external_action_id: body.p_external_action_id,
+        action: body.p_action,
+        response
+      });
+      return okJson(response);
     }
 
     throw new Error(`Unhandled fake Supabase request: ${method} ${path}`);
@@ -326,6 +389,130 @@ test("Garmin Hydrate preserves mixed Training Mode carbohydrate fluid and sodium
     [fake.logs[0].carbs_g, fake.logs[0].fluid_ml, fake.logs[0].sodium_mg, fake.logs[0].caffeine_mg],
     [10, 200, 250, 0]
   );
+}));
+
+test("Garmin starts Training Mode atomically and duplicate start retries reuse the session", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  const command = {
+    action: "start",
+    external_action_id: "garmin-training-start-1",
+    occurred_at: "2026-07-18T08:00:00.000Z",
+    user_id: USERS["user-token-b"].id
+  };
+  const first = await call(garminTrainingHandler, { token: paired.deviceToken, body: command });
+  const retry = await call(garminTrainingHandler, { token: paired.deviceToken, body: command });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.json.result, "started");
+  assert.equal(retry.statusCode, 200);
+  assert.equal(retry.json.duplicate, true);
+  assert.equal(retry.json.session_id, first.json.session_id);
+  assert.equal(fake.trainingModeSessions.length, 1);
+  assert.equal(fake.trainingModeSessions[0].user_id, USERS["user-token-a"].id);
+  assert.equal(fake.trainingCommands.length, 1);
+}));
+
+test("Garmin start respects an existing PWA session and status exposes only the paired athlete", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.trainingModeSessions.push({
+    id: "pwa-session",
+    user_id: USERS["user-token-a"].id,
+    title: "PWA ride",
+    session_type: "bike",
+    status: "active",
+    started_at: "2026-07-18T07:55:00.000Z",
+    ended_at: null
+  });
+  fake.trainingModeSessions.push({
+    id: "other-athlete-session",
+    user_id: USERS["user-token-b"].id,
+    title: "Private run",
+    session_type: "run",
+    status: "active",
+    started_at: "2026-07-18T07:50:00.000Z",
+    ended_at: null
+  });
+  const start = await call(garminTrainingHandler, {
+    token: paired.deviceToken,
+    body: { action: "start", external_action_id: "start-existing", occurred_at: "2026-07-18T08:00:00.000Z" }
+  });
+  const status = await call(garminTrainingHandler, { method: "GET", token: paired.deviceToken });
+
+  assert.equal(start.json.result, "already_active");
+  assert.equal(start.json.session_id, "pwa-session");
+  assert.equal(fake.trainingModeSessions.length, 2);
+  assert.equal(status.statusCode, 200);
+  assert.equal(status.json.active, true);
+  assert.equal(status.json.session.id, "pwa-session");
+  assert.doesNotMatch(JSON.stringify(status.json), /Private run|other-athlete-session/);
+}));
+
+test("Garmin ends Training Mode idempotently and a status refresh observes the closed session", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  const start = await call(garminTrainingHandler, {
+    token: paired.deviceToken,
+    body: { action: "start", external_action_id: "start-for-end", occurred_at: "2026-07-18T08:00:00.000Z" }
+  });
+  assert.equal(start.json.result, "started");
+  const command = { action: "end", external_action_id: "end-1", occurred_at: "2026-07-18T09:00:00.000Z" };
+  const first = await call(garminTrainingHandler, { token: paired.deviceToken, body: command });
+  const retry = await call(garminTrainingHandler, { token: paired.deviceToken, body: command });
+  const status = await call(garminTrainingHandler, { method: "GET", token: paired.deviceToken });
+
+  assert.equal(first.json.result, "ended");
+  assert.equal(retry.json.result, "ended");
+  assert.equal(retry.json.duplicate, true);
+  assert.equal(fake.trainingModeSessions[0].status, "completed");
+  assert.equal(status.json.active, false);
+  assert.equal(status.json.session, null);
+}));
+
+test("Garmin Training Mode command can retry after a temporary server failure", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  const command = { action: "start", external_action_id: "retry-after-failure", occurred_at: "2026-07-18T08:00:00.000Z" };
+  fake.failTrainingCommand = true;
+  const failed = await call(garminTrainingHandler, { token: paired.deviceToken, body: command });
+  fake.failTrainingCommand = false;
+  const retried = await call(garminTrainingHandler, { token: paired.deviceToken, body: command });
+
+  assert.equal(failed.statusCode, 500);
+  assert.equal(retried.statusCode, 200);
+  assert.equal(retried.json.result, "started");
+  assert.equal(fake.trainingModeSessions.length, 1);
+}));
+
+test("Garmin Hydrate after watch-started Training Mode attributes fluid sodium and canonical caffeine once", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  await call(garminTrainingHandler, {
+    token: paired.deviceToken,
+    body: { action: "start", external_action_id: "start-hydration", occurred_at: "2026-07-18T08:00:00.000Z" }
+  });
+  const event = { ...VALID_EVENT, type: "hydration", external_event_id: "watch-hydration", logged_at: "2026-07-18T08:20:00.000Z" };
+  const first = await call(auth.garminLogHandler, { token: paired.deviceToken, body: event });
+  const retry = await call(auth.garminLogHandler, { token: paired.deviceToken, body: event });
+
+  assert.equal(first.statusCode, 201);
+  assert.equal(retry.json.result, "duplicate");
+  assert.equal(fake.logs.length, 1);
+  assert.deepEqual(
+    [fake.logs[0].fluid_ml, fake.logs[0].sodium_mg, fake.logs[0].caffeine_mg],
+    [200, 250, 40]
+  );
+}));
+
+test("Garmin Training Mode endpoint rejects invalid commands and unpaired devices", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  const invalid = await call(garminTrainingHandler, {
+    token: paired.deviceToken,
+    body: { action: "restart", external_action_id: "invalid", occurred_at: "2026-07-18T08:00:00.000Z" }
+  });
+  const unpaired = await call(garminTrainingHandler, {
+    token: "not-a-device-token",
+    body: { action: "start", external_action_id: "unpaired", occurred_at: "2026-07-18T08:00:00.000Z" }
+  });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(unpaired.statusCode, 401);
+  assert.equal(fake.trainingModeSessions.length, 0);
 }));
 
 test("Garmin events after Training Mode ends remain ordinary quantity-free timing logs", async () => withFake(async (fake) => {

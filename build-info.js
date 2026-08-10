@@ -1,8 +1,8 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v126-athlete-retention",
-  buildVersion: "2026-08-10T08:59:24Z",
-  sourceCheckpoint: "v126-athlete-retention",
-  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v126-athlete-retention",
+  canonicalApp: "mobile-pwa-v127-athlete-coach-performance-ux",
+  buildVersion: "2026-08-10T09:32:55Z",
+  sourceCheckpoint: "v127-athlete-coach-performance-ux",
+  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v127-athlete-coach-performance-ux",
   serviceWorkerScope: "/",
-  cacheName: "fuel-guard-mobile-pwa-v126-athlete-retention-20260810T085924Z"
+  cacheName: "fuel-guard-mobile-pwa-v127-athlete-coach-performance-ux-20260810T093255Z"
 });
