@@ -1,6 +1,6 @@
 # Fuel Guard Garmin Apps
 
-This folder contains two separate Garmin Connect IQ apps for the Forerunner 255 product ID `fr255`.
+This folder contains two separate Garmin Connect IQ apps. The Forerunner 255 remains the primary physical reference device; the production manifests also include the public-beta target range recorded in `public-release/SUPPORTED_DEVICES.md`.
 
 ## Apps
 
@@ -26,6 +26,8 @@ POST /api/garmin/health
 ```
 
 No tester manually enters a Garmin token, Vercel bypass secret, Supabase key or API endpoint.
+
+The pairing notification opens in the **Connect IQ Store mobile app** because these apps use `Toybox.Authentication.makeOAuthRequest()`. It does not use the Garmin Connect mobile app for the OAuth handoff. Keep Connect IQ installed, signed in and able to open notifications before starting pairing.
 
 ## Important Forerunner 255 limitation
 
@@ -160,27 +162,37 @@ See `garmin/FuelGuard/GARMIN_HEALTH_API_BOUNDARY.md` for the current Connect IQ-
 
 Run `scripts/build-garmin-beta-release.sh` to build both beta IQ packages and export them to persistent local storage under `$HOME/Documents/Codex/FuelGuard/releases/garmin/<version>/`. Set `FUELGUARD_RELEASE_ROOT` only when you need a different persistent destination; the release script refuses `/tmp` and `/private/tmp` outputs.
 
+## Exporting public beta packages
+
+Run `scripts/export-garmin-public-release.sh` to compile both production manifests, scan the extracted packages for forbidden secret or local-development strings, and export the signed candidates to persistent local storage under `$HOME/Documents/Codex/FuelGuard/releases/garmin-public/<version>/`.
+
+The production and beta manifest UUIDs remain separate. Do not substitute a private-beta `.iq` for a public build, and do not upload a public candidate until the physical gates in `public-release/PHYSICAL_ACCEPTANCE.md` pass against the recorded package hashes.
+
 ## Activity Logger setup
 
 1. Install Fuel Guard Activity Logger.
 2. Open the data-field settings from the Run activity configuration.
 3. Select Connect Fuel Guard.
-4. Approve the connection on the phone while signed into Fuel Guard.
-5. Add the data field to Run, Bike or a compatible native activity profile.
-6. Disable Auto Lap.
-7. Start the activity.
-8. Press the Garmin lap button to record a Fuel Guard fuel event.
+4. Open the pairing notification in the Connect IQ Store mobile app.
+5. Approve the connection on the phone while signed into Fuel Guard.
+6. Add the data field to Run, Bike or a compatible native activity profile.
+7. Disable Auto Lap.
+8. Start the activity.
+9. Press the Garmin lap button to record a Fuel Guard **fuel** event.
+
+Activity Logger is fuel-only. It has no separate in-activity Hydration action. Use Quick Log outside the activity when you need a Hydrate event.
 
 ## Quick Log setup
 
 1. Install Fuel Guard Quick Log.
 2. Open Fuel Guard Quick Log from the app list or glance.
 3. Select Connect Fuel Guard.
-4. Approve the connection on the phone while signed into Fuel Guard.
-5. Fuel is selected by default after pairing.
-6. Use UP/DOWN to select Fuel, Hydrate or Sleepy.
-7. Press ENTER to log.
-8. ESC exits normally.
+4. Open the pairing notification in the Connect IQ Store mobile app.
+5. Approve the connection on the phone while signed into Fuel Guard.
+6. Fuel is selected by default after pairing.
+7. Use UP/DOWN to select Fuel, Hydrate, Sleepy or Training.
+8. Press ENTER to log or toggle Training Mode.
+9. ESC exits normally.
 
 ## Offline queue behaviour
 

@@ -1,6 +1,6 @@
 # Fuel Guard Activity Logger
 
-Connect IQ Data Field for Forerunner 255 (`fr255`).
+Connect IQ Data Field for compatible endurance watches. The Forerunner 255 (`fr255`) is the primary physical reference target; see `../public-release/SUPPORTED_DEVICES.md` for the production public-beta range.
 
 ## What it does
 
@@ -10,6 +10,7 @@ Connect IQ Data Field for Forerunner 255 (`fr255`).
 - Shows a short `FUEL LOGGED` confirmation.
 - Shows time since last fuel and pending upload count.
 - Retries queued events without parallel duplicate requests.
+- Records Fuel only. It does not provide a separate in-activity Hydration action; use Fuel Guard Quick Log for Hydrate events.
 
 ## Forerunner 255 warning
 
@@ -30,3 +31,5 @@ Output:
 ```text
 build/garmin/fuel-guard-activity-logger-fr255.prg
 ```
+
+For a signed multi-device public candidate, run `scripts/export-garmin-public-release.sh` from the repository root.

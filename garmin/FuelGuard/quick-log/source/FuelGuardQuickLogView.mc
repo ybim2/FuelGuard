@@ -262,18 +262,29 @@ class FuelGuardQuickLogView extends WatchUi.View {
             return;
         }
 
+        var metricY = height >= 320 ? 68 : 58;
+        var metricLabelY = metricY + 26;
+        var footerY = height - (height < 230 ? 24 : 34);
         drawCenter(dc, 24, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
-        drawCenter(dc, 58, Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelMetric(), Graphics.COLOR_WHITE);
-        drawCenter(dc, 84, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelLabel(), Graphics.COLOR_LT_GRAY);
+        drawCenter(dc, metricY, Graphics.FONT_SMALL, FuelGuardFeedback.elapsedFuelMetric(), Graphics.COLOR_WHITE);
+        drawCenter(dc, metricLabelY, Graphics.FONT_XTINY, FuelGuardFeedback.elapsedFuelLabel(), Graphics.COLOR_LT_GRAY);
 
         var rowWidth = width - 92;
         if (rowWidth < 132) {
             rowWidth = width - 68;
         }
         var rowLeft = (width - rowWidth) / 2;
-        var firstRowY = 108;
-        var rowGap = 29;
-        var rowHeight = 26;
+        var actionTop = metricLabelY + 38;
+        var actionBottom = footerY - 28;
+        var rowGap = (actionBottom - actionTop) / (ACTION_COUNT - 1);
+        if (rowGap < 24) {
+            rowGap = 24;
+        } else if (rowGap > 48) {
+            rowGap = 48;
+        }
+        var actionHeight = rowGap * (ACTION_COUNT - 1);
+        var firstRowY = ((actionTop + actionBottom) - actionHeight) / 2;
+        var rowHeight = height < 230 ? 22 : 26;
         for (var i = 0; i < ACTION_COUNT; i++) {
             var y = firstRowY + (i * rowGap);
             var selected = i == _selection;
@@ -288,9 +299,9 @@ class FuelGuardQuickLogView extends WatchUi.View {
         }
 
         if (syncText != null) {
-            drawCenter(dc, height - 34, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
+            drawCenter(dc, footerY, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
         } else {
-            drawCenter(dc, height - 34, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
+            drawCenter(dc, footerY, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
         }
         updateSyncStatusTimer();
     }

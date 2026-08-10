@@ -1,7 +1,37 @@
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="1">
-    <iq:application entry="FuelGuardActivityLoggerApp" id="9C8A41410F0A4D46A7F7D1C68F0F2551" launcherIcon="@Drawables.LauncherIcon" minSdkVersion="3.3.0" name="@Strings.AppName" type="datafield">
+    <iq:application entry="FuelGuardActivityLoggerApp" id="9C8A41410F0A4D46A7F7D1C68F0F2551" launcherIcon="@Drawables.LauncherIcon" minSdkVersion="3.3.0" name="@Strings.AppName" type="datafield" version="0.5.0">
         <iq:products>
+            <iq:product id="fr165"/>
+            <iq:product id="fr165m"/>
+            <iq:product id="fr245"/>
+            <iq:product id="fr245m"/>
             <iq:product id="fr255"/>
+            <iq:product id="fr255m"/>
+            <iq:product id="fr255s"/>
+            <iq:product id="fr255sm"/>
+            <iq:product id="fr265"/>
+            <iq:product id="fr265s"/>
+            <iq:product id="fr945"/>
+            <iq:product id="fr945lte"/>
+            <iq:product id="fr955"/>
+            <iq:product id="fr965"/>
+            <iq:product id="fenix7s"/>
+            <iq:product id="fenix7"/>
+            <iq:product id="fenix7x"/>
+            <iq:product id="fenix7spro"/>
+            <iq:product id="fenix7pro"/>
+            <iq:product id="fenix7xpro"/>
+            <iq:product id="fenix7pronowifi"/>
+            <iq:product id="fenix7xpronowifi"/>
+            <iq:product id="fenix843mm"/>
+            <iq:product id="fenix847mm"/>
+            <iq:product id="fenix8solar47mm"/>
+            <iq:product id="fenix8solar51mm"/>
+            <iq:product id="fenix8pro47mm"/>
+            <iq:product id="epix2"/>
+            <iq:product id="epix2pro42mm"/>
+            <iq:product id="epix2pro47mm"/>
+            <iq:product id="epix2pro51mm"/>
         </iq:products>
         <iq:permissions>
             <iq:uses-permission id="Communications"/>
