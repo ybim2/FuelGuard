@@ -28,13 +28,18 @@ function loadProductShell() {
   return { elements, listeners, window };
 }
 
-test("main identity clears User A before displaying User B", () => {
+test("main identity prefers the saved first name and clears User A before displaying User B", () => {
   const { elements, window } = loadProductShell();
   const render = window.fuelGuardProductShell.renderMainAccountIdentity;
 
   render({ signedIn: true, email: "user-a@example.com" });
   assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Signed in as");
   assert.equal(elements.get("mainAccountIdentityValue").textContent, "user-a@example.com");
+
+  render({ signedIn: true, email: "user-a@example.com" }, { first_name: "Alex" });
+  assert.equal(elements.get("mainAccountIdentityLabel").textContent, "user-a@example.com");
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "Alex");
+  assert.match(elements.get("mainAccountIdentity").attributes["aria-label"], /Alex.*user-a@example\.com/);
 
   render({ signedIn: false, email: "user-a@example.com" });
   assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Not signed in");
@@ -53,7 +58,7 @@ test("main shell keeps Coach and Performance links hidden until server-authorise
   assert.match(html, /href="\/" aria-current="page">Athlete<\/a>/);
   assert.match(html, /id="coachProductLink" href="\/coach\/" hidden>Coach<\/a>/);
   assert.match(html, /id="performanceProductLink" href="\/performance\/" hidden>Performance<\/a>/);
-  assert.match(html, /product-shell\.js\?v=mobile-pwa-v131-athlete-social-sharing/);
+  assert.match(html, /product-shell\.js\?v=mobile-pwa-v132-athlete-ux-impact-fix/);
   assert.match(sw, /\.\/product-shell\.js/);
 });
 
@@ -66,7 +71,7 @@ test("product access is derived from the user profile and Performance context RP
       return {
         select() { return this; },
         eq() { return this; },
-        async maybeSingle() { return { data: { coach_enabled: true }, error: null }; }
+        async maybeSingle() { return { data: { coach_enabled: true, first_name: "Alex", display_name: "Alex Athlete" }, error: null }; }
       };
     },
     async rpc(name) {
@@ -75,7 +80,11 @@ test("product access is derived from the user profile and Performance context RP
     }
   };
   const result = await window.fuelGuardProductShell._test.authorisedProducts(client, { id: "user-1" });
-  assert.deepEqual({ ...result }, { coach: true, performance: true });
+  assert.deepEqual({ ...result }, {
+    coach: true,
+    performance: true,
+    profile: { coach_enabled: true, first_name: "Alex", display_name: "Alex Athlete" }
+  });
   assert.deepEqual(calls, [["from", "fuel_user_profiles"], ["rpc", "fuel_performance_context"]]);
 });
 

@@ -231,6 +231,8 @@ test("Coach athlete linking uses Athlete Codes instead of raw UUID search", () =
   assert.match(coachHtml, /Find Athlete/);
   assert.match(coachJs, /Send Connection Request/);
   assert.match(coachJs, /function relationshipRows/);
+  assert.match(coachJs, /const firstName = String\(profile\?\.first_name/);
+  assert.match(coachJs, /return firstName \|\| relation\?\.athlete_label \|\| profile\?\.display_name/);
   assert.match(coachJs, /function normalizeAthleteCode/);
   assert.match(coachJs, /function findAthleteByCode/);
   assert.match(coachJs, /fuel_coach_find_athlete_by_code/);

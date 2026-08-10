@@ -147,9 +147,9 @@
     `;
   }
 
-  function actionInputs(type) {
+  function actionInputs(type, labels = {}) {
     const fields = type === "fuel" ? ["carbsG"] : ["fluidMl", "sodiumMg", "caffeineMg"];
-    return fields.map(field => quantityInput(type, QUANTITIES.find(item => item.field === field))).join("");
+    return fields.map(field => quantityInput(type, QUANTITIES.find(item => item.field === field), preset(type), labels[field])).join("");
   }
 
   function intervalInput(type, value) {
@@ -284,13 +284,12 @@
         </div>
         ${estimatedDurationMarkup()}
       </section>
-      <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Fuel</h2></div><small>Fuel means carbohydrate intake.</small></div>
-        <div class="training-mode-action-inputs fuel">${actionInputs("fuel")}</div>
-      </section>
-      <section class="training-mode-section">
-        <div class="training-mode-heading"><div><span>One-tap preset</span><h2>Hydrate</h2></div><small>Hydrate records fluid, sodium and optional caffeine.</small></div>
-        <div class="training-mode-action-inputs hydration">${actionInputs("hydration")}</div>
+      <section class="training-mode-section training-mode-fuel-card">
+        <div class="training-mode-heading"><div><span>One-tap presets</span><h2>Fuel</h2></div><small>Garmin Fuel records carbs. Garmin Hydrate records fluid, sodium and caffeine.</small></div>
+        <div class="training-mode-action-inputs fuel-plan">
+          ${actionInputs("fuel", { carbsG: "Carbs (Fuel)" })}
+          ${actionInputs("hydration", { fluidMl: "Fluid (Hydrate)", sodiumMg: "Sodium (Hydrate)", caffeineMg: "Caffeine (Hydrate)" })}
+        </div>
       </section>
       <section class="training-mode-section training-mode-strategy">
         <div class="training-mode-heading"><div><span>Timing strategy</span><h2>How often do you intend to tap?</h2></div><small>Fuel Guard derives your hourly plan.</small></div>
@@ -301,7 +300,6 @@
         <p>${escape(statusMessage || "Starting Training Mode is explicit. No quantities are added to ordinary Daily Mode logs.")}</p>
         <button class="primary training-mode-start" type="button" data-training-start>Start Training Mode</button>
       </section>
-      ${trainingInsightsMarkup()}
       ${completedSessionsMarkup()}
     `;
   }
@@ -463,25 +461,6 @@
         </div>
         ${plannedItems.length ? `<div class="training-mode-complete-block planned"><h3>Planned separately</h3><div class="training-mode-complete-quantities">${plannedItems.map(item => `<span><small>${escape(item.label)}</small><strong>${escape(trainingValue(summary.planned.totals[item.field], item))}</strong><em>${escape(trainingValue(session.plan?.[item.field] || 0, item, { perHour: true }))}</em></span>`).join("")}</div></div>` : ""}
         <p class="training-mode-rate-note">${escape(summary.coverageMessage)}</p>
-      </section>
-    `;
-  }
-
-  function trainingInsightsMarkup() {
-    const result = domain().athleteTrainingInsights({ logs: logs(), sessions: state()?.sessions || [] });
-    const group = (label, insights) => insights.length ? `
-      <div class="training-mode-insight-group">
-        <h3>${escape(label)}</h3>
-        <div class="training-mode-insight-grid">${insights.map(insight => `
-          <article><span>${escape(insight.label)}</span><strong>${escape(insight.value)}</strong><small>${escape(insight.detail)}</small></article>
-        `).join("")}</div>
-      </div>
-    ` : "";
-    return `
-      <section class="training-mode-section training-mode-insights">
-        <div class="training-mode-heading"><div><span>Longer-term context</span><h2>Training patterns</h2></div><small>Completed-session context and today’s timing stay separate.</small></div>
-        ${group("From completed sessions", result.sessionInsights)}
-        ${group("From today", result.dayInsights)}
       </section>
     `;
   }

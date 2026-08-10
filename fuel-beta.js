@@ -2732,6 +2732,7 @@
         .single();
       if (error) throw error;
       coachSharingState.profile = data;
+      window.fuelGuardProductShell?.renderMainAccountIdentity?.(window.fuelGuardCloud?.accountView?.() || {}, data);
       athleteProfileStatus = "Profile saved.";
     } catch (error) {
       athleteProfileStatus = coachSharingSetupError(error)

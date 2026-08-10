@@ -2,23 +2,24 @@ body.beta-mvp #training {
   width: min(100%, 760px);
   margin-inline: auto;
   padding: 8px clamp(16px, 4vw, 34px) calc(92px + env(safe-area-inset-bottom, 0px));
-  background: var(--fg-page-bg, #f5f6f7);
+  background: #ffffff;
 }
 
 .training-mode-surface {
   display: grid;
-  gap: 16px;
+  gap: 0;
   min-width: 0;
 }
 
 .training-mode-hero {
   display: grid;
   gap: 6px;
-  padding: 20px;
-  border: 1px solid rgba(16, 24, 32, .1);
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(16, 24, 32, .06);
+  padding: 22px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(16, 24, 32, .1);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .training-mode-hero.active {
@@ -80,11 +81,12 @@ body.beta-mvp #training {
 .training-mode-start-panel,
 .training-mode-end-panel {
   min-width: 0;
-  padding: 16px;
-  border: 1px solid rgba(16, 24, 32, .11);
-  border-radius: 18px;
+  padding: 22px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(16, 24, 32, .1);
+  border-radius: 0;
   background: #ffffff;
-  box-shadow: 0 10px 24px rgba(16, 24, 32, .06);
+  box-shadow: none;
 }
 
 .training-mode-heading {
@@ -119,7 +121,7 @@ body.beta-mvp #training {
 }
 
 .training-mode-duration-fields { margin-top: 12px; }
-.training-mode-action-inputs.fuel { grid-template-columns: minmax(0, 1fr); }
+.training-mode-action-inputs.fuel-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .training-mode-interval-grid {
   margin-bottom: 14px;

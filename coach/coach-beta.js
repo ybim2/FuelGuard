@@ -200,7 +200,8 @@
   }
 
   function profileName(profile, relation) {
-    return relation?.athlete_label || profile?.display_name || `Athlete ${String(relation?.athlete_id || profile?.user_id || "").slice(0, 8)}`;
+    const firstName = String(profile?.first_name || "").trim();
+    return firstName || relation?.athlete_label || profile?.display_name || `Athlete ${String(relation?.athlete_id || profile?.user_id || "").slice(0, 8)}`;
   }
 
   function athleteRows() {
@@ -1744,11 +1745,12 @@
   function renderRelationships() {
     const target = $("coachRelationshipList");
     if (!target) return;
+    const profileById = new Map(state.athleteProfiles.map(profile => [profile.user_id, profile]));
     target.innerHTML = state.relationships.length
       ? state.relationships.map(relation => `
         <article class="coach-relationship-row">
           <div>
-            <strong>${safe(relation.athlete_label || `Athlete ${String(relation.athlete_id).slice(0, 8)}`)}</strong>
+            <strong>${safe(profileName(profileById.get(relation.athlete_id), relation))}</strong>
             <p class="coach-note">${safe(relationshipStatusCopy(relation.status))}</p>
           </div>
           <div class="coach-row-meta">

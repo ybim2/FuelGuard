@@ -23,6 +23,7 @@ test("Weekly Recap handles an empty week without manufacturing missed-fuelling c
   assert.equal(recap.coverage.loggedDays, 0);
   assert.equal(recap.longestObservedGapMinutes, null);
   assert.equal(recap.averageObservedGapMinutes, null);
+  assert.equal(recap.comparison.daysRemaining, 6);
   assert.match(recap.areas[0], /No Fuel Guard records were available/);
   assert.doesNotMatch(JSON.stringify(recap), /failed to fuel|skipped food|didn't eat|missed food/i);
 });
@@ -76,8 +77,25 @@ test("Weekly Recap compares weeks only with sufficient underlying coverage", () 
   }
   const recap = domain.athleteWeeklyRecap({ logs, targets: { maximumFuelGapMinutes: 180 }, now: new Date("2026-08-10T09:00:00Z"), timeZone: "UTC" });
   assert.equal(recap.comparison.available, true);
+  assert.equal(recap.comparison.daysRemaining, 0);
   assert.equal(recap.comparison.direction, "improved");
   assert.match(recap.comparison.label, /Average fuel gaps were 1h 00m shorter/);
+});
+
+test("Weekly Recap countdown uses the comparison thresholds with correct singular copy", () => {
+  const logs = [];
+  for (const day of ["2026-07-27", "2026-07-28", "2026-07-29"]) {
+    logs.push(log(`${day}T08:00:00Z`), log(`${day}T12:00:00Z`));
+  }
+  for (const day of ["2026-08-03", "2026-08-04"]) {
+    logs.push(log(`${day}T08:00:00Z`), log(`${day}T12:00:00Z`));
+  }
+  const recap = domain.athleteWeeklyRecap({ logs, now: new Date("2026-08-10T09:00:00Z"), timeZone: "UTC" });
+  assert.equal(recap.comparison.available, false);
+  assert.equal(recap.comparison.daysRemaining, 1);
+  const renderer = read("athlete-retention.js");
+  assert.match(renderer, /daysRemaining === 1 \? "" : "s"/);
+  assert.match(renderer, /more day.*of data needed/);
 });
 
 test("Weekly Recap is deterministic across refreshes for the same data and clock", () => {

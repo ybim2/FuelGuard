@@ -105,4 +105,5 @@ test("activity summary spacing is targeted and approximately halved before Statu
   const css = fs.readFileSync(path.join(root, "fuel-beta.css"), "utf8");
   assert.match(css, /#dashboard \{ gap: 6px; \}/);
   assert.match(css, /\.beta-activity-summary \{ margin-bottom: 0; \}/);
+  assert.match(css, /\.beta-activity-summary \+ \.beta-today-shell \.beta-today-status-card \{ padding-top: 13px; \}/);
 });
