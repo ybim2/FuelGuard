@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation keeps Training directly beside Daily, with Settings in the header", () => {
+test("primary navigation keeps Training beside Daily and adds a focused Impact surface", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -37,14 +37,15 @@ test("primary navigation keeps Training directly beside Daily, with Settings in 
   assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
     ["dashboard", "Daily"],
-    ["training", "Training"]
+    ["training", "Training"],
+    ["impact", "Impact"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
-  assert.match(html, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(html, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(html, /data-screen="history"|data-mobile-screen="history"|<section id="history"|data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
-  assert.match(appUi, /\["dashboard", "training", "checklist"\]/);
-  assert.match(beta, /\["dashboard", "training", "checklist"\]/);
+  assert.match(appUi, /\["dashboard", "training", "impact", "checklist"\]/);
+  assert.match(beta, /\["dashboard", "training", "impact", "checklist"\]/);
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
@@ -215,13 +216,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Preferences|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Daily gap-goal release", () => {
+test("PWA cache and asset versions are bumped for the Athlete Impact release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v125-daily-gap-goal";
+  const version = "mobile-pwa-v126-athlete-impact";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -231,7 +232,7 @@ test("PWA cache and asset versions are bumped for the Daily gap-goal release", (
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260809T231806Z/);
+  assert.match(sw, /20260810T130122Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

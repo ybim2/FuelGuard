@@ -13,10 +13,11 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v125-daily-gap-goal" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v125-daily-gap-goal" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v125-daily-gap-goal" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v125-daily-gap-goal" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v126-athlete-impact" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v126-athlete-impact" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v126-athlete-impact" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v126-athlete-impact" />
+  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v126-athlete-impact" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -51,7 +52,7 @@
       width: 100vw;
       max-width: 100vw;
       display: grid !important;
-      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
       overflow: hidden;
     }
 
@@ -199,6 +200,10 @@
 
       <section id="training" class="screen" aria-label="Fuel Guard Training Mode">
         <div id="trainingModeSurface" class="training-mode-surface"></div>
+      </section>
+
+      <section id="impact" class="screen" aria-label="Fuel Guard Performance Impact">
+        <div id="athleteImpactSurface" class="impact-surface"></div>
       </section>
 
       <section id="checklist" class="screen">
@@ -358,7 +363,7 @@
 
         <div class="beta-version-marker beta-settings-footer" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v125-daily-gap-goal</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v126-athlete-impact</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -378,24 +383,29 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v4"/><path d="M17 4v4"/><path d="M5 8h14"/><path d="M6 12h4l2-3 2 6 2-3h2"/><path d="M5 20h14"/></svg>
       <span>Training</span>
     </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="impact" data-mobile-tab="impact">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 3-4 3 2 4-6"/><path d="m14 7h3v3"/></svg>
+      <span>Impact</span>
+    </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="build-info.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v126-athlete-impact"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="app-state.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="product-shell.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="app-ui.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="training-mode.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v125-daily-gap-goal"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v125-daily-gap-goal"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="app-state.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="product-shell.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="app-ui.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="training-mode.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="athlete-impact.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v126-athlete-impact"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v126-athlete-impact"></script>
 </body>
 </html>

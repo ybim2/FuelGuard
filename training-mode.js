@@ -510,6 +510,7 @@
     persist();
     render();
     await syncCloud();
+    window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...active } } }));
   }
 
   function presetRow(type, currentUser) {
