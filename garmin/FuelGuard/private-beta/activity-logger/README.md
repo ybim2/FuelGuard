@@ -21,13 +21,15 @@ Events can be retried later when network access is available. Duplicate retries 
 1. Install the private beta app on the paired Forerunner 255 from the developer account.
 2. Open Activity Logger field settings from the Run activity configuration.
 3. Select Connect Fuel Guard.
-4. Approve the connection on the phone while signed into Fuel Guard.
+4. Open the pairing notification in the Connect IQ Store mobile app and approve it while signed into Fuel Guard.
 5. Disable Auto Lap on the Run profile used for testing.
 6. Add Fuel Guard Activity Logger to the Run data screens.
 7. Start a Run activity.
 8. Press LAP once.
 9. Confirm one Fuel Guard fuel row appears with source `garmin`.
 10. Repeat once with network unavailable, then reconnect and confirm the queued event syncs once.
+
+Activity Logger is fuel-only: a LAP event records Fuel and there is no separate in-activity Hydration button. Quick Log is the Garmin app that offers Fuel, Hydrate and Sleepy actions.
 
 ## Privacy and data use
 

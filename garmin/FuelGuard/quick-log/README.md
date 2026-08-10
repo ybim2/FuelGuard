@@ -1,6 +1,6 @@
 # Fuel Guard Quick Log
 
-Connect IQ Watch App with Glance for Forerunner 255 (`fr255`).
+Connect IQ Watch App with Glance on compatible devices. The Forerunner 255 (`fr255`) is the primary physical reference target; see `../public-release/SUPPORTED_DEVICES.md` for the production public-beta range. Older supported devices that do not expose Watch App glances still run the main Quick Log app.
 
 ## What it does
 
@@ -24,3 +24,5 @@ Output:
 ```text
 build/garmin/fuel-guard-quick-log-fr255.prg
 ```
+
+For a signed multi-device public candidate, run `scripts/export-garmin-public-release.sh` from the repository root.

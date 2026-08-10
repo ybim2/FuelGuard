@@ -276,7 +276,9 @@ module FuelGuardConnection {
     function beginAuth() as Void {
         var state = randomState();
         Storage.setValue(PENDING_STATE_KEY, state);
-        Storage.setValue(STATUS_KEY, "Open Garmin Connect on your phone");
+        // Authentication.makeOAuthRequest is handled by the Connect IQ Store
+        // mobile app, not the Garmin Connect mobile app.
+        Storage.setValue(STATUS_KEY, "Open Connect IQ on phone");
         noteAuthRequest(state);
 
         if (testAuthRequestHandled()) {
@@ -343,7 +345,7 @@ module FuelGuardConnection {
     function onOAuthMessage(message as Authentication.OAuthMessage) as Void {
         var data = message.data;
         if (!(data instanceof Dictionary)) {
-            Storage.setValue(STATUS_KEY, "Connection failed");
+            Storage.setValue(STATUS_KEY, "Connection returned invalid data");
             WatchUi.requestUpdate();
             return;
         }
@@ -394,7 +396,17 @@ module FuelGuardConnection {
                 return;
             }
         }
-        Storage.setValue(STATUS_KEY, "Connection incomplete");
+        if (responseCode < 0) {
+            Storage.setValue(STATUS_KEY, "Network error; retry connection");
+        } else if (responseCode == 400 || responseCode == 401 || responseCode == 404) {
+            Storage.setValue(STATUS_KEY, "Approval expired; retry connection");
+        } else if (responseCode >= 500) {
+            Storage.setValue(STATUS_KEY, "Fuel Guard server unavailable");
+        } else if (responseCode == 200) {
+            Storage.setValue(STATUS_KEY, "Connection returned invalid data");
+        } else {
+            Storage.setValue(STATUS_KEY, "Connection incomplete; retry");
+        }
         WatchUi.requestUpdate();
     }
 
