@@ -2,10 +2,19 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 const domain = require("../fuel-guard-domain.js");
 
 const root = path.join(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
+
+function impactTestApi() {
+  const window = { FuelGuardDomain: domain, addEventListener() {} };
+  const document = { addEventListener() {}, getElementById() { return null; }, querySelectorAll() { return []; } };
+  const context = { window, document, requestAnimationFrame(callback) { callback(); }, globalThis: {} };
+  vm.runInNewContext(read("athlete-impact.js"), context);
+  return window.AthleteImpact._test;
+}
 
 function result(metricId, observedOn, value) {
   return { metric_id: metricId, observed_on: observedOn, value, source: "athlete_entry" };
@@ -235,6 +244,25 @@ test("Impact UI labels athlete sources and avoids causal performance claims", ()
   assert.doesNotMatch(js, /Fuel Guard (made|caused|improved) your/i);
 });
 
+test("Impact reports a missing PostgREST schema release truthfully and preserves genuine errors", () => {
+  const api = impactTestApi();
+  const missing = api.impactLoadErrorMessage({ code: "PGRST205", message: "Could not find the table public.fuel_performance_metrics in the schema cache" });
+  assert.match(missing, /needs the current database release/);
+  assert.match(missing, /required Impact tables are not available/);
+  assert.match(missing, /existing Fuel Guard data is unaffected/);
+  assert.equal(api.impactLoadErrorMessage({ code: "42501", message: "row-level security denied access" }), "row-level security denied access");
+});
+
+test("Impact client table names exactly match the reproducible accepted migration", () => {
+  const js = read("athlete-impact.js");
+  const sql = read("supabase/migrations/20260810130122_athlete_performance_impact.sql");
+  for (const table of ["fuel_performance_metrics", "fuel_performance_results", "fuel_training_feedback"]) {
+    assert.match(js, new RegExp(`"${table}"`));
+    assert.match(sql, new RegExp(`create table public\\.${table}`));
+  }
+  assert.doesNotMatch(js, /catch[\s\S]{0,300}metrics:\s*\[\][\s\S]{0,300}error:\s*""/);
+});
+
 test("migration is additive, explicitly granted, owner-RLS protected and capped at three active slots", () => {
   const sql = read("supabase/migrations/20260810130122_athlete_performance_impact.sql");
   const guardFix = read("supabase/migrations/20260810131931_athlete_performance_impact_trigger_fix.sql");
@@ -278,10 +306,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v131-athlete-social-sharing/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v132-athlete-ux-impact-fix/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v131-athlete-social-sharing/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v132-athlete-ux-impact-fix/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

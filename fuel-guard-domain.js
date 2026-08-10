@@ -1815,11 +1815,17 @@
   }
 
   function athleteTrend(current, previous) {
+    const comparisonDaysNeeded = period => Math.max(
+      0,
+      MIN_COMPARISON_LOGGED_DAYS - Number(period?.coverage?.loggedDays || 0),
+      MIN_COMPARISON_METRIC_DAYS - Number(period?.coverage?.metricDays || 0)
+    );
+    const daysRemaining = comparisonDaysNeeded(current) + comparisonDaysNeeded(previous);
     const enough = current.coverage.loggedDays >= MIN_COMPARISON_LOGGED_DAYS
       && previous.coverage.loggedDays >= MIN_COMPARISON_LOGGED_DAYS
       && current.coverage.metricDays >= MIN_COMPARISON_METRIC_DAYS
       && previous.coverage.metricDays >= MIN_COMPARISON_METRIC_DAYS;
-    if (!enough) return { direction: "insufficient", label: "Not enough comparable data" };
+    if (!enough) return { direction: "insufficient", label: "Not enough comparable data", daysRemaining };
     const adherenceChange = current.consistency.targetAdherencePct - previous.consistency.targetAdherencePct;
     if (Math.abs(adherenceChange) >= 15) {
       return {
@@ -1905,6 +1911,7 @@
         available: trend.direction !== "insufficient",
         direction: trend.direction,
         label: trend.label,
+        daysRemaining: trend.daysRemaining || 0,
         previousLoggedDays: previous.coverage.loggedDays,
         previousAverageGapMinutes: previous.fuelling.averageGapMinutes
       },

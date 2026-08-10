@@ -111,6 +111,16 @@
     return domain()?.escapeHtml?.(value) || String(value ?? "");
   }
 
+  function impactLoadErrorMessage(error) {
+    const message = String(error?.message || error || "Could not load Performance Impact.");
+    const missingImpactSchema = String(error?.code || "") === "PGRST205"
+      || (/schema cache/i.test(message) && /fuel_performance_(metrics|results)|fuel_training_feedback/i.test(message));
+    if (missingImpactSchema) {
+      return "Performance Impact needs the current database release before it can load. The required Impact tables are not available to the Data API; your existing Fuel Guard data is unaffected.";
+    }
+    return message;
+  }
+
   function uuid() {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
     if (typeof uid === "function") return uid();
@@ -534,7 +544,7 @@
       };
     } catch (error) {
       if (impactState.userId !== userId) return;
-      impactState = { ...impactState, loading: false, loaded: true, error: error?.message || "Could not load Performance Impact." };
+      impactState = { ...impactState, loading: false, loaded: true, error: impactLoadErrorMessage(error) };
     }
     render();
   }
@@ -727,6 +737,6 @@
     render,
     load,
     report: currentReport,
-    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, resetImpactIdentity, PRESETS }
+    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, PRESETS }
   };
 })();

@@ -8865,6 +8865,7 @@ body.beta-mvp .beta-main-account strong {
 
 body.beta-mvp #dashboard { gap: 6px; }
 body.beta-mvp .beta-activity-summary { margin-bottom: 0; }
+body.beta-mvp .beta-activity-summary + .beta-today-shell .beta-today-status-card { padding-top: 13px; }
 
 body.beta-mvp #checklist {
   gap: 0;
@@ -8972,6 +8973,7 @@ body.beta-mvp .beta-training-pattern-legend {
 body.beta-mvp .beta-training-pattern-legend span { display: flex; align-items: center; gap: 5px; }
 body.beta-mvp .beta-training-pattern-legend i { width: 9px; height: 9px; border-radius: 50%; }
 body.beta-mvp .beta-training-pattern-empty { padding: 14px 0; color: #65736d; }
+body.beta-mvp .beta-log-pattern-tabs [data-log-pattern-type="training"] { grid-column: 2; }
 
 body.beta-mvp .beta-today-insights-grid {
   display: grid;

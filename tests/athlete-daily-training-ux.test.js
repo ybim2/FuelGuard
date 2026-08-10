@@ -85,11 +85,15 @@ test("Training plans persist expected duration and calculate approximate session
   });
 });
 
-test("Training setup separates Fuel Hydrate caffeine and planned duration responsibilities", () => {
+test("Training setup combines Garmin Fuel and Hydrate quantities without changing their data semantics", () => {
   const js = read("training-mode.js");
   assert.match(js, /const fields = type === "fuel" \? \["carbsG"\] : \["fluidMl", "sodiumMg", "caffeineMg"\]/);
-  assert.match(js, /Fuel means carbohydrate intake/);
-  assert.match(js, /Hydrate records fluid, sodium and optional caffeine/);
+  for (const label of ["Carbs (Fuel)", "Fluid (Hydrate)", "Sodium (Hydrate)", "Caffeine (Hydrate)"]) {
+    assert.match(js, new RegExp(label.replace(/[()]/g, "\\$&")));
+  }
+  assert.match(js, /actionInputs\("fuel"[\s\S]*actionInputs\("hydration"/);
+  assert.equal((js.match(/<h2>Fuel<\/h2>/g) || []).length, 1);
+  assert.doesNotMatch(js, /<h2>Hydrate<\/h2>/);
   assert.match(js, />30m<|>30m<\/option>/);
   assert.match(js, />1h<|>1h<\/option>/);
   assert.match(js, />1h 30m<|>1h 30m<\/option>/);
@@ -151,10 +155,25 @@ test("Daily renders the three restored streak visuals with the previous mileston
   assert.match(css, /@media \(max-width: 390px\)[\s\S]*\.beta-streak-visuals \{[\s\S]*grid-template-columns: 1fr/);
 });
 
-test("Daily and Training use the same mobile card rhythm", () => {
+test("Daily and Training use the same continuous white mobile card rhythm", () => {
   const trainingCss = read("training-mode.css");
-  assert.match(trainingCss, /\.training-mode-section,[\s\S]*border-radius: 18px;[\s\S]*padding: 16px;/);
-  assert.match(trainingCss, /\.training-mode-surface \{[\s\S]*gap: 16px;/);
+  assert.match(trainingCss, /body\.beta-mvp #training \{[\s\S]*background: #ffffff;/);
+  assert.match(trainingCss, /\.training-mode-section,[\s\S]*padding: 22px 0;[\s\S]*border-bottom:[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
+  assert.match(trainingCss, /\.training-mode-surface \{[\s\S]*gap: 0;/);
+  assert.match(trainingCss, /\.training-mode-action-inputs\.fuel-plan \{ grid-template-columns: repeat\(2/);
+});
+
+test("Training removes only the redundant longer-term Training Patterns renderer", () => {
+  const js = read("training-mode.js");
+  assert.doesNotMatch(js, /trainingInsightsMarkup|Longer-term context|<h2>Training patterns<\/h2>/);
+  assert.match(js, /function completedSessionsMarkup/);
+  assert.match(js, /Recent Training Summary/);
+  assert.match(js, /Recent Training Mode sessions/);
+});
+
+test("Daily Training pattern tab is aligned under Hydration", () => {
+  const css = read("fuel-beta.css");
+  assert.match(css, /\.beta-log-pattern-tabs \[data-log-pattern-type="training"\] \{ grid-column: 2; \}/);
 });
 
 test("expected-duration migration is additive and preserves existing RLS and grants", () => {

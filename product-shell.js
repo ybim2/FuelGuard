@@ -1,8 +1,16 @@
 // Canonical Athlete shell identity. Supabase session state remains authoritative.
 (() => {
   let accessRequest = 0;
-  function identityModel(account = {}) {
+  function identityModel(account = {}, profile = {}) {
     const email = typeof account.email === "string" ? account.email.trim() : "";
+    const firstName = typeof profile.first_name === "string" ? profile.first_name.trim() : "";
+    if (account.signedIn && firstName) {
+      return {
+        label: email || "Athlete account",
+        value: firstName,
+        ariaLabel: `Signed in as ${firstName}${email ? ` (${email})` : ""}. Open account settings.`
+      };
+    }
     if (account.signedIn && email) {
       return {
         label: "Signed in as",
@@ -17,8 +25,8 @@
     };
   }
 
-  function renderMainAccountIdentity(account = window.fuelGuardCloud?.accountView?.() || {}) {
-    const model = identityModel(account);
+  function renderMainAccountIdentity(account = window.fuelGuardCloud?.accountView?.() || {}, profile = {}) {
+    const model = identityModel(account, profile);
     const control = document.getElementById("mainAccountIdentity");
     const label = document.getElementById("mainAccountIdentityLabel");
     const value = document.getElementById("mainAccountIdentityValue");
@@ -40,7 +48,7 @@
     if (!client || !user?.id) return { coach: false, performance: false };
     const [profileResult, performanceResult] = await Promise.allSettled([
       client.from("fuel_user_profiles")
-        .select("coach_enabled")
+        .select("coach_enabled,first_name,display_name")
         .eq("user_id", user.id)
         .maybeSingle(),
       client.rpc("fuel_performance_context")
@@ -49,7 +57,8 @@
     const performance = performanceResult.status === "fulfilled" ? performanceResult.value : null;
     return {
       coach: !profile?.error && profile?.data?.coach_enabled === true,
-      performance: !performance?.error && Array.isArray(performance?.data) && performance.data.length > 0
+      performance: !performance?.error && Array.isArray(performance?.data) && performance.data.length > 0,
+      profile: !profile?.error ? profile?.data || null : null
     };
   }
 
@@ -60,6 +69,7 @@
     if (!account.signedIn || !cloud?.user?.id) return renderProductAccess();
     const result = await authorisedProducts(cloud.client, cloud.user);
     if (request !== accessRequest || cloud?.user?.id !== window.fuelGuardCloud?.user?.id) return result;
+    renderMainAccountIdentity(account, result.profile || {});
     return renderProductAccess(result);
   }
 
