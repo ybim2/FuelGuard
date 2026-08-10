@@ -11,6 +11,10 @@
     {
       "source": "/api/garmin-auth",
       "destination": "/api/garmin/auth/start"
+    },
+    {
+      "source": "/api/garmin/training",
+      "destination": "/api/garmin/log?fuel_guard_action=training"
     }
   ],
   "headers": [

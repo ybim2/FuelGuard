@@ -127,6 +127,7 @@ test("Garmin Training commands share backend state and retain retry and ownershi
   assert.match(watch, /"external_action_id" => commandId/);
   assert.match(api, /trainingEndpoint\(\)/);
   assert.match(server, /garminTrainingHandler/);
+  assert.match(read("vercel.json"), /\/api\/garmin\/training[\s\S]*fuel_guard_action=training/);
   assert.match(server, /payload\.external_action_id \|\| payload\.external_event_id/);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /unique \(device_token_id, external_action_id\)/);

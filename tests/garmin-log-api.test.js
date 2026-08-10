@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const auth = require("../lib/garmin-auth.js");
 const garminLogHandler = require("../api/garmin/log.js");
-const garminTrainingHandler = require("../api/garmin/training.js");
+const { garminTrainingHandler } = garminLogHandler;
 
 const BASE_ENV = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -41,11 +41,12 @@ function responseMock() {
   };
 }
 
-async function call(handler, { method = "POST", token = null, body = {} } = {}) {
+async function call(handler, { method = "POST", token = null, body = {}, query = {} } = {}) {
   const req = {
     method,
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
-    body
+    body,
+    query
   };
   const res = responseMock();
   await handler(req, res);
@@ -670,12 +671,29 @@ test("Legacy Garmin URLs are rewrites instead of extra serverless functions", ()
   assert.deepEqual(vercel.rewrites, [
     { source: "/api/garmin-log", destination: "/api/garmin/log" },
     { source: "/api/garmin-health", destination: "/api/garmin/health" },
-    { source: "/api/garmin-auth", destination: "/api/garmin/auth/start" }
+    { source: "/api/garmin-auth", destination: "/api/garmin/auth/start" },
+    { source: "/api/garmin/training", destination: "/api/garmin/log?fuel_guard_action=training" }
   ]);
   assert.equal(fs.existsSync(path.join(root, "api/garmin-log.js")), false);
   assert.equal(fs.existsSync(path.join(root, "api/garmin-auth.js")), false);
   assert.equal(fs.existsSync(path.join(root, "api/garmin-health.js")), false);
+  assert.equal(fs.existsSync(path.join(root, "api/garmin/training.js")), false);
 });
+
+test("Garmin Training rewrite shares the canonical Garmin Serverless Function", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake);
+  const res = await call(garminLogHandler, {
+    token: paired.deviceToken,
+    query: { fuel_guard_action: "training" },
+    body: {
+      action: "start",
+      external_action_id: "shared-function-start",
+      occurred_at: "2026-08-08T08:00:00.000Z"
+    }
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json.result, "started");
+}));
 
 test("Garmin endpoint validates payload shape and auth before writes", async () => withFake(async (fake) => {
   const paired = await pairDevice(fake);
