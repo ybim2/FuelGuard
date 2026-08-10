@@ -603,6 +603,77 @@ body.beta-mvp .beta-milestone-tile.recent::after {
   font-weight: 900;
 }
 
+body.beta-mvp .beta-streaks-card {
+  margin-top: 4px;
+}
+
+body.beta-mvp .beta-streak-visuals {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-streak-visual {
+  align-content: start;
+  display: grid;
+  flex: initial;
+  gap: 6px;
+  min-height: 132px;
+  min-width: 0;
+  padding: 14px 12px;
+}
+
+body.beta-mvp .beta-streak-visual > span {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+body.beta-mvp .beta-streak-visual > strong {
+  font-size: .68rem;
+  overflow-wrap: anywhere;
+}
+
+body.beta-mvp .beta-streak-visual > b {
+  color: var(--fg-brand-dark);
+  font-size: clamp(1.35rem, 6vw, 1.8rem);
+  line-height: 1;
+}
+
+body.beta-mvp .beta-streak-visual > b small {
+  color: #65736d;
+  font-size: .65rem;
+  font-weight: 850;
+}
+
+body.beta-mvp .beta-streak-visual.hydration {
+  border-color: rgba(var(--fg-hydration-rgb), .58);
+  background: linear-gradient(145deg, rgba(var(--fg-hydration-rgb), .14), #ffffff);
+  box-shadow: 0 0 0 3px rgba(var(--fg-hydration-rgb), .12), 0 10px 22px rgba(var(--fg-brand-dark-rgb), .08);
+}
+
+@media (max-width: 390px) {
+  body.beta-mvp .beta-streak-visuals {
+    grid-template-columns: 1fr;
+  }
+
+  body.beta-mvp .beta-streak-visual {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 0;
+  }
+
+  body.beta-mvp .beta-streak-visual > b {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    text-align: right;
+  }
+
+  body.beta-mvp .beta-streak-visual > small {
+    grid-column: 2;
+  }
+}
+
 body.beta-mvp .beta-milestone-toast {
   position: fixed;
   right: max(14px, env(safe-area-inset-right, 0px));
@@ -9029,4 +9100,46 @@ body.beta-mvp .beta-settings-destination-card .beta-settings-actions {
 @media (max-width: 390px) {
   body.beta-mvp .beta-settings-category-header { grid-template-columns: 1fr; gap: 9px; }
   body.beta-mvp .beta-settings-category-header button { justify-self: start; }
+}
+.beta-team-session-context {
+  align-items: center;
+  background: linear-gradient(135deg, rgba(224, 245, 233, .96), rgba(239, 249, 242, .96));
+  border: 1px solid rgba(27, 105, 69, .16);
+  border-radius: 18px;
+  display: grid;
+  gap: 8px 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+}
+
+.beta-team-session-context span,
+.beta-team-session-context small {
+  color: #4f665b;
+  display: block;
+  font-size: 12px;
+}
+
+.beta-team-session-context strong {
+  color: #163d2d;
+  display: block;
+  font-size: 15px;
+  margin-top: 3px;
+}
+
+.beta-team-session-context time {
+  color: #176b48;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.beta-team-session-context small {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 480px) {
+  .beta-team-session-context {
+    grid-template-columns: 1fr;
+  }
 }

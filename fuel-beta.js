@@ -2833,6 +2833,44 @@
     });
   }
 
+  function athleteTeamSessions() {
+    return Array.isArray(window.fuelGuardCloud?.teamSessions) ? window.fuelGuardCloud.teamSessions : [];
+  }
+
+  function teamSessionDayLabel(session, now = new Date()) {
+    const zone = session.timezone_name || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const currentKey = window.FuelGuardDomain?.dateKeyInTimeZone?.(now, zone) || todayKey(now);
+    const sessionKey = session.session_date || window.FuelGuardDomain?.dateKeyInTimeZone?.(session.starts_at, zone) || "";
+    if (sessionKey === currentKey) {
+      const parts = window.FuelGuardDomain?.zonedDateParts?.(session.starts_at, zone);
+      return Number(parts?.hour) >= 17 ? "Tonight" : "Today";
+    }
+    if (sessionKey === window.FuelGuardDomain?.shiftDateKey?.(currentKey, 1)) return "Tomorrow";
+    return sessionKey ? formatDateKey(sessionKey) : "Upcoming";
+  }
+
+  function renderAthleteTeamSessionContext() {
+    const target = document.getElementById("athleteTeamSessionContext");
+    if (!target) return;
+    const now = new Date();
+    const session = athleteTeamSessions()
+      .filter(item => item.status === "scheduled" && new Date(item.ends_at) >= now)
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))[0] || null;
+    target.hidden = !session;
+    if (!session) {
+      target.innerHTML = "";
+      return;
+    }
+    const zone = session.timezone_name || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    target.innerHTML = `
+      <article class="beta-team-session-context">
+        <div><span>${safeText(session.team_name || "Team session")}</span><strong>${safeText(teamSessionDayLabel(session, now))} · ${safeText(session.session_name || String(session.session_type || "Session").replace(/^./, value => value.toUpperCase()))}</strong></div>
+        <time>${safeText(window.FuelGuardDomain?.formatClockInTimeZone?.(session.starts_at, zone) || formatClock(new Date(session.starts_at)))}–${safeText(window.FuelGuardDomain?.formatClockInTimeZone?.(session.ends_at, zone) || formatClock(new Date(session.ends_at)))}</time>
+        ${session.location ? `<small>${safeText(session.location)}</small>` : ""}
+      </article>
+    `;
+  }
+
   function gapZoneReached(entry) {
     if (Number(entry?.crashZoneGapCount || 0) > 0) return "Recovery needed";
     if (Number(entry?.highRiskGapCount || 0) > 0) return "Eat now";
@@ -10177,6 +10215,7 @@
     if (dashboardActive) {
       renderCoachNudges();
       renderAthleteActivitySummary();
+      renderAthleteTeamSessionContext();
       renderDayTypeControls();
       renderSelectedDayCard();
       renderDailyLog();
@@ -10197,6 +10236,7 @@
     if (target === "dashboard") {
       renderCoachNudges();
       renderAthleteActivitySummary();
+      renderAthleteTeamSessionContext();
       renderSelectedDayCard();
       renderDailyLog();
     }

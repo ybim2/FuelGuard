@@ -31,12 +31,46 @@
         estimatedDurationMinutes: 60,
         activeSession: null,
         sessions: [],
+        ownerUserId: "",
         lastSyncedAt: "",
         lastError: ""
       };
     }
     if (!Array.isArray(gap.trainingMode.sessions)) gap.trainingMode.sessions = [];
+    if (typeof gap.trainingMode.ownerUserId !== "string") gap.trainingMode.ownerUserId = "";
     return gap.trainingMode;
+  }
+
+  function resetTrainingIdentity(userId) {
+    const training = state();
+    const nextUserId = String(userId || "");
+    if (!training || !nextUserId) return;
+    training.ownerUserId = nextUserId;
+    training.presets = {
+      fuel: { id: "", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0, intervalMinutes: 30 },
+      hydration: { id: "", carbsG: 0, fluidMl: 200, sodiumMg: 250, caffeineMg: 0, intervalMinutes: 20 }
+    };
+    training.plan = { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 };
+    training.estimatedDurationMinutes = 60;
+    training.activeSession = null;
+    training.sessions = [];
+    training.lastSyncedAt = "";
+    training.lastError = "";
+    statusMessage = "";
+    persist();
+  }
+
+  function claimTrainingIdentity(userId) {
+    const training = state();
+    const nextUserId = String(userId || "");
+    if (!training || !nextUserId || training.ownerUserId === nextUserId) return "same";
+    if (!training.ownerUserId) {
+      training.ownerUserId = nextUserId;
+      persist();
+      return "claimed";
+    }
+    resetTrainingIdentity(nextUserId);
+    return "switched";
   }
 
   function logs() {
@@ -122,6 +156,26 @@
     return `<label>${type === "fuel" ? "Fuel" : "Hydrate"} every <span>minutes</span>
       <input type="number" min="5" max="360" step="5" inputmode="numeric" value="${Number(value || (type === "fuel" ? 30 : 20))}" data-training-interval="${type}">
     </label>`;
+  }
+
+  function scheduledTeamSessionsMarkup() {
+    const now = new Date();
+    const sessions = (Array.isArray(window.fuelGuardCloud?.teamSessions) ? window.fuelGuardCloud.teamSessions : [])
+      .filter(session => session.status === "scheduled" && new Date(session.ends_at) >= now)
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
+      .slice(0, 3);
+    if (!sessions.length) return "";
+    return `
+      <section class="training-mode-section training-mode-team-schedule" aria-label="Upcoming team sessions">
+        <div class="training-mode-heading"><div><span>Shared team context</span><h2>Upcoming sessions</h2></div><small>Scheduled by your coach; logging stays unchanged.</small></div>
+        <div class="training-mode-team-session-list">
+          ${sessions.map(session => {
+            const zone = session.timezone_name || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+            return `<article><div><span>${escape(session.team_name || "Team")}</span><strong>${escape(session.session_name || String(session.session_type || "Session").replace(/^./, value => value.toUpperCase()))}</strong></div><time>${escape(session.session_date)} · ${escape(domain().formatClockInTimeZone(session.starts_at, zone))}–${escape(domain().formatClockInTimeZone(session.ends_at, zone))}</time>${session.location ? `<small>${escape(session.location)}</small>` : ""}</article>`;
+          }).join("")}
+        </div>
+      </section>
+    `;
   }
 
   function estimatedDurationMinutes({ readForm = false } = {}) {
@@ -215,6 +269,7 @@
         <h1>Training Mode</h1>
         <span>Configure once, then log Fuel and Hydrate with one tap during training.</span>
       </section>
+      ${scheduledTeamSessionsMarkup()}
       <section class="training-mode-section training-mode-session-setup">
         <div class="training-mode-heading">
           <div><span>Session</span><h2>Set up your training</h2></div>
@@ -337,6 +392,7 @@
         <h1>${escape(session.title)}</h1>
         <span>${escape(String(session.sessionType || "training").replace(/_/g, " "))} · Training Mode active</span>
       </section>
+      ${scheduledTeamSessionsMarkup()}
       ${eventTimeline(session, summary)}
       <section class="training-mode-live-actions" aria-label="Training quick actions">
         <button class="training-mode-action fuel" type="button" data-training-log="fuel"><strong>Fuel</strong><span>${presetSummary(session, "fuel")}</span></button>
@@ -658,6 +714,7 @@
     const currentUser = cloud?.user;
     const client = cloud?.client;
     if (!currentUser?.id || !client?.from) return;
+    const identityClaim = claimTrainingIdentity(currentUser.id);
     cloudBusy = true;
     try {
       const training = state();
@@ -730,6 +787,12 @@
       persist();
       if (refreshLogs) await window.fuelGuardCloud?.syncNow?.();
     } catch (error) {
+      if (identityClaim === "claimed" && /row-level security policy/i.test(error?.message || "")) {
+        resetTrainingIdentity(currentUser.id);
+        cloudBusy = false;
+        await syncCloud({ refreshLogs });
+        return;
+      }
       const training = state();
       training.lastError = error?.message || "Training Mode sync failed.";
       statusMessage = `Saved on this device. ${training.lastError}`;

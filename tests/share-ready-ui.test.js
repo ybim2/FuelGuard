@@ -223,7 +223,7 @@ test("PWA cache and asset versions are bumped for the Daily gap-goal release", (
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v127-athlete-coach-performance-ux";
+  const version = "mobile-pwa-v129-pre-practice-streaks";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -233,7 +233,7 @@ test("PWA cache and asset versions are bumped for the Daily gap-goal release", (
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260810T093255Z/);
+  assert.match(sw, /20260810T111012Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

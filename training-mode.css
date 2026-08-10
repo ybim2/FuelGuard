@@ -620,3 +620,48 @@ body.beta-mvp #training {
   .training-mode-intake-grid { grid-template-columns: 1fr; }
   .training-mode-complete-heading { display: grid; }
 }
+.training-mode-team-session-list {
+  display: grid;
+  gap: 10px;
+}
+
+.training-mode-team-session-list article {
+  align-items: center;
+  background: rgba(239, 248, 243, .92);
+  border: 1px solid rgba(28, 104, 70, .15);
+  border-radius: 14px;
+  display: grid;
+  gap: 5px 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 14px;
+}
+
+.training-mode-team-session-list span,
+.training-mode-team-session-list small {
+  color: #587066;
+  display: block;
+  font-size: 12px;
+}
+
+.training-mode-team-session-list strong {
+  color: #173f2f;
+  display: block;
+  margin-top: 2px;
+}
+
+.training-mode-team-session-list time {
+  color: #1a6e4b;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.training-mode-team-session-list small {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 480px) {
+  .training-mode-team-session-list article {
+    grid-template-columns: 1fr;
+  }
+}

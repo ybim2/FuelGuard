@@ -26,12 +26,13 @@ function log(type, timestamp, quantities = {}) {
   return { type, timestamp, trainingModeSessionId: "live-session", ...quantities };
 }
 
-test("Daily removes duplicate gamification while retaining activity summary and Profile progression", () => {
+test("Daily restores only the three streak visuals while retaining Profile progression", () => {
   const html = read("index.html");
   const dashboard = html.slice(html.indexOf('<section id="dashboard"'), html.indexOf('<section id="training"'));
   const settings = html.slice(html.indexOf('<section id="checklist"'), html.indexOf("</main>"));
   assert.match(dashboard, /id="athleteActivitySummary"/);
-  assert.doesNotMatch(dashboard, /athleteDailyPoints|athleteMilestones|FG Points|Next Day Streak/);
+  assert.match(dashboard, /id="athleteMilestones"/);
+  assert.doesNotMatch(dashboard, /athleteDailyPoints|FG Points|Next Day Streak|reward/);
   assert.match(settings, /id="athletePointsProfile"/);
   assert.match(read("athlete-milestones.js"), /Fuel Guard Progress/);
 });

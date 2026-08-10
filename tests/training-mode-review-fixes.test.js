@@ -45,6 +45,15 @@ test("one Training Mode event remains one ordinary Daily event with session cont
   assert.equal(lanes[0].events[0].trainingModeSessionId, "session-a");
 });
 
+test("Training Mode drops another athlete's cloud identifiers before syncing", () => {
+  const trainingMode = read("training-mode.js");
+  assert.match(trainingMode, /function claimTrainingIdentity\(userId\)/);
+  assert.match(trainingMode, /function resetTrainingIdentity\(userId\)[\s\S]*training\.ownerUserId = nextUserId;[\s\S]*training\.presets = \{/);
+  assert.match(trainingMode, /training\.activeSession = null;[\s\S]*training\.sessions = \[\]/);
+  assert.match(trainingMode, /const identityClaim = claimTrainingIdentity\(currentUser\.id\);/);
+  assert.match(trainingMode, /identityClaim === "claimed"[\s\S]*row-level security policy[\s\S]*resetTrainingIdentity\(currentUser\.id\)/);
+});
+
 test("Fuel and Hydrate intervals derive combined hourly carbohydrate fluid sodium and caffeine", () => {
   const plan = domain.trainingHourlyPlan({
     fuelPreset: { carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 20 },
@@ -75,12 +84,13 @@ test("Training measurement presentation uses normal nearest-whole-number roundin
   assert.equal(domain.wholeMeasurement(-1.6, "g"), "-2g");
 });
 
-test("Points and milestone progression remain in Profile rather than duplicating Daily", () => {
+test("Points remain in Profile while Daily contains only the requested streak surface", () => {
   const html = read("index.html");
   const dashboard = html.slice(html.indexOf('<section id="dashboard"'), html.indexOf('<section id="training"'));
   const settings = html.slice(html.indexOf('<section id="checklist"'), html.indexOf('</main>'));
   assert.match(dashboard, /id="fuelLogPatterns"/);
-  assert.doesNotMatch(dashboard, /athleteDailyPoints|athleteMilestones/);
+  assert.match(dashboard, /id="athleteMilestones"/);
+  assert.doesNotMatch(dashboard, /athleteDailyPoints|FG Points|reward/);
   assert.doesNotMatch(dashboard, /athleteTodayInsights|trainingFuelAnalysis/);
   assert.match(settings, /id="athletePointsProfile"/);
 });

@@ -24,7 +24,8 @@
     demandBlocks: "fuel_demand_blocks",
     trainingSessions: "fuel_training_sessions",
     trainingAssignments: "fuel_training_session_athletes",
-    trainingContext: "fuel_training_operational_context"
+    trainingContext: "fuel_training_operational_context",
+    trainingSessionNotes: "fuel_training_session_coach_notes"
   };
   const PATTERN_TYPES = [
     { id: "fuel", label: "Fuel", empty: "No fuel logged today", noun: "fuel log" },
@@ -75,6 +76,7 @@
     demandBlocks: [],
     trainingSessions: [],
     trainingAssignments: [],
+    trainingSessionNotes: [],
     trainingContext: [],
     workoutFuelContexts: [],
     workoutFuelSummaries: [],
@@ -82,11 +84,14 @@
     selectedGroupId: "",
     roster: [],
     weeklyBrief: null,
+    teamSessionBrief: null,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     currentTab: "dashboard",
     selectedAthleteId: "",
     selectedReportAthleteId: "",
     selectedScheduleId: "",
+    selectedTrainingSessionId: "",
+    editingTrainingSessionId: "",
     reportPeriod: "week",
     generatedReport: null,
     savedWeeklyReportId: "",
@@ -277,6 +282,12 @@
       now: new Date(),
       timeZone: state.timeZone
     });
+    state.teamSessionBrief = domain.buildTeamSessionCoachBrief({
+      contexts: state.trainingContext,
+      period: state.weeklyBrief.period,
+      comparisonPeriod: state.weeklyBrief.comparisonPeriod,
+      timeZone: state.timeZone
+    });
     if (!state.roster.some(item => item.athlete.userId === state.selectedAthleteId)) {
       state.selectedAthleteId = state.roster[0]?.athlete.userId || "";
     }
@@ -287,12 +298,17 @@
     const now = new Date();
     const windowStart = new Date(now.getTime() - 14 * 86400000);
     const sessionById = new Map(state.trainingSessions.map(session => [String(session.id), session]));
-    const teamWorkouts = state.trainingAssignments.map(assignment => {
-      const session = sessionById.get(String(assignment.session_id));
+    const seenTeamWorkout = new Set();
+    const teamWorkouts = state.trainingContext.map(context => {
+      const session = sessionById.get(String(context.session_id));
       if (!session) return null;
+      const athleteId = context.athlete_id;
+      const identity = `${session.id}:${athleteId}`;
+      if (!athleteId || seenTeamWorkout.has(identity)) return null;
+      seenTeamWorkout.add(identity);
       return {
         ...session,
-        athleteId: assignment.athlete_id,
+        athleteId,
         source: session.source === "external_provider" ? session.source_provider : "coach_schedule",
         sourceActivityId: session.external_session_id || "",
         type: session.session_type,
@@ -498,6 +514,8 @@
     const gapDetail = brief.biggestGapWindow
       ? `${brief.biggestGapWindow.count} gaps · ${brief.biggestGapWindow.athleteCount} athletes`
       : "Requires repeated >target gaps across athletes";
+    const sessions = state.teamSessionBrief;
+    const sessionPercent = value => Number.isFinite(value) ? `${value}%` : "Not enough data";
     target.innerHTML = `
       <section class="coach-card coach-weekly-brief">
         <div class="coach-card-heading">
@@ -517,6 +535,16 @@
           ${briefMetric("Deteriorated", brief.deterioratedCount, "Material adherence or gap change")}
           ${briefMetric("Need review", brief.reviewCount, "Evidence-based review candidates")}
         </div>
+        ${sessions?.sessionCount ? `
+          <div class="coach-team-session-brief">
+            <div><span>Shared team sessions</span><strong>${safe(sessions.sessionCount)}</strong></div>
+            <div><span>Logging coverage</span><strong>${safe(sessionPercent(sessions.loggingCoveragePct))}</strong></div>
+            <div><span>Pre-session consistency</span><strong>${safe(sessionPercent(sessions.preConsistencyPct))}</strong></div>
+            <div><span>Prompt post-session fuel</span><strong>${safe(sessionPercent(sessions.postPromptPct))}</strong></div>
+            <div><span>Team consistency streak</span><strong>${safe(`${sessions.teamSessionStreak} session${sessions.teamSessionStreak === 1 ? "" : "s"}`)}</strong></div>
+          </div>
+          <p class="coach-note">${safe(sessions.milestone || `${sessions.improving.length} improving · ${sessions.deteriorating.length} deteriorating · ${sessions.missingPatterns.length} with missing session patterns`)}</p>
+        ` : ""}
         ${brief.limited ? `<p class="coach-limited-note">Small squad or limited logging coverage - counts are shown, but team percentages and patterns are withheld until the sample is meaningful.</p>` : ""}
         <div class="coach-button-row">
           <button class="primary" type="button" data-review-team>Review Team</button>
@@ -1868,22 +1896,97 @@
     `;
   }
 
-  function sessionAssignments(sessionId) {
-    return state.trainingAssignments.filter(assignment => String(assignment.session_id) === String(sessionId));
+  function sessionContexts(sessionId) {
+    return state.trainingContext.filter(context => String(context.session_id) === String(sessionId));
   }
 
-  function trainingAssignmentOptions(teamId) {
-    const memberIds = new Set(activeTeamAthletes(teamId).map(member => String(member.athlete_id)));
-    const athletes = athleteRows().filter(athlete => memberIds.has(String(athlete.userId)));
-    const groups = state.savedGroups.filter(group => {
-      const members = groupAthleteIds(group.id) || new Set();
-      return [...members].some(athleteId => memberIds.has(String(athleteId)));
-    });
-    return [
-      `<option value="team">Entire authorised team roster</option>`,
-      ...athletes.map(athlete => `<option value="athlete:${safe(athlete.userId)}">Athlete · ${safe(athlete.displayName)}</option>`),
-      ...groups.map(group => `<option value="group:${safe(group.id)}">Saved group · ${safe(group.name)}</option>`)
-    ].join("");
+  function sessionCoachNote(sessionId) {
+    return state.trainingSessionNotes.find(note => String(note.session_id) === String(sessionId)) || null;
+  }
+
+  function sessionTypeLabel(value) {
+    const type = String(value || "other").toLowerCase();
+    return type === "game" ? "Game" : type === "training" ? "Training" : "Other";
+  }
+
+  function trainingSessionTriage(session) {
+    if (!session || String(state.selectedTrainingSessionId) !== String(session.id)) return "";
+    const rows = sessionContexts(session.id);
+    const completed = new Date(session.ends_at) <= new Date();
+    const statusLabel = status => ({
+      green: "Green",
+      yellow: "Amber",
+      amber: "Amber",
+      red: "Red",
+      no_logging: "Grey",
+      grey: "Grey",
+      prompt: "Fuelled promptly",
+      late: "Fuelled late",
+      no_fuel: "No fuel recorded",
+      pending: "Session pending"
+    })[status] || status;
+    const preSummary = domain.prePracticeTeamSummary(rows);
+    const preStatusDetail = row => {
+      const status = domain.normalizePrePracticeStatus(row.pre_session_status);
+      if (status === "green") return "Fuelled recently";
+      if (status === "amber") return "Eat soon";
+      if (status === "red" && row.last_fuel_at) {
+        return `No fuel since ${domain.formatClockInTimeZone(row.last_fuel_at, row.timezone_name || state.timeZone)}`;
+      }
+      if (status === "red") return "Recorded fuel gap is beyond the Daily target";
+      return "Not enough logging data";
+    };
+    return `
+      <div class="coach-team-session-triage">
+        <div class="coach-card-heading compact"><div><h3>${safe(completed ? "Post-session summary" : "Pre-session triage")}</h3><p>${safe(rows.length ? `${rows.length} actively shared athlete${rows.length === 1 ? "" : "s"}` : "No actively shared athletes are visible for this session.")}</p></div></div>
+        ${!completed && rows.length ? `<div class="coach-pre-practice-summary" aria-label="Pre-practice fuelling status summary">
+          <div class="coach-pre-practice-counts">
+            <span class="green"><b>${safe(preSummary.counts.green)}</b> Green</span>
+            <span class="amber"><b>${safe(preSummary.counts.amber)}</b> Amber</span>
+            <span class="red"><b>${safe(preSummary.counts.red)}</b> Red</span>
+            <span class="grey"><b>${safe(preSummary.counts.grey)}</b> Grey</span>
+          </div>
+          <p>${safe(preSummary.insight)}</p>
+        </div>` : ""}
+        ${rows.length ? rows.map(row => {
+          const status = completed ? row.post_session_status : row.pre_session_status;
+          const detail = completed
+            ? Number.isFinite(Number(row.post_fuel_gap_minutes)) ? `${domain.duration(Number(row.post_fuel_gap_minutes))} after the session` : "No Fuel event is available in the post-session window."
+            : preStatusDetail(row);
+          const visualStatus = completed ? status : domain.normalizePrePracticeStatus(status);
+          return `<article><div><strong>${safe(row.athlete_name || "Fuel Guard Athlete")}</strong><span>${safe(detail)}</span></div><span class="coach-session-status ${safe(visualStatus)}">${safe(statusLabel(visualStatus))}</span><button type="button" data-open-athlete="${safe(row.athlete_id)}">View</button></article>`;
+        }).join("") : `<div class="coach-empty compact">Team membership never bypasses direct Athlete sharing.</div>`}
+      </div>
+    `;
+  }
+
+  function trainingSessionList(title, sessions, now) {
+    return `
+      <section class="coach-team-session-group">
+        <div class="coach-card-heading compact"><div><h3>${safe(title)}</h3><p>${safe(sessions.length ? `${sessions.length} session${sessions.length === 1 ? "" : "s"}` : "None")}</p></div></div>
+        <div class="coach-training-list">
+          ${sessions.length ? sessions.map(session => {
+            const contexts = sessionContexts(session.id);
+            const note = sessionCoachNote(session.id);
+            const team = state.teams.find(item => String(item.id) === String(session.team_id));
+            const cancelled = session.status === "cancelled";
+            const deletable = canContributeToTeam(session.team_id) && new Date(session.starts_at) > now;
+            const mutable = !cancelled && deletable;
+            return `<article class="coach-team-session-row ${cancelled ? "cancelled" : ""}">
+              <div><strong>${safe(session.session_name || sessionTypeLabel(session.session_type))}</strong><p>${safe(team?.name || "Team")} · ${safe(sessionTypeLabel(session.session_type))}${cancelled ? " · Cancelled" : ""}</p>${note ? `<small>${safe(note.note_text)}</small>` : ""}</div>
+              <time>${safe(session.session_date)} · ${safe(domain.formatClockInTimeZone(session.starts_at, session.timezone_name))}–${safe(domain.formatClockInTimeZone(session.ends_at, session.timezone_name))}</time>
+              <span>${safe(contexts.length)} shared athlete${contexts.length === 1 ? "" : "s"} visible</span>
+              <div class="coach-team-session-actions">
+                <button class="secondary" type="button" data-view-team-session="${safe(session.id)}">${String(state.selectedTrainingSessionId) === String(session.id) ? "Hide" : "View"}</button>
+                ${mutable ? `<button class="secondary" type="button" data-edit-team-session="${safe(session.id)}">Edit</button><button class="secondary" type="button" data-cancel-team-session="${safe(session.id)}">Cancel</button>` : ""}
+                ${deletable ? `<button class="secondary danger-secondary" type="button" data-delete-team-session="${safe(session.id)}">Delete</button>` : ""}
+              </div>
+              ${trainingSessionTriage(session)}
+            </article>`;
+          }).join("") : `<div class="coach-empty compact">No ${safe(title.toLowerCase())}.</div>`}
+        </div>
+      </section>
+    `;
   }
 
   function renderTrainingSchedule() {
@@ -1894,38 +1997,38 @@
       return;
     }
     const writableTeams = state.teams.filter(team => canContributeToTeam(team.id));
-    const firstTeam = writableTeams[0] || state.teams[0] || null;
-    const assignmentOptions = trainingAssignmentOptions(firstTeam?.id || "");
-    const start = new Date(Date.now() + 3600000);
-    start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0);
-    const end = new Date(start.getTime() + 90 * 60000);
-    const initialTimeZone = firstTeam?.timezone_name || state.timeZone;
+    const editing = state.trainingSessions.find(session => String(session.id) === String(state.editingTrainingSessionId)) || null;
+    const firstTeam = state.teams.find(team => String(team.id) === String(editing?.team_id)) || writableTeams[0] || state.teams[0] || null;
+    const start = editing ? new Date(editing.starts_at) : new Date(Date.now() + 3600000);
+    if (!editing) start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0);
+    const end = editing ? new Date(editing.ends_at) : new Date(start.getTime() + 90 * 60000);
+    const initialTimeZone = editing?.timezone_name || firstTeam?.timezone_name || state.timeZone;
     const localValue = date => {
       const parts = domain.zonedDateParts(date, initialTimeZone);
       return `${domain.dateKeyInTimeZone(date, initialTimeZone)}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
     };
+    const now = new Date();
+    const upcoming = state.trainingSessions.filter(session => session.status === "scheduled" && new Date(session.ends_at) >= now).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    const recent = state.trainingSessions.filter(session => session.status === "cancelled" || new Date(session.ends_at) < now).sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at));
+    const note = editing ? sessionCoachNote(editing.id)?.note_text || "" : "";
     target.innerHTML = `
-      <section class="coach-card">
-        <div class="coach-card-heading compact"><div><h2>Training schedule</h2><p>Manual operational context. Schedules do not change athlete thresholds or prescribe nutrition.</p></div></div>
+      <section class="coach-card coach-team-sessions">
+        <div class="coach-card-heading compact"><div><h2>Sessions</h2><p>Shared team context for Training, Games and Other sessions. Athlete logging stays unchanged.</p></div></div>
         ${writableTeams.length ? `
           <div class="coach-form-grid">
-            <label>Team<select id="coachTrainingTeam">${writableTeams.map(team => `<option value="${safe(team.id)}">${safe(team.name)}</option>`).join("")}</select></label>
-            <label>Assignment<select id="coachTrainingAssignment">${assignmentOptions}</select></label>
-            <label>Session name<input id="coachTrainingName" type="text" maxlength="160" placeholder="Morning training"></label>
-            <label>Session type<input id="coachTrainingType" type="text" maxlength="80" value="training"></label>
+            <label>Team<select id="coachTrainingTeam" ${editing ? "disabled" : ""}>${writableTeams.map(team => `<option value="${safe(team.id)}"${String(team.id) === String(firstTeam?.id) ? " selected" : ""}>${safe(team.name)}</option>`).join("")}</select></label>
+            <label>Session type<select id="coachTrainingType"><option value="training"${editing?.session_type === "training" ? " selected" : ""}>Training</option><option value="game"${editing?.session_type === "game" ? " selected" : ""}>Game</option><option value="other"${editing?.session_type === "other" ? " selected" : ""}>Other</option></select></label>
+            <label>Title<input id="coachTrainingName" type="text" maxlength="160" value="${safe(editing?.session_name || "")}" placeholder="Evening training"></label>
             <label>Starts<input id="coachTrainingStarts" type="datetime-local" value="${safe(localValue(start))}"></label>
             <label>Ends<input id="coachTrainingEnds" type="datetime-local" value="${safe(localValue(end))}"></label>
             <label>Timezone<input id="coachTrainingTimezone" type="text" maxlength="80" value="${safe(initialTimeZone)}"></label>
-            <label>Location<input id="coachTrainingLocation" type="text" maxlength="160" placeholder="Optional"></label>
+            <label>Location<input id="coachTrainingLocation" type="text" maxlength="160" value="${safe(editing?.location || "")}" placeholder="Optional"></label>
+            <label class="coach-form-wide">Coach note<textarea id="coachTrainingNote" maxlength="2000" placeholder="Internal note, never shown to athletes">${safe(note)}</textarea></label>
           </div>
-          <div class="coach-button-row"><button class="secondary" type="button" data-create-training-session>Create session</button></div>
+          <div class="coach-button-row"><button class="secondary" type="button" data-create-training-session>${editing ? "Save changes" : "Create session"}</button>${editing ? `<button class="secondary" type="button" data-cancel-training-edit>Cancel edit</button>` : ""}</div>
         ` : `<div class="coach-empty compact">Create a team with contributor access in Settings before adding a session.</div>`}
-        <div class="coach-training-list">
-          ${state.trainingSessions.length ? state.trainingSessions.map(session => {
-            const assignments = sessionAssignments(session.id);
-            return `<article><div><strong>${safe(session.session_name || session.session_type)}</strong><p>${safe(state.teams.find(team => String(team.id) === String(session.team_id))?.name || "Team")} · ${safe(session.timezone_name)}</p></div><time>${safe(session.session_date)} · ${safe(domain.formatClockInTimeZone(session.starts_at, session.timezone_name))}-${safe(domain.formatClockInTimeZone(session.ends_at, session.timezone_name))}</time><span>${safe(assignments.length)} authorised athlete${assignments.length === 1 ? "" : "s"}</span></article>`;
-          }).join("") : `<div class="coach-empty compact">No upcoming sessions in the next 14 days.</div>`}
-        </div>
+        ${trainingSessionList("Upcoming", upcoming, now)}
+        ${trainingSessionList("Recent", recent, now)}
       </section>
     `;
   }
@@ -2065,13 +2168,15 @@
     state.savedGroupMembers = [];
     state.trainingSessions = [];
     state.trainingAssignments = [];
+    state.trainingSessionNotes = [];
     state.trainingContext = [];
+    state.teamSessionBrief = null;
     state.organisationFeaturesReady = true;
     state.selectedGroupId = "";
   }
 
   function organisationFoundationMissing(error) {
-    return /fuel_organisations|fuel_teams|fuel_team_staff|fuel_team_athletes|fuel_staff_notes|fuel_saved_groups|fuel_saved_group_members|fuel_training_sessions|fuel_training_session_athletes|fuel_training_operational_context|does not exist|schema cache/i.test(String(error?.message || ""));
+    return /fuel_organisations|fuel_teams|fuel_team_staff|fuel_team_athletes|fuel_staff_notes|fuel_saved_groups|fuel_saved_group_members|fuel_training_sessions|fuel_training_session_athletes|fuel_training_session_coach_notes|fuel_team_session_context|does not exist|schema cache/i.test(String(error?.message || ""));
   }
 
   async function loadOrganisationData(user, athleteIds) {
@@ -2121,7 +2226,7 @@
         state.staffNotes = notesResult.data || [];
       }
 
-      const from = new Date(Date.now() - 14 * 86400000).toISOString();
+      const from = new Date(Date.now() - 28 * 86400000).toISOString();
       const to = new Date(Date.now() + 14 * 86400000).toISOString();
       const sessionsResult = await state.client
         .from(TABLES.trainingSessions)
@@ -2139,9 +2244,17 @@
         if (assignmentsResult.error) throw assignmentsResult.error;
         state.trainingAssignments = assignmentsResult.data || [];
 
-        const contextResult = await state.client.from(TABLES.trainingContext).select("*").in("session_id", sessionIds);
+        const notesResult = await state.client.from(TABLES.trainingSessionNotes).select("*").in("session_id", sessionIds);
+        if (notesResult.error) throw notesResult.error;
+        state.trainingSessionNotes = notesResult.data || [];
+
+        const contextResult = await state.client.rpc("fuel_team_session_context", {
+          p_from: from,
+          p_to: to
+        });
         if (contextResult.error) throw contextResult.error;
-        state.trainingContext = contextResult.data || [];
+        const visibleSessionIds = new Set(sessionIds.map(String));
+        state.trainingContext = (contextResult.data || []).filter(row => visibleSessionIds.has(String(row.session_id)));
       }
     } catch (error) {
       if (!organisationFoundationMissing(error)) throw error;
@@ -2703,56 +2816,55 @@
 
   async function createTrainingSession(button) {
     await withBusy(button, async () => {
-      const user = coachUser();
       const teamId = $("coachTrainingTeam")?.value || "";
       const team = state.teams.find(item => String(item.id) === String(teamId));
       const timeZone = $("coachTrainingTimezone")?.value?.trim() || team?.timezone_name || state.timeZone;
       const startsAt = trainingDateTime($("coachTrainingStarts")?.value, timeZone);
       const endsAt = trainingDateTime($("coachTrainingEnds")?.value, timeZone);
-      if (!user || !team) throw new Error("Choose a team for this session.");
+      if (!coachUser() || !team) throw new Error("Choose a team for this session.");
       if (!startsAt || !endsAt || endsAt <= startsAt || endsAt - startsAt > 86400000) throw new Error("Choose a valid session start and end within 24 hours.");
-
-      const assignment = $("coachTrainingAssignment")?.value || "team";
-      const teamAthleteIds = new Set(activeTeamAthletes(team.id).map(member => String(member.athlete_id)));
-      let athleteIds = [];
-      let savedGroupId = null;
-      if (assignment === "team") {
-        athleteIds = [...teamAthleteIds];
-      } else if (assignment.startsWith("athlete:")) {
-        const athleteId = assignment.slice("athlete:".length);
-        if (teamAthleteIds.has(athleteId)) athleteIds = [athleteId];
-      } else if (assignment.startsWith("group:")) {
-        const groupId = assignment.slice("group:".length);
-        const group = state.savedGroups.find(item => String(item.id) === String(groupId));
-        const members = groupAthleteIds(groupId) || new Set();
-        athleteIds = [...members].filter(athleteId => teamAthleteIds.has(athleteId));
-        if (group?.scope === "team" && String(group.team_id) === String(team.id)) savedGroupId = group.id;
-      }
-      if (!athleteIds.length) throw new Error("Choose at least one authorised athlete who belongs to this team.");
-
-      const { data: session, error } = await state.client.from(TABLES.trainingSessions).insert({
-        organisation_id: team.organisation_id,
-        team_id: team.id,
-        saved_group_id: savedGroupId,
-        session_date: domain.dateKeyInTimeZone(startsAt, timeZone),
-        starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
-        timezone_name: timeZone,
-        session_type: $("coachTrainingType")?.value?.trim() || "training",
-        session_name: $("coachTrainingName")?.value?.trim() || null,
-        location: $("coachTrainingLocation")?.value?.trim() || null,
-        created_by: user.id,
-        updated_by: user.id
-      }).select("*").single();
+      const editingId = state.editingTrainingSessionId || null;
+      const { data: sessionId, error } = await state.client.rpc("fuel_save_team_session", {
+        p_session_id: editingId,
+        p_team_id: team.id,
+        p_starts_at: startsAt.toISOString(),
+        p_ends_at: endsAt.toISOString(),
+        p_timezone_name: timeZone,
+        p_session_type: $("coachTrainingType")?.value || "training",
+        p_session_name: $("coachTrainingName")?.value?.trim() || "",
+        p_location: $("coachTrainingLocation")?.value?.trim() || "",
+        p_coach_note: $("coachTrainingNote")?.value?.trim() || ""
+      });
       if (error) throw error;
-      const assignments = athleteIds.map(athleteId => ({ session_id: session.id, athlete_id: athleteId, assigned_by: user.id }));
-      const assignmentResult = await state.client.from(TABLES.trainingAssignments).insert(assignments);
-      if (assignmentResult.error) {
-        await state.client.from(TABLES.trainingSessions).delete().eq("id", session.id);
-        throw assignmentResult.error;
-      }
-      setStatus(`Training session created for ${athleteIds.length} authorised athlete${athleteIds.length === 1 ? "" : "s"}. Athlete thresholds were not changed.`);
-      await loadCoachData({ reason: "training-session-created" });
+      state.editingTrainingSessionId = "";
+      state.selectedTrainingSessionId = sessionId || editingId || "";
+      setStatus(editingId ? "Team session updated." : "Team session created for the active roster without duplicate athlete assignments.");
+      await loadCoachData({ reason: editingId ? "team-session-updated" : "team-session-created" });
+    });
+  }
+
+  async function cancelTrainingSession(sessionId, button) {
+    if (!window.confirm("Cancel this session? Athletes will retain the cancelled schedule context.")) return;
+    await withBusy(button, async () => {
+      const { data: changed, error } = await state.client.rpc("fuel_cancel_team_session", { p_session_id: sessionId });
+      if (error) throw error;
+      if (!changed) throw new Error("This scheduled session is no longer available to cancel.");
+      state.editingTrainingSessionId = "";
+      setStatus("Team session cancelled. Historical context was preserved.");
+      await loadCoachData({ reason: "team-session-cancelled" });
+    });
+  }
+
+  async function deleteTrainingSession(sessionId, button) {
+    if (!window.confirm("Delete this future session permanently? Use Cancel if its history should remain visible.")) return;
+    await withBusy(button, async () => {
+      const { error, count } = await state.client.from(TABLES.trainingSessions).delete({ count: "exact" }).eq("id", sessionId);
+      if (error) throw error;
+      if (!count) throw new Error("Only an authorised future session can be deleted.");
+      if (String(state.selectedTrainingSessionId) === String(sessionId)) state.selectedTrainingSessionId = "";
+      if (String(state.editingTrainingSessionId) === String(sessionId)) state.editingTrainingSessionId = "";
+      setStatus("Future team session deleted.");
+      await loadCoachData({ reason: "team-session-deleted" });
     });
   }
 
@@ -3702,6 +3814,41 @@
     const trainingButton = event.target.closest("[data-create-training-session]");
     if (trainingButton) {
       createTrainingSession(trainingButton);
+      return;
+    }
+
+    const viewTeamSession = event.target.closest("[data-view-team-session]");
+    if (viewTeamSession) {
+      const id = viewTeamSession.dataset.viewTeamSession;
+      state.selectedTrainingSessionId = String(state.selectedTrainingSessionId) === String(id) ? "" : id;
+      renderTrainingSchedule();
+      return;
+    }
+
+    const editTeamSession = event.target.closest("[data-edit-team-session]");
+    if (editTeamSession) {
+      state.editingTrainingSessionId = editTeamSession.dataset.editTeamSession;
+      renderTrainingSchedule();
+      $("coachTrainingName")?.focus();
+      return;
+    }
+
+    if (event.target.closest("[data-cancel-training-edit]")) {
+      state.editingTrainingSessionId = "";
+      renderTrainingSchedule();
+      return;
+    }
+
+    const cancelTeamSession = event.target.closest("[data-cancel-team-session]");
+    if (cancelTeamSession) {
+      cancelTrainingSession(cancelTeamSession.dataset.cancelTeamSession, cancelTeamSession);
+      return;
+    }
+
+    const deleteTeamSession = event.target.closest("[data-delete-team-session]");
+    if (deleteTeamSession) {
+      deleteTrainingSession(deleteTeamSession.dataset.deleteTeamSession, deleteTeamSession);
+      return;
     }
   });
 
@@ -3719,7 +3866,6 @@
     if (event.target.id === "coachTrainingTeam") {
       const team = state.teams.find(item => String(item.id) === String(event.target.value));
       if (team && $("coachTrainingTimezone")) $("coachTrainingTimezone").value = team.timezone_name || state.timeZone;
-      if (team && $("coachTrainingAssignment")) $("coachTrainingAssignment").innerHTML = trainingAssignmentOptions(team.id);
       return;
     }
     if (event.target.matches("[data-team-athlete-team]")) {

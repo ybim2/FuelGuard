@@ -22,7 +22,7 @@
 
   function summary() {
     const gap = typeof fuelGapState === "function" ? fuelGapState() : { logs: [] };
-    return domain()?.activityUsageSummary?.(gap.logs || [], new Date()) || { dayStreak: 0, fuelMoments: 0, hydrationMoments: 0 };
+    return domain()?.activityUsageSummary?.(gap.logs || [], new Date()) || { dayStreak: 0, fuelStreak: 0, hydrationStreak: 0, fuelMoments: 0, hydrationMoments: 0 };
   }
 
   function localAchievement(milestone, achievedAt = new Date().toISOString(), acknowledgedAt = null) {
@@ -59,41 +59,20 @@
   function renderHistory(currentSummary = summary()) {
     const target = document.getElementById("athleteMilestones");
     if (!target || !domain()) return;
-    const earnedKeys = new Set(domain().earnedMilestones(currentSummary).map(item => item.key));
-    const byKey = new Map((milestoneState()?.achievements || []).map(item => [item.key, item]));
     const categories = [
-      { id: "streak", label: "Streak", icon: "🔥", value: Number(currentSummary.dayStreak || 0), unit: value => value === 1 ? "day" : "days" },
-      { id: "fuel", label: "Fuel", icon: "🍽", value: Number(currentSummary.fuelMoments || 0), unit: value => value === 1 ? "moment" : "moments" },
-      { id: "hydration", label: "Hydration", icon: "💧", value: Number(currentSummary.hydrationMoments || 0), unit: value => value === 1 ? "moment" : "moments" }
+      { id: "day", label: "Day streak", icon: "🔥", value: Number(currentSummary.dayStreak || 0), detail: "Fuel or Hydration" },
+      { id: "fuel", label: "Fuel streak", icon: "🍽", value: Number(currentSummary.fuelStreak || 0), detail: "Fuel logging" },
+      { id: "hydration", label: "Hydration streak", icon: "💧", value: Number(currentSummary.hydrationStreak || 0), detail: "Hydration logging" }
     ];
     target.innerHTML = `
-      <div class="beta-milestone-paths">
-        ${categories.map(category => {
-          const thresholds = domain().MILESTONE_THRESHOLDS[category.id] || [];
-          const unlocked = thresholds.filter(threshold => earnedKeys.has(domain().milestoneKey(category.id, threshold)));
-          const current = unlocked.at(-1);
-          return `
-            <section class="beta-milestone-row ${category.id}" aria-label="${domain().escapeHtml(category.label)} milestones">
-              <header><span aria-hidden="true">${category.icon}</span><div><h4>${domain().escapeHtml(category.label)}</h4><small>${category.value.toLocaleString("en-GB")} ${category.unit(category.value)}</small></div></header>
-              <div class="beta-milestone-scroll" role="list" tabindex="0" aria-label="Scroll through ${domain().escapeHtml(category.label)} milestones">
-                ${thresholds.map(threshold => {
-                  const key = domain().milestoneKey(category.id, threshold);
-                  const achievement = byKey.get(key);
-                  const unlockedState = earnedKeys.has(key);
-                  const recent = Boolean(achievement?.achievedAt && !achievement.acknowledgedAt);
-                  const state = unlockedState ? "Unlocked" : "Locked";
-                  return `<article class="beta-milestone-tile ${unlockedState ? "unlocked" : "locked"}${threshold === current ? " current" : ""}${recent ? " recent" : ""}" data-milestone-key="${domain().escapeHtml(key)}" role="listitem">
-                    <span>${Number(threshold).toLocaleString("en-GB")}</span>
-                    <strong>${category.id === "streak" ? "DAY STREAK" : category.id === "fuel" ? "FUEL MOMENTS" : "HYDRATION MOMENTS"}</strong>
-                    <small>${unlockedState ? "✓" : "○"} ${state}</small>
-                  </article>`;
-                }).join("")}
-              </div>
-            </section>
-          `;
-        }).join("")}
+      <div class="beta-streak-visuals" role="list" aria-label="Current Fuel Guard streaks">
+        ${categories.map(category => `<article class="beta-milestone-tile beta-streak-visual unlocked current ${category.id}" role="listitem">
+          <span aria-hidden="true">${category.icon}</span>
+          <strong>${domain().escapeHtml(category.label)}</strong>
+          <b>${category.value.toLocaleString("en-GB")} <small>${category.value === 1 ? "day" : "days"}</small></b>
+          <small>${domain().escapeHtml(category.detail)}</small>
+        </article>`).join("")}
       </div>
-      <p class="row-note">Scroll each row to see completed milestones and what comes next.</p>
     `;
   }
 

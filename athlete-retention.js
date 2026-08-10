@@ -46,6 +46,10 @@
     return Array.isArray(training?.sessions) ? training.sessions : [];
   }
 
+  function sharedTeamSessions() {
+    return Array.isArray(window.fuelGuardCloud?.teamSessions) ? window.fuelGuardCloud.teamSessions : [];
+  }
+
   function recapData() {
     const gap = gapState() || {};
     return domain().athleteWeeklyRecap({
@@ -93,6 +97,7 @@
     return domain().athleteNudgeEligibility({
       logs: gap.logs || [],
       sessions: trainingSessions(),
+      teamSessions: sharedTeamSessions(),
       targets: { ...(gap.targets || {}), maximumFuelGapMinutes: gap.maximumFuelGapMinutes },
       preferences: currentPreferences,
       now: new Date(),

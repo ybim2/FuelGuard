@@ -514,16 +514,23 @@
       .sort((a, b) => a.date - b.date);
     const fuelMoments = valid.filter(isFuelLog);
     const hydrationMoments = valid.filter(isHydrationLog);
+    const streakForDays = days => {
+      const today = dateKey(now);
+      let cursor = days.has(today) ? today : shiftDateKey(today, -1);
+      let streak = 0;
+      while (cursor && days.has(cursor)) {
+        streak += 1;
+        cursor = shiftDateKey(cursor, -1);
+      }
+      return streak;
+    };
+    const fuelDays = new Set(fuelMoments.map(log => dateKey(log.date)));
+    const hydrationDays = new Set(hydrationMoments.map(log => dateKey(log.date)));
     const usageDays = new Set([...fuelMoments, ...hydrationMoments].map(log => dateKey(log.date)));
-    const today = dateKey(now);
-    let cursor = usageDays.has(today) ? today : shiftDateKey(today, -1);
-    let dayStreak = 0;
-    while (cursor && usageDays.has(cursor)) {
-      dayStreak += 1;
-      cursor = shiftDateKey(cursor, -1);
-    }
     return {
-      dayStreak,
+      dayStreak: streakForDays(usageDays),
+      fuelStreak: streakForDays(fuelDays),
+      hydrationStreak: streakForDays(hydrationDays),
       fuelMoments: fuelMoments.length,
       hydrationMoments: hydrationMoments.length
     };
@@ -1892,7 +1899,73 @@
     };
   }
 
-  function athleteNudgeEligibility({ logs = [], sessions = [], targets = {}, preferences = {}, now = new Date(), timeZone } = {}) {
+  function normalizePrePracticeStatus(status) {
+    const value = String(status || "").trim().toLowerCase();
+    if (value === "green") return "green";
+    if (["amber", "yellow"].includes(value)) return "amber";
+    if (["red", "crash"].includes(value)) return "red";
+    return "grey";
+  }
+
+  function prePracticeFuelState({ session = {}, logs = [], targets = {}, now = new Date(), timeZone, reminderWindowMinutes = 180 } = {}) {
+    const referenceNow = parseDate(now) || new Date();
+    const startsAt = parseDate(session.starts_at || session.startsAt);
+    const zone = resolvedTimeZone(timeZone || session.timezone_name || session.timeZone);
+    const scheduled = !["cancelled", "completed"].includes(String(session.status || session.session_status || "scheduled").toLowerCase());
+    const fuelLogs = logsWithDates(logs)
+      .filter(log => isFuelLog(log) && log.date <= referenceNow && (!startsAt || log.date <= startsAt))
+      .sort((left, right) => left.date - right.date);
+    const latestFuel = fuelLogs.at(-1) || null;
+    const gapMinutesAtStart = startsAt && latestFuel
+      ? Math.max(0, Math.floor((startsAt - latestFuel.date) / 60000))
+      : null;
+    const rawStatus = Number.isFinite(gapMinutesAtStart) ? fuelGapStatus(gapMinutesAtStart, targets) : "none";
+    const status = normalizePrePracticeStatus(rawStatus);
+    const minutesUntilStart = startsAt ? Math.round((startsAt - referenceNow) / 60000) : null;
+    const reminderEligible = scheduled
+      && Number.isFinite(minutesUntilStart)
+      && minutesUntilStart >= 0
+      && minutesUntilStart <= Math.max(1, Number(reminderWindowMinutes) || 180)
+      && ["amber", "red"].includes(status);
+    const sessionLabel = String(session.session_name || session.sessionName || session.session_type || session.sessionType || "Practice")
+      .trim().replace(/[_-]+/g, " ").replace(/^./, character => character.toUpperCase());
+    const startClock = startsAt ? formatClockInTimeZone(startsAt, zone) : "soon";
+    return {
+      status,
+      rawStatus,
+      latestFuel,
+      gapMinutesAtStart,
+      maximumFuelGapMinutes: maximumFuelGapMinutes(targets),
+      minutesUntilStart,
+      reminderEligible,
+      sessionLabel,
+      startClock,
+      title: `${sessionLabel} starts at ${startClock}`,
+      detail: "Make sure you're fuelled and ready to train."
+    };
+  }
+
+  function prePracticeTeamSummary(rows = []) {
+    const statuses = (Array.isArray(rows) ? rows : []).map(row => normalizePrePracticeStatus(
+      row.pre_session_status || row.preSessionStatus || row.status
+    ));
+    const counts = { green: 0, amber: 0, red: 0, grey: 0 };
+    statuses.forEach(status => { counts[status] += 1; });
+    const needsFuel = counts.amber + counts.red;
+    let insight = "No actively shared athlete fuelling data is available for this session.";
+    if (needsFuel) {
+      insight = `${needsFuel} athlete${needsFuel === 1 ? "" : "s"} may need to fuel before this session.`;
+    } else if (counts.green && !counts.grey) {
+      insight = "All visible athletes are appropriately fuelled for this session.";
+    } else if (counts.green) {
+      insight = "Most visible athletes are appropriately fuelled; some do not have enough logging data.";
+    } else if (counts.grey) {
+      insight = "Fuel Guard does not yet have enough logging data to assess these athletes.";
+    }
+    return { total: statuses.length, counts, needsFuel, insight };
+  }
+
+  function athleteNudgeEligibility({ logs = [], sessions = [], teamSessions = [], targets = {}, preferences = {}, now = new Date(), timeZone } = {}) {
     const referenceNow = parseDate(now) || new Date();
     const zone = resolvedTimeZone(timeZone);
     const enabled = {
@@ -1905,6 +1978,22 @@
     const candidates = [];
     const targetMinutes = maximumFuelGapMinutes(targets);
     const latestFuel = fuelLogs.at(-1);
+    if (enabled.maximumGap) {
+      (Array.isArray(teamSessions) ? teamSessions : []).forEach(session => {
+        const state = prePracticeFuelState({ session, logs: normalizedLogs, targets, now: referenceNow, timeZone });
+        if (!state.reminderEligible) return;
+        candidates.push({
+          id: "pre_practice_fuel",
+          category: "maximum_gap",
+          priority: state.status === "red" ? 100 : 85,
+          title: state.title,
+          detail: state.detail,
+          occurrenceKey: `pre_practice:${String(session.id || session.session_id || session.starts_at || session.startsAt)}`,
+          minimumIntervalMinutes: 180,
+          status: state.status
+        });
+      });
+    }
     if (enabled.maximumGap && latestFuel) {
       const elapsed = Math.max(0, Math.round((referenceNow - latestFuel.date) / 60000));
       if (elapsed >= Math.max(0, targetMinutes - APPROACHING_WINDOW_MINUTES)) {
@@ -2350,6 +2439,129 @@
     };
   }
 
+  function buildTeamSessionCoachBrief({ contexts = [], period, comparisonPeriod, timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone || period?.timeZone);
+    const rows = (Array.isArray(contexts) ? contexts : []).filter(row => {
+      const startsAt = row?.starts_at || row?.startsAt;
+      return parseDate(startsAt) && String(row?.session_status || row?.sessionStatus || "scheduled") !== "cancelled";
+    });
+    const withinPeriod = (row, selected) => {
+      if (!selected?.startKey || !selected?.endKey) return true;
+      const key = dateKeyInTimeZone(row.starts_at || row.startsAt, row.timezone_name || row.timeZone || zone);
+      return key >= selected.startKey && key <= selected.endKey;
+    };
+    const summarise = selectedRows => {
+      const athleteSessions = selectedRows.length;
+      const logged = selectedRows.filter(row => String(row.pre_session_status || row.preSessionStatus) !== "no_logging");
+      const withinTarget = logged.filter(row => ["green", "yellow"].includes(String(row.pre_session_status || row.preSessionStatus)));
+      const completed = selectedRows.filter(row => String(row.post_session_status || row.postSessionStatus) !== "pending");
+      const prompt = completed.filter(row => String(row.post_session_status || row.postSessionStatus) === "prompt");
+      return {
+        sessionCount: new Set(selectedRows.map(row => String(row.session_id || row.sessionId))).size,
+        athleteSessions,
+        loggingCoveragePct: athleteSessions ? Math.round(logged.length / athleteSessions * 100) : null,
+        preConsistencyPct: logged.length ? Math.round(withinTarget.length / logged.length * 100) : null,
+        postPromptPct: completed.length ? Math.round(prompt.length / completed.length * 100) : null,
+        noLoggingCount: athleteSessions - logged.length,
+        redCount: selectedRows.filter(row => String(row.pre_session_status || row.preSessionStatus) === "red").length,
+        lateCount: completed.filter(row => String(row.post_session_status || row.postSessionStatus) === "late").length,
+        noPostFuelCount: completed.filter(row => String(row.post_session_status || row.postSessionStatus) === "no_fuel").length
+      };
+    };
+    const athleteSummary = selectedRows => {
+      const grouped = new Map();
+      selectedRows.forEach(row => {
+        const athleteId = String(row.athlete_id || row.athleteId || "");
+        if (!athleteId) return;
+        const item = grouped.get(athleteId) || {
+          athleteId,
+          athleteName: row.athlete_name || row.athleteName || "Fuel Guard Athlete",
+          opportunities: 0,
+          successes: 0,
+          noLogging: 0,
+          red: 0,
+          late: 0,
+          noPostFuel: 0
+        };
+        const pre = String(row.pre_session_status || row.preSessionStatus || "no_logging");
+        const post = String(row.post_session_status || row.postSessionStatus || "pending");
+        item.opportunities += 1;
+        if (["green", "yellow"].includes(pre)) item.successes += 1;
+        if (pre === "no_logging") item.noLogging += 1;
+        if (pre === "red") item.red += 1;
+        if (post !== "pending") {
+          item.opportunities += 1;
+          if (post === "prompt") item.successes += 1;
+          if (post === "late") item.late += 1;
+          if (post === "no_fuel") item.noPostFuel += 1;
+        }
+        grouped.set(athleteId, item);
+      });
+      return [...grouped.values()].map(item => ({
+        ...item,
+        adherencePct: item.opportunities ? Math.round(item.successes / item.opportunities * 100) : null
+      }));
+    };
+    const currentRows = rows.filter(row => withinPeriod(row, period));
+    const previousRows = comparisonPeriod ? rows.filter(row => withinPeriod(row, comparisonPeriod)) : [];
+    const currentAthletes = athleteSummary(currentRows);
+    const previousByAthlete = new Map(athleteSummary(previousRows).map(item => [item.athleteId, item]));
+    const trends = currentAthletes.map(item => {
+      const previous = previousByAthlete.get(item.athleteId);
+      const comparable = item.opportunities >= 2 && previous?.opportunities >= 2;
+      const change = comparable ? item.adherencePct - previous.adherencePct : null;
+      return {
+        ...item,
+        previousAdherencePct: previous?.adherencePct ?? null,
+        direction: !comparable || Math.abs(change) < 20 ? "stable" : change > 0 ? "improving" : "deteriorating",
+        change
+      };
+    });
+    const sessionGroups = new Map();
+    currentRows.forEach(row => {
+      const sessionId = String(row.session_id || row.sessionId || "");
+      if (!sessionGroups.has(sessionId)) sessionGroups.set(sessionId, []);
+      sessionGroups.get(sessionId).push(row);
+    });
+    const positiveSessions = [...sessionGroups.entries()].map(([sessionId, sessionRows]) => {
+      const completed = sessionRows.filter(row => String(row.post_session_status || row.postSessionStatus) !== "pending");
+      const preGood = sessionRows.filter(row => ["green", "yellow"].includes(String(row.pre_session_status || row.preSessionStatus))).length;
+      const postGood = completed.filter(row => String(row.post_session_status || row.postSessionStatus) === "prompt").length;
+      return {
+        sessionId,
+        startsAt: sessionRows[0]?.starts_at || sessionRows[0]?.startsAt,
+        positive: completed.length > 0
+          && preGood / sessionRows.length >= 0.8
+          && postGood / completed.length >= 0.8
+      };
+    }).filter(item => parseDate(item.startsAt)).sort((a, b) => parseDate(b.startsAt) - parseDate(a.startsAt));
+    let teamSessionStreak = 0;
+    for (const session of positiveSessions) {
+      if (!session.positive) break;
+      teamSessionStreak += 1;
+    }
+    const summary = summarise(currentRows);
+    const scoredAreas = [
+      { id: "logging", label: "Logging coverage", value: summary.loggingCoveragePct },
+      { id: "pre", label: "Pre-session consistency", value: summary.preConsistencyPct },
+      { id: "post", label: "Prompt post-session fuel", value: summary.postPromptPct }
+    ].filter(area => Number.isFinite(area.value)).sort((a, b) => b.value - a.value);
+    return {
+      period,
+      comparisonPeriod,
+      ...summary,
+      strongestArea: scoredAreas[0] || null,
+      needsAttentionArea: scoredAreas.at(-1) || null,
+      athletes: trends,
+      improving: trends.filter(item => item.direction === "improving"),
+      deteriorating: trends.filter(item => item.direction === "deteriorating"),
+      missingPatterns: trends.filter(item => item.noLogging > 0 || item.noPostFuel > 0),
+      needsAttention: trends.filter(item => item.red > 0 || item.noPostFuel > 0),
+      teamSessionStreak,
+      milestone: teamSessionStreak >= 3 ? `${teamSessionStreak}-session team consistency streak` : ""
+    };
+  }
+
   function addMonthsClamped(dateKeyValue, months) {
     const key = validDateKey(dateKeyValue);
     if (!key) return "";
@@ -2774,6 +2986,9 @@
     athletePeriodMetrics,
     athleteTrend,
     athleteWeeklyRecap,
+    normalizePrePracticeStatus,
+    prePracticeFuelState,
+    prePracticeTeamSummary,
     athleteNudgeEligibility,
     buildAthleteReviewReport,
     buildWeeklyCoachReview,
@@ -2781,6 +2996,7 @@
     authorizedAthletes,
     buildTeamAnalytics,
     buildWeeklyCoachBrief,
+    buildTeamSessionCoachBrief,
     addMonthsClamped,
     reviewScheduleDefinition,
     scheduledReviewState,
