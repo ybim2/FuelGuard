@@ -1,5 +1,19 @@
 # Connect IQ public-beta submission record
 
+## Shared connect-input compatibility fix 0.5.4 — physical hardware spot-check pending
+
+- **Version:** 0.5.4
+- **Quick Log production AppID:** `2F3B7C5E9F2D4A6B8C1D0E7F0F255002`
+- **Activity Logger production AppID:** `9C8A41410F0A4D46A7F7D1C68F0F2551`
+- **Finding:** all 31 installed device definitions map the physical Enter/Start action to Garmin `onSelect`, with touch products additionally mapping tap to `onSelect`; Activity Logger nevertheless lacked the raw `KEY_START`/`KEY_ENTER` fallback already required by the physically reproduced Quick Log path.
+- **Fix:** both public delegates now use one shared START/ENTER action-key mapping and invoke their existing authentication flow; no product-specific branches were added.
+- **Compatibility requirement:** source/build/package acceptance covers all 31 manifest products; the user's FR255 is an additional hardware spot check.
+- **Quick Log package:** `/Users/theo/Documents/Codex/FuelGuard/releases/garmin-public/0.5.4/fuel-guard-quick-log-public-0.5.4.iq`
+- **Quick Log SHA-256:** `0595304853b0dd8b7815c7d1e77b30180cca70e75aa0e26d9892825e09f05f5f`
+- **Activity Logger package:** `/Users/theo/Documents/Codex/FuelGuard/releases/garmin-public/0.5.4/fuel-guard-activity-logger-public-0.5.4.iq`
+- **Activity Logger SHA-256:** `fa3ec723f8b4664e8d6e771eb38a23528829712b724cc5f66920b35424b07696`
+- **Package result:** both signed packages contain 46 device binaries generated from the same 31 manifest product IDs; the package credential scan passed.
+
 ## Quick Log START-input fix 0.5.3 — physical hardware spot-check pending
 
 - **Version:** 0.5.3

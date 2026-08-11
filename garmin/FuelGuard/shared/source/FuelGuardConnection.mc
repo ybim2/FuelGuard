@@ -79,6 +79,10 @@ module FuelGuardConnection {
     (:debug) var _testRevokeCode = 200;
     (:debug) var _testRevokeData = {"result" => "revoked"};
 
+    function isConnectActionKey(key as WatchUi.Key) as Boolean {
+        return key == WatchUi.KEY_START || key == WatchUi.KEY_ENTER;
+    }
+
     function configure(appId as String) as Void {
         if (appId.equals(APP_ACTIVITY_LOGGER)) {
             _appId = APP_ACTIVITY_LOGGER;

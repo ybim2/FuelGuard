@@ -68,7 +68,7 @@ class FuelGuardActivityLoggerSettingsDelegate extends WatchUi.BehaviorDelegate {
         BehaviorDelegate.initialize();
     }
 
-    public function onSelect() as Boolean {
+    private function activate() as Boolean {
         if (FuelGuardConnection.connected()) {
             FuelGuardConnection.disconnect();
         } else {
@@ -76,6 +76,26 @@ class FuelGuardActivityLoggerSettingsDelegate extends WatchUi.BehaviorDelegate {
         }
         WatchUi.requestUpdate();
         return true;
+    }
+
+    public function onSelect() as Boolean {
+        return activate();
+    }
+
+    private function activateKey(key as WatchUi.Key) as Boolean {
+        if (FuelGuardConnection.isConnectActionKey(key)) {
+            return activate();
+        }
+        return false;
+    }
+
+    public function onKey(keyEvent as WatchUi.KeyEvent) as Boolean {
+        return activateKey(keyEvent.getKey());
+    }
+
+    (:debug)
+    public function activateKeyForTest(key as WatchUi.Key) as Boolean {
+        return activateKey(key);
     }
 
     public function onBack() as Boolean {

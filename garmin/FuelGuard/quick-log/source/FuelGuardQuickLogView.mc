@@ -392,7 +392,7 @@ class FuelGuardQuickLogDelegate extends WatchUi.BehaviorDelegate {
     }
 
     private function activateKey(key as WatchUi.Key) as Boolean {
-        if (key == WatchUi.KEY_START || key == WatchUi.KEY_ENTER) {
+        if (FuelGuardConnection.isConnectActionKey(key)) {
             _view.logSelection();
             return true;
         }

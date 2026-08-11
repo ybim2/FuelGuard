@@ -1,5 +1,6 @@
 import Toybox.Lang;
 import Toybox.Test;
+import Toybox.WatchUi;
 
 (:debug)
 function fuelGuardActivityIsoShape(value as String) as Boolean {
@@ -80,6 +81,23 @@ function testFuelGuardActivityLoggerSettingsInitiatesAuth(logger) as Boolean {
     delegate.onSelect();
 
     return FuelGuardConnection.authRequestCountForTest() == 1
+        && FuelGuardConnection.lastAuthStateForTest() != null
+        && !FuelGuardConnection.connected();
+}
+
+(:test)
+function testFuelGuardActivityLoggerSettingsRawStartInitiatesAuth(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.useTestAuthRequestOnly();
+    FuelGuardApi.resetForTest();
+
+    var view = new FuelGuardActivityLoggerSettingsView();
+    var delegate = new FuelGuardActivityLoggerSettingsDelegate(view);
+    var handled = delegate.activateKeyForTest(WatchUi.KEY_START);
+
+    return handled
+        && FuelGuardConnection.authRequestCountForTest() == 1
         && FuelGuardConnection.lastAuthStateForTest() != null
         && !FuelGuardConnection.connected();
 }
