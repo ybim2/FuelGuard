@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation keeps Training beside Daily and adds a focused Reflection surface", () => {
+test("primary navigation keeps Training beside Daily and adds Reflection, Analytics and Tools", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -38,14 +38,16 @@ test("primary navigation keeps Training beside Daily and adds a focused Reflecti
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
     ["dashboard", "Daily"],
     ["training", "Training"],
-    ["impact", "Reflection"]
+    ["impact", "Reflection"],
+    ["analytics", "Analytics"],
+    ["tools", "Tools"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
-  assert.match(html, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/);
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(html, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\) !important;/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(html, /data-screen="history"|data-mobile-screen="history"|<section id="history"|data-screen="insights"|data-mobile-screen="insights"|<section id="insights"/);
-  assert.match(appUi, /\["dashboard", "training", "impact", "checklist"\]/);
-  assert.match(beta, /\["dashboard", "training", "impact", "checklist"\]/);
+  assert.match(appUi, /\["dashboard", "training", "impact", "analytics", "tools", "checklist"\]/);
+  assert.match(beta, /\["dashboard", "training", "impact", "analytics", "tools", "checklist"\]/);
   assert.doesNotMatch(beta, /renderHistoryScreen|data-history-date|fuelHistoryList|fuelHistoryDetail/);
 });
 
@@ -224,7 +226,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v138-reflection-journey";
+  const version = "mobile-pwa-v139-athlete-system";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -234,7 +236,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260811T173328Z/);
+  assert.match(sw, /20260811T185408Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

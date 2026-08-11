@@ -145,14 +145,14 @@ test("Training Insights separates completed-session evidence from today’s obse
   assert.ok(result.dayInsights.some(item => item.id === "hydration-moments-today"));
 });
 
-test("Daily renders the three restored streak visuals with the previous milestone treatment", () => {
+test("Daily renders four cumulative milestones while Day streak stays in the top summary", () => {
   const js = read("athlete-milestones.js");
   const css = read("fuel-beta.css");
-  for (const id of ["day", "fuel", "hydration"]) assert.match(js, new RegExp(`id: "${id}"`));
-  for (const label of ["Day streak", "Fuel streak", "Hydration streak"]) assert.match(js, new RegExp(label));
-  assert.match(js, /beta-milestone-tile beta-streak-visual unlocked current/);
-  assert.match(css, /\.beta-streak-visuals \{[\s\S]*grid-template-columns: repeat\(3/);
-  assert.match(css, /@media \(max-width: 390px\)[\s\S]*\.beta-streak-visuals \{[\s\S]*grid-template-columns: 1fr/);
+  for (const id of ["fuel", "hydration", "training", "work"]) assert.match(js, new RegExp(`id: "${id}"`));
+  for (const label of ["Fuel moments", "Hydration moments", "Training moments", "Work moments"]) assert.match(js, new RegExp(label));
+  assert.match(js, /beta-cumulative-milestone/);
+  assert.match(css, /\.beta-milestone-carousel \{[\s\S]*overflow-x: auto/);
+  assert.match(read("fuel-beta.js"), /day streak/);
 });
 
 test("Daily and Training use the same continuous white mobile card rhythm", () => {

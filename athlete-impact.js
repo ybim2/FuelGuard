@@ -424,9 +424,9 @@
     return `
       <section class="reflection-empty-state" aria-labelledby="reflectionEmptyHeading">
         <span>Your starting point</span>
-        <h2 id="reflectionEmptyHeading">Start your Reflection</h2>
-        <p>Record where you are today so Fuel Guard can help you compare your progress over time.</p>
-        <button type="button" class="primary" data-reflection-open-chooser>Set my baseline</button>
+        <h2 id="reflectionEmptyHeading">Start your Performance Reflection</h2>
+        <p>Choose an athletic outcome that matters to you, then record a performance-specific baseline.</p>
+        <button type="button" class="primary" data-reflection-open-chooser>Set performance baseline</button>
       </section>`;
   }
 
@@ -442,7 +442,7 @@
       ["baseline", "Your baseline", `${lifecycle.baselines.length} of ${metrics.length} recorded`, "The starting point you entered"],
       ["current", "Current check-in", lifecycle.reviewDue ? "Ready now" : lifecycle.latestReviewOn ? dateLabel(lifecycle.latestReviewOn) : `Due around ${dateLabel(lifecycle.dueOn)}`, lifecycle.reviewDue ? "Use the same measures" : "Your next reflection"],
       ["performance", "Performance", `${sportCount} outcome${sportCount === 1 ? "" : "s"}`, "Sport and training measures"],
-      ["everyday", "Everyday life", `${lifeCount} outcome${lifeCount === 1 ? "" : "s"}`, "Energy and fuelling measures"],
+      ["everyday", "Earlier personal outcomes", `${lifeCount} outcome${lifeCount === 1 ? "" : "s"}`, "Existing records remain preserved"],
       ["behaviour", "Fuelling behaviour", behaviourSignals ? `${behaviourSignals} comparison${behaviourSignals === 1 ? "" : "s"}` : "Building evidence", "Calculated from recorded activity"],
       ["changes", "Changes over time", lifecycle.comparisonCount ? `${lifecycle.comparisonCount} outcome${lifecycle.comparisonCount === 1 ? "" : "s"}` : "After your next check-in", "Baseline and later observations"]
     ];
@@ -459,7 +459,7 @@
     }
     if (view === "everyday") {
       const selected = metrics.filter(metric => reflectionMetricCategory(metric) === "Everyday life");
-      return `${back}${selected.length ? progressMarkup(selected, { heading: "Everyday life" }) : `<section class="reflection-page-section"><h2>Everyday life</h2><p class="reflection-empty-inline">No everyday outcome is active.</p></section>`}`;
+      return `${back}${selected.length ? progressMarkup(selected, { heading: "Earlier personal outcomes" }) : `<section class="reflection-page-section"><h2>Earlier personal outcomes</h2><p class="reflection-empty-inline">No earlier personal outcome is active. Use the Everyday baseline above for new life-impact reflections.</p></section>`}`;
     }
     if (view === "behaviour") return `${back}${evidenceMarkup(report)}`;
     if (view === "changes") return `${back}${lifecycle.comparisonCount ? progressMarkup(metrics) : `<section class="reflection-page-section"><h2>Changes over time</h2><p class="reflection-empty-inline">Your baseline is set. Changes will appear only after a later check-in.</p></section>`}${historyMarkup(metrics)}`;
@@ -476,8 +476,8 @@
     const metrics = activeMetrics();
     const activeKeys = new Set(metrics.map(metric => metric.preset_key).filter(Boolean));
     return `
-      <div class="reflection-editor-intro"><span>Your starting point</span><h2>Choose what matters</h2><p>Choose sport or everyday outcomes that are meaningful and repeatable for you. You can track up to three.</p></div>
-      ${Object.entries(OUTCOME_GROUPS).map(([key, group]) => `<section class="reflection-choice-group"><div><h3>${escape(group.label)}</h3><p>${escape(group.description)}</p></div><div>${group.outcomes.map(outcome => `<button type="button" data-reflection-outcome="${escape(outcome.key)}" data-reflection-group="${escape(key)}"${metrics.length >= 3 || activeKeys.has(outcome.key) ? " disabled" : ""}><strong>${escape(outcome.prompt)}</strong><span>${escape(outcome.name)} · ${escape(outcome.unit)}</span></button>`).join("")}</div></section>`).join("")}
+      <div class="reflection-editor-intro"><span>Performance starting point</span><h2>Choose what matters</h2><p>Choose a sport or training outcome that is meaningful and repeatable for you. You can track up to three.</p></div>
+      ${Object.entries(OUTCOME_GROUPS).filter(([key]) => key === "sport").map(([key, group]) => `<section class="reflection-choice-group"><div><h3>${escape(group.label)}</h3><p>${escape(group.description)}</p></div><div>${group.outcomes.map(outcome => `<button type="button" data-reflection-outcome="${escape(outcome.key)}" data-reflection-group="${escape(key)}"${metrics.length >= 3 || activeKeys.has(outcome.key) ? " disabled" : ""}><strong>${escape(outcome.prompt)}</strong><span>${escape(outcome.name)} · ${escape(outcome.unit)}</span></button>`).join("")}</div></section>`).join("")}
       <button type="button" class="secondary reflection-custom-action" data-reflection-custom-outcome${metrics.length >= 3 ? " disabled" : ""}>Create a custom outcome</button>
       ${metrics.length >= 3 ? `<p class="reflection-editor-note">You already have three active reflections. Use a card’s menu to change or delete one.</p>` : ""}`;
   }
@@ -546,7 +546,7 @@
     const signedIn = Boolean(cloud()?.user?.id);
     if (!signedIn) {
       target.innerHTML = `
-        <section class="reflection-hero"><span>Reflection</span><h1>Start with where you are today</h1><p>Log in to choose outcomes, record a baseline and keep your private Reflection history.</p><button type="button" class="primary" data-open-screen="checklist">Open Profile &amp; Settings</button></section>
+        <section class="reflection-hero"><span>Reflection</span><h1>Life first. Sport second.</h1><p>Log in to establish an Everyday baseline and keep separate private Performance outcomes.</p><button type="button" class="primary" data-open-screen="checklist">Open Profile &amp; Settings</button></section>
       `;
       return;
     }
@@ -562,12 +562,18 @@
     const report = currentReport();
     const lifecycle = reflectionLifecycle(metrics);
     const hasComparison = lifecycle.comparisonCount > 0;
-    target.innerHTML = `
+    const performanceMarkup = `
       ${impactState.message ? `<div class="impact-status-message" role="status">${escape(impactState.message)}</div>` : ""}
-      <header class="reflection-hero"><span>Reflection</span><h1>${!metrics.length ? "Your starting point" : hasComparison ? "What has changed?" : "Your baseline is set"}</h1><p>${!metrics.length ? "Record where you are today, then compare the same outcomes after enough time has passed." : hasComparison ? "Compare your baseline and check-ins without turning association into a claim of cause." : "Keep using Fuel Guard normally. We’ll invite you to check in again in around two weeks."}</p></header>
+      <header class="reflection-performance-heading"><span>PERFORMANCE</span><h2>${!metrics.length ? "Is anything changing in the outcomes you care about?" : hasComparison ? "Your performance comparison" : "Your performance baseline is set"}</h2><p>${!metrics.length ? "Choose a sport or training outcome only when it matters to you." : hasComparison ? "Compare your baseline and check-ins without turning association into a claim of cause." : "Keep using Fuel Guard normally. We’ll invite you to check in again in around two weeks."}</p></header>
       ${metrics.length ? populatedStateMarkup(metrics, report) : emptyStateMarkup()}
+    `;
+    target.innerHTML = `
+      <header class="reflection-hero reflection-main-heading"><span>Reflection</span><h1>Life first. Sport second.</h1><p>See whether everyday organisation and energy are changing, then keep athletic performance outcomes separate.</p></header>
+      <div id="athleteEverydayReflection" class="everyday-reflection-surface"></div>
+      <section class="reflection-performance-shell">${performanceMarkup}</section>
       ${editorMarkup()}
     `;
+    window.FuelGuardEverydayReflection?.render?.();
     window.FuelGuardAthleteRetention?.render?.();
   }
 

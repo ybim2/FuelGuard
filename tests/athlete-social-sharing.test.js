@@ -132,11 +132,45 @@ test("Daily Story renderer is an exact 9:16 export with concise Fuel Guard conte
 });
 
 test("Story renderer exposes a reusable template registry for Daily and four Settings cards", () => {
-  assert.deepEqual(shareCard.templateNames(), ["daily-story", "daily-summary", "pre-post-workout", "during-workout", "sleepiness"]);
+  assert.deepEqual(shareCard.templateNames(), ["daily-story", "daily-summary", "pre-post-workout", "during-workout", "sleepiness", "athlete-analytics"]);
   const fixture = canvasFixture();
   shareCard.registerTemplate("test-template", () => fixture.canvas);
   assert.equal(shareCard.renderTemplate("test-template", {}).getContext("2d"), fixture.canvas.getContext("2d"));
   assert.throws(() => shareCard.renderTemplate("missing", {}), /Unknown Fuel Guard story template/);
+});
+
+test("Analytics Story renders the accepted 1080 by 1920 card without account identifiers", () => {
+  const fixture = canvasFixture();
+  const model = shareCard.buildAnalyticsStoryModel({
+    analytics: {
+      period: "30d",
+      rhythm: {
+        sufficient: true,
+        typicalEventsPerLoggedDay: 4.2,
+        loggedDays: 12,
+        peak: { label: "8 AM–9 AM" },
+        typicalGap: { averageMinutes: 245 },
+        bars: Array.from({ length: 24 }, (_, hour) => ({ hour, relativeHeight: (hour * 17) % 100 }))
+      },
+      training: {
+        sufficient: true,
+        workoutCount: 4,
+        metrics: {
+          carbsG: { perHour: 54 },
+          sodiumMg: { perHour: 620 },
+          fluidMl: { perHour: 480 }
+        }
+      }
+    },
+    athleteName: "Theo",
+    now: new Date("2026-08-11T12:00:00Z")
+  });
+  const canvas = shareCard.renderAnalyticsStory(model, { canvasFactory: () => fixture.canvas });
+  assert.deepEqual([canvas.width, canvas.height], [1080, 1920]);
+  assert.equal(canvas.width / canvas.height, 9 / 16);
+  assert.ok(fixture.text.includes("ATHLETE ANALYTICS"));
+  assert.ok(fixture.text.includes("FUELGUARDAPP.COM"));
+  assert.equal(fixture.text.some(value => /@|user[_ -]?id|organisation|organization/i.test(value)), false);
 });
 
 test("Settings share models use actual Daily, pre/post, during-workout and Sleepy records", () => {

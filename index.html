@@ -13,13 +13,16 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v138-reflection-journey" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v138-reflection-journey" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v138-reflection-journey" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v138-reflection-journey" />
-  <link rel="stylesheet" href="work-mode.css?v=mobile-pwa-v138-reflection-journey" />
-  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v138-reflection-journey" />
-  <link rel="stylesheet" href="athlete-share.css?v=mobile-pwa-v138-reflection-journey" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="work-mode.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="athlete-everyday-reflection.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="athlete-analytics.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="athlete-tools.css?v=mobile-pwa-v139-athlete-system" />
+  <link rel="stylesheet" href="athlete-share.css?v=mobile-pwa-v139-athlete-system" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -54,7 +57,7 @@
       width: 100vw;
       max-width: 100vw;
       display: grid !important;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
       overflow: hidden;
     }
 
@@ -191,8 +194,8 @@
           <section class="beta-rhythm-section-card beta-streaks-card" aria-labelledby="athleteDailyStreaksHeading">
             <div class="section-heading-row">
               <div>
-                <h3 id="athleteDailyStreaksHeading">Your streaks</h3>
-                <p class="muted">Current consecutive days built from your Fuel Guard history.</p>
+                <h3 id="athleteDailyStreaksHeading">Your milestones</h3>
+                <p class="muted">Cumulative Fuel, Hydration, Training and Work moments from your history.</p>
               </div>
             </div>
             <div id="athleteMilestones"></div>
@@ -221,6 +224,14 @@
 
       <section id="impact" class="screen" aria-label="Fuel Guard Reflection">
         <div id="athleteImpactSurface" class="impact-surface"></div>
+      </section>
+
+      <section id="analytics" class="screen" aria-label="Fuel Guard Analytics">
+        <div id="athleteAnalyticsSurface" class="athlete-analytics-surface"></div>
+      </section>
+
+      <section id="tools" class="screen" aria-label="Fuel Guard Tools">
+        <div id="athleteToolsSurface" class="athlete-tools-surface"></div>
       </section>
 
       <section id="checklist" class="screen">
@@ -295,6 +306,7 @@
             <div><h2>Athlete Profile</h2><p class="muted">Your identity follows your Fuel Guard roles without changing who can access your data.</p></div>
           </div>
           <div class="form-grid beta-settings-grid beta-responsive-form-grid">
+            <label>Username<input id="athleteProfileUsername" type="text" maxlength="30" autocomplete="username" placeholder="athlete_name"></label>
             <label>First name<input id="athleteProfileFirstName" type="text" maxlength="80" autocomplete="given-name"></label>
             <label>Last name<input id="athleteProfileLastName" type="text" maxlength="80" autocomplete="family-name"></label>
             <label>Email<input id="athleteProfileEmail" type="email" readonly></label>
@@ -448,7 +460,7 @@
 
         <div class="beta-version-marker beta-settings-footer" data-settings-category="support" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v138-reflection-journey</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v139-athlete-system</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -473,30 +485,41 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="m14 10 5-5"/><path d="M16 5h3v3"/></svg>
       <span>Reflection</span>
     </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="analytics" data-mobile-tab="analytics">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/></svg>
+      <span>Analytics</span>
+    </button>
+    <button class="mobile-nav-item" type="button" data-mobile-screen="tools" data-mobile-tab="tools">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18"/><path d="M3 12h18"/><circle cx="12" cy="12" r="8"/></svg>
+      <span>Tools</span>
+    </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v138-reflection-journey"></script>
+  <script src="build-info.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v139-athlete-system"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="app-state.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="product-shell.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="app-ui.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="training-mode.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="work-mode.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="athlete-impact.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="athlete-share-card.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="athlete-share.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="athlete-retention.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="settings-navigation.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v138-reflection-journey"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v138-reflection-journey"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="app-state.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="product-shell.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="app-ui.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="training-mode.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="work-mode.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-everyday-reflection.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-impact.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-analytics.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-tools.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-share-card.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-share.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="athlete-retention.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="settings-navigation.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v139-athlete-system"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v139-athlete-system"></script>
 </body>
 </html>

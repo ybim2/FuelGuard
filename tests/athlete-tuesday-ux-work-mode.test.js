@@ -167,16 +167,18 @@ test("Daily streaks do not publish or persist a partial local value before canon
   const ready = loadMilestoneRuntime({ historyReady: true });
   ready.api.evaluate({ allowToast: false });
   assert.equal(ready.gap.milestones.lastSummary.dayStreak, 1);
-  assert.match(ready.target.innerHTML, /Day streak/);
+  assert.match(ready.target.innerHTML, /Fuel moments/);
 });
 
-test("primary Athlete navigation is Daily, Training, Reflection with distinct matching icons and compact safe-area targets", () => {
+test("primary Athlete navigation is Daily, Training, Reflection, Analytics and Tools", () => {
   const html = read("index.html");
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   const impact = nav.indexOf('data-mobile-tab="impact"');
   const daily = nav.indexOf('data-mobile-tab="log"');
   const training = nav.indexOf('data-mobile-tab="training"');
-  assert.ok(daily < training && training < impact);
+  const analytics = nav.indexOf('data-mobile-tab="analytics"');
+  const tools = nav.indexOf('data-mobile-tab="tools"');
+  assert.ok(daily < training && training < impact && impact < analytics && analytics < tools);
   assert.match(nav.slice(daily, training), /m6 15 3-4 3 3 5-7/);
   assert.match(nav.slice(training, impact), /circle cx="14" cy="4"[\s\S]*m8 21 3-6/);
   assert.match(nav.slice(impact), /<span>Reflection<\/span>/);
@@ -276,10 +278,11 @@ test("Training completion has one transient summary and remains represented once
   assert.match(css, /\.training-completion-moment \{/);
 });
 
-test("Reflection uses a continuous Athlete surface with progressive editing and no legacy summary cards", () => {
+test("Reflection keeps the accepted Performance journey beneath the universal Everyday baseline", () => {
   const impact = read("athlete-impact.js");
   const css = read("athlete-impact.css");
-  for (const label of ["Your journey", "Your baseline", "Current check-in", "Fuel Guard evidence", "Set my baseline", "Where are you currently", "How are things going now"]) assert.match(impact, new RegExp(label));
+  for (const label of ["Your journey", "Your baseline", "Current check-in", "Fuel Guard evidence", "Set performance baseline", "Where are you currently", "How are things going now"]) assert.match(impact, new RegExp(label));
+  assert.match(impact, /athleteEverydayReflection/);
   assert.doesNotMatch(impact, /Impact summary|Training experience|function feedbackMarkup/);
   assert.match(impact, /Edit latest check-in/);
   assert.match(impact, /Edit baseline/);
@@ -295,7 +298,7 @@ test("the PWA cache advances once and includes every new Work Mode asset", () =>
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v138-reflection-journey/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v139-athlete-system/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));

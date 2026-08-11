@@ -1,0 +1,123 @@
+.everyday-reflection-shell {
+  display: grid;
+  gap: 14px;
+  padding: 20px 18px;
+  border: 1px solid #dce7df;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(23, 57, 38, .07);
+}
+
+.everyday-reflection-shell > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.everyday-reflection-shell > header span,
+.everyday-baseline-start > span,
+.everyday-baseline-wait > span,
+.everyday-comparison > header span,
+.everyday-editor > header span {
+  display: block;
+  color: #2c7a4b;
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.everyday-reflection-shell > header h2 { margin: 5px 0 4px; font-size: clamp(1.25rem, 5.5vw, 1.7rem); letter-spacing: -.035em; }
+.everyday-reflection-shell > header p,
+.everyday-baseline-start p,
+.everyday-baseline-wait p,
+.everyday-comparison > header p,
+.everyday-editor > header p { margin: 0; color: #637168; font-size: .73rem; line-height: 1.45; }
+.everyday-reflection-shell > header > b { flex: 0 0 auto; padding: 7px 9px; border-radius: 999px; background: #eff7f1; color: #21633b; font-size: .62rem; letter-spacing: .08em; }
+
+.everyday-baseline-start,
+.everyday-baseline-wait { padding: 17px; border: 1px solid #dfe9e2; border-radius: 20px; background: linear-gradient(145deg, #f8fcf9, #f0f8f3); }
+.everyday-baseline-start h3,
+.everyday-baseline-wait h3 { margin: 5px 0; font-size: 1.1rem; }
+.everyday-baseline-start button,
+.everyday-baseline-wait button { margin-top: 13px; }
+
+.everyday-summary-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.everyday-summary-row span { min-width: 0; padding: 10px; border: 1px solid #e1e9e3; border-radius: 14px; }
+.everyday-summary-row small,
+.everyday-summary-row strong { display: block; }
+.everyday-summary-row small { color: #718078; font-size: .59rem; }
+.everyday-summary-row strong { margin-top: 3px; overflow-wrap: anywhere; font-size: .7rem; }
+
+.everyday-comparison { display: grid; gap: 12px; }
+.everyday-comparison h3 { margin: 5px 0 3px; font-size: 1.12rem; }
+.everyday-strongest { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.everyday-strongest article { padding: 12px; border: 1px solid #dfe8e1; border-radius: 16px; }
+.everyday-strongest span,
+.everyday-strongest strong,
+.everyday-strongest small { display: block; }
+.everyday-strongest span { min-height: 2.4em; color: #5d6e63; font-size: .64rem; }
+.everyday-strongest strong { margin: 5px 0; color: #17663a; font-size: 1.22rem; }
+.everyday-strongest small { color: #718078; font-size: .57rem; line-height: 1.3; }
+.everyday-stable { margin: 0; padding: 12px; border-radius: 14px; background: #f4f8f5; color: #5f6f65; font-size: .72rem; }
+
+.everyday-comparison-rail {
+  display: grid;
+  grid-auto-columns: minmax(176px, 60%);
+  grid-auto-flow: column;
+  gap: 9px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+  scrollbar-width: none;
+}
+.everyday-comparison-rail::-webkit-scrollbar { display: none; }
+.everyday-comparison-rail article { scroll-snap-align: start; padding: 14px; border: 1px solid #e0e9e2; border-radius: 17px; background: #fff; }
+.everyday-comparison-rail article > span { display: block; min-height: 2.4em; color: #5f6e65; font-size: .68rem; font-weight: 750; }
+.everyday-comparison-rail article > div { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+.everyday-comparison-rail article > div b { font-size: 1.28rem; }
+.everyday-comparison-rail article > div i { color: #829087; font-style: normal; }
+.everyday-comparison-rail article > strong { display: block; margin-top: 5px; color: #17663a; }
+.everyday-comparison-rail article > small { color: #758179; font-size: .58rem; }
+.everyday-checkin-action { min-height: 44px; border: 1px solid #c8ddcf; border-radius: 15px; background: #f2faf5; color: #185c35; font-weight: 850; }
+.everyday-status { margin: 0; color: #5f6f65; font-size: .7rem; }
+
+.everyday-editor-backdrop { position: fixed; inset: 0; z-index: 540; display: grid; align-items: end; padding: 16px 10px max(16px, env(safe-area-inset-bottom)); background: rgba(12, 30, 20, .52); backdrop-filter: blur(6px); }
+.everyday-editor { position: relative; display: grid; gap: 13px; width: min(100%, 620px); max-height: min(88vh, 850px); margin: 0 auto; padding: 22px 16px; overflow-y: auto; border-radius: 26px; background: #fff; box-shadow: 0 25px 60px rgba(0,0,0,.25); }
+.everyday-editor-close { position: absolute; top: 10px; right: 10px; width: 38px; min-height: 38px; padding: 0; border: 0; border-radius: 50%; background: #eef3ef; color: #294735; font-size: 1.25rem; }
+.everyday-editor > header { padding-right: 38px; }
+.everyday-editor > header h2 { margin: 5px 0 4px; font-size: 1.45rem; letter-spacing: -.04em; }
+.everyday-editor > footer { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; }
+.everyday-editor-help { margin: -4px 0 0; color: #6a786f; font-size: .67rem; text-align: center; }
+
+.everyday-single-rating,
+.everyday-compact-group { padding: 13px; border: 1px solid #e0e8e2; border-radius: 17px; }
+.everyday-single-rating header,
+.everyday-compact-group > header { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.everyday-single-rating strong,
+.everyday-single-rating small,
+.everyday-compact-group strong,
+.everyday-compact-group small { display: block; }
+.everyday-single-rating strong,
+.everyday-compact-group strong { font-size: .75rem; }
+.everyday-single-rating small,
+.everyday-compact-group small { margin-top: 2px; color: #718078; font-size: .59rem; }
+.everyday-compact-group > header button { min-height: 30px; padding: 0 9px; border: 1px solid #d6e1d9; border-radius: 999px; background: #fff; color: #53635a; font-size: .6rem; font-weight: 750; }
+.everyday-compact-group.not-applicable { background: #f6f8f6; }
+.everyday-compact-group.not-applicable > p { margin: 8px 0 0; color: #68766e; font-size: .68rem; }
+
+.everyday-rating { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 9px; }
+.everyday-rating button { min-width: 0; min-height: 38px; padding: 0; border: 1px solid #d6e1d9; border-radius: 10px; background: #f8faf8; color: #496052; font-weight: 850; }
+.everyday-rating button.selected { border-color: #197243; background: #197243; color: #fff; box-shadow: 0 5px 12px rgba(25, 114, 67, .18); }
+
+.everyday-group-rows { display: grid; gap: 8px; margin-top: 10px; }
+.everyday-group-rows article { display: grid; grid-template-columns: minmax(86px, .8fr) 1.4fr; align-items: center; gap: 8px; }
+.everyday-group-rows article > span { color: #53635a; font-size: .64rem; font-weight: 750; }
+.everyday-group-rows .everyday-rating { margin: 0; }
+.everyday-group-rows .everyday-rating button { min-height: 34px; border-radius: 8px; font-size: .68rem; }
+
+@media (min-width: 650px) {
+  .everyday-editor-backdrop { align-items: center; }
+}
+
+@media (max-width: 360px) {
+  .everyday-reflection-shell { padding-inline: 14px; border-radius: 22px; }
+  .everyday-strongest { grid-template-columns: 1fr; }
+  .everyday-summary-row { grid-template-columns: 1fr; }
+  .everyday-editor { padding-inline: 12px; }
+  .everyday-group-rows article { grid-template-columns: 76px 1fr; gap: 5px; }
+}

@@ -1,0 +1,311 @@
+.athlete-analytics-surface {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 14px 12px 108px;
+  color: var(--ink, #16251d);
+}
+
+.athlete-analytics-header {
+  padding: 12px 4px 0;
+}
+
+.athlete-analytics-header span,
+.athlete-analytics-hero header span,
+.athlete-training-analytics header span,
+.athlete-analytics-insights > header span {
+  display: block;
+  color: #2c7a4b;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.athlete-analytics-header h1 {
+  margin: 4px 0 5px;
+  font-size: clamp(2rem, 8vw, 3.2rem);
+  letter-spacing: -.055em;
+}
+
+.athlete-analytics-header p,
+.athlete-analytics-empty p,
+.athlete-training-intake-note,
+.athlete-analytics-insights article p {
+  margin: 0;
+  color: #617067;
+  line-height: 1.45;
+}
+
+.athlete-analytics-period {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid #dce6df;
+  border-radius: 999px;
+  background: #f1f6f2;
+}
+
+.athlete-analytics-period button {
+  min-height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #637168;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.athlete-analytics-period button.active {
+  background: #fff;
+  color: #153e28;
+  box-shadow: 0 5px 15px rgba(18, 55, 35, .11);
+}
+
+.athlete-analytics-hero,
+.athlete-training-analytics,
+.athlete-analytics-insights {
+  overflow: hidden;
+  border: 1px solid #dce7df;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(23, 57, 38, .08);
+}
+
+.athlete-analytics-hero {
+  padding: 20px 18px 18px;
+  background:
+    radial-gradient(circle at 84% 9%, rgba(125, 231, 162, .32), transparent 34%),
+    linear-gradient(150deg, #f9fffb 0%, #effaf3 100%);
+}
+
+.athlete-analytics-hero > header,
+.athlete-training-analytics > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.athlete-analytics-hero h2,
+.athlete-training-analytics h2,
+.athlete-analytics-insights h2 {
+  max-width: 460px;
+  margin: 5px 0 0;
+  font-size: clamp(1.2rem, 5vw, 1.65rem);
+  line-height: 1.08;
+  letter-spacing: -.035em;
+}
+
+.athlete-analytics-hero > header > b,
+.athlete-training-analytics > header > b {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.8);
+  color: #2d6843;
+  font-size: .65rem;
+  letter-spacing: .08em;
+}
+
+.athlete-rhythm-chart {
+  margin-top: 24px;
+}
+
+.athlete-rhythm-bars {
+  display: grid;
+  height: 220px;
+  grid-template-columns: repeat(24, minmax(3px, 1fr));
+  align-items: end;
+  gap: clamp(2px, 1vw, 6px);
+  padding: 20px 3px 0;
+  border-bottom: 1px solid #cbdcd0;
+  background: repeating-linear-gradient(to top, transparent 0, transparent 54px, rgba(28, 92, 54, .07) 55px);
+}
+
+.athlete-rhythm-bars > i {
+  display: flex;
+  height: var(--rhythm-height);
+  min-height: 3px;
+  align-items: stretch;
+}
+
+.athlete-rhythm-bars > i > b {
+  width: 100%;
+  border-radius: 999px 999px 4px 4px;
+  background: linear-gradient(180deg, #1f9f59, #0b5d33);
+  box-shadow: 0 5px 12px rgba(20, 118, 61, .18);
+}
+
+.athlete-rhythm-axis {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 9px;
+  color: #68776e;
+  font-size: .62rem;
+  font-weight: 800;
+}
+
+.athlete-rhythm-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.athlete-rhythm-evidence span {
+  padding: 12px;
+  border: 1px solid rgba(34, 106, 61, .12);
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+}
+
+.athlete-rhythm-evidence small,
+.athlete-cumulative-status small {
+  display: block;
+  color: #66756c;
+  font-size: .65rem;
+}
+
+.athlete-rhythm-evidence strong {
+  display: block;
+  margin-top: 3px;
+  font-size: .86rem;
+}
+
+.athlete-training-analytics {
+  padding: 20px 18px;
+}
+
+.athlete-training-intake-system {
+  display: grid;
+  gap: 22px;
+  margin-top: 24px;
+}
+
+.athlete-training-intake-metric > div:first-child {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 2px 12px;
+}
+
+.athlete-training-intake-metric span {
+  color: #45564c;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.athlete-training-intake-metric strong {
+  grid-row: span 2;
+  font-size: 1.35rem;
+  letter-spacing: -.04em;
+}
+
+.athlete-training-intake-metric strong small {
+  font-size: .7rem;
+  letter-spacing: 0;
+}
+
+.athlete-training-intake-metric p {
+  margin: 2px 0 0;
+  color: #738078;
+  font-size: .68rem;
+}
+
+.athlete-training-intake-track {
+  height: 12px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf2ee;
+}
+
+.athlete-training-intake-track i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f7340, #45c979);
+}
+
+.athlete-training-intake-metric.sodium i { background: linear-gradient(90deg, #5c51b5, #9f95f4); }
+.athlete-training-intake-metric.fluid i { background: linear-gradient(90deg, #16739f, #64c9ef); }
+.athlete-training-intake-note { font-size: .67rem; }
+
+.athlete-analytics-empty {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px dashed #cbdcd0;
+  border-radius: 20px;
+  background: rgba(248, 252, 249, .8);
+}
+
+.athlete-analytics-placeholder-bars,
+.athlete-training-placeholder {
+  display: flex;
+  height: 82px;
+  align-items: end;
+  gap: 6px;
+  opacity: .55;
+}
+
+.athlete-analytics-placeholder-bars i {
+  flex: 1;
+  height: var(--placeholder);
+  border-radius: 999px 999px 3px 3px;
+  background: #bdd8c5;
+}
+
+.athlete-training-placeholder { height: auto; flex-direction: column; align-items: stretch; }
+.athlete-training-placeholder i { height: 10px; border-radius: 99px; background: #dce9df; }
+.athlete-training-placeholder i:nth-child(2) { width: 72%; }
+.athlete-training-placeholder i:nth-child(3) { width: 48%; }
+
+.athlete-analytics-insights { padding: 20px 18px; }
+.athlete-analytics-insights > div { display: grid; gap: 8px; margin-top: 16px; }
+.athlete-analytics-insights article { padding: 15px; border: 1px solid #e3ebe5; border-radius: 17px; background: #fff; }
+.athlete-analytics-insights article small { color: #617067; font-weight: 750; }
+.athlete-analytics-insights article strong { display: block; margin: 4px 0; font-size: 1.18rem; }
+.athlete-analytics-insights article p { font-size: .72rem; }
+
+.athlete-analytics-share {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 4px 0 12px;
+}
+
+.athlete-analytics-share-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 15px;
+  border: 1px solid #d5e1d8;
+  border-radius: 999px;
+  background: #fff;
+  color: #1e5032;
+  font-weight: 850;
+  box-shadow: 0 8px 18px rgba(24, 72, 43, .08);
+}
+
+.athlete-analytics-share p { min-height: 1em; margin: 0; color: #617067; font-size: .7rem; text-align: center; }
+
+@media (min-width: 680px) {
+  .athlete-analytics-insights > div { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 350px) {
+  .athlete-analytics-surface { padding-inline: 8px; }
+  .athlete-analytics-hero,
+  .athlete-training-analytics,
+  .athlete-analytics-insights { padding-inline: 14px; border-radius: 22px; }
+  .athlete-rhythm-bars { gap: 2px; }
+}

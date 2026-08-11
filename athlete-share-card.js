@@ -12,6 +12,7 @@
   const PRE_POST_TEMPLATE = "pre-post-workout";
   const DURING_WORKOUT_TEMPLATE = "during-workout";
   const SLEEPINESS_TEMPLATE = "sleepiness";
+  const ANALYTICS_TEMPLATE = "athlete-analytics";
   const templates = new Map();
 
   function clamp(value, minimum, maximum) {
@@ -328,7 +329,41 @@
     if (template === PRE_POST_TEMPLATE) return buildPrePostWorkoutModel(data);
     if (template === DURING_WORKOUT_TEMPLATE) return buildDuringWorkoutModel(data);
     if (template === SLEEPINESS_TEMPLATE) return buildSleepinessModel(data);
+    if (template === ANALYTICS_TEMPLATE) return buildAnalyticsStoryModel(data);
     throw new Error(`Unknown Fuel Guard share model: ${template}`);
+  }
+
+  function buildAnalyticsStoryModel({ analytics = {}, athleteName = "", now = new Date() } = {}) {
+    const rhythm = analytics.rhythm || {};
+    const training = analytics.training || {};
+    const metrics = [];
+    if (rhythm.peak?.label) metrics.push({ label: "Most common fuel time", value: rhythm.peak.label, accent: "fuel" });
+    if (rhythm.typicalGap?.averageMinutes) metrics.push({ label: "Recurring daytime gap", value: `${Math.floor(rhythm.typicalGap.averageMinutes / 60)}h ${rhythm.typicalGap.averageMinutes % 60}m`, accent: "neutral" });
+    if (training.sufficient && Number(training.metrics?.carbsG?.perHour) > 0) metrics.push({ label: "Training carbohydrate", value: `${Math.round(training.metrics.carbsG.perHour)} g/hr`, accent: "fuel" });
+    if (training.sufficient && Number(training.metrics?.fluidMl?.perHour) > 0) metrics.push({ label: "Training fluid", value: `${Math.round(training.metrics.fluidMl.perHour)} ml/hr`, accent: "hydration" });
+    const period = String(analytics.period || "30d").toUpperCase();
+    const safeName = String(athleteName || "").trim().slice(0, 30);
+    return Object.freeze({ ...baseSummaryModel(ANALYTICS_TEMPLATE, safeName ? `${safeName.toUpperCase()}’S FUEL RHYTHM` : "YOUR FUEL RHYTHM", {
+      kicker: "FUEL GUARD ATHLETE · ANALYTICS",
+      headline: rhythm.sufficient ? `${rhythm.typicalEventsPerLoggedDay} FUEL MOMENTS` : "RHYTHM IN PROGRESS",
+      detail: rhythm.sufficient ? `Your average across ${rhythm.loggedDays} logged days · ${period}` : "Keep logging Fuel to reveal your own daily rhythm.",
+      metrics,
+      note: training.sufficient
+        ? `${training.workoutCount} completed Training Mode workout${training.workoutCount === 1 ? "" : "s"} included. Recorded behaviour, not a target.`
+        : "Built only from your recorded Fuel and completed Training Mode sessions.",
+      date: now
+    }),
+      period,
+      rhythmBars: Array.isArray(rhythm.bars) ? rhythm.bars.slice(0, 24).map(item => clamp(item?.relativeHeight, 0, 100)) : [],
+      trainingRates: {
+        carbsG: training.sufficient ? Number(training.metrics?.carbsG?.perHour) || null : null,
+        sodiumMg: training.sufficient ? Number(training.metrics?.sodiumMg?.perHour) || null : null,
+        fluidMl: training.sufficient ? Number(training.metrics?.fluidMl?.perHour) || null : null
+      },
+      insight: rhythm.typicalGap?.averageMinutes
+        ? `Longest recurring daytime gap: ${Math.floor(rhythm.typicalGap.averageMinutes / 60)}h ${rhythm.typicalGap.averageMinutes % 60}m.`
+        : rhythm.peak?.label ? `Most common fuel window: ${rhythm.peak.label}.` : "Your Fuel Rhythm becomes clearer as you keep logging."
+    });
   }
 
   function roundedRect(ctx, x, y, width, height, radius) {
@@ -626,6 +661,97 @@
     return canvas;
   }
 
+  function renderAnalyticsStory(model, { canvasFactory } = {}) {
+    const makeCanvas = canvasFactory || (() => {
+      if (typeof document === "undefined") throw new Error("A canvas factory is required outside the browser.");
+      return document.createElement("canvas");
+    });
+    const canvas = makeCanvas();
+    canvas.width = STORY_WIDTH;
+    canvas.height = STORY_HEIGHT;
+    const ctx = canvas.getContext?.("2d");
+    if (!ctx) throw new Error("Story image export is not supported in this browser.");
+    drawBackground(ctx, STORY_WIDTH, STORY_HEIGHT);
+    drawBrand(ctx, "ATHLETE ANALYTICS");
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#b9ff66";
+    fitFont(ctx, model.title, { maximum: 76, minimum: 46, width: 936, weight: 900 });
+    ctx.fillText(String(model.title || "YOUR FUEL RHYTHM"), 72, 320);
+    ctx.fillStyle = "rgba(244,250,247,.5)";
+    ctx.font = "700 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${model.period || "30D"} · AVERAGE LOGGED DAY`, 74, 374);
+
+    const bars = Array.isArray(model.rhythmBars) && model.rhythmBars.length === 24 ? model.rhythmBars : Array(24).fill(4);
+    const chartX = 76;
+    const chartY = 790;
+    const chartWidth = 928;
+    const gap = 10;
+    const barWidth = (chartWidth - gap * 23) / 24;
+    ctx.strokeStyle = "rgba(244,250,247,.16)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(chartX, chartY);
+    ctx.lineTo(chartX + chartWidth, chartY);
+    ctx.stroke();
+    bars.forEach((height, index) => {
+      const barHeight = Math.max(8, clamp(height, 0, 100) / 100 * 310);
+      const gradient = ctx.createLinearGradient(0, chartY - barHeight, 0, chartY);
+      gradient.addColorStop(0, "#b9ff66");
+      gradient.addColorStop(1, "#168b4e");
+      roundedRect(ctx, chartX + index * (barWidth + gap), chartY - barHeight, barWidth, barHeight, barWidth / 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    });
+    ctx.fillStyle = "rgba(244,250,247,.5)";
+    ctx.font = "650 18px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    [[0, "12 AM"], [6, "6 AM"], [12, "12 PM"], [18, "6 PM"], [23, "12 AM"]].forEach(([hour, label]) => {
+      ctx.textAlign = hour === 23 ? "right" : "left";
+      ctx.fillText(label, chartX + hour / 23 * chartWidth, chartY + 42);
+    });
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(244,250,247,.5)";
+    ctx.font = "700 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("HOW I FUEL TRAINING", 76, 940);
+    const rates = [
+      ["CARBOHYDRATE", model.trainingRates?.carbsG, "g/hr", "#b9ff66"],
+      ["SODIUM", model.trainingRates?.sodiumMg, "mg/hr", "#c2baff"],
+      ["FLUID", model.trainingRates?.fluidMl, "ml/hr", "#65c8ff"]
+    ];
+    rates.forEach(([label, value, unit, color], index) => {
+      const x = 76 + index * 309;
+      ctx.fillStyle = "rgba(236,250,242,.07)";
+      roundedRect(ctx, x, 988, 285, 250, 28);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.font = "900 70px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(Number.isFinite(value) ? String(Math.round(value)) : "—", x + 24, 1090);
+      ctx.fillStyle = "rgba(244,250,247,.78)";
+      ctx.font = "750 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(unit, x + 26, 1130);
+      ctx.fillStyle = "rgba(244,250,247,.46)";
+      ctx.font = "700 17px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(label, x + 26, 1192);
+    });
+
+    fillPill(ctx, 72, 1320, 936, 250, "rgba(236,250,242,.075)", "rgba(236,250,242,.14)");
+    ctx.fillStyle = "rgba(244,250,247,.5)";
+    ctx.font = "700 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("ONE THING THAT STANDS OUT", 112, 1382);
+    ctx.fillStyle = "#f4faf7";
+    ctx.font = "760 37px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    wrappedText(ctx, model.insight, 112, 1460, 840, 49, 3);
+
+    ctx.fillStyle = "rgba(244,250,247,.82)";
+    ctx.font = "760 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("MY BEHAVIOUR. MY FUEL RHYTHM.", 72, 1764);
+    ctx.fillStyle = "rgba(244,250,247,.42)";
+    ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("FUELGUARDAPP.COM", 72, 1812);
+    return canvas;
+  }
+
   function registerTemplate(name, renderer) {
     const key = String(name || "").trim();
     if (!key || typeof renderer !== "function") throw new TypeError("A template name and renderer are required.");
@@ -644,6 +770,7 @@
   registerTemplate(PRE_POST_TEMPLATE, renderSummaryStory);
   registerTemplate(DURING_WORKOUT_TEMPLATE, renderSummaryStory);
   registerTemplate(SLEEPINESS_TEMPLATE, renderSummaryStory);
+  registerTemplate(ANALYTICS_TEMPLATE, renderAnalyticsStory);
 
   return Object.freeze({
     STORY_WIDTH,
@@ -653,16 +780,19 @@
     PRE_POST_TEMPLATE,
     DURING_WORKOUT_TEMPLATE,
     SLEEPINESS_TEMPLATE,
+    ANALYTICS_TEMPLATE,
     registerTemplate,
     templateNames: () => Array.from(templates.keys()),
     renderTemplate,
     renderDailyStory,
     renderSummaryStory,
+    renderAnalyticsStory,
     buildDailyStoryModel,
     buildDailySummaryModel,
     buildPrePostWorkoutModel,
     buildDuringWorkoutModel,
     buildSleepinessModel,
+    buildAnalyticsStoryModel,
     buildSummaryModel,
     dailyStoryFilename: model => `fuel-guard-daily-${model?.dateKey || localDateKey()}.png`,
     _test: Object.freeze({ dailyStatus, formatRelativeMinutes, validActivityLog, localDateKey })

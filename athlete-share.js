@@ -3,6 +3,7 @@
 
   const BUTTON_ID = "athleteDailyShareButton";
   const STATUS_ID = "athleteDailyShareStatus";
+  const ANALYTICS_STATUS_ID = "athleteAnalyticsShareStatus";
   let activeIdentity = "";
   let sharing = false;
   let selectedTemplate = "";
@@ -15,6 +16,11 @@
 
   function setStatus(message = "") {
     const status = document.getElementById(STATUS_ID);
+    if (status) status.textContent = message;
+  }
+
+  function setAnalyticsStatus(message = "") {
+    const status = document.getElementById(ANALYTICS_STATUS_ID);
     if (status) status.textContent = message;
   }
 
@@ -217,6 +223,57 @@
     }).finally(finishShare);
   }
 
+  function shareAnalyticsStory() {
+    if (sharing) return;
+    resetForCurrentIdentity();
+    const requestedIdentity = activeIdentity;
+    sharing = true;
+    setAnalyticsStatus("Creating your analytics story…");
+    let rendered;
+    let blob;
+    let filename;
+    try {
+      const analytics = window.FuelGuardAthleteAnalytics?.model?.() || {};
+      const model = window.FuelGuardShareCard.buildAnalyticsStoryModel({
+        analytics,
+        athleteName: window.fuelGuardProductShell?.athleteShareName?.() || "",
+        now: new Date()
+      });
+      const canvas = window.FuelGuardShareCard.renderTemplate(window.FuelGuardShareCard.ANALYTICS_TEMPLATE, model);
+      rendered = { model, canvas };
+      blob = storyBlob(canvas);
+      filename = summaryFilename("analytics", new Date());
+    } catch (error) {
+      sharing = false;
+      setAnalyticsStatus(`Analytics story could not be created: ${error?.message || "unknown error"}`);
+      return;
+    }
+    const file = typeof File === "function" ? new File([blob], filename, { type: "image/png" }) : null;
+    let canShare = false;
+    try {
+      canShare = Boolean(file && typeof navigator.share === "function" && navigator.canShare?.({ files: [file] }));
+    } catch {
+      canShare = false;
+    }
+    if (!canShare) {
+      downloadStory(blob, filename);
+      sharing = false;
+      setAnalyticsStatus("Native image sharing is unavailable, so the 1080 × 1920 story was saved instead.");
+      return;
+    }
+    Promise.resolve(navigator.share({ files: [file], title: rendered.model.title, text: "My Fuel Guard Athlete analytics" }))
+      .then(() => { if (requestedIdentity === activeIdentity) setAnalyticsStatus("Analytics story shared."); })
+      .catch(error => {
+        if (requestedIdentity !== activeIdentity) return;
+        if (error?.name === "AbortError") setAnalyticsStatus("Share cancelled.");
+        else {
+          downloadStory(blob, filename);
+          setAnalyticsStatus("Sharing failed, so the story was saved as an image.");
+        }
+      })
+      .finally(() => { sharing = false; });
+  }
+
   function resetForCurrentIdentity() {
     const nextIdentity = cloudUserId();
     if (nextIdentity === activeIdentity) return;
@@ -228,6 +285,7 @@
     setBusy(false);
     setStatus("");
     settingsStatus("");
+    setAnalyticsStatus("");
     const preview = document.getElementById("athleteSharePreview");
     if (preview) preview.hidden = true;
   }
@@ -253,6 +311,7 @@
     shareDailyStory,
     renderSettingsStory,
     shareSelectedStory,
+    shareAnalyticsStory,
     _test: Object.freeze({ dailyModel, summaryData, summaryFilename, storyBlob, dataUrlToBlob, resetForCurrentIdentity })
   });
 

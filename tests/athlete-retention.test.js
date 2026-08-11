@@ -222,8 +222,8 @@ test("Athlete UI exposes Weekly Recap, progression, preferences and safe Coach f
   assert.match(milestones, /Fuel Guard Progress/);
   assert.match(training, /Recent Training Mode sessions/);
   const navigation = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf("</nav>", html.indexOf('<nav class="mobile-bottom-nav')));
-  assert.equal((navigation.match(/data-mobile-screen=/g) || []).length, 3);
-  assert.match(navigation, /data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"[\s\S]*data-mobile-screen="impact"/);
+  assert.equal((navigation.match(/data-mobile-screen=/g) || []).length, 5);
+  assert.match(navigation, /data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"[\s\S]*data-mobile-screen="impact"[\s\S]*data-mobile-screen="analytics"[\s\S]*data-mobile-screen="tools"/);
 });
 
 test("Retention migration narrows raw report visibility and grants only safe RPCs", () => {

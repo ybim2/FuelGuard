@@ -274,7 +274,7 @@
   }
 
   function coachProfileSelect() {
-    return "user_id,role,coach_enabled,display_name,first_name,last_name,avatar_url,job_title,athlete_code,created_at,updated_at";
+    return "user_id,role,coach_enabled,display_name,username,first_name,last_name,avatar_url,job_title,athlete_code,created_at,updated_at";
   }
 
   async function ensureAthleteCoachProfile(client, user) {
@@ -294,7 +294,7 @@
           user_id: user.id,
           role: "athlete",
           coach_enabled: false,
-          display_name: user.email || "Fuel Guard Athlete",
+          display_name: "Fuel Guard Athlete",
           updated_at: new Date().toISOString()
         }, { onConflict: "user_id" })
         .select(select)
@@ -2723,6 +2723,7 @@
     const profile = coachSharingState.profile || {};
     if (card) card.hidden = !cloud?.signedIn;
     const fields = [
+      ["athleteProfileUsername", profile.username || ""],
       ["athleteProfileFirstName", profile.first_name || ""],
       ["athleteProfileLastName", profile.last_name || ""],
       ["athleteProfileEmail", user?.email || cloud?.email || ""],
@@ -2747,10 +2748,16 @@
       renderAthleteProfile();
       return;
     }
+    const username = document.getElementById("athleteProfileUsername")?.value.trim().toLowerCase() || "";
     const firstName = document.getElementById("athleteProfileFirstName")?.value.trim() || "";
     const lastName = document.getElementById("athleteProfileLastName")?.value.trim() || "";
     const avatarUrl = document.getElementById("athleteProfileAvatarUrl")?.value.trim() || "";
-    const displayName = [firstName, lastName].filter(Boolean).join(" ") || user.email || "Fuel Guard Athlete";
+    if (username && !/^[a-z0-9][a-z0-9_-]{2,29}$/.test(username)) {
+      athleteProfileStatus = "Username must be 3–30 letters, numbers, underscores or hyphens.";
+      renderAthleteProfile();
+      return;
+    }
+    const displayName = username || [firstName, lastName].filter(Boolean).join(" ") || "Fuel Guard Athlete";
     athleteProfileBusy = true;
     athleteProfileStatus = "";
     renderAthleteProfile();
@@ -2761,6 +2768,7 @@
           role: coachSharingState.profile?.role || "athlete",
           coach_enabled: Boolean(coachSharingState.profile?.coach_enabled),
           display_name: displayName,
+          username: username || null,
           first_name: firstName || null,
           last_name: lastName || null,
           avatar_url: avatarUrl || null,
@@ -10058,7 +10066,7 @@
 
   const baseSwitchScreen = switchScreen;
   switchScreen = function switchScreenBeta(screen) {
-    const target = ["dashboard", "training", "impact", "checklist"].includes(screen) ? screen : "dashboard";
+    const target = ["dashboard", "training", "impact", "analytics", "tools", "checklist"].includes(screen) ? screen : "dashboard";
     baseSwitchScreen(target);
     document.querySelectorAll(".nav-item").forEach(button => {
       button.classList.toggle("active", button.dataset.screen === target);
@@ -10076,6 +10084,8 @@
     if (target === "checklist") renderSettings();
     if (target === "training") window.FuelGuardTrainingMode?.render?.();
     if (target === "impact") window.AthleteImpact?.render?.();
+    if (target === "analytics") window.FuelGuardAthleteAnalytics?.render?.();
+    if (target === "tools") window.FuelGuardAthleteTools?.render?.();
   };
 
   async function clearBetaData() {

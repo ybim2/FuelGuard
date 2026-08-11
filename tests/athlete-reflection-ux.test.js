@@ -23,7 +23,7 @@ test("all Athlete-facing navigation and page terminology is Reflection", () => {
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf("</nav>", html.indexOf('<nav class="mobile-bottom-nav')));
   assert.match(nav, /data-mobile-screen="impact"[\s\S]*<span>Reflection<\/span>/);
   assert.match(html, /aria-label="Fuel Guard Reflection"/);
-  assert.match(js, /<span>Reflection<\/span><h1>\$\{!metrics\.length \? "Your starting point"/);
+  assert.match(js, /<span>Reflection<\/span><h1>Life first\. Sport second\.<\/h1>/);
   assert.doesNotMatch(html + js, /Performance Impact|>Impact<|Impact summary/);
   assert.doesNotMatch(daily, /Later Energy Impact|Impact insights|Impact signals over time|Impact will explain/);
 });
@@ -157,6 +157,6 @@ test("Reflection uses the continuous white Athlete surface and a versioned PWA s
   assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
   assert.match(css, /\.reflection-hero,[\s\S]*\.reflection-page-section[\s\S]*background: #fff/);
   assert.match(css, /@media \(max-width: 390px\)/);
-  assert.match(read("build-info.js"), /mobile-pwa-v138-reflection-journey/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v138-reflection-journey-20260811T173328Z/);
+  assert.match(read("build-info.js"), /mobile-pwa-v139-athlete-system/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v139-athlete-system-/);
 });

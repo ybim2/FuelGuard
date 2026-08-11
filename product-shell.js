@@ -1,23 +1,34 @@
 // Canonical Athlete shell identity. Supabase session state remains authoritative.
 (() => {
   let accessRequest = 0;
-  function identityModel(account = {}, profile = {}) {
-    const email = typeof account.email === "string" ? account.email.trim() : "";
+  let currentAthleteShareName = "";
+  function safeAthleteName(profile = {}) {
+    const username = typeof profile.username === "string" ? profile.username.trim() : "";
     const firstName = typeof profile.first_name === "string" ? profile.first_name.trim() : "";
+    return username || firstName || "";
+  }
+  function identityModel(account = {}, profile = {}) {
+    const username = typeof profile.username === "string" ? profile.username.trim() : "";
+    const firstName = typeof profile.first_name === "string" ? profile.first_name.trim() : "";
+    if (account.signedIn && username) {
+      return {
+        label: "Fuel Guard Athlete",
+        value: username,
+        ariaLabel: `Athlete ${username}. Open account settings.`
+      };
+    }
     if (account.signedIn && firstName) {
       return {
-        label: email || "Athlete account",
+        label: "Fuel Guard Athlete",
         value: firstName,
-        ariaLabel: `Signed in as ${firstName}${email ? ` (${email})` : ""}. Open account settings.`
+        ariaLabel: `Athlete ${firstName}. Open account settings.`
       };
     }
-    if (account.signedIn && email) {
-      return {
-        label: "Signed in as",
-        value: email,
-        ariaLabel: `Signed in as ${email}. Open account settings.`
-      };
-    }
+    if (account.signedIn) return {
+      label: "Fuel Guard Athlete",
+      value: "Athlete",
+      ariaLabel: "Athlete account. Open account settings."
+    };
     return {
       label: "Not signed in",
       value: "Log in",
@@ -27,6 +38,7 @@
 
   function renderMainAccountIdentity(account = window.fuelGuardCloud?.accountView?.() || {}, profile = {}) {
     const model = identityModel(account, profile);
+    currentAthleteShareName = account.signedIn ? safeAthleteName(profile) : "";
     const control = document.getElementById("mainAccountIdentity");
     const label = document.getElementById("mainAccountIdentityLabel");
     const value = document.getElementById("mainAccountIdentityValue");
@@ -48,7 +60,7 @@
     if (!client || !user?.id) return { coach: false, performance: false };
     const [profileResult, performanceResult] = await Promise.allSettled([
       client.from("fuel_user_profiles")
-        .select("coach_enabled,first_name,display_name")
+        .select("coach_enabled,username,first_name,display_name")
         .eq("user_id", user.id)
         .maybeSingle(),
       client.rpc("fuel_performance_context")
@@ -86,6 +98,7 @@
     renderMainAccountIdentity,
     renderProductAccess,
     resolveProductAccess,
-    _test: { identityModel, authorisedProducts }
+    athleteShareName: () => currentAthleteShareName,
+    _test: { identityModel, safeAthleteName, authorisedProducts }
   };
 })();
