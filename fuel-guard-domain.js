@@ -215,7 +215,7 @@
   }
 
   function logType(log) {
-    const type = String(log?.type || "fuel").toLowerCase();
+    const type = String(log?.type || log?.logType || log?.log_type || log?.event_type || "fuel").toLowerCase();
     if (type === "sleepy") return "sleepy";
     if (checkinPayload(log)) return "checkin";
     if (type === "checkin") return "checkin";
@@ -226,7 +226,7 @@
   }
 
   function isSleepyLog(log) {
-    const type = String(log?.type || "").toLowerCase();
+    const type = String(log?.type || log?.logType || log?.log_type || log?.event_type || "").toLowerCase();
     const payload = checkinPayload(log);
     return type === "sleepy" || String(payload?.checkinType || "").toLowerCase() === SLEEPY_CHECKIN_TYPE;
   }
@@ -528,7 +528,7 @@
     if (log.deleted_at || log.deletedAt || log.revoked_at || log.revokedAt || log.valid === false) return false;
     const source = String(log.source || "manual").trim().toLowerCase();
     if (["test", "fixture", "invalid"].includes(source)) return false;
-    const type = String(log.type || log.logType || log.log_type || "").trim().toLowerCase();
+    const type = String(log.type || log.logType || log.log_type || log.event_type || "").trim().toLowerCase();
     return ["fuel", "hydration", "fuel_hydration"].includes(type) && !checkinPayload(log);
   }
 

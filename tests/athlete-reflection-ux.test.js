@@ -23,7 +23,7 @@ test("all Athlete-facing navigation and page terminology is Reflection", () => {
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf("</nav>", html.indexOf('<nav class="mobile-bottom-nav')));
   assert.match(nav, /data-mobile-screen="impact"[\s\S]*<span>Reflection<\/span>/);
   assert.match(html, /aria-label="Fuel Guard Reflection"/);
-  assert.match(js, /<span>Reflection<\/span><h1>Since using Fuel Guard, what has changed for you\?/);
+  assert.match(js, /<span>Reflection<\/span><h1>\$\{!metrics\.length \? "Your starting point"/);
   assert.doesNotMatch(html + js, /Performance Impact|>Impact<|Impact summary/);
   assert.doesNotMatch(daily, /Later Energy Impact|Impact insights|Impact signals over time|Impact will explain/);
 });
@@ -65,21 +65,63 @@ test("baseline and current comparisons render clear numeric and timed changes", 
     { value: 1720 },
     { value: 1615 }
   );
-  assert.deepEqual(JSON.parse(JSON.stringify(energy)), { label: "+3 improvement", tone: "improved" });
-  assert.deepEqual(JSON.parse(JSON.stringify(fiveK)), { label: "1:45 faster", tone: "improved" });
+  assert.deepEqual(JSON.parse(JSON.stringify(energy)), { label: "+3 since baseline", tone: "improved" });
+  assert.deepEqual(JSON.parse(JSON.stringify(fiveK)), { label: "1:45 faster since baseline", tone: "improved" });
 });
 
-test("normal Reflection view is progress-first and editing stays on demand", () => {
+test("normal Reflection view is a journey dashboard and editing stays in drill-down views", () => {
   const js = read("athlete-impact.js");
   const mainRender = js.slice(js.indexOf("function render()"), js.indexOf("async function load"));
-  assert.match(mainRender, /goalsMarkup\(metrics\)/);
-  assert.match(mainRender, /progressMarkup\(metrics\)/);
-  assert.match(mainRender, /evidenceMarkup\(report\)/);
+  assert.match(mainRender, /populatedStateMarkup\(metrics, report\)/);
   assert.match(mainRender, /editorMarkup\(\)/);
-  assert.match(js, /Where were you when you started\?/);
-  assert.match(js, /Where are you now\?/);
-  for (const action of ["Update current result", "Edit baseline", "Change metric", "Change dates", "Delete reflection"]) assert.match(js, new RegExp(action));
+  for (const module of ["Your journey", "Your baseline", "Current check-in", "Performance", "Everyday life", "Fuelling behaviour", "Changes over time"]) assert.match(js, new RegExp(module));
+  assert.match(js, /reflection-dashboard-rail/);
+  assert.match(js, /Where are you currently\?/);
+  assert.match(js, /How are things going now\?/);
+  for (const action of ["Edit latest check-in", "Edit baseline", "Change metric", "Change dates", "Delete reflection"]) assert.match(js, new RegExp(action));
   assert.doesNotMatch(js, /function resultEntryMarkup|function presetSetupMarkup/);
+});
+
+test("Reflection lifecycle starts with a baseline and makes a review available after fourteen days", () => {
+  const api = reflectionApi();
+  const metrics = [{ id: "energy" }, { id: "recovery" }];
+  const baselineOnly = api.reflectionLifecycle(metrics, new Date("2026-08-14T12:00:00Z"), [
+    { metric_id: "energy", observed_on: "2026-08-01", created_at: "2026-08-01T09:00:00Z", value: 5 },
+    { metric_id: "recovery", observed_on: "2026-08-01", created_at: "2026-08-01T09:01:00Z", value: 4 }
+  ]);
+  assert.equal(baselineOnly.baselineReady, true);
+  assert.equal(baselineOnly.reviewDue, false);
+  assert.equal(baselineOnly.dueOn, "2026-08-15");
+  assert.equal(baselineOnly.comparisonCount, 0);
+
+  const due = api.reflectionLifecycle(metrics, new Date("2026-08-15T12:00:00Z"), [
+    { metric_id: "energy", observed_on: "2026-08-01", created_at: "2026-08-01T09:00:00Z", value: 5 },
+    { metric_id: "recovery", observed_on: "2026-08-01", created_at: "2026-08-01T09:01:00Z", value: 4 }
+  ]);
+  assert.equal(due.reviewDue, true);
+
+  const reviewed = api.reflectionLifecycle(metrics, new Date("2026-08-16T12:00:00Z"), [
+    { metric_id: "energy", observed_on: "2026-08-01", created_at: "2026-08-01T09:00:00Z", value: 5 },
+    { metric_id: "recovery", observed_on: "2026-08-01", created_at: "2026-08-01T09:01:00Z", value: 4 },
+    { metric_id: "energy", observed_on: "2026-08-15", created_at: "2026-08-15T09:00:00Z", value: 8 },
+    { metric_id: "recovery", observed_on: "2026-08-15", created_at: "2026-08-15T09:01:00Z", value: 7 }
+  ]);
+  assert.equal(reviewed.comparisonCount, 2);
+  assert.equal(reviewed.latestReviewOn, "2026-08-15");
+  assert.equal(reviewed.dueOn, "2026-08-29");
+});
+
+test("subjective Reflection values use ten accessible tap targets and normal entry has no date field", () => {
+  const api = reflectionApi();
+  const markup = api.ratingScaleMarkup({ name: "Energy", unit: "/ 10", measurement_type: "number" }, 7);
+  assert.equal((markup.match(/data-reflection-rating=/g) || []).length, 10);
+  assert.match(markup, /aria-label="7 out of 10" aria-pressed="true"/);
+  assert.match(markup, /id="reflectionEditorValue" type="hidden" value="7"/);
+  const js = read("athlete-impact.js");
+  const entry = js.slice(js.indexOf("function editorValueMarkup"), js.indexOf("function datesMarkup"));
+  assert.doesNotMatch(entry, /type="date"|reflectionEditorDate/);
+  const save = js.slice(js.indexOf("async function saveReflectionValue"), js.indexOf("async function saveReflectionDates"));
+  assert.match(save, /domain\(\)\.dateKey\(new Date\(\)\)/);
 });
 
 test("Fuel Guard behavioural evidence is separate and explicitly non-causal", () => {
@@ -115,6 +157,6 @@ test("Reflection uses the continuous white Athlete surface and a versioned PWA s
   assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
   assert.match(css, /\.reflection-hero,[\s\S]*\.reflection-page-section[\s\S]*background: #fff/);
   assert.match(css, /@media \(max-width: 390px\)/);
-  assert.match(read("build-info.js"), /mobile-pwa-v137-accepted-integration/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v137-accepted-integration-20260811T120700Z/);
+  assert.match(read("build-info.js"), /mobile-pwa-v138-reflection-journey/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v138-reflection-journey-20260811T173328Z/);
 });

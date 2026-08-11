@@ -142,6 +142,7 @@
 .beta-contextual-nudge strong { color: var(--ink, #17342e); font-size: .88rem; }
 .beta-contextual-nudge small { color: var(--muted, #63736e); font-size: .75rem; }
 .beta-contextual-nudge button { flex: 0 0 auto; min-width: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 50%; background: rgba(31, 74, 67, .08); color: var(--ink, #17342e); font-size: 1.15rem; }
+.beta-contextual-nudge .beta-contextual-nudge-open { justify-self: start; width: auto; min-height: 34px; margin-top: 5px; padding: 6px 10px; border-radius: 9px; color: #805017; font-size: .72rem; font-weight: 850; }
 
 .beta-weekly-recap-card #athleteWeeklyRecap { display: grid; gap: 16px; }
 .beta-weekly-recap-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
@@ -614,6 +615,17 @@ body.beta-mvp .beta-streak-visuals {
   margin-top: 6px;
   min-width: 0;
 }
+
+body.beta-mvp .beta-streak-history-pending {
+  margin-top: 6px;
+  padding: 15px;
+  border: 1px solid rgba(31, 74, 67, .12);
+  border-radius: 16px;
+  background: #fff;
+}
+
+body.beta-mvp .beta-streak-history-pending span { color: var(--ink, #17342e); font-size: .83rem; font-weight: 850; }
+body.beta-mvp .beta-streak-history-pending p { margin: 5px 0 0; color: var(--muted, #63736e); font-size: .72rem; line-height: 1.4; }
 
 body.beta-mvp .beta-streak-milestone-progress {
   display: grid;
@@ -3655,10 +3667,62 @@ body.beta-mvp.app-booting .app-boot-splash {
   color: var(--text);
 }
 
-body.beta-mvp.app-booting .app-boot-splash span {
-  color: var(--muted);
-  font-size: .82rem;
+body.beta-mvp.app-booting .app-boot-splash .app-boot-hook {
+  max-width: 330px;
+  min-height: 3.2em;
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: clamp(.94rem, 4.2vw, 1.08rem);
   font-weight: 900;
+  line-height: 1.45;
+  text-align: center;
+  text-wrap: balance;
+}
+
+body.beta-mvp.app-booting .app-boot-splash .app-boot-explainer {
+  max-width: 310px;
+  margin: 0;
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  text-wrap: balance;
+}
+
+body.beta-mvp .beta-hal-tribute {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+body.beta-mvp .beta-hal-tribute-button {
+  display: grid;
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+body.beta-mvp .beta-hal-tribute-button span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e77a2d;
+  box-shadow: 0 0 0 4px rgba(231, 122, 45, .1);
+}
+
+body.beta-mvp .beta-hal-tribute-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 750;
 }
 
 body.beta-mvp .beta-brand-marker {

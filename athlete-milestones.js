@@ -25,6 +25,17 @@
     return domain()?.activityUsageSummary?.(gap.logs || [], new Date()) || { dayStreak: 0, fuelStreak: 0, hydrationStreak: 0, fuelMoments: 0, hydrationMoments: 0 };
   }
 
+  function canonicalHistoryReady() {
+    const readiness = window.fuelGuardCloud?.historyReadiness?.();
+    return !readiness || readiness.ready !== false;
+  }
+
+  function renderHistoryPending() {
+    const target = document.getElementById("athleteMilestones");
+    if (!target) return;
+    target.innerHTML = `<div class="beta-streak-history-pending" role="status"><span>Checking full history…</span><p>Your Day, Fuel and Hydration streaks will appear after canonical history has loaded.</p></div>`;
+  }
+
   function localAchievement(milestone, achievedAt = new Date().toISOString(), acknowledgedAt = null) {
     return {
       key: milestone.key,
@@ -202,6 +213,10 @@
   function evaluate({ allowToast = true } = {}) {
     const state = milestoneState();
     if (!state || !domain()) return [];
+    if (!canonicalHistoryReady()) {
+      renderHistoryPending();
+      return [];
+    }
     const current = summary();
     const acknowledged = state.achievements.filter(item => item.acknowledgedAt).map(item => item.key);
     const crossed = domain().newlyCrossedMilestones(state.lastSummary, current, acknowledged);
@@ -227,7 +242,7 @@
   async function syncCloud() {
     if (syncing || !domain()) return;
     const cloud = window.fuelGuardCloud;
-    if (!cloud?.client || !cloud.user?.id) return;
+    if (!cloud?.client || !cloud.user?.id || !canonicalHistoryReady()) return;
     syncing = true;
     try {
       const state = milestoneState();
@@ -305,6 +320,6 @@
     syncPoints,
     renderHistory,
     renderPoints,
-    _test: { mergeAchievements, streakMilestoneProgress }
+    _test: { mergeAchievements, streakMilestoneProgress, canonicalHistoryReady }
   };
 })();

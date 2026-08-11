@@ -51,7 +51,8 @@
     garminActivities: [],
     error: "",
     message: "",
-    editor: null
+    editor: null,
+    view: "overview"
   };
   const promptedOnboardingUsers = new Set();
 
@@ -69,7 +70,8 @@
       garminActivities: [],
       error: "",
       message: "",
-      editor: null
+      editor: null,
+      view: "overview"
     };
   }
 
@@ -310,11 +312,11 @@
     const improvement = metric.direction === "lower" ? before - now : now - before;
     if (Math.abs(improvement) < 0.0001) return { label: "No measured change yet", tone: "stable" };
     if (metric.measurement_type === "duration_seconds") {
-      return { label: `${durationValue(Math.abs(improvement))} ${improvement > 0 ? "faster" : "slower"}`, tone: improvement > 0 ? "improved" : "changed" };
+      return { label: `${durationValue(Math.abs(improvement))} ${improvement > 0 ? "faster" : "slower"} since baseline`, tone: improvement > 0 ? "improved" : "changed" };
     }
     const unit = metric.unit && metric.unit !== "/ 10" ? ` ${metric.unit}` : "";
-    if (improvement > 0) return { label: `+${compactNumber(improvement)}${unit} improvement`, tone: "improved" };
-    return { label: `${compactNumber(Math.abs(now - before))}${unit} ${now > before ? "higher" : "lower"}`, tone: "changed" };
+    if (improvement > 0) return { label: `+${compactNumber(improvement)}${unit} since baseline`, tone: "improved" };
+    return { label: `${compactNumber(Math.abs(now - before))}${unit} ${now > before ? "higher" : "lower"} since baseline`, tone: "changed" };
   }
 
   function reflectionMetricCategory(metric) {
@@ -323,7 +325,17 @@
     return "Personal outcome";
   }
 
-  function comparisonCard(metric, { editorPreview = false } = {}) {
+  function subjectiveMetric(metric) {
+    return metric?.measurement_type === "number" && metric?.unit === "/ 10";
+  }
+
+  function ratingReadout(metric, value) {
+    if (!subjectiveMetric(metric) || !Number.isFinite(Number(value))) return formatMetricValue(metric, value);
+    const rating = Math.max(1, Math.min(10, Math.round(Number(value))));
+    return `<span class="reflection-rating-readout" aria-label="${rating} out of 10"><i aria-hidden="true">${"★".repeat(rating)}${"☆".repeat(10 - rating)}</i><b>${rating}/10</b></span>`;
+  }
+
+  function comparisonCard(metric, { editorPreview = false, showManage = true } = {}) {
     const { baseline, current } = resultBounds(metric.id);
     const change = comparisonChange(metric, baseline, current);
     const days = baseline && current ? Math.max(0, Math.round((new Date(`${current.observed_on}T12:00:00`) - new Date(`${baseline.observed_on}T12:00:00`)) / 86400000)) : 0;
@@ -331,8 +343,8 @@
       <article class="reflection-comparison-card ${escape(change.tone)}" data-reflection-card="${escape(metric.id)}">
         <header>
           <div><span>${escape(reflectionMetricCategory(metric))}</span><h3>${escape(metric.name)}</h3></div>
-          ${editorPreview ? "" : `<details class="reflection-card-menu"><summary aria-label="Edit ${escape(metric.name)}">•••</summary><div>
-            <button type="button" data-reflection-edit="current" data-reflection-metric="${escape(metric.id)}">Update current result</button>
+          ${editorPreview || !showManage ? "" : `<details class="reflection-card-menu"><summary aria-label="Manage ${escape(metric.name)}">•••</summary><div>
+            ${current ? `<button type="button" data-reflection-edit="current" data-reflection-metric="${escape(metric.id)}">Edit latest check-in</button>` : ""}
             <button type="button" data-reflection-edit="baseline" data-reflection-metric="${escape(metric.id)}">Edit baseline</button>
             <button type="button" data-reflection-edit="dates" data-reflection-metric="${escape(metric.id)}">Change dates</button>
             <button type="button" data-reflection-change-metric="${escape(metric.id)}">Change metric</button>
@@ -340,28 +352,60 @@
           </div></details>`}
         </header>
         <div class="reflection-before-current">
-          <div><span>Baseline</span><strong>${formatMetricValue(metric, baseline?.value)}</strong><small>${dateLabel(baseline?.observed_on)}</small></div>
+          <div><span>Baseline</span><strong>${ratingReadout(metric, baseline?.value)}</strong><small>${dateLabel(baseline?.observed_on)}</small></div>
           <i aria-hidden="true">→</i>
-          <div><span>Current</span><strong>${formatMetricValue(metric, current?.value)}</strong><small>${dateLabel(current?.observed_on)}</small></div>
+          <div><span>Current</span><strong>${ratingReadout(metric, current?.value)}</strong><small>${dateLabel(current?.observed_on)}</small></div>
         </div>
-        <div class="reflection-change ${escape(change.tone)}">${escape(change.label)}</div>
-        ${days ? `<p>${escape(days)} day${days === 1 ? "" : "s"} using Fuel Guard</p>` : `<p>${baseline ? "Add where you are now to complete this reflection." : "Add a baseline to begin this reflection."}</p>`}
-        ${!editorPreview && !current ? `<button type="button" class="secondary compact" data-reflection-edit="${baseline ? "current" : "baseline"}" data-reflection-metric="${escape(metric.id)}">${baseline ? "Add current result" : "Add baseline"}</button>` : ""}
+        ${current ? `<div class="reflection-change ${escape(change.tone)}">${escape(change.label)}</div>` : `<div class="reflection-baseline-status">Starting point recorded</div>`}
+        ${days ? `<p>${escape(days)} day${days === 1 ? "" : "s"} between observations</p>` : `<p>${baseline ? "A later check-in will create a comparison." : "Add a baseline to begin this reflection."}</p>`}
+        ${!editorPreview && !baseline ? `<button type="button" class="secondary compact" data-reflection-edit="baseline" data-reflection-metric="${escape(metric.id)}">Add baseline</button>` : ""}
       </article>`;
   }
 
-  function goalsMarkup(metrics) {
-    return `
-      <section class="reflection-page-section reflection-goals" aria-labelledby="reflectionGoalsHeading">
-        <div class="reflection-section-heading"><div><span>Your goals</span><h2 id="reflectionGoalsHeading">What matters to you</h2></div><button type="button" class="text-button" data-reflection-open-chooser>Edit goals</button></div>
-        <div class="reflection-goal-list">${metrics.map(metric => `<span>${escape(metric.name)}</span>`).join("")}</div>
-      </section>`;
+  function reflectionLifecycle(metrics = activeMetrics(), now = new Date(), resultRows = impactState.results) {
+    const observations = metrics.map(metric => {
+      const results = (Array.isArray(resultRows) ? resultRows : [])
+        .filter(result => String(result.metric_id) === String(metric.id))
+        .sort((left, right) => String(left.observed_on).localeCompare(String(right.observed_on)) || String(left.created_at || "").localeCompare(String(right.created_at || "")));
+      return { metric, results, baseline: results[0] || null, current: results.length > 1 ? results.at(-1) : null };
+    });
+    const baselines = observations.map(item => item.baseline).filter(Boolean);
+    const reviews = observations.flatMap(item => item.results.slice(1));
+    const baselineReady = Boolean(metrics.length) && baselines.length === metrics.length;
+    const baselineOn = baselines.map(item => item.observed_on).sort()[0] || "";
+    const latestBaselineOn = baselines.map(item => item.observed_on).sort().at(-1) || "";
+    const latestReviewOn = reviews.map(item => item.observed_on).sort().at(-1) || "";
+    const anchor = latestReviewOn || latestBaselineOn;
+    const dueOn = anchor ? domain().shiftDateKey(anchor, 14) : "";
+    const today = domain().dateKey(now);
+    return {
+      observations,
+      baselines,
+      reviews,
+      baselineReady,
+      baselineOn,
+      latestReviewOn,
+      dueOn,
+      reviewDue: Boolean(baselineReady && dueOn && today >= dueOn),
+      comparisonCount: observations.filter(item => item.current).length
+    };
   }
 
-  function progressMarkup(metrics) {
+  function reflectionReviewPrompt() {
+    const lifecycle = reflectionLifecycle();
+    if (!lifecycle.reviewDue) return null;
+    return {
+      id: "reflection_review",
+      occurrenceKey: `reflection-review:${lifecycle.dueOn}`,
+      title: "Your Reflection check-in is ready",
+      detail: "It has been around two weeks. Record where you are now using the same measures."
+    };
+  }
+
+  function progressMarkup(metrics, { heading = "Changes over time" } = {}) {
     return `
       <section class="reflection-page-section" aria-labelledby="reflectionProgressHeading">
-        <div class="reflection-section-heading"><div><span>Your progress</span><h2 id="reflectionProgressHeading">Baseline to current</h2></div><small>Entered by you</small></div>
+        <div class="reflection-section-heading"><div><span>Entered by you</span><h2 id="reflectionProgressHeading">${escape(heading)}</h2></div><small>Baseline → current check-in</small></div>
         <div class="reflection-comparison-grid">${metrics.map(metric => comparisonCard(metric)).join("")}</div>
       </section>`;
   }
@@ -379,18 +423,60 @@
   function emptyStateMarkup() {
     return `
       <section class="reflection-empty-state" aria-labelledby="reflectionEmptyHeading">
-        <span>Start your Reflection</span>
-        <h2 id="reflectionEmptyHeading">What does better performance look like for you?</h2>
-        <p>Start with something you actually care about — your energy, fuelling, training or performance.</p>
-        <button type="button" class="primary" data-reflection-open-chooser>Choose what I want to improve</button>
+        <span>Your starting point</span>
+        <h2 id="reflectionEmptyHeading">Start your Reflection</h2>
+        <p>Record where you are today so Fuel Guard can help you compare your progress over time.</p>
+        <button type="button" class="primary" data-reflection-open-chooser>Set my baseline</button>
       </section>`;
+  }
+
+  function historyMarkup(metrics) {
+    return `<section class="reflection-page-section reflection-history"><div class="reflection-section-heading"><div><span>Private history</span><h2>All check-ins</h2></div><small>Owner-only records</small></div><div class="reflection-history-list">${metrics.map(metric => `<article><h3>${escape(metric.name)}</h3>${resultsForMetric(metric.id).slice().reverse().map((result, index, all) => `<div><span>${index === all.length - 1 ? "Baseline" : "Check-in"}</span><strong>${ratingReadout(metric, result.value)}</strong><small>${dateLabel(result.observed_on)}</small></div>`).join("") || "<p>No observations yet.</p>"}</article>`).join("")}</div></section>`;
+  }
+
+  function overviewCards(metrics, report, lifecycle) {
+    const behaviourSignals = report.signals.behavior.filter(signal => Number.isFinite(signal.baseline) && Number.isFinite(signal.current)).length;
+    const sportCount = metrics.filter(metric => reflectionMetricCategory(metric) === "Sport & training").length;
+    const lifeCount = metrics.filter(metric => reflectionMetricCategory(metric) === "Everyday life").length;
+    const cards = [
+      ["baseline", "Your baseline", `${lifecycle.baselines.length} of ${metrics.length} recorded`, "The starting point you entered"],
+      ["current", "Current check-in", lifecycle.reviewDue ? "Ready now" : lifecycle.latestReviewOn ? dateLabel(lifecycle.latestReviewOn) : `Due around ${dateLabel(lifecycle.dueOn)}`, lifecycle.reviewDue ? "Use the same measures" : "Your next reflection"],
+      ["performance", "Performance", `${sportCount} outcome${sportCount === 1 ? "" : "s"}`, "Sport and training measures"],
+      ["everyday", "Everyday life", `${lifeCount} outcome${lifeCount === 1 ? "" : "s"}`, "Energy and fuelling measures"],
+      ["behaviour", "Fuelling behaviour", behaviourSignals ? `${behaviourSignals} comparison${behaviourSignals === 1 ? "" : "s"}` : "Building evidence", "Calculated from recorded activity"],
+      ["changes", "Changes over time", lifecycle.comparisonCount ? `${lifecycle.comparisonCount} outcome${lifecycle.comparisonCount === 1 ? "" : "s"}` : "After your next check-in", "Baseline and later observations"]
+    ];
+    return `<section class="reflection-page-section reflection-dashboard" aria-labelledby="reflectionJourneyHeading"><div class="reflection-section-heading"><div><span>Your journey</span><h2 id="reflectionJourneyHeading">A clear view of what you recorded</h2></div></div><div class="reflection-journey-summary"><span><small>Baseline</small><strong>${escape(dateLabel(lifecycle.baselineOn))}</strong></span><span><small>Latest review</small><strong>${lifecycle.latestReviewOn ? escape(dateLabel(lifecycle.latestReviewOn)) : "Not yet"}</strong></span><span><small>Next review</small><strong>${lifecycle.reviewDue ? "Ready now" : escape(dateLabel(lifecycle.dueOn))}</strong></span><span><small>Outcomes</small><strong>${metrics.length}</strong></span></div><div class="reflection-dashboard-rail" aria-label="Reflection sections">${cards.map(([view, label, value, detail]) => `<button type="button" class="reflection-dashboard-card" data-reflection-view="${view}"><span>${escape(label)}</span><strong>${escape(value)}</strong><small>${escape(detail)}</small><i aria-hidden="true">→</i></button>`).join("")}</div></section>`;
+  }
+
+  function detailMarkup(view, metrics, report, lifecycle) {
+    const back = `<button type="button" class="reflection-detail-back" data-reflection-view="overview">← Your journey</button>`;
+    if (view === "baseline") return `${back}${progressMarkup(metrics, { heading: "Your baseline" })}`;
+    if (view === "current") return `${back}<section class="reflection-page-section"><div class="reflection-section-heading"><div><span>Current check-in</span><h2>${lifecycle.reviewDue ? "Ready when you are" : "Your next check-in"}</h2></div></div><p class="reflection-empty-inline">${lifecycle.reviewDue ? "Record where you are now using the same measures as your baseline." : `Your next check-in is due around ${dateLabel(lifecycle.dueOn)}. This gives the comparison enough separation to be useful.`}</p>${lifecycle.reviewDue ? `<button type="button" class="primary reflection-review-action" data-reflection-start-review>Start current check-in</button>` : ""}</section>${lifecycle.latestReviewOn ? progressMarkup(metrics, { heading: "Latest check-in" }) : ""}`;
+    if (view === "performance") {
+      const selected = metrics.filter(metric => reflectionMetricCategory(metric) === "Sport & training");
+      return `${back}${selected.length ? progressMarkup(selected, { heading: "Performance" }) : `<section class="reflection-page-section"><h2>Performance</h2><p class="reflection-empty-inline">No sport or training outcome is active.</p></section>`}`;
+    }
+    if (view === "everyday") {
+      const selected = metrics.filter(metric => reflectionMetricCategory(metric) === "Everyday life");
+      return `${back}${selected.length ? progressMarkup(selected, { heading: "Everyday life" }) : `<section class="reflection-page-section"><h2>Everyday life</h2><p class="reflection-empty-inline">No everyday outcome is active.</p></section>`}`;
+    }
+    if (view === "behaviour") return `${back}${evidenceMarkup(report)}`;
+    if (view === "changes") return `${back}${lifecycle.comparisonCount ? progressMarkup(metrics) : `<section class="reflection-page-section"><h2>Changes over time</h2><p class="reflection-empty-inline">Your baseline is set. Changes will appear only after a later check-in.</p></section>`}${historyMarkup(metrics)}`;
+    return "";
+  }
+
+  function populatedStateMarkup(metrics, report) {
+    const lifecycle = reflectionLifecycle(metrics);
+    if (impactState.view !== "overview") return detailMarkup(impactState.view, metrics, report, lifecycle);
+    return `${overviewCards(metrics, report, lifecycle)}<section class="reflection-page-section reflection-outcome-summary"><div class="reflection-section-heading"><div><span>Your baseline</span><h2>Tracked outcomes</h2></div><button type="button" class="text-button" data-reflection-open-chooser${metrics.length >= 3 ? " disabled" : ""}>Add outcome</button></div><div class="reflection-goal-list">${metrics.map(metric => `<span>${escape(metric.name)}</span>`).join("")}</div>${!lifecycle.baselineReady ? `<p class="reflection-empty-inline">Complete the starting point for each selected outcome before the first review.</p>` : `<p class="reflection-baseline-note">Baseline recorded ${escape(dateLabel(lifecycle.baselineOn))}. ${lifecycle.reviewDue ? "Your current check-in is ready." : `Next check-in around ${escape(dateLabel(lifecycle.dueOn))}.`}</p>`}</section>`;
   }
 
   function choiceMarkup() {
     const metrics = activeMetrics();
     const activeKeys = new Set(metrics.map(metric => metric.preset_key).filter(Boolean));
     return `
-      <div class="reflection-editor-intro"><span>Step 1 of 4</span><h2>Choose what matters</h2><p>Fuel Guard can help you reflect on changes in everyday fuelling, energy and training. Choose only the things that matter to you.</p></div>
+      <div class="reflection-editor-intro"><span>Your starting point</span><h2>Choose what matters</h2><p>Choose sport or everyday outcomes that are meaningful and repeatable for you. You can track up to three.</p></div>
       ${Object.entries(OUTCOME_GROUPS).map(([key, group]) => `<section class="reflection-choice-group"><div><h3>${escape(group.label)}</h3><p>${escape(group.description)}</p></div><div>${group.outcomes.map(outcome => `<button type="button" data-reflection-outcome="${escape(outcome.key)}" data-reflection-group="${escape(key)}"${metrics.length >= 3 || activeKeys.has(outcome.key) ? " disabled" : ""}><strong>${escape(outcome.prompt)}</strong><span>${escape(outcome.name)} · ${escape(outcome.unit)}</span></button>`).join("")}</div></section>`).join("")}
       <button type="button" class="secondary reflection-custom-action" data-reflection-custom-outcome${metrics.length >= 3 ? " disabled" : ""}>Create a custom outcome</button>
       ${metrics.length >= 3 ? `<p class="reflection-editor-note">You already have three active reflections. Use a card’s menu to change or delete one.</p>` : ""}`;
@@ -400,7 +486,7 @@
     const preset = outcomeByKey(impactState.editor?.presetKey);
     const direction = preset?.direction || "higher";
     return `
-      <div class="reflection-editor-intro"><span>Step 1 of 4</span><h2>${preset?.requiresTarget ? "Set your target range" : "Create your outcome"}</h2><p>${preset?.requiresTarget ? "Define the range that represents your own intention; Fuel Guard will not assume whether higher or lower is better." : "Use a measure that is meaningful and repeatable for you."}</p></div>
+      <div class="reflection-editor-intro"><span>Your starting point</span><h2>${preset?.requiresTarget ? "Set your target range" : "Create your outcome"}</h2><p>${preset?.requiresTarget ? "Define the range that represents your own intention; Fuel Guard will not assume whether higher or lower is better." : "Use a measure that is meaningful and repeatable for you."}</p></div>
       <div class="reflection-editor-form two-column">
         <label>Outcome name<input id="reflectionCustomName" type="text" maxlength="100" value="${escape(preset?.name || "")}" placeholder="e.g. Body weight"></label>
         <label>Unit<input id="reflectionCustomUnit" type="text" maxlength="24" value="${escape(preset?.unit || "")}" placeholder="e.g. kg, / 10, sec"></label>
@@ -412,18 +498,23 @@
       <button type="button" class="primary" data-reflection-save-custom>Continue to baseline</button>`;
   }
 
+  function ratingScaleMarkup(metric, value) {
+    const selected = Number.isFinite(Number(value)) ? Math.round(Number(value)) : 0;
+    return `<fieldset class="reflection-rating-scale"><legend>${escape(metric.name)}</legend><input id="reflectionEditorValue" type="hidden" value="${selected || ""}"><div role="group" aria-label="Rate ${escape(metric.name)} from 1 to 10">${Array.from({ length: 10 }, (_, index) => index + 1).map(rating => `<button type="button" class="${rating <= selected ? "selected" : ""}" data-reflection-rating="${rating}" aria-label="${rating} out of 10" aria-pressed="${rating === selected ? "true" : "false"}"><span aria-hidden="true">★</span><small>${rating}</small></button>`).join("")}</div><p>Tap one position. 1 is lowest; 10 is highest.</p></fieldset>`;
+  }
+
   function editorValueMarkup(metric, role) {
     const bounds = resultBounds(metric.id);
-    const existing = role === "baseline" ? bounds.baseline : bounds.current;
+    const newObservation = role === "current" && impactState.editor?.newObservation;
+    const existing = newObservation ? null : role === "baseline" ? bounds.baseline : bounds.current;
     const isBaseline = role === "baseline";
-    const defaultDate = existing?.observed_on || (isBaseline ? domain().dateKey(cloud()?.user?.created_at || new Date()) : domain().dateKey(new Date()));
+    const value = existing ? (metric.measurement_type === "duration_seconds" ? durationValue(existing.value) : existing.value) : "";
     return `
-      <div class="reflection-editor-intro"><span>Step ${isBaseline ? "2" : "3"} of 4</span><h2>${isBaseline ? "Where were you when you started?" : "Where are you now?"}</h2><p>${escape(metric.name)} · ${escape(metric.unit)}</p></div>
+      <div class="reflection-editor-intro"><span>${isBaseline ? "Your starting point" : "Current check-in"}</span><h2>${isBaseline ? "Where are you currently?" : "How are things going now?"}</h2><p>${escape(metric.name)} · ${escape(metric.unit)} · recorded for today</p></div>
       <div class="reflection-editor-form">
-        <label>${isBaseline ? "Baseline" : "Current"} value<input id="reflectionEditorValue" type="text" inputmode="decimal" value="${existing ? escape(metric.measurement_type === "duration_seconds" ? durationValue(existing.value) : existing.value) : ""}" placeholder="${metric.measurement_type === "duration_seconds" ? "mm:ss" : `Value ${escape(metric.unit)}`}"></label>
-        <label>Date<input id="reflectionEditorDate" type="date" value="${escape(defaultDate)}"></label>
+        ${subjectiveMetric(metric) ? ratingScaleMarkup(metric, value) : `<label>${isBaseline ? "Baseline" : "Current"} value<input id="reflectionEditorValue" type="text" inputmode="decimal" value="${escape(value)}" placeholder="${metric.measurement_type === "duration_seconds" ? "mm:ss" : `Value ${escape(metric.unit)}`}"></label>`}
       </div>
-      <button type="button" class="primary" data-reflection-save-value="${role}">${isBaseline ? "Continue to current result" : "Generate comparison"}</button>`;
+      <button type="button" class="primary" data-reflection-save-value="${role}">${isBaseline ? "Save starting point" : impactState.editor?.reviewMetricIds?.length ? "Save and continue" : "Save current check-in"}</button>`;
   }
 
   function datesMarkup(metric) {
@@ -445,7 +536,7 @@
     if (editor.step === "custom") content = customMetricMarkup();
     if ((editor.step === "baseline" || editor.step === "current") && metric) content = editorValueMarkup(metric, editor.step);
     if (editor.step === "dates" && metric) content = datesMarkup(metric);
-    if (editor.step === "complete" && metric) content = `<div class="reflection-editor-intro"><span>Step 4 of 4</span><h2>Your comparison</h2><p>Your Reflection is ready.</p></div>${comparisonCard(metric, { editorPreview: true })}<button type="button" class="primary" data-reflection-close>Done</button>`;
+    if (editor.step === "complete" && metric) content = `<div class="reflection-editor-intro"><span>Check-in complete</span><h2>Your Reflection is up to date</h2><p>This records what changed over the same period; it does not claim what caused the change.</p></div>${comparisonCard(metric, { editorPreview: true })}<button type="button" class="primary" data-reflection-close>Done</button>`;
     return `<div class="reflection-editor-backdrop" data-reflection-close-backdrop><section class="reflection-editor" role="dialog" aria-modal="true" aria-label="Edit Reflection"><button type="button" class="reflection-editor-close" data-reflection-close aria-label="Close Reflection editor">×</button>${content}</section></div>`;
   }
 
@@ -455,7 +546,7 @@
     const signedIn = Boolean(cloud()?.user?.id);
     if (!signedIn) {
       target.innerHTML = `
-        <section class="reflection-hero"><span>Reflection</span><h1>See what has changed for you</h1><p>Log in to choose outcomes, record a baseline and keep your private Reflection history.</p><button type="button" class="primary" data-open-screen="checklist">Open Profile &amp; Settings</button></section>
+        <section class="reflection-hero"><span>Reflection</span><h1>Start with where you are today</h1><p>Log in to choose outcomes, record a baseline and keep your private Reflection history.</p><button type="button" class="primary" data-open-screen="checklist">Open Profile &amp; Settings</button></section>
       `;
       return;
     }
@@ -469,12 +560,15 @@
     }
     const metrics = activeMetrics();
     const report = currentReport();
+    const lifecycle = reflectionLifecycle(metrics);
+    const hasComparison = lifecycle.comparisonCount > 0;
     target.innerHTML = `
       ${impactState.message ? `<div class="impact-status-message" role="status">${escape(impactState.message)}</div>` : ""}
-      <header class="reflection-hero"><span>Reflection</span><h1>Since using Fuel Guard, what has changed for you?</h1><p>See how your fuelling habits and the things that matter to you have changed over time.</p></header>
-      ${metrics.length ? `${goalsMarkup(metrics)}${progressMarkup(metrics)}${evidenceMarkup(report)}<section class="reflection-add"><button type="button" class="secondary" data-reflection-open-chooser${metrics.length >= 3 ? " disabled" : ""}>Add another reflection</button>${metrics.length >= 3 ? "<small>Three active reflections · use a card menu to make a change.</small>" : ""}</section>` : emptyStateMarkup()}
+      <header class="reflection-hero"><span>Reflection</span><h1>${!metrics.length ? "Your starting point" : hasComparison ? "What has changed?" : "Your baseline is set"}</h1><p>${!metrics.length ? "Record where you are today, then compare the same outcomes after enough time has passed." : hasComparison ? "Compare your baseline and check-ins without turning association into a claim of cause." : "Keep using Fuel Guard normally. We’ll invite you to check in again in around two weeks."}</p></header>
+      ${metrics.length ? populatedStateMarkup(metrics, report) : emptyStateMarkup()}
       ${editorMarkup()}
     `;
+    window.FuelGuardAthleteRetention?.render?.();
   }
 
   async function load({ force = false } = {}) {
@@ -584,11 +678,15 @@
   async function saveReflectionValue(role) {
     const client = cloud()?.client;
     const user = cloud()?.user;
-    const metric = metricById(impactState.editor?.metricId);
-    const observedOn = domain().validDateKey(document.getElementById("reflectionEditorDate")?.value);
+    const editor = impactState.editor || {};
+    const metric = metricById(editor.metricId);
+    const existingBounds = resultBounds(metric?.id);
+    const newObservation = role === "current" && editor.newObservation;
+    const existing = newObservation ? null : role === "baseline" ? existingBounds.baseline : existingBounds.current;
+    const observedOn = domain().validDateKey(existing?.observed_on || domain().dateKey(new Date()));
     const value = parseMetricValue(metric, document.getElementById("reflectionEditorValue")?.value);
     if (!client?.from || !user?.id || !metric || !observedOn || value === null) {
-      impactState.message = metric?.measurement_type === "duration_seconds" ? "Enter a valid time such as 27:51." : "Enter a valid dated value.";
+      impactState.message = metric?.measurement_type === "duration_seconds" ? "Enter a valid time such as 27:51." : subjectiveMetric(metric) ? "Choose a rating from 1 to 10." : "Enter a valid value.";
       render();
       return;
     }
@@ -600,7 +698,6 @@
       render();
       return;
     }
-    const existingBounds = resultBounds(metric.id);
     if ((role === "baseline" && existingBounds.current && observedOn > existingBounds.current.observed_on)
       || (role === "current" && existingBounds.baseline && observedOn < existingBounds.baseline.observed_on)) {
       impactState.message = "The current result date must be on or after the baseline date.";
@@ -609,8 +706,6 @@
     }
     impactState.saving = true;
     try {
-      const bounds = resultBounds(metric.id);
-      const existing = role === "baseline" ? bounds.baseline : bounds.current;
       const query = existing
         ? client.from(RESULTS_TABLE).update({ observed_on: observedOn, value }).eq("id", existing.id).eq("user_id", user.id).select(RESULT_COLUMNS).single()
         : client.from(RESULTS_TABLE).insert({ id: uuid(), user_id: user.id, metric_id: metric.id, observed_on: observedOn, value, source: "athlete_entry", notes: null }).select(RESULT_COLUMNS).single();
@@ -619,8 +714,21 @@
       impactState.results = existing
         ? impactState.results.map(item => item.id === existing.id ? result.data : item)
         : [...impactState.results, result.data];
-      impactState.editor = role === "baseline" ? { step: "current", metricId: metric.id } : { step: "complete", metricId: metric.id };
-      impactState.message = `${role === "baseline" ? "Baseline" : "Current result"} saved.`;
+      if (role === "baseline") {
+        impactState.editor = null;
+        impactState.view = "overview";
+        impactState.message = "Starting point saved. Your next check-in will appear in around two weeks.";
+      } else if (newObservation && Array.isArray(editor.reviewMetricIds)) {
+        const nextIndex = Number(editor.reviewIndex || 0) + 1;
+        const nextMetricId = editor.reviewMetricIds[nextIndex];
+        impactState.editor = nextMetricId
+          ? { step: "current", metricId: nextMetricId, newObservation: true, reviewMetricIds: editor.reviewMetricIds, reviewIndex: nextIndex }
+          : { step: "complete", metricId: metric.id };
+        impactState.message = nextMetricId ? "Check-in saved. Continue with the next outcome." : "Current check-in complete.";
+      } else {
+        impactState.editor = { step: "complete", metricId: metric.id };
+        impactState.message = "Current check-in saved.";
+      }
     } catch (error) {
       impactState.message = error?.message || "Could not save that Reflection value.";
     } finally {
@@ -688,6 +796,32 @@
   }
 
   document.addEventListener("click", event => {
+    const viewButton = event.target.closest("[data-reflection-view]");
+    if (viewButton) {
+      impactState.view = viewButton.dataset.reflectionView || "overview";
+      render();
+      return;
+    }
+    if (event.target.closest("[data-reflection-start-review]")) {
+      const metricIds = activeMetrics().filter(metric => resultBounds(metric.id).baseline).map(metric => metric.id);
+      if (metricIds.length) {
+        impactState.editor = { step: "current", metricId: metricIds[0], newObservation: true, reviewMetricIds: metricIds, reviewIndex: 0 };
+        render();
+      }
+      return;
+    }
+    const ratingButton = event.target.closest("[data-reflection-rating]");
+    if (ratingButton) {
+      const value = String(ratingButton.dataset.reflectionRating || "");
+      const input = document.getElementById("reflectionEditorValue");
+      if (input) input.value = value;
+      document.querySelectorAll("[data-reflection-rating]").forEach(button => {
+        const selected = Number(button.dataset.reflectionRating) <= Number(value);
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-pressed", button === ratingButton ? "true" : "false");
+      });
+      return;
+    }
     if (event.target.closest("[data-reflection-open-chooser]")) {
       impactState.editor = { step: "choose" };
       render();
@@ -717,7 +851,7 @@
     }
     const editButton = event.target.closest("[data-reflection-edit]");
     if (editButton) {
-      impactState.editor = { step: editButton.dataset.reflectionEdit, metricId: editButton.dataset.reflectionMetric };
+      impactState.editor = { step: editButton.dataset.reflectionEdit, metricId: editButton.dataset.reflectionMetric, newObservation: false };
       render();
       return;
     }
@@ -761,6 +895,7 @@
     render,
     load,
     report: currentReport,
-    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, genuinelyNewAthlete, resultBounds, comparisonChange, OUTCOME_GROUPS }
+    reviewPrompt: reflectionReviewPrompt,
+    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, genuinelyNewAthlete, resultBounds, comparisonChange, reflectionLifecycle, ratingScaleMarkup, OUTCOME_GROUPS }
   };
 })();

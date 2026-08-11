@@ -214,7 +214,7 @@ test("canonical Athlete UI adds one mobile Reflection surface without overloadin
   assert.match(html, /id="impact" class="screen"/);
   assert.match(html, /id="athleteImpactSurface"/);
   assert.match(nav, /<span>Reflection<\/span>/);
-  assert.match(nav, /data-mobile-screen="impact"[\s\S]*data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"/);
+  assert.match(nav, /data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"[\s\S]*data-mobile-screen="impact"/);
   assert.doesNotMatch(dashboard, /performance result|six-week impact|post-training feedback/i);
 });
 
@@ -229,7 +229,8 @@ test("completed Training Mode sessions, not session starts, open the feedback fl
 
 test("Reflection setup includes everyday and sport outcomes, custom metrics and a hard three-metric boundary", () => {
   const js = read("athlete-impact.js");
-  assert.match(js, /What does better performance look like for you\?/);
+  assert.match(js, /Start your Reflection/);
+  assert.match(js, /Set my baseline/);
   assert.match(js, /Fuelling & everyday life/);
   assert.match(js, /Better energy through the day/);
   assert.match(js, /Sport & training/);
@@ -309,10 +310,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v137-accepted-integration/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v138-reflection-journey/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v137-accepted-integration/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v138-reflection-journey/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {
