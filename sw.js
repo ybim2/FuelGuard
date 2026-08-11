@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v140-athlete-polish";
-const BUILD_VERSION = "2026-08-11T19:49:26Z";
+const APP_VERSION = "mobile-pwa-v141-garmin-reconnect";
+const BUILD_VERSION = "2026-08-11T20:19:56Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v140-athlete-polish-20260811T194926Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v141-garmin-reconnect-20260811T201956Z";
 const APP_SHELL = [
   "./",
   "./index.html",

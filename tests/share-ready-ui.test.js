@@ -200,7 +200,7 @@ test("Settings keeps only essential production sections", () => {
   const intro = indexOfRequired(settings, "Settings");
   const account = indexOfRequired(settings, "Account &amp; Sync");
   const coachSharing = indexOfRequired(settings, "Coach Access");
-  const garmin = indexOfRequired(settings, "Connected Garmin Apps");
+  const garmin = indexOfRequired(settings, "Garmin apps");
   const importAndClear = indexOfRequired(settings, "Data import and clearing");
   const version = indexOfRequired(settings, "App version and privacy");
 
@@ -226,7 +226,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v140-athlete-polish";
+  const version = "mobile-pwa-v141-garmin-reconnect";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -236,7 +236,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260811T194926Z/);
+  assert.match(sw, /20260811T201956Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

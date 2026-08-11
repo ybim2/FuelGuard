@@ -168,6 +168,6 @@ test("Reflection uses the continuous white Athlete surface and a versioned PWA s
   assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
   assert.match(css, /\.reflection-hero,[\s\S]*\.reflection-page-section[\s\S]*background: #fff/);
   assert.match(css, /@media \(max-width: 390px\)/);
-  assert.match(read("build-info.js"), /mobile-pwa-v140-athlete-polish/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v140-athlete-polish-/);
+  assert.match(read("build-info.js"), /mobile-pwa-v141-garmin-reconnect/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v141-garmin-reconnect-/);
 });
