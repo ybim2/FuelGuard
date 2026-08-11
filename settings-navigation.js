@@ -2,8 +2,6 @@
   const STORAGE_KEY = "fuelGuardSettingsCategory";
   const CATEGORIES = Object.freeze({
     account: "Account & Profile",
-    fuelling: "Fuelling",
-    training: "Training",
     garmin: "Garmin & Devices",
     notifications: "Notifications",
     social: "Social Media",

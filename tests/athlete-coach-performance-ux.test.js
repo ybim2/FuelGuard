@@ -159,7 +159,7 @@ function settingsSandbox(saved = "training") {
   const intro = element();
   const header = element();
   const title = element();
-  const categoryElements = ["account", "fuelling", "training", "garmin", "notifications", "sharing", "support"]
+  const categoryElements = ["account", "garmin", "notifications", "sharing", "support"]
     .map(category => element({ settingsCategory: category }));
   const domEvents = {};
   const windowEvents = {};
@@ -188,16 +188,11 @@ function settingsSandbox(saved = "training") {
   return { window, storage, menu, intro, header, title, categoryElements, menuButton };
 }
 
-test("Settings category navigation restores on refresh and has a clear back state", () => {
+test("Settings drops a stale removed category and still restores supported destinations", () => {
   const view = settingsSandbox("training");
-  assert.equal(view.menu.hidden, true);
-  assert.equal(view.intro.hidden, true);
-  assert.equal(view.header.hidden, false);
-  assert.equal(view.title.textContent, "Training");
-  assert.equal(view.categoryElements.find(item => item.dataset.settingsCategory === "training").classList.contains("settings-category-filtered"), false);
-  assert.equal(view.categoryElements.find(item => item.dataset.settingsCategory === "account").classList.contains("settings-category-filtered"), true);
-  view.window.FuelGuardSettingsNavigation.showCategory("");
   assert.equal(view.menu.hidden, false);
+  assert.equal(view.intro.hidden, false);
+  assert.equal(view.header.hidden, true);
   assert.equal(view.storage.has("fuelGuardSettingsCategory"), false);
   view.window.FuelGuardSettingsNavigation.showCategory("garmin");
   assert.equal(view.storage.get("fuelGuardSettingsCategory"), "garmin");
@@ -206,12 +201,17 @@ test("Settings category navigation restores on refresh and has a clear back stat
 
 test("all requested Settings categories and existing controls remain reachable", () => {
   const html = read("index.html");
-  for (const label of ["Account &amp; Profile", "Fuelling", "Training", "Garmin &amp; Devices", "Notifications", "Coach &amp; Sharing", "App &amp; Support"]) {
+  const settingsMenu = html.slice(html.indexOf('data-settings-category-menu'), html.indexOf('data-settings-category-header'));
+  assert.match(settingsMenu, /data-settings-category-open="account"[\s\S]*data-settings-category-open="garmin"[\s\S]*data-settings-category-open="notifications"/);
+  assert.doesNotMatch(settingsMenu, /data-settings-category-open="(?:fuelling|training)"|>Fuelling<|>Training</);
+  for (const label of ["Account &amp; Profile", "Garmin &amp; Devices", "Notifications", "Coach &amp; Sharing", "App &amp; Support"]) {
     assert.match(html, new RegExp(label));
   }
-  for (const category of ["account", "fuelling", "training", "garmin", "notifications", "sharing", "support"]) {
+  for (const category of ["account", "garmin", "notifications", "sharing", "support"]) {
     assert.match(html, new RegExp(`data-settings-category="${category}"`));
   }
+  assert.doesNotMatch(html, /data-settings-category="(?:fuelling|training)"/);
+  assert.doesNotMatch(read("settings-navigation.js"), /fuelling: "Fuelling"|training: "Training"/);
   for (const id of ["accountSignInButton", "athleteProfileSaveButton", "coachSharingCard", "athleteNudgePreferences", "garminDevicesList", "fuelCsvImportButton", "checkAppUpdateButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }

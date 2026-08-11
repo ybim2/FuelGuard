@@ -281,13 +281,14 @@ test("Training completion has one transient summary and remains represented once
 test("Reflection keeps the accepted Performance journey beneath the universal Everyday baseline", () => {
   const impact = read("athlete-impact.js");
   const css = read("athlete-impact.css");
-  for (const label of ["Your journey", "Your baseline", "Current check-in", "Fuel Guard evidence", "Set performance baseline", "Where are you currently", "How are things going now"]) assert.match(impact, new RegExp(label));
+  for (const label of ["Your Journey", "Your baseline", "Performance check-in", "Choose performance areas", "How satisfied are you currently with your", "Check in"]) assert.match(impact, new RegExp(label));
   assert.match(impact, /athleteEverydayReflection/);
   assert.doesNotMatch(impact, /Impact summary|Training experience|function feedbackMarkup/);
   assert.match(impact, /Edit latest check-in/);
   assert.match(impact, /Edit baseline/);
-  assert.match(impact, /Change dates/);
-  assert.match(impact, /Delete reflection/);
+  assert.match(impact, /Change area/);
+  assert.match(impact, /Stop tracking/);
+  assert.doesNotMatch(impact, /reflection-dashboard-rail|Tracked outcomes/);
   assert.match(impact, /age <= 72 \* 60 \* 60 \* 1000/);
   assert.match(impact, /noImpactData[\s\S]*localLogs\(\)\.length === 0/);
   assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
@@ -298,7 +299,7 @@ test("the PWA cache advances once and includes every new Work Mode asset", () =>
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v142-fast-garmin-reconnect/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v143-final-reflection/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));

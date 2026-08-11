@@ -231,24 +231,25 @@ test("Reflection separates the universal Everyday baseline from optional perform
   const js = read("athlete-impact.js");
   const everyday = read("athlete-everyday-reflection.js");
   assert.match(js, /What matters to your performance\?/);
-  assert.match(js, /Set performance baseline/);
+  assert.match(js, /Choose performance areas/);
   assert.match(js, /FuelGuardEverydayReflection/);
   assert.match(everyday, /Meal prep organisation/);
   assert.match(everyday, /Healthy snacking ability/);
   assert.match(everyday, /Work mood & energy/);
   assert.match(everyday, /Training energy/);
-  assert.match(js, /Improve my 5K/);
-  assert.match(js, /Improve match fitness/);
+  assert.match(js, /5 km performance/);
+  assert.match(js, /Match fitness/);
+  assert.match(js, /Speed/);
   assert.match(js, /unit: "\/ 5"/);
-  assert.match(js, /Create a custom outcome/);
+  assert.match(js, /Custom area/);
   assert.match(js, /metrics\.length >= 3/);
 });
 
-test("Reflection separates athlete-entered outcomes from Fuel Guard evidence and avoids causal claims", () => {
+test("Reflection keeps performance subjective and removes the analytics dashboard layer", () => {
   const js = read("athlete-impact.js");
-  assert.match(js, /Entered by you/);
-  assert.match(js, /Fuel Guard evidence/);
-  assert.match(js, /They do not show that Fuel Guard or fuelling caused an external outcome/);
+  assert.match(js, /How satisfied are you currently with your/);
+  assert.match(js, /No performance number is required/);
+  assert.doesNotMatch(js, /reflection-dashboard-rail|function evidenceMarkup|function overviewCards/);
   assert.doesNotMatch(js, /Fuel Guard (made|caused|improved) your/i);
 });
 
@@ -314,10 +315,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v142-fast-garmin-reconnect/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v143-final-reflection/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v142-fast-garmin-reconnect/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v143-final-reflection/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

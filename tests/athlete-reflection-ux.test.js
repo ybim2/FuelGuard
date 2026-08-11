@@ -42,18 +42,20 @@ test("Reflection starts with everyday life and offers optional 1–5 performance
     "Better hydration",
     "Better mood or concentration",
     "Maintaining or changing body weight",
-    "Improve my 5K",
-    "Build endurance",
-    "Improve strength",
-    "Improve swimming",
-    "Improve cycling",
-    "Improve recovery",
-    "Build training consistency",
-    "Improve match fitness"
+    "5 km performance",
+    "Endurance",
+    "Strength",
+    "Speed",
+    "Recovery",
+    "Training consistency",
+    "Match fitness",
+    "Cycling",
+    "Swimming"
   ]) assert.match(js, new RegExp(copy));
-  assert.match(js, /Create a custom outcome/);
+  assert.match(js, /Custom area/);
   assert.match(js, /What matters to your performance\?/);
-  assert.doesNotMatch(js, /mandatory numerical|Set your target range/);
+  assert.match(js, /No PB, pace or performance number is needed/);
+  assert.doesNotMatch(js.slice(sport, js.indexOf("};", sport)), /requiresTarget|duration_seconds|target_range/);
 });
 
 test("baseline and current comparisons render clear numeric and timed changes", () => {
@@ -70,18 +72,32 @@ test("baseline and current comparisons render clear numeric and timed changes", 
   );
   assert.deepEqual(JSON.parse(JSON.stringify(energy)), { label: "+3 since baseline", tone: "improved" });
   assert.deepEqual(JSON.parse(JSON.stringify(fiveK)), { label: "1:45 faster since baseline", tone: "improved" });
+  assert.deepEqual(JSON.parse(JSON.stringify(api.comparisonChange(
+    { direction: "higher", measurement_type: "number", unit: "/ 5" },
+    { value: 2 },
+    { value: 4 }
+  ))), { label: "+2 since your baseline", tone: "improved" });
+  assert.deepEqual(JSON.parse(JSON.stringify(api.comparisonChange(
+    { direction: "higher", measurement_type: "number", unit: "/ 5" },
+    { value: 3 },
+    { value: 3 }
+  ))), { label: "Holding steady", tone: "stable" });
+  assert.deepEqual(JSON.parse(JSON.stringify(api.comparisonChange(
+    { direction: "higher", measurement_type: "number", unit: "/ 5" },
+    { value: 4 },
+    { value: 2 }
+  ))), { label: "Below your baseline", tone: "changed" });
 });
 
-test("normal Reflection view is a journey dashboard and editing stays in drill-down views", () => {
+test("Performance comparison and Journey are direct with no dashboard drill-down", () => {
   const js = read("athlete-impact.js");
   const mainRender = js.slice(js.indexOf("function render()"), js.indexOf("async function load"));
-  assert.match(mainRender, /populatedStateMarkup\(metrics, report\)/);
+  assert.match(mainRender, /populatedStateMarkup\(metrics\)/);
   assert.match(mainRender, /editorMarkup\(\)/);
-  for (const module of ["Your journey", "Your baseline", "Current check-in", "Performance", "Everyday life", "Fuelling behaviour", "Changes over time"]) assert.match(js, new RegExp(module));
-  assert.match(js, /reflection-dashboard-rail/);
-  assert.match(js, /How close do you feel to/);
-  for (const action of ["Edit latest check-in", "Edit baseline", "Change metric", "Change dates", "Delete reflection"]) assert.match(js, new RegExp(action));
-  assert.doesNotMatch(js, /function resultEntryMarkup|function presetSetupMarkup/);
+  for (const copy of ["How is your performance feeling?", "Your Performance", "Baseline", "Now", "Your Journey", "Check in"]) assert.match(js, new RegExp(copy));
+  assert.doesNotMatch(js, /reflection-dashboard-rail|data-reflection-view|Tracked outcomes|Your Baseline Tracked Outcomes/);
+  for (const action of ["Edit latest check-in", "Edit baseline", "Change area", "Stop tracking"]) assert.match(js, new RegExp(action));
+  assert.doesNotMatch(js, />Change dates<|>Delete reflection</);
 });
 
 test("Reflection lifecycle starts with a baseline and makes a review available after fourteen days", () => {
@@ -120,28 +136,32 @@ test("subjective Reflection values use ten accessible tap targets and normal ent
   assert.match(markup, /aria-label="7 out of 10" aria-pressed="true"/);
   assert.match(markup, /id="reflectionEditorValue" type="hidden" value="7"/);
   const js = read("athlete-impact.js");
-  const entry = js.slice(js.indexOf("function editorValueMarkup"), js.indexOf("function datesMarkup"));
+  const entry = js.slice(js.indexOf("function editorValueMarkup"), js.indexOf("function editorMarkup"));
   assert.doesNotMatch(entry, /type="date"|reflectionEditorDate/);
-  const save = js.slice(js.indexOf("async function saveReflectionValue"), js.indexOf("async function saveReflectionDates"));
+  const save = js.slice(js.indexOf("async function saveReflectionValue"), js.indexOf("function customOutcomeFromEditor"));
   assert.match(save, /domain\(\)\.dateKey\(new Date\(\)\)/);
 });
 
-test("new Performance Reflection presets use the Everyday-style five point scale", () => {
+test("new Performance Reflection presets use an accessible satisfaction scale", () => {
   const api = reflectionApi();
-  const markup = api.ratingScaleMarkup({ name: "Build endurance", unit: "/ 5", measurement_type: "number" }, 3);
+  const markup = api.ratingScaleMarkup({ name: "Endurance", unit: "/ 5", measurement_type: "number" }, 3);
   assert.equal((markup.match(/data-reflection-rating=/g) || []).length, 5);
-  assert.match(markup, /How close do you feel to Build endurance\?/);
-  assert.match(markup, /1 is not close yet; 5 is very close/);
+  assert.match(markup, /How satisfied are you currently with your endurance\?/);
+  assert.match(markup, /1 out of 5 — Not satisfied/);
+  assert.match(markup, /3 out of 5 — Okay/);
+  assert.match(markup, /5 out of 5 — Very satisfied/);
+  assert.equal(api.performanceAreaPhrase("Race confidence"), "race confidence");
+  assert.equal(api.performanceAreaPhrase("5 km performance"), "5 km performance");
   assert.ok(api.OUTCOME_GROUPS.sport.outcomes.every(outcome => outcome.unit === "/ 5" && outcome.valueMin === 1 && outcome.valueMax === 5));
 });
 
-test("Fuel Guard behavioural evidence is separate and explicitly non-causal", () => {
+test("Performance stays a subjective reflection instead of an analytics dashboard", () => {
   const js = read("athlete-impact.js");
-  assert.match(js, /Entered by you/);
-  assert.match(js, /Fuel Guard evidence/);
-  assert.match(js, /Calculated from recorded activity/);
-  assert.match(js, /They do not show that Fuel Guard or fuelling caused an external outcome/);
-  assert.doesNotMatch(js, /Fuel Guard (made|caused|improved) your/i);
+  const renderedExperience = js.slice(js.indexOf("function emptyStateMarkup"), js.indexOf("function render"));
+  assert.doesNotMatch(renderedExperience, /Fuel Guard evidence|Calculated from recorded activity|fuelling behaviour|PB tracker|watts|VO2/);
+  assert.match(renderedExperience, /How satisfied are you currently with your/);
+  assert.match(js, /A future check-in will build your comparison/);
+  assert.match(js, /Existing history is retained/);
 });
 
 test("legacy Training Experience and summary cards are removed without deleting their stored data", () => {
@@ -166,8 +186,9 @@ test("Reflection retains the accepted owner-only schema and introduces no migrat
 test("Reflection uses the continuous white Athlete surface and a versioned PWA shell", () => {
   const css = read("athlete-impact.css");
   assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
-  assert.match(css, /\.reflection-hero,[\s\S]*\.reflection-page-section[\s\S]*background: #fff/);
+  assert.match(css, /\.reflection-performance-shell[\s\S]*border-radius: 26px[\s\S]*background: #fff/);
+  assert.match(css, /\.reflection-rating-scale > div[\s\S]*repeat\(5/);
   assert.match(css, /@media \(max-width: 390px\)/);
-  assert.match(read("build-info.js"), /mobile-pwa-v142-fast-garmin-reconnect/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v142-fast-garmin-reconnect-/);
+  assert.match(read("build-info.js"), /mobile-pwa-v143-final-reflection/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v143-final-reflection-/);
 });
