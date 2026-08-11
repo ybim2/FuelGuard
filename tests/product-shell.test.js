@@ -28,18 +28,21 @@ function loadProductShell() {
   return { elements, listeners, window };
 }
 
-test("main identity prefers the saved first name and clears User A before displaying User B", () => {
+test("main identity prefers username then first name and never exposes account email", () => {
   const { elements, window } = loadProductShell();
   const render = window.fuelGuardProductShell.renderMainAccountIdentity;
 
   render({ signedIn: true, email: "user-a@example.com" });
-  assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Signed in as");
-  assert.equal(elements.get("mainAccountIdentityValue").textContent, "user-a@example.com");
+  assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Fuel Guard Athlete");
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "Athlete");
 
   render({ signedIn: true, email: "user-a@example.com" }, { first_name: "Alex" });
-  assert.equal(elements.get("mainAccountIdentityLabel").textContent, "user-a@example.com");
+  assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Fuel Guard Athlete");
   assert.equal(elements.get("mainAccountIdentityValue").textContent, "Alex");
-  assert.match(elements.get("mainAccountIdentity").attributes["aria-label"], /Alex.*user-a@example\.com/);
+  assert.doesNotMatch(elements.get("mainAccountIdentity").attributes["aria-label"], /user-a@example\.com/);
+
+  render({ signedIn: true, email: "user-a@example.com" }, { username: "alex_runs", first_name: "Alex" });
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "alex_runs");
 
   render({ signedIn: false, email: "user-a@example.com" });
   assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Not signed in");
@@ -47,7 +50,7 @@ test("main identity prefers the saved first name and clears User A before displa
   assert.doesNotMatch(elements.get("mainAccountIdentity").attributes["aria-label"], /user-a/i);
 
   render({ signedIn: true, email: "user-b@example.com" });
-  assert.equal(elements.get("mainAccountIdentityValue").textContent, "user-b@example.com");
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "Athlete");
   assert.doesNotMatch(elements.get("mainAccountIdentityValue").textContent, /user-a/i);
 });
 
@@ -58,7 +61,7 @@ test("main shell keeps Coach and Performance links hidden until server-authorise
   assert.match(html, /href="\/" aria-current="page">Athlete<\/a>/);
   assert.match(html, /id="coachProductLink" href="\/coach\/" hidden>Coach<\/a>/);
   assert.match(html, /id="performanceProductLink" href="\/performance\/" hidden>Performance<\/a>/);
-  assert.match(html, /product-shell\.js\?v=mobile-pwa-v138-reflection-journey/);
+  assert.match(html, /product-shell\.js\?v=mobile-pwa-v139-athlete-system/);
   assert.match(sw, /\.\/product-shell\.js/);
 });
 

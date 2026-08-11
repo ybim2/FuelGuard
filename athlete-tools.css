@@ -1,0 +1,131 @@
+.athlete-tools-surface {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 680px);
+  margin: 0 auto;
+  padding: 14px 12px 108px;
+  color: var(--ink, #16251d);
+}
+
+.fuel-tools-header { padding: 12px 4px 2px; }
+.fuel-tools-header > span,
+.fuel-kit-card > header span,
+.fuel-kit-verdict > span {
+  display: block;
+  color: #2c7a4b;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.fuel-tools-header h1 { margin: 4px 0 5px; font-size: clamp(2rem, 8vw, 3.2rem); letter-spacing: -.055em; }
+.fuel-tools-header p,
+.fuel-kit-intro,
+.fuel-kit-verdict p { margin: 0; color: #617067; line-height: 1.45; }
+
+.fuel-kit-card {
+  display: grid;
+  gap: 15px;
+  overflow: hidden;
+  padding: 20px 18px;
+  border: 1px solid #dce7df;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 90% 3%, rgba(241, 165, 69, .13), transparent 25%),
+    #fff;
+  box-shadow: 0 16px 36px rgba(23, 57, 38, .08);
+}
+.fuel-kit-card.ready { border-color: #b8ddc4; box-shadow: 0 18px 42px rgba(31, 133, 69, .12); }
+.fuel-kit-card > header { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.fuel-kit-card > header h2 { margin: 5px 0 0; font-size: clamp(1.55rem, 7vw, 2.15rem); letter-spacing: -.045em; }
+.fuel-kit-card > header > b { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 15px; background: #103f27; color: #fff; font-size: .78rem; }
+.fuel-kit-intro { font-size: .78rem; }
+
+.fuel-kit-rhythm-note {
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 1px solid #d9e9dd;
+  border-radius: 17px;
+  background: #f4faf6;
+}
+.fuel-kit-rhythm-note strong { font-size: .78rem; }
+.fuel-kit-rhythm-note span { color: #627168; font-size: .7rem; line-height: 1.4; }
+
+.fuel-kit-count-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dfe8e1;
+  border-radius: 19px;
+}
+.fuel-kit-count-row > div:first-child { min-width: 0; }
+.fuel-kit-count-row span { display: block; font-weight: 850; }
+.fuel-kit-count-row small { display: block; margin-top: 2px; color: #6b786f; font-size: .68rem; }
+.fuel-kit-stepper { display: grid; flex: 0 0 auto; grid-template-columns: 42px 38px 42px; align-items: center; overflow: hidden; border: 1px solid #cddbd1; border-radius: 999px; background: #f5f8f6; }
+.fuel-kit-stepper button { min-height: 42px; padding: 0; border: 0; background: transparent; color: #17482d; font-size: 1.3rem; }
+.fuel-kit-stepper output { font-size: 1.05rem; font-weight: 900; text-align: center; }
+
+.fuel-kit-toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.fuel-kit-toggle {
+  display: flex;
+  min-width: 0;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dfe7e1;
+  border-radius: 17px;
+  background: #fff;
+  color: #223e2c;
+  text-align: left;
+}
+.fuel-kit-toggle span { min-width: 0; }
+.fuel-kit-toggle b,
+.fuel-kit-toggle small { display: block; }
+.fuel-kit-toggle b { font-size: .76rem; }
+.fuel-kit-toggle small { margin-top: 3px; color: #6b786f; font-size: .62rem; line-height: 1.25; }
+.fuel-kit-toggle i { display: grid; width: 25px; height: 25px; flex: 0 0 auto; place-items: center; border: 1px solid #cad7ce; border-radius: 50%; color: #fff; font-style: normal; }
+.fuel-kit-toggle.active { border-color: #93c9a5; background: #f2fbf5; }
+.fuel-kit-toggle.active i { border-color: #1f8a4c; background: #1f8a4c; }
+
+.fuel-kit-verdict { padding: 17px; border-radius: 20px; background: #f3f6f4; }
+.fuel-kit-verdict.ready { background: linear-gradient(135deg, #0e6637, #198c4c); color: #fff; }
+.fuel-kit-verdict.reserve { background: #fff8ec; }
+.fuel-kit-verdict.ready > span,
+.fuel-kit-verdict.ready p { color: rgba(255,255,255,.78); }
+.fuel-kit-verdict.reserve > span { color: #a35c0b; }
+.fuel-kit-verdict h3 { margin: 5px 0 4px; font-size: 1.12rem; }
+.fuel-kit-verdict p { font-size: .72rem; }
+.fuel-kit-save { min-height: 48px; border: 0; border-radius: 16px; background: #153e28; color: #fff; font-weight: 900; }
+.fuel-kit-status { min-height: 1em; margin: -5px 0 0; color: #617067; font-size: .7rem; text-align: center; }
+
+.fuel-kit-prepared-history {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 17px 18px;
+  border: 1px solid #dce7df;
+  border-radius: 20px;
+  background: #fff;
+}
+.fuel-kit-prepared-history span,
+.fuel-kit-prepared-history strong,
+.fuel-kit-prepared-history b,
+.fuel-kit-prepared-history small { display: block; }
+.fuel-kit-prepared-history span { color: #617067; font-size: .68rem; }
+.fuel-kit-prepared-history strong { margin-top: 3px; font-size: .86rem; }
+.fuel-kit-prepared-history b { color: #196b3a; font-size: 1.1rem; text-align: right; }
+.fuel-kit-prepared-history b small { color: #617067; font-size: .6rem; font-weight: 700; }
+
+@media (max-width: 360px) {
+  .athlete-tools-surface { padding-inline: 8px; }
+  .fuel-kit-card { padding-inline: 14px; border-radius: 22px; }
+  .fuel-kit-toggles { grid-template-columns: 1fr; }
+  .fuel-kit-stepper { grid-template-columns: 38px 34px 38px; }
+}

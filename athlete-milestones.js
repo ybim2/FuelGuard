@@ -22,7 +22,12 @@
 
   function summary() {
     const gap = typeof fuelGapState === "function" ? fuelGapState() : { logs: [] };
-    return domain()?.activityUsageSummary?.(gap.logs || [], new Date()) || { dayStreak: 0, fuelStreak: 0, hydrationStreak: 0, fuelMoments: 0, hydrationMoments: 0 };
+    return domain()?.activityMilestoneSummary?.({
+      logs: gap.logs || [],
+      trainingSessions: gap.trainingMode?.sessions || [],
+      workSessions: gap.workMode?.sessions || [],
+      now: new Date()
+    }) || { dayStreak: 0, fuelMoments: 0, hydrationMoments: 0, trainingMoments: 0, workMoments: 0 };
   }
 
   function canonicalHistoryReady() {
@@ -33,7 +38,7 @@
   function renderHistoryPending() {
     const target = document.getElementById("athleteMilestones");
     if (!target) return;
-    target.innerHTML = `<div class="beta-streak-history-pending" role="status"><span>Checking full history…</span><p>Your Day, Fuel and Hydration streaks will appear after canonical history has loaded.</p></div>`;
+    target.innerHTML = `<div class="beta-streak-history-pending" role="status"><span>Checking full history…</span><p>Your cumulative Fuel Guard milestones will appear after canonical history has loaded.</p></div>`;
   }
 
   function localAchievement(milestone, achievedAt = new Date().toISOString(), acknowledgedAt = null) {
@@ -78,32 +83,42 @@
     }));
   }
 
+  function cumulativeMilestoneProgress(category, value) {
+    const current = Math.max(0, Number(value) || 0);
+    const thresholds = domain()?.MILESTONE_THRESHOLDS?.[category] || [];
+    const latest = [...thresholds].reverse().find(threshold => current >= threshold) || 0;
+    const next = thresholds.find(threshold => threshold > current) || null;
+    const span = next ? Math.max(1, next - latest) : 1;
+    return {
+      current,
+      latest,
+      next,
+      remaining: next ? Math.max(0, next - current) : 0,
+      progress: next ? Math.min(100, Math.max(0, Math.round((current - latest) / span * 100))) : 100
+    };
+  }
+
   function renderHistory(currentSummary = summary()) {
     const target = document.getElementById("athleteMilestones");
     if (!target || !domain()) return;
     const categories = [
-      { id: "day", label: "Day streak", icon: "🔥", value: Number(currentSummary.dayStreak || 0), detail: "Fuel or Hydration" },
-      { id: "fuel", label: "Fuel streak", icon: "🍽", value: Number(currentSummary.fuelStreak || 0), detail: "Fuel logging" },
-      { id: "hydration", label: "Hydration streak", icon: "💧", value: Number(currentSummary.hydrationStreak || 0), detail: "Hydration logging" }
-    ];
+      { id: "fuel", label: "Fuel moments", icon: "F", value: Number(currentSummary.fuelMoments || 0), detail: "Valid Fuel logs" },
+      { id: "hydration", label: "Hydration moments", icon: "H", value: Number(currentSummary.hydrationMoments || 0), detail: "Valid Hydration logs" },
+      { id: "training", label: "Training moments", icon: "T", value: Number(currentSummary.trainingMoments || 0), detail: "Completed sessions" },
+      { id: "work", label: "Work moments", icon: "W", value: Number(currentSummary.workMoments || 0), detail: "Completed work periods" }
+    ].map(category => ({ ...category, progress: cumulativeMilestoneProgress(category.id, category.value) }));
     target.innerHTML = `
-      <div class="beta-streak-visuals" role="list" aria-label="Current Fuel Guard streaks">
-        ${categories.map(category => `<article class="beta-milestone-tile beta-streak-visual unlocked current ${category.id}" role="listitem">
-          <span aria-hidden="true">${category.icon}</span>
-          <strong>${domain().escapeHtml(category.label)}</strong>
-          <b>${category.value.toLocaleString("en-GB")} <small>${category.value === 1 ? "day" : "days"}</small></b>
-          <small>${domain().escapeHtml(category.detail)}</small>
-        </article>`).join("")}
-      </div>
-      <div class="beta-streak-milestone-progress" aria-label="Streak milestone progression">
-        ${categories.map(category => `<section class="beta-streak-milestone-lane ${category.id}" aria-label="${domain().escapeHtml(category.label)} milestones">
-          <header><span aria-hidden="true">${category.icon}</span><strong>${domain().escapeHtml(category.label)}</strong><small>${category.value} day${category.value === 1 ? "" : "s"}</small></header>
-          <div class="beta-streak-milestone-track" role="list" tabindex="0" aria-label="${domain().escapeHtml(category.label)} milestones; swipe horizontally to see all">
-            ${streakMilestoneProgress(category.value).map(item => `<span class="beta-streak-milestone ${item.state}" role="listitem" aria-label="${item.threshold} days, ${item.state === "unlocked" ? "unlocked" : item.state === "next" ? "next milestone" : "locked"}">
-              <b>${item.state === "unlocked" ? "✓" : item.state === "next" ? "○" : "·"}</b><strong>${item.threshold}</strong><small>days</small>
-            </span>`).join("")}
+      <div class="beta-milestone-carousel" role="list" tabindex="0" aria-label="Fuel Guard milestones; swipe horizontally to browse">
+        ${categories.map(category => `<article class="beta-cumulative-milestone ${category.id}" role="listitem">
+          <header><span aria-hidden="true">${category.icon}</span><div><small>${domain().escapeHtml(category.detail)}</small><h4>${domain().escapeHtml(category.label)}</h4></div></header>
+          <strong class="beta-cumulative-total">${category.value.toLocaleString("en-GB")}</strong>
+          <div class="beta-cumulative-status">
+            <span><small>Milestone achieved</small><b>${category.progress.latest ? category.progress.latest.toLocaleString("en-GB") : "Starting"}</b></span>
+            <span><small>Next</small><b>${category.progress.next ? category.progress.next.toLocaleString("en-GB") : "Complete"}</b></span>
           </div>
-        </section>`).join("")}
+          <div class="beta-cumulative-progress" role="progressbar" aria-label="${domain().escapeHtml(category.label)} progress" aria-valuemin="${category.progress.latest}" aria-valuemax="${category.progress.next || category.progress.current}" aria-valuenow="${category.progress.current}"><i style="width:${category.progress.progress}%"></i></div>
+          <p>${category.progress.next ? `${category.progress.remaining.toLocaleString("en-GB")} to go` : "All current milestones reached"}</p>
+        </article>`).join("")}
       </div>
     `;
   }
@@ -201,7 +216,8 @@
     const target = document.getElementById("athleteMilestoneToast");
     if (!target || !achievement || !domain()) return;
     const label = domain().milestoneLabel(achievement.category, achievement.threshold);
-    target.innerHTML = `<b aria-hidden="true">${achievement.category === "streak" ? "🔥" : achievement.category === "fuel" ? "🍽" : "💧"}</b><span><strong>${domain().escapeHtml(label)}</strong><small>Milestone reached</small></span>`;
+    const icon = { streak: "D", fuel: "F", hydration: "H", training: "T", work: "W" }[achievement.category] || "FG";
+    target.innerHTML = `<b aria-hidden="true">${icon}</b><span><strong>${domain().escapeHtml(label)}</strong><small>Milestone reached</small></span>`;
     target.hidden = false;
     acknowledgeLocal(achievement.key);
     const updated = milestoneState()?.achievements.find(item => item.key === achievement.key);
@@ -320,6 +336,6 @@
     syncPoints,
     renderHistory,
     renderPoints,
-    _test: { mergeAchievements, streakMilestoneProgress, canonicalHistoryReady }
+    _test: { mergeAchievements, streakMilestoneProgress, cumulativeMilestoneProgress, canonicalHistoryReady }
   };
 })();

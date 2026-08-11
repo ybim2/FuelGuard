@@ -48,6 +48,13 @@ const DEFAULT_STATE = {
       lastSyncedAt: "",
       lastError: ""
     },
+    fuelKit: {
+      ownerUserId: "",
+      current: null,
+      checks: [],
+      lastSyncedAt: "",
+      lastError: ""
+    },
     graphMode: "fuel",
     fuelWindowMinutes: 720,
     maximumFuelGapMinutes: 180,
@@ -164,6 +171,13 @@ function load() {
           ownerUserId: String(parsedFuelGap.workMode?.ownerUserId || ""),
           activeSession: isPlainObject(parsedFuelGap.workMode?.activeSession) ? parsedFuelGap.workMode.activeSession : null,
           sessions: Array.isArray(parsedFuelGap.workMode?.sessions) ? parsedFuelGap.workMode.sessions : []
+        },
+        fuelKit: {
+          ...defaults.fuelGap.fuelKit,
+          ...(isPlainObject(parsedFuelGap.fuelKit) ? parsedFuelGap.fuelKit : {}),
+          ownerUserId: String(parsedFuelGap.fuelKit?.ownerUserId || ""),
+          current: isPlainObject(parsedFuelGap.fuelKit?.current) ? parsedFuelGap.fuelKit.current : null,
+          checks: Array.isArray(parsedFuelGap.fuelKit?.checks) ? parsedFuelGap.fuelKit.checks : []
         },
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)
@@ -295,6 +309,9 @@ function fuelGapState() {
   state.fuelGap.trainingMode.estimatedDurationMinutes = Math.min(1440, Math.max(15, Number(state.fuelGap.trainingMode.estimatedDurationMinutes) || 60));
   if (!isPlainObject(state.fuelGap.trainingMode.activeSession)) state.fuelGap.trainingMode.activeSession = null;
   if (!Array.isArray(state.fuelGap.trainingMode.sessions)) state.fuelGap.trainingMode.sessions = [];
+  if (!isPlainObject(state.fuelGap.fuelKit)) state.fuelGap.fuelKit = JSON.parse(JSON.stringify(DEFAULT_STATE.fuelGap.fuelKit));
+  if (!Array.isArray(state.fuelGap.fuelKit.checks)) state.fuelGap.fuelKit.checks = [];
+  if (!isPlainObject(state.fuelGap.fuelKit.current)) state.fuelGap.fuelKit.current = null;
   if (!Number.isFinite(Number(state.fuelGap.fuelWindowMinutes))) {
     state.fuelGap.fuelWindowMinutes = DEFAULT_STATE.fuelGap.fuelWindowMinutes;
   }

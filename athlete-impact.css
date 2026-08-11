@@ -19,6 +19,32 @@ body.beta-mvp #impact {
   color: var(--text, #153529);
 }
 
+.reflection-performance-shell {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(28, 70, 58, .12);
+}
+
+.reflection-performance-heading {
+  display: grid;
+  gap: 6px;
+  padding: 2px 4px;
+}
+
+.reflection-performance-heading > span {
+  color: #287157;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.reflection-performance-heading h2,
+.reflection-performance-heading p { margin: 0; }
+.reflection-performance-heading h2 { color: #17342e; font-size: clamp(1.35rem, 6vw, 1.85rem); line-height: 1.08; }
+.reflection-performance-heading p { color: #63736e; font-size: .82rem; line-height: 1.45; }
+
 .reflection-hero,
 .reflection-page-section,
 .reflection-empty-state,

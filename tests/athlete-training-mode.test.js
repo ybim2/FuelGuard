@@ -212,7 +212,7 @@ test("Training sessions remain associated with strict pre and post context", () 
   assert.equal(context.postFuelGapMinutes, 30);
 });
 
-test("Training remains directly beside Daily and Impact opens a dedicated surface", () => {
+test("Training remains directly beside Daily and Reflection, Analytics and Tools have dedicated surfaces", () => {
   const html = read("index.html");
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   assert.ok(nav.indexOf('data-mobile-tab="log"') < nav.indexOf('data-mobile-tab="training"'));
@@ -220,7 +220,11 @@ test("Training remains directly beside Daily and Impact opens a dedicated surfac
   assert.match(nav, /data-mobile-screen="impact"/);
   assert.match(html, /id="training" class="screen"/);
   assert.match(html, /id="trainingModeSurface"/);
-  assert.match(read("app-ui.js"), /"dashboard", "training", "impact", "checklist"/);
+  assert.match(nav, /data-mobile-screen="analytics"/);
+  assert.match(nav, /data-mobile-screen="tools"/);
+  assert.match(html, /id="analytics" class="screen"/);
+  assert.match(html, /id="tools" class="screen"/);
+  assert.match(read("app-ui.js"), /"dashboard", "training", "impact", "analytics", "tools", "checklist"/);
   assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
 });
 
@@ -260,9 +264,9 @@ test("Athlete header Settings stays continuous while Coach uses light operationa
   assert.match(coachCss, /v133 Coach workflow redesign:[\s\S]*#coachAppShell \.coach-card \{[\s\S]*border-radius: 20px;[\s\S]*background: var\(--coach-surface\)/);
 });
 
-test("Athlete navigation keeps three usable equal touch targets at 375px", () => {
+test("Athlete navigation keeps five usable equal touch targets at 375px", () => {
   const css = read("fuel-beta.css");
-  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(css, /mobile-bottom-nav \.mobile-nav-item \{[\s\S]*min-height: calc\(52px/);
   assert.match(css, /@media \(max-width: 390px\)[\s\S]*mobile-bottom-nav \.mobile-nav-item \{ min-width: 0; \}/);
 });

@@ -74,16 +74,18 @@ test("coach pre-practice summary derives exact four-state counts and evidence-ba
   assert.match(domain.prePracticeTeamSummary([{ pre_session_status: "no_logging" }]).insight, /not yet have enough logging data/);
 });
 
-test("Daily restores exactly three consecutive streak visuals without Daily points or rewards", () => {
+test("Daily keeps Day streak separate and presents four cumulative activity milestones", () => {
   const html = read("index.html");
   const dashboard = html.slice(html.indexOf('<section id="dashboard"'), html.indexOf('<section id="training"'));
   const milestones = read("athlete-milestones.js");
   assert.match(dashboard, /id="athleteMilestones"/);
-  assert.match(milestones, /Day streak/);
-  assert.match(milestones, /Fuel streak/);
-  assert.match(milestones, /Hydration streak/);
+  assert.match(dashboard, /Your milestones/);
+  assert.match(milestones, /Fuel moments/);
+  assert.match(milestones, /Hydration moments/);
+  assert.match(milestones, /Training moments/);
+  assert.match(milestones, /Work moments/);
   assert.doesNotMatch(dashboard, /athleteDailyPoints|FG Points|reward|next-day streak/i);
-  assert.match(read("fuel-beta.css"), /\.beta-streak-visuals[\s\S]*grid-template-columns: repeat\(3/);
+  assert.match(read("fuel-beta.css"), /\.beta-milestone-carousel[\s\S]*overflow-x: auto/);
 });
 
 test("separate Fuel and Hydration streaks preserve the existing Day streak definition", () => {

@@ -103,8 +103,9 @@
       now: new Date(),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     });
-    const reflection = window.AthleteImpact?.reviewPrompt?.();
-    return [reflection, ...contextual].filter(item => item && !currentPreferences.dismissedKeys.includes(item.occurrenceKey));
+    const everydayReflection = window.FuelGuardEverydayReflection?.reviewPrompt?.();
+    const performanceReflection = window.AthleteImpact?.reviewPrompt?.();
+    return [everydayReflection, performanceReflection, ...contextual].filter(item => item && !currentPreferences.dismissedKeys.includes(item.occurrenceKey));
   }
 
   function renderContextualNudge() {
@@ -116,7 +117,7 @@
       target.innerHTML = "";
       return;
     }
-    target.innerHTML = `<div><span>Useful now</span><strong>${escape(item.title)}</strong><small>${escape(item.detail)}</small>${item.id === "reflection_review" ? `<button type="button" class="beta-contextual-nudge-open" data-open-screen="impact">Open Reflection</button>` : ""}</div><button type="button" data-dismiss-athlete-nudge="${escape(item.occurrenceKey)}" aria-label="Dismiss this contextual prompt">×</button>`;
+    target.innerHTML = `<div><span>Useful now</span><strong>${escape(item.title)}</strong><small>${escape(item.detail)}</small>${String(item.id || "").includes("reflection_review") ? `<button type="button" class="beta-contextual-nudge-open" data-open-screen="impact">Open Reflection</button>` : ""}</div><button type="button" data-dismiss-athlete-nudge="${escape(item.occurrenceKey)}" aria-label="Dismiss this contextual prompt">×</button>`;
   }
 
   function renderPreferences() {

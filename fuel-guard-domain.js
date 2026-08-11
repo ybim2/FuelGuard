@@ -34,7 +34,15 @@
   const MILESTONE_THRESHOLDS = Object.freeze({
     streak: Object.freeze([3, 5, 7, 14, 30, 50, 100]),
     fuel: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
-    hydration: Object.freeze([10, 25, 50, 100, 250, 500, 1000])
+    hydration: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
+    training: Object.freeze([5, 10, 25, 50, 100, 250]),
+    work: Object.freeze([5, 10, 25, 50, 100, 250])
+  });
+  const ANALYTICS_PERIOD_DAYS = Object.freeze({ "7d": 7, "30d": 30, "90d": 90, all: null });
+  const TRAINING_ANALYTICS_RATE_LIMITS = Object.freeze({
+    carbsG: 500,
+    sodiumMg: 10000,
+    fluidMl: 5000
   });
   const ATHLETE_POINT_MILESTONES = Object.freeze([
     Object.freeze({ eventType: "athlete_streak_3", category: "streak", threshold: 3, points: 25, title: "3-day streak" }),
@@ -567,6 +575,142 @@
     };
   }
 
+  function validCompletedSession(session = {}, { minimumMinutes = 0 } = {}) {
+    const startedAt = parseDate(session.startedAt || session.started_at);
+    const endedAt = parseDate(session.endedAt || session.ended_at);
+    if (String(session.status || "") !== "completed" || !startedAt || !endedAt || endedAt <= startedAt) return false;
+    return (endedAt - startedAt) / 60000 >= Math.max(0, Number(minimumMinutes) || 0);
+  }
+
+  function activityMilestoneSummary({ logs = [], trainingSessions = [], workSessions = [], now = new Date() } = {}) {
+    return {
+      ...activityUsageSummary(logs, now),
+      trainingMoments: (Array.isArray(trainingSessions) ? trainingSessions : []).filter(session => validCompletedSession(session, { minimumMinutes: 15 })).length,
+      workMoments: (Array.isArray(workSessions) ? workSessions : []).filter(session => validCompletedSession(session)).length
+    };
+  }
+
+  function analyticsPeriodStart(period = "30d", now = new Date()) {
+    const days = Object.hasOwn(ANALYTICS_PERIOD_DAYS, period) ? ANALYTICS_PERIOD_DAYS[period] : ANALYTICS_PERIOD_DAYS["30d"];
+    const reference = parseDate(now) || new Date();
+    if (!days) return null;
+    const start = new Date(reference);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (days - 1));
+    return start;
+  }
+
+  function inAnalyticsPeriod(value, period, now) {
+    const date = parseDate(value);
+    const reference = parseDate(now) || new Date();
+    const start = analyticsPeriodStart(period, reference);
+    return Boolean(date && date <= reference && (!start || date >= start));
+  }
+
+  function hourWindowLabel(hour) {
+    const safeHour = ((Number(hour) % 24) + 24) % 24;
+    const next = (safeHour + 1) % 24;
+    const hourText = value => {
+      const suffix = value < 12 ? "AM" : "PM";
+      const clock = value % 12 || 12;
+      return `${clock} ${suffix}`;
+    };
+    return `${hourText(safeHour)}–${hourText(next)}`;
+  }
+
+  function recurringFuelGap(fuelLogs = []) {
+    const days = new Map();
+    fuelLogs.forEach(log => {
+      const key = dateKey(log.date);
+      if (!days.has(key)) days.set(key, []);
+      days.get(key).push(log.date);
+    });
+    const buckets = new Map();
+    days.forEach((dates, key) => {
+      dates.sort((left, right) => left - right);
+      for (let index = 1; index < dates.length; index += 1) {
+        const start = dates[index - 1];
+        const end = dates[index];
+        const minutes = Math.round((end - start) / 60000);
+        if (start.getHours() < 6 || end.getHours() >= 23 || minutes < 30 || minutes > 12 * 60) continue;
+        const bucketKey = `${start.getHours()}-${end.getHours()}`;
+        if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
+        buckets.get(bucketKey).push({ key, start, end, minutes });
+      }
+    });
+    const recurring = [...buckets.values()]
+      .filter(items => items.length >= 2 && new Set(items.map(item => item.key)).size >= 2)
+      .map(items => ({
+        sampleCount: items.length,
+        dayCount: new Set(items.map(item => item.key)).size,
+        averageMinutes: Math.round(items.reduce((total, item) => total + item.minutes, 0) / items.length),
+        averageStartMinute: Math.round(items.reduce((total, item) => total + item.start.getHours() * 60 + item.start.getMinutes(), 0) / items.length),
+        averageEndMinute: Math.round(items.reduce((total, item) => total + item.end.getHours() * 60 + item.end.getMinutes(), 0) / items.length)
+      }))
+      .sort((left, right) => right.averageMinutes - left.averageMinutes || right.sampleCount - left.sampleCount);
+    return recurring[0] || null;
+  }
+
+  function athleteFuelRhythm({ logs = [], period = "30d", now = new Date() } = {}) {
+    const fuelLogs = (Array.isArray(logs) ? logs : [])
+      .filter(validActivityUsageLog)
+      .map(normalizeLog)
+      .filter(log => log && isFuelLog(log) && inAnalyticsPeriod(log.date, period, now))
+      .sort((left, right) => left.date - right.date);
+    const loggedDays = new Set(fuelLogs.map(log => dateKey(log.date)));
+    const counts = Array.from({ length: 24 }, () => 0);
+    fuelLogs.forEach(log => { counts[log.date.getHours()] += 1; });
+    const denominator = Math.max(1, loggedDays.size);
+    const averageByHour = counts.map(count => Math.round((count / denominator) * 100) / 100);
+    const maximum = Math.max(...averageByHour, 0);
+    const bars = averageByHour.map((average, hour) => ({
+      hour,
+      count: counts[hour],
+      averagePerLoggedDay: average,
+      relativeHeight: maximum > 0 ? Math.round((average / maximum) * 100) : 0
+    }));
+    const peakHour = fuelLogs.length >= 3 && loggedDays.size >= 2
+      ? bars.reduce((best, item) => item.averagePerLoggedDay > best.averagePerLoggedDay ? item : best, bars[0])
+      : null;
+    const typicalGap = recurringFuelGap(fuelLogs);
+    return {
+      period,
+      eventCount: fuelLogs.length,
+      loggedDays: loggedDays.size,
+      typicalEventsPerLoggedDay: loggedDays.size ? Math.round((fuelLogs.length / loggedDays.size) * 10) / 10 : null,
+      sufficient: fuelLogs.length >= 3 && loggedDays.size >= 2,
+      bars,
+      peak: peakHour?.averagePerLoggedDay > 0 ? { hour: peakHour.hour, label: hourWindowLabel(peakHour.hour), sampleCount: peakHour.count } : null,
+      typicalGap
+    };
+  }
+
+  function athleteTrainingFuelAnalytics({ sessions = [], logs = [], period = "30d", now = new Date() } = {}) {
+    const valid = (Array.isArray(sessions) ? sessions : [])
+      .filter(session => validCompletedSession(session, { minimumMinutes: 15 }))
+      .filter(session => inAnalyticsPeriod(session.endedAt || session.ended_at, period, now))
+      .map(session => completedTrainingSessionMetrics({ session, logs, now }))
+      .filter(item => item.validLoggedIntake)
+      .filter(item => Object.entries(TRAINING_ANALYTICS_RATE_LIMITS).every(([field, limit]) => Number.isFinite(item.actualPerHour[field]) && item.actualPerHour[field] <= limit));
+    const durationHours = valid.reduce((total, item) => total + item.durationSeconds / 3600, 0);
+    const totals = { carbsG: 0, sodiumMg: 0, fluidMl: 0 };
+    valid.forEach(item => Object.keys(totals).forEach(field => { totals[field] += Number(item.totals[field] || 0); }));
+    const metrics = Object.fromEntries(Object.keys(totals).map(field => [field, {
+      total: Math.round(totals[field] * 10) / 10,
+      perHour: durationHours > 0 ? Math.round((totals[field] / durationHours) * 10) / 10 : null,
+      averagePerWorkout: valid.length ? Math.round((totals[field] / valid.length) * 10) / 10 : null,
+      observedMaxPerHour: valid.length ? Math.max(...valid.map(item => Number(item.actualPerHour[field]) || 0)) : null
+    }]));
+    return {
+      period,
+      workoutCount: valid.length,
+      durationHours: Math.round(durationHours * 100) / 100,
+      sufficient: valid.length > 0 && durationHours > 0,
+      metrics,
+      sessions: valid
+    };
+  }
+
   function applyDayTypeOverride(dayTypes = {}, key, value) {
     const target = dayTypes && typeof dayTypes === "object" && !Array.isArray(dayTypes) ? dayTypes : {};
     const date = String(key || "");
@@ -612,6 +756,8 @@
     if (category === "streak") return Number(summary.dayStreak || 0);
     if (category === "fuel") return Number(summary.fuelMoments || 0);
     if (category === "hydration") return Number(summary.hydrationMoments || 0);
+    if (category === "training") return Number(summary.trainingMoments || 0);
+    if (category === "work") return Number(summary.workMoments || 0);
     return 0;
   }
 
@@ -619,7 +765,9 @@
     const formatted = Number(threshold).toLocaleString("en-GB");
     if (category === "streak") return `${formatted} day streak`;
     if (category === "fuel") return `${formatted} fuelling moments`;
-    return `${formatted} hydration moments`;
+    if (category === "hydration") return `${formatted} hydration moments`;
+    if (category === "training") return `${formatted} training moments`;
+    return `${formatted} work moments`;
   }
 
   function earnedMilestones(summary = {}) {
@@ -3563,6 +3711,12 @@
     workoutFuelSummariesByAthlete,
     validActivityUsageLog,
     activityUsageSummary,
+    validCompletedSession,
+    activityMilestoneSummary,
+    analyticsPeriodStart,
+    athleteFuelRhythm,
+    athleteTrainingFuelAnalytics,
+    hourWindowLabel,
     applyDayTypeOverride,
     applyDayTypeState,
     milestoneKey,

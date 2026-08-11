@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v138-reflection-journey";
-const BUILD_VERSION = "2026-08-11T17:33:28Z";
+const APP_VERSION = "mobile-pwa-v139-athlete-system";
+const BUILD_VERSION = "2026-08-11T18:54:08Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v138-reflection-journey-20260811T173328Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v139-athlete-system-20260811T185408Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -33,6 +33,9 @@ const APP_SHELL = [
   "./training-mode.css",
   "./work-mode.css",
   "./athlete-impact.css",
+  "./athlete-everyday-reflection.css",
+  "./athlete-analytics.css",
+  "./athlete-tools.css",
   "./athlete-share.css",
   "./fuel-guard-domain.js",
   "./app-state.js",
@@ -46,6 +49,9 @@ const APP_SHELL = [
   "./training-mode.js",
   "./work-mode.js",
   "./athlete-impact.js",
+  "./athlete-everyday-reflection.js",
+  "./athlete-analytics.js",
+  "./athlete-tools.js",
   "./transactional-email-client.js",
   "./athlete-milestones.js",
   "./athlete-share-card.js",
