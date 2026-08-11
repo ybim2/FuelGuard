@@ -131,7 +131,7 @@ test("Preparation Rhythm is period-scoped and reports evidence-backed weekday di
 test("Performance baseline is subjective 1–5 and preserves legacy metric support", () => {
   const source = read("athlete-impact.js");
   assert.match(source, /What matters to your performance\?/);
-  assert.match(source, /How close do you feel to/);
+  assert.match(source, /How satisfied are you currently with your/);
   assert.match(source, /unit: "\/ 5"/);
   assert.match(source, /\["\/ 5", "\/ 10"\]/);
   assert.doesNotMatch(source.slice(source.indexOf("function customMetricMarkup"), source.indexOf("function ratingScaleMarkup")), /Target minimum|Result format|Better means/);
