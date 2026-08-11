@@ -28,14 +28,14 @@ function pngDimensions(relativePath) {
   return [buffer.readUInt32BE(16), buffer.readUInt32BE(20)];
 }
 
-test("public manifests preserve the 0.5.3 production identities and exact 31-device matrix", () => {
+test("public manifests preserve the 0.5.4 production identities and exact 31-device matrix", () => {
   const quick = read("garmin/FuelGuard/quick-log/manifest.xml");
   const activity = read("garmin/FuelGuard/activity-logger/manifest.xml");
 
   assert.match(quick, /id="2F3B7C5E9F2D4A6B8C1D0E7F0F255002"/);
-  assert.match(quick, /type="watch-app" version="0\.5\.3"/);
+  assert.match(quick, /type="watch-app" version="0\.5\.4"/);
   assert.match(activity, /id="9C8A41410F0A4D46A7F7D1C68F0F2551"/);
-  assert.match(activity, /type="datafield" version="0\.5\.3"/);
+  assert.match(activity, /type="datafield" version="0\.5\.4"/);
   assert.deepEqual(manifestProducts(quick), EXPECTED_PRODUCTS);
   assert.deepEqual(manifestProducts(activity), EXPECTED_PRODUCTS);
 
@@ -97,14 +97,21 @@ test("expanded-device layout and pairing UX retain canonical Garmin Training Mod
   assert.match(connection, /Network error; retry connection/);
 });
 
-test("Quick Log handles the physical START key while disconnected", () => {
+test("both public apps share the physical START and ENTER connect-action mapping", () => {
   const view = read("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
-  const tests = read("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogViewTests.mc");
+  const quickTests = read("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogViewTests.mc");
+  const activity = read("garmin/FuelGuard/activity-logger/source/FuelGuardActivityLoggerApp.mc");
+  const activityTests = read("garmin/FuelGuard/activity-logger/source/FuelGuardActivityLoggerFieldTests.mc");
+  const connection = read("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
 
   assert.match(view, /public function onKey\(keyEvent as WatchUi\.KeyEvent\)[\s\S]*activateKey\(keyEvent\.getKey\(\)\)/);
-  assert.match(view, /key == WatchUi\.KEY_START \|\| key == WatchUi\.KEY_ENTER/);
+  assert.match(view, /FuelGuardConnection\.isConnectActionKey\(key\)/);
   assert.match(view, /activateKey[\s\S]*_view\.logSelection\(\)/);
-  assert.match(tests, /testFuelGuardQuickLogDisconnectedRawStartInitiatesAuth/);
+  assert.match(quickTests, /testFuelGuardQuickLogDisconnectedRawStartInitiatesAuth/);
+  assert.match(activity, /public function onKey\(keyEvent as WatchUi\.KeyEvent\)[\s\S]*activateKey\(keyEvent\.getKey\(\)\)/);
+  assert.match(activity, /FuelGuardConnection\.isConnectActionKey\(key\)/);
+  assert.match(activityTests, /testFuelGuardActivityLoggerSettingsRawStartInitiatesAuth/);
+  assert.match(connection, /function isConnectActionKey\(key as WatchUi\.Key\)[\s\S]*key == WatchUi\.KEY_START \|\| key == WatchUi\.KEY_ENTER/);
 });
 
 test("public release documentation and 500px Store assets are present", () => {
