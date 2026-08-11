@@ -1,8 +1,17 @@
 # Forerunner 255 physical release acceptance
 
-Candidate version: **0.5.1**
+Candidate version: **0.5.2**
 
-The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28bc8d3ab159322d995284d07f7ec0da76cf9a273484a` and the first signed replacement with SHA-256 `33c6beb99a9518ceb4e5ec501de1620dce1de4e490fb2603bda24ae871f36c23` both failed physical acceptance with delayed `IQ!` after connection. Both are permanently marked not releasable. No package has been built from the subsequently corrected callback source.
+The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28bc8d3ab159322d995284d07f7ec0da76cf9a273484a` and the first signed replacement with SHA-256 `33c6beb99a9518ceb4e5ec501de1620dce1de4e490fb2603bda24ae871f36c23` both failed physical acceptance with delayed `IQ!` after connection. Both are permanently marked not releasable. Version 0.5.2 is a distinct replacement candidate and must be built from the final tested completion commit.
+
+## Production database dependency — not yet applied
+
+Production project `kwnfbdoxppiajrnkejjk` has the Athlete Training Mode schema but is missing the two accepted Garmin command migrations below. They must be applied once, in this exact order, under a separate explicit Production authorisation before the Store-delivered watch start/end test can pass:
+
+1. `20260810091806_garmin_training_mode_commands`
+2. `20260810100500_garmin_training_mode_command_hardening`
+
+This completion branch does not apply either migration and does not modify Production data or configuration.
 
 ## Prerequisites
 
@@ -31,8 +40,9 @@ The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28b
 - The first isolated source recovery restored both safety boundaries without moving network work into `onStart()`, removing actions, or changing queue/idempotency behavior, but its signed replacement still failed physically after the connected UI appeared.
 - The delayed failure matched the Training status response timing. Its callback required `(responseCode, data, context)`, but its `makeWebRequest()` options did not provide `:context`. Garmin SDK 9.2.0 documents that the third callback argument is supplied only when `:context` is populated.
 - The corrected source now pairs the Training callback with explicit request context, matching the physically known-good `FuelGuardApi` and `FuelGuardHealthApi` pattern. The same audit also corrected the latent revoke callback mismatch.
-- Corrected unpackaged source validation: 31-product simulator matrix **1,736/1,736**; full Node **361/361**.
-- No new `.iq` has been built from the corrected source. Both prior Quick Log packages remain blocked and must not be uploaded.
+- Version 0.5.2 source validation: 31-product simulator matrix **1,953/1,953**; full Node **391/391**; isolated Garmin command/RLS pgTAP **26/26**.
+- Quick Log now leaves the last confirmed active state unchanged while start/end is queued, changes it only after an authoritative command/status response, retains failed commands for idempotent retry, and never shows a successful start/end solely because the watch queued the action.
+- Fuel Guard Athlete performs a bounded authenticated foreground read of canonical Training sessions while visible, adopts Garmin starts/stops without a reload, and discards stale responses after an account switch.
 
 ## Quick Log outside Training Mode
 
@@ -45,13 +55,16 @@ The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28b
 ## Quick Log during Training Mode
 
 1. Start a temporary Training Mode session from Quick Log with distinctive Fuel and Hydration preset quantities already configured in Fuel Guard.
-2. Log Fuel once and Hydrate once from Quick Log.
-3. Confirm both events remain visible in the normal Daily timeline.
-4. Confirm both refer to the active Training Mode session.
-5. Confirm Fuel inherits the active Fuel preset's carbohydrate, fluid, sodium and caffeine values.
-6. Confirm Hydrate inherits the active Hydration preset values.
-7. Confirm each physical action created exactly one event.
-8. End Training Mode from Quick Log and confirm the same canonical session closes without creating a duplicate session.
+2. Confirm the watch shows a queued/starting state until the backend response and only then shows Training Mode active.
+3. Confirm the already-open Fuel Guard Athlete app enters Training Mode without a reload.
+4. Log Fuel once and Hydrate once from Quick Log.
+5. Confirm both events remain visible in the normal Daily timeline.
+6. Confirm both refer to the active Training Mode session.
+7. Confirm Fuel inherits the active Fuel preset's carbohydrate, fluid, sodium and caffeine values.
+8. Confirm Hydrate inherits the active Hydration preset values.
+9. Confirm each physical action created exactly one event.
+10. End Training Mode from Quick Log; confirm the watch remains confirmed-active while end is pending, then confirms completion only after the backend response.
+11. Confirm the same canonical session closes, Athlete exits Training Mode without a reload, and no duplicate session appears.
 
 ## Activity Logger outside Training Mode
 
@@ -77,7 +90,7 @@ The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28b
 | --- | --- | --- |
 | Quick Log account connection | PASS | Physical FR255 OAuth completed against public 0.5.1 candidate. |
 | Quick Log device registration/details | PASS | Fuel Guard displayed the connected watch/device details. |
-| Quick Log connected runtime | FAIL / CORRECTED SOURCE UNPACKAGED | Original and first replacement packages displayed delayed `IQ!`; corrected callback source has no `.iq` candidate yet. |
+| Quick Log connected runtime | PENDING PHYSICAL 0.5.2 | Both 0.5.1 packages displayed delayed `IQ!`; the corrected 0.5.2 source passes every simulator target. |
 | Activity Logger account connection | PENDING | |
 | Quick Log Fuel | PENDING | Replacement Store candidate. |
 | Quick Log Hydrate | PENDING | Replacement Store candidate. |
@@ -89,4 +102,4 @@ The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28b
 | Activity Logger retry/idempotency | PENDING | |
 | Activity Logger Training Mode enrichment | PENDING | |
 
-Both physically failed Quick Log packages are not releasable. Any failed or pending row prevents public release of a future replacement candidate.
+Both physically failed 0.5.1 Quick Log packages are not releasable. Any failed or pending row prevents public release of the 0.5.2 replacement candidate.

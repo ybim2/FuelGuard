@@ -25,6 +25,8 @@ module FuelGuardTraining {
     const ACTIVE_KEY = "fg_training_active";
     const SESSION_KEY = "fg_training_session_id";
     const STATUS_KEY = "fg_training_status";
+    const PENDING_ACTION_KEY = "fg_training_pending_action";
+    const PENDING_FAILED_KEY = "fg_training_pending_failed";
     const STATUS_REQUEST_CONTEXT = "training_status";
     const REFRESH_INTERVAL_SECONDS = 60;
 
@@ -55,6 +57,32 @@ module FuelGuardTraining {
             return value as String;
         }
         return active() ? "Training Mode active" : "Training Mode ready";
+    }
+
+    function pendingAction() as String {
+        var value = Storage.getValue(PENDING_ACTION_KEY);
+        return value instanceof String ? value as String : "";
+    }
+
+    function transitionPending() as Boolean {
+        return pendingAction().length() > 0;
+    }
+
+    function transitionFailed() as Boolean {
+        var value = Storage.getValue(PENDING_FAILED_KEY);
+        return value instanceof Boolean ? value as Boolean : false;
+    }
+
+    function setTransition(action as String, failed as Boolean, status as String) as Void {
+        Storage.setValue(PENDING_ACTION_KEY, action);
+        Storage.setValue(PENDING_FAILED_KEY, failed);
+        Storage.setValue(STATUS_KEY, status);
+        WatchUi.requestUpdate();
+    }
+
+    function clearTransition() as Void {
+        Storage.deleteValue(PENDING_ACTION_KEY);
+        Storage.deleteValue(PENDING_FAILED_KEY);
     }
 
     function setState(isActive as Boolean, nextSessionId as String?, status as String) as Void {
@@ -88,6 +116,21 @@ module FuelGuardTraining {
         return value instanceof Boolean ? value as Boolean : null;
     }
 
+    function dictionarySessionId(data as Dictionary) as String {
+        var direct = dictionaryString(data, "session_id");
+        if (direct.length() > 0) {
+            return direct;
+        }
+        var session = data["session"];
+        if (!(session instanceof Dictionary)) {
+            session = data[:session];
+        }
+        if (session instanceof Dictionary) {
+            return dictionaryString(session as Dictionary, "id");
+        }
+        return "";
+    }
+
     function isCommand(event as Dictionary) as Boolean {
         var value = event["kind"];
         return value instanceof String && (value as String).equals("training");
@@ -108,23 +151,30 @@ module FuelGuardTraining {
     }
 
     function toggle() as String {
+        var existingAction = pendingAction();
+        if (existingAction.length() > 0) {
+            var retryStatus = existingAction.equals("start") ? "Retrying Training start" : "Retrying Training end";
+            setTransition(existingAction, false, retryStatus);
+            FuelGuardApi.trySync(true);
+            return existingAction;
+        }
         var action = active() ? "end" : "start";
         FuelGuardQueue.enqueue(createCommand(action));
         if (action.equals("start")) {
-            setState(true, null, "Training Mode started");
+            setTransition(action, false, "Starting Training Mode");
         } else {
-            setState(false, null, "Training complete");
+            setTransition(action, false, "Ending Training Mode");
         }
         FuelGuardApi.trySync(true);
         return action;
     }
 
-    function handleCommandResponse(responseCode as Number, data as Dictionary or String or Null) as Void {
+    function handleCommandResponse(responseCode as Number, data as Dictionary or String or Null) as Boolean {
         if ((responseCode == 200 || responseCode == 201) && data instanceof Dictionary) {
             var values = data as Dictionary;
             var result = dictionaryString(values, "result");
             var nextActive = dictionaryBoolean(values, "active");
-            var nextSessionId = dictionaryString(values, "session_id");
+            var nextSessionId = dictionarySessionId(values);
             if (nextActive != null) {
                 var message = nextActive as Boolean ? "Training Mode started" : "Training complete";
                 if (result.equals("already_active")) {
@@ -132,12 +182,20 @@ module FuelGuardTraining {
                 } else if (result.equals("no_active")) {
                     message = "No active training";
                 }
+                clearTransition();
                 setState(nextActive as Boolean, nextSessionId, message);
+                return true;
             }
-            return;
         }
-        Storage.setValue(STATUS_KEY, "Training update saved pending");
-        WatchUi.requestUpdate();
+        var action = pendingAction();
+        var failureStatus = "Training update failed - retry";
+        if (action.equals("start")) {
+            failureStatus = "Training start failed - retry";
+        } else if (action.equals("end")) {
+            failureStatus = "Training end failed - retry";
+        }
+        setTransition(action, true, failureStatus);
+        return false;
     }
 
     function statusCallback() as Method {
@@ -198,7 +256,16 @@ module FuelGuardTraining {
             var values = data as Dictionary;
             var nextActive = dictionaryBoolean(values, "active");
             if (nextActive != null) {
-                setState(nextActive as Boolean, null, nextActive as Boolean ? "Training Mode active" : "Training Mode ready");
+                var action = pendingAction();
+                var canonicalActive = nextActive as Boolean;
+                var transitionConfirmed = (action.equals("start") && canonicalActive)
+                    || (action.equals("end") && !canonicalActive);
+                if (transitionConfirmed) {
+                    clearTransition();
+                    setState(canonicalActive, dictionarySessionId(values), canonicalActive ? "Training Mode active" : "Training complete");
+                } else if (action.length() == 0) {
+                    setState(canonicalActive, dictionarySessionId(values), canonicalActive ? "Training Mode active" : "Training Mode ready");
+                }
             }
         }
     }
@@ -208,6 +275,8 @@ module FuelGuardTraining {
         Storage.deleteValue(ACTIVE_KEY);
         Storage.deleteValue(SESSION_KEY);
         Storage.deleteValue(STATUS_KEY);
+        Storage.deleteValue(PENDING_ACTION_KEY);
+        Storage.deleteValue(PENDING_FAILED_KEY);
         _refreshInFlight = false;
         _lastRefreshAt = 0;
         _testThrowOnRefreshRequest = false;

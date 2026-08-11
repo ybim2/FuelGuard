@@ -4,6 +4,7 @@
   const SESSIONS_TABLE = "fuel_training_mode_sessions";
   const SESSION_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,fuel_preset_id,hydration_preset_id,fuel_carbs_g,fuel_fluid_ml,fuel_sodium_mg,fuel_caffeine_mg,hydration_carbs_g,hydration_fluid_ml,hydration_sodium_mg,hydration_caffeine_mg,fuel_interval_minutes,hydration_interval_minutes,plan_source,estimated_duration_minutes,plan_carbs_g_per_hour,plan_fluid_ml_per_hour,plan_sodium_mg_per_hour,plan_caffeine_mg_per_hour,created_at,updated_at";
   const PRESET_COLUMNS = "id,user_id,event_type,name,carbs_g,fluid_ml,sodium_mg,caffeine_mg,intended_interval_minutes,is_default,updated_at";
+  const FOREGROUND_SESSION_REFRESH_MS = 5000;
   const QUANTITIES = [
     { field: "carbsG", label: "Carbohydrate", short: "Carbs", unit: "g" },
     { field: "fluidMl", label: "Fluid", short: "Fluid", unit: "ml" },
@@ -11,6 +12,10 @@
     { field: "caffeineMg", label: "Caffeine", short: "Caffeine", unit: "mg" }
   ];
   let cloudBusy = false;
+  let foregroundReadBusy = false;
+  let foregroundReadGeneration = 0;
+  let foregroundSessionTimer = 0;
+  let lastExternalEndNotification = "";
   let statusMessage = "";
   let durationTimer = 0;
 
@@ -56,6 +61,8 @@
     training.sessions = [];
     training.lastSyncedAt = "";
     training.lastError = "";
+    foregroundReadGeneration += 1;
+    lastExternalEndNotification = "";
     statusMessage = "";
     persist();
   }
@@ -542,7 +549,8 @@
       estimatedDurationMinutes: training.estimatedDurationMinutes,
       plan: { ...planned.effective },
       createdAt: startedAt,
-      updatedAt: startedAt
+      updatedAt: startedAt,
+      dirty: true
     };
     training.activeSession = session;
     training.sessions = [session, ...training.sessions.filter(item => item.id !== session.id)];
@@ -560,6 +568,7 @@
     active.status = "completed";
     active.endedAt = endedAt;
     active.updatedAt = endedAt;
+    active.dirty = true;
     training.sessions = training.sessions.map(item => item.id === active.id ? { ...active } : item);
     training.activeSession = null;
     statusMessage = "Training Mode ended. Session summary saved.";
@@ -646,8 +655,83 @@
         caffeineMg: row.plan_caffeine_mg_per_hour
       },
       createdAt: row.created_at,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      dirty: false
     };
+  }
+
+  function sessionIsDirty(session) {
+    return Boolean(session) && session.dirty !== false;
+  }
+
+  function sessionFingerprint(session) {
+    if (!session) return "";
+    return [session.id, session.status, session.startedAt, session.endedAt || "", session.updatedAt || ""].join("|");
+  }
+
+  function reconcileCanonicalSessions(localSessions = [], remoteSessions = []) {
+    const local = Array.isArray(localSessions) ? localSessions.filter(item => item?.id) : [];
+    const remote = Array.isArray(remoteSessions) ? remoteSessions.filter(item => item?.id).map(item => ({ ...item, dirty: false })) : [];
+    const remoteActive = remote.find(item => item.status === "active" && !item.endedAt) || null;
+    const byId = new Map(remote.map(item => [item.id, item]));
+    let conflictingLocalActive = false;
+
+    local.forEach(item => {
+      if (remoteActive && item.status === "active" && !item.endedAt && item.id !== remoteActive.id) {
+        conflictingLocalActive = true;
+        return;
+      }
+      const canonical = byId.get(item.id);
+      if (!canonical) {
+        byId.set(item.id, item);
+      } else if (sessionIsDirty(item)) {
+        const localUpdated = new Date(item.updatedAt || item.createdAt || 0).getTime();
+        const canonicalUpdated = new Date(canonical.updatedAt || canonical.createdAt || 0).getTime();
+        if (localUpdated > canonicalUpdated) byId.set(item.id, item);
+      }
+    });
+
+    let sessions = [...byId.values()].sort((left, right) => new Date(right.startedAt || 0) - new Date(left.startedAt || 0));
+    let activeSession = null;
+    if (remoteActive) {
+      const reconciledRemoteActive = byId.get(remoteActive.id);
+      if (reconciledRemoteActive?.status === "active" && !reconciledRemoteActive.endedAt) activeSession = reconciledRemoteActive;
+    }
+    if (!activeSession) activeSession = sessions.find(item => item.status === "active" && !item.endedAt) || null;
+    if (activeSession) sessions = sessions.filter(item => item.status !== "active" || item.id === activeSession.id);
+
+    return { sessions, activeSession, remoteActive, conflictingLocalActive };
+  }
+
+  function cloudIdentityMatches(userId, client) {
+    return window.fuelGuardCloud?.user?.id === userId && window.fuelGuardCloud?.client === client;
+  }
+
+  function applyCanonicalSessions(remoteSessions, { announceExternal = false } = {}) {
+    const training = state();
+    if (!training) return { changed: false, transition: "none" };
+    const previousActive = activeSession();
+    const before = sessionFingerprint(previousActive);
+    const reconciled = reconcileCanonicalSessions(training.sessions, remoteSessions);
+    training.sessions = reconciled.sessions;
+    training.activeSession = reconciled.activeSession;
+    const after = sessionFingerprint(training.activeSession);
+    let transition = "none";
+
+    if (!previousActive && training.activeSession) {
+      transition = "started";
+      if (announceExternal) statusMessage = "Training Mode started from Garmin.";
+    } else if (previousActive && (!training.activeSession || training.activeSession.id !== previousActive.id)) {
+      transition = "ended";
+      const completed = training.sessions.find(item => item.id === previousActive.id && item.status === "completed") || { ...previousActive, status: "completed" };
+      if (announceExternal) statusMessage = training.activeSession ? "Training Mode changed from Garmin." : "Training Mode ended from Garmin.";
+      if (announceExternal && lastExternalEndNotification !== previousActive.id) {
+        lastExternalEndNotification = previousActive.id;
+        window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...completed } } }));
+      }
+    }
+
+    return { changed: before !== after || reconciled.conflictingLocalActive, transition, ...reconciled };
   }
 
   function presetFromRow(row) {
@@ -677,6 +761,7 @@
         client.from(PRESETS_TABLE).select(PRESET_COLUMNS).eq("user_id", currentUser.id).eq("is_default", true),
         client.from(SESSIONS_TABLE).select(SESSION_COLUMNS).eq("user_id", currentUser.id).order("started_at", { ascending: false }).limit(20)
       ]);
+      if (!cloudIdentityMatches(currentUser.id, client)) return;
       if (presetResult.error) throw presetResult.error;
       if (sessionResult.error) throw sessionResult.error;
       (presetResult.data || []).forEach(row => {
@@ -698,44 +783,35 @@
         presetRow("fuel", currentUser),
         presetRow("hydration", currentUser)
       ], { onConflict: "id" });
+      if (!cloudIdentityMatches(currentUser.id, client)) return;
       if (presetUpsert.error) throw presetUpsert.error;
       training.presets.fuel.dirty = false;
       training.presets.hydration.dirty = false;
 
       const remoteSessions = (sessionResult.data || []).map(sessionFromRow);
-      const remoteActive = remoteSessions.find(item => item.status === "active");
-      if (remoteActive && training.activeSession && remoteActive.id !== training.activeSession.id) {
+      const reconciled = reconcileCanonicalSessions(training.sessions, remoteSessions);
+      if (reconciled.conflictingLocalActive) {
         training.lastError = "A different Training Mode session was already active in the cloud. That session was restored.";
-        training.sessions = training.sessions.filter(item => item.status !== "active" || item.id === remoteActive.id);
-        training.sessions.unshift(remoteActive);
-        training.activeSession = remoteActive;
       }
-      const reconciledById = new Map(remoteSessions.map(item => [item.id, item]));
-      training.sessions.forEach(local => {
-        const remote = reconciledById.get(local.id);
-        const localUpdated = new Date(local.updatedAt || local.createdAt || 0).getTime();
-        const remoteUpdated = new Date(remote?.updatedAt || remote?.createdAt || 0).getTime();
-        if (!remote || localUpdated > remoteUpdated) reconciledById.set(local.id, local);
-      });
-      training.sessions = [...reconciledById.values()];
-      if (remoteActive) {
-        training.sessions = training.sessions.filter(item => item.status !== "active" || item.id === remoteActive.id);
-        training.activeSession = remoteActive;
-      } else {
-        training.activeSession = training.sessions.find(item => item.status === "active") || null;
-      }
-      const localRows = training.sessions.map(item => sessionRow(item, currentUser));
+      training.sessions = reconciled.sessions;
+      training.activeSession = reconciled.activeSession;
+      const dirtySessions = training.sessions.filter(sessionIsDirty);
+      const localRows = dirtySessions.map(item => sessionRow(item, currentUser));
       if (localRows.length) {
         const sessionUpsert = await client.from(SESSIONS_TABLE).upsert(localRows, { onConflict: "id" });
+        if (!cloudIdentityMatches(currentUser.id, client)) return;
         if (sessionUpsert.error) throw sessionUpsert.error;
+        const persistedIds = new Set(dirtySessions.map(item => item.id));
+        training.sessions.forEach(item => { if (persistedIds.has(item.id)) item.dirty = false; });
+        if (training.activeSession && persistedIds.has(training.activeSession.id)) training.activeSession.dirty = false;
       }
       const refreshed = await client.from(SESSIONS_TABLE).select(SESSION_COLUMNS).eq("user_id", currentUser.id).order("started_at", { ascending: false }).limit(20);
+      if (!cloudIdentityMatches(currentUser.id, client)) return;
       if (refreshed.error) throw refreshed.error;
       const cloudSessions = (refreshed.data || []).map(sessionFromRow);
-      const localById = new Map(training.sessions.map(item => [item.id, item]));
-      cloudSessions.forEach(item => localById.set(item.id, item));
-      training.sessions = [...localById.values()].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-      training.activeSession = training.sessions.find(item => item.status === "active") || null;
+      const finalReconciliation = reconcileCanonicalSessions(training.sessions, cloudSessions);
+      training.sessions = finalReconciliation.sessions;
+      training.activeSession = finalReconciliation.activeSession;
       training.lastSyncedAt = new Date().toISOString();
       training.lastError = "";
       statusMessage = "Training Mode synced.";
@@ -756,6 +832,50 @@
       cloudBusy = false;
       render();
     }
+  }
+
+  function foregroundRefreshEligible() {
+    return !document.hidden
+      && navigator.onLine !== false
+      && Boolean(window.fuelGuardCloud?.user?.id)
+      && Boolean(window.fuelGuardCloud?.client?.from);
+  }
+
+  async function refreshCanonicalSessions({ refreshLogs = false } = {}) {
+    if (cloudBusy || foregroundReadBusy || !foregroundRefreshEligible()) return { status: "skipped" };
+    const currentUser = window.fuelGuardCloud.user;
+    const client = window.fuelGuardCloud.client;
+    claimTrainingIdentity(currentUser.id);
+    const generation = ++foregroundReadGeneration;
+    foregroundReadBusy = true;
+    try {
+      const result = await client.from(SESSIONS_TABLE).select(SESSION_COLUMNS).eq("user_id", currentUser.id).order("started_at", { ascending: false }).limit(20);
+      if (generation !== foregroundReadGeneration || !cloudIdentityMatches(currentUser.id, client)) return { status: "stale" };
+      if (result.error) throw result.error;
+      const applied = applyCanonicalSessions((result.data || []).map(sessionFromRow), { announceExternal: true });
+      const training = state();
+      training.lastSyncedAt = new Date().toISOString();
+      training.lastError = "";
+      persist();
+      if (applied.changed) {
+        render();
+        if (refreshLogs || applied.transition !== "none") await window.fuelGuardCloud?.syncNow?.();
+      }
+      return { status: "synced", ...applied };
+    } catch (error) {
+      if (generation === foregroundReadGeneration && cloudIdentityMatches(currentUser.id, client)) {
+        state().lastError = error?.message || "Training Mode refresh failed.";
+        persist();
+      }
+      return { status: "error", error };
+    } finally {
+      foregroundReadBusy = false;
+    }
+  }
+
+  function startForegroundSessionRefresh() {
+    if (foregroundSessionTimer) return;
+    foregroundSessionTimer = setInterval(() => refreshCanonicalSessions(), FOREGROUND_SESSION_REFRESH_MS);
   }
 
   document.addEventListener("click", async event => {
@@ -790,16 +910,21 @@
   window.addEventListener("fuelguard:cloud-status", () => syncCloud());
   window.addEventListener("online", () => syncCloud({ refreshLogs: true }));
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) syncCloud({ refreshLogs: true });
+    if (!document.hidden) {
+      syncCloud({ refreshLogs: true });
+      refreshCanonicalSessions({ refreshLogs: true });
+    }
   });
   document.addEventListener("DOMContentLoaded", render);
+  startForegroundSessionRefresh();
   requestAnimationFrame(render);
 
   window.FuelGuardTrainingMode = {
     render,
     syncCloud,
+    refreshCanonicalSessions,
     contextForEvent,
     activeSession,
-    _test: { sessionFromRow, presetFromRow, durationText, estimatedDurationMinutes }
+    _test: { sessionFromRow, presetFromRow, durationText, estimatedDurationMinutes, reconcileCanonicalSessions, foregroundRefreshEligible, sessionFingerprint, statusMessage: () => statusMessage }
   };
 })();

@@ -56,11 +56,8 @@ class FuelGuardQuickLogView extends WatchUi.View {
             return;
         }
         if (_selection == ACTION_TRAINING) {
-            var trainingAction = FuelGuardTraining.toggle();
-            _confirmStartedAt = Time.now().value();
-            _confirmType = trainingAction.equals("start") ? "training_start" : "training_end";
+            FuelGuardTraining.toggle();
             FuelGuardFeedback.vibrate();
-            startConfirmationTimer();
             WatchUi.requestUpdate();
             return;
         }
@@ -164,6 +161,13 @@ class FuelGuardQuickLogView extends WatchUi.View {
 
     private function labelForSelection(index as Number) as String {
         if (index == ACTION_TRAINING) {
+            var pendingAction = FuelGuardTraining.pendingAction();
+            if (pendingAction.length() > 0) {
+                if (FuelGuardTraining.transitionFailed()) {
+                    return pendingAction.equals("start") ? "Retry Start" : "Retry End";
+                }
+                return pendingAction.equals("start") ? "Starting Training" : "Ending Training";
+            }
             return FuelGuardTraining.active() ? "End Training" : "Start Training";
         }
         if (index == ACTION_HYDRATION) {
@@ -206,6 +210,9 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     private function pendingText() as String? {
+        if (FuelGuardTraining.transitionPending()) {
+            return FuelGuardTraining.statusText();
+        }
         var status = FuelGuardApi.syncStatusText();
         if (status != null) {
             return status as String;
@@ -215,6 +222,10 @@ class FuelGuardQuickLogView extends WatchUi.View {
 
     private function typeForSelection(index as Number) as String {
         if (index == ACTION_TRAINING) {
+            var pendingAction = FuelGuardTraining.pendingAction();
+            if (pendingAction.length() > 0) {
+                return pendingAction.equals("start") ? "training_start" : "training_end";
+            }
             return FuelGuardTraining.active() ? "training_end" : "training_start";
         }
         if (index == ACTION_HYDRATION) {
@@ -307,22 +318,10 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     private function confirmationFirstLine() as String {
-        if (_confirmType.equals("training_start")) {
-            return "TRAINING MODE";
-        }
-        if (_confirmType.equals("training_end")) {
-            return "TRAINING";
-        }
         return FuelGuardFeedback.confirmationFirstLine(_confirmType);
     }
 
     private function confirmationSecondLine() as String {
-        if (_confirmType.equals("training_start")) {
-            return "STARTED";
-        }
-        if (_confirmType.equals("training_end")) {
-            return "COMPLETE";
-        }
         return FuelGuardFeedback.confirmationSecondLine(_confirmType);
     }
 }

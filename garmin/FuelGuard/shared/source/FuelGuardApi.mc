@@ -238,6 +238,9 @@ module FuelGuardApi {
             dispatchRequest(event, eventId as String);
         } catch (e) {
             _inFlight = false;
+            if (FuelGuardTraining.isCommand(event)) {
+                FuelGuardTraining.handleCommandResponse(0, null);
+            }
             finishBatch();
         }
     }
@@ -262,10 +265,10 @@ module FuelGuardApi {
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
         var queuedEvent = FuelGuardQueue.peek();
-        if (queuedEvent != null && FuelGuardTraining.isCommand(queuedEvent as Dictionary)) {
-            FuelGuardTraining.handleCommandResponse(responseCode, data);
-        }
-        var acknowledged = responseAcknowledged(responseCode, data);
+        var trainingCommand = queuedEvent != null && FuelGuardTraining.isCommand(queuedEvent as Dictionary);
+        var acknowledged = trainingCommand
+            ? FuelGuardTraining.handleCommandResponse(responseCode, data)
+            : responseAcknowledged(responseCode, data);
         if (acknowledged) {
             if (context instanceof String) {
                 FuelGuardQueue.removeAcknowledged(context as String);
@@ -346,6 +349,15 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+    }
+
+    (:debug)
+    function deliverHeldResponseForTest(responseCode as Number, data as Dictionary or String or Null) as Void {
+        if (!_testHoldResponse || !_inFlight || !(_testLastEventId instanceof String)) {
+            return;
+        }
+        _testHoldResponse = false;
+        onResponse(responseCode, data, _testLastEventId as String);
     }
 
     (:debug)
