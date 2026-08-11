@@ -207,12 +207,13 @@ test("component and overall rules remain transparent count-based classifications
   assert.equal(overall.id, "strong_positive");
 });
 
-test("canonical Athlete UI adds one mobile Impact surface without overloading Daily", () => {
+test("canonical Athlete UI adds one mobile Reflection surface without overloading Daily", () => {
   const html = read("index.html");
   const dashboard = html.slice(html.indexOf('<section id="dashboard"'), html.indexOf('<section id="training"'));
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   assert.match(html, /id="impact" class="screen"/);
   assert.match(html, /id="athleteImpactSurface"/);
+  assert.match(nav, /<span>Reflection<\/span>/);
   assert.match(nav, /data-mobile-screen="impact"[\s\S]*data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"/);
   assert.doesNotMatch(dashboard, /performance result|six-week impact|post-training feedback/i);
 });
@@ -226,21 +227,23 @@ test("completed Training Mode sessions, not session starts, open the feedback fl
   assert.match(endBody, /session: \{ \.\.\.active \}/);
 });
 
-test("Impact setup includes sport presets, custom metrics and a hard three-metric boundary", () => {
+test("Reflection setup includes everyday and sport outcomes, custom metrics and a hard three-metric boundary", () => {
   const js = read("athlete-impact.js");
   assert.match(js, /What does better performance look like for you\?/);
+  assert.match(js, /Fuelling & everyday life/);
+  assert.match(js, /Better energy through the day/);
+  assert.match(js, /Sport & training/);
   assert.match(js, /5K time/);
-  assert.match(js, /Cycling FTP/);
   assert.match(js, /Yo-Yo test/);
-  assert.match(js, /\+ Add custom performance metric/);
+  assert.match(js, /Create a custom outcome/);
   assert.match(js, /metrics\.length >= 3/);
 });
 
-test("Impact UI labels athlete sources and avoids causal performance claims", () => {
+test("Reflection separates athlete-entered outcomes from Fuel Guard evidence and avoids causal claims", () => {
   const js = read("athlete-impact.js");
-  assert.match(js, /Source: Athlete entry/);
-  assert.match(js, /observational evidence/);
-  assert.match(js, /does not claim that fuelling caused/);
+  assert.match(js, /Entered by you/);
+  assert.match(js, /Fuel Guard evidence/);
+  assert.match(js, /They do not show that Fuel Guard or fuelling caused an external outcome/);
   assert.doesNotMatch(js, /Fuel Guard (made|caused|improved) your/i);
 });
 
@@ -248,7 +251,7 @@ test("Impact reports a missing PostgREST schema release truthfully and preserves
   const api = impactTestApi();
   const missing = api.impactLoadErrorMessage({ code: "PGRST205", message: "Could not find the table public.fuel_performance_metrics in the schema cache" });
   assert.match(missing, /needs the current database release/);
-  assert.match(missing, /required Impact tables are not available/);
+  assert.match(missing, /required private outcome tables are not available/);
   assert.match(missing, /existing Fuel Guard data is unaffected/);
   assert.equal(api.impactLoadErrorMessage({ code: "42501", message: "row-level security denied access" }), "row-level security denied access");
 });
@@ -306,10 +309,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v136-experience-feedback/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v137-accepted-integration/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v136-experience-feedback/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v137-accepted-integration/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

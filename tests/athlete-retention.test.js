@@ -209,7 +209,7 @@ test("Post-training and Training Mode nudges are contextual and deduplicatable",
   assert.equal(active[0].minimumIntervalMinutes, 30);
 });
 
-test("Athlete UI exposes Weekly Recap, progression, preferences and safe Coach feedback beside the focused Impact tab", () => {
+test("Athlete UI exposes Weekly Recap, progression, preferences and safe Coach feedback beside Reflection", () => {
   const html = read("index.html");
   const retention = read("athlete-retention.js");
   const milestones = read("athlete-milestones.js");

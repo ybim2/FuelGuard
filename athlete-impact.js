@@ -1,4 +1,4 @@
-// Athlete-owned Performance Impact setup, observations and evidence report.
+// Athlete-owned Reflection setup, observations and evidence report.
 (() => {
   const METRICS_TABLE = "fuel_performance_metrics";
   const RESULTS_TABLE = "fuel_performance_results";
@@ -9,60 +9,33 @@
   const RESULT_COLUMNS = "id,user_id,metric_id,observed_on,value,source,notes,created_at,updated_at";
   const FEEDBACK_COLUMNS = "id,user_id,training_mode_session_id,activity_source,activity_external_id,session_started_at,session_ended_at,energy_rating,session_completion,source,notes,created_at,updated_at";
   const TRAINING_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,created_at,updated_at";
-  const RANGE_LABELS = {
-    six_weeks: "Last 6 weeks",
-    twelve_weeks: "Last 12 weeks",
-    since_first_evidence: "Since first evidence"
-  };
-  const SPORT_LABELS = {
-    running: "Running",
-    cycling: "Cycling",
-    swimming: "Swimming",
-    triathlon: "Triathlon",
-    football: "Football",
-    team_sport: "Team sport",
-    strength: "Strength / power",
-    general: "General",
-    custom: "Other"
-  };
-  const PRESETS = {
-    running: [
-      { key: "running_5k", name: "5K time", unit: "time", measurementType: "duration_seconds", direction: "lower" },
-      { key: "running_10k", name: "10K time", unit: "time", measurementType: "duration_seconds", direction: "lower" },
-      { key: "bleep_test", name: "Bleep test", unit: "level", measurementType: "number", direction: "higher" }
-    ],
-    cycling: [
-      { key: "cycling_ftp", name: "Cycling FTP", unit: "W", measurementType: "number", direction: "higher" },
-      { key: "cycling_20m_power", name: "20-minute power", unit: "W", measurementType: "number", direction: "higher" },
-      { key: "cycling_tt_time", name: "Time-trial time", unit: "time", measurementType: "duration_seconds", direction: "lower" }
-    ],
-    swimming: [
-      { key: "swim_css", name: "Critical swim speed", unit: "time / 100m", measurementType: "duration_seconds", direction: "lower" },
-      { key: "swim_400m", name: "400 m time", unit: "time", measurementType: "duration_seconds", direction: "lower" },
-      { key: "swim_1500m", name: "1500 m time", unit: "time", measurementType: "duration_seconds", direction: "lower" }
-    ],
-    triathlon: [
-      { key: "triathlon_5k", name: "5K time", unit: "time", measurementType: "duration_seconds", direction: "lower" },
-      { key: "triathlon_ftp", name: "Cycling FTP", unit: "W", measurementType: "number", direction: "higher" },
-      { key: "triathlon_css", name: "Swim CSS", unit: "time / 100m", measurementType: "duration_seconds", direction: "lower" }
-    ],
-    football: [
-      { key: "football_10m", name: "10 m sprint", unit: "sec", measurementType: "number", direction: "lower" },
-      { key: "football_40yd", name: "40-yard sprint", unit: "sec", measurementType: "number", direction: "lower" },
-      { key: "football_yoyo", name: "Yo-Yo test", unit: "level", measurementType: "number", direction: "higher" }
-    ],
-    team_sport: [
-      { key: "team_10m", name: "10 m sprint", unit: "sec", measurementType: "number", direction: "lower" },
-      { key: "team_broad_jump", name: "Broad jump", unit: "cm", measurementType: "number", direction: "higher" },
-      { key: "team_yoyo", name: "Yo-Yo test", unit: "level", measurementType: "number", direction: "higher" }
-    ],
-    strength: [
-      { key: "strength_broad_jump", name: "Broad jump", unit: "cm", measurementType: "number", direction: "higher" },
-      { key: "strength_vertical_jump", name: "Vertical jump", unit: "cm", measurementType: "number", direction: "higher" },
-      { key: "strength_max", name: "Maximum strength test", unit: "kg", measurementType: "number", direction: "higher" }
-    ],
-    general: [],
-    custom: []
+  const OUTCOME_GROUPS = {
+    life: {
+      label: "Fuelling & everyday life",
+      description: "Energy, nutrition and everyday consistency — no sporting metric required.",
+      outcomes: [
+        { key: "life_nutrition_control", name: "Nutrition control", prompt: "Better control of my nutrition", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "life_eating_consistency", name: "Eating consistency", prompt: "More consistent eating", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "life_long_fuel_gaps", name: "Long gaps without fuel", prompt: "Fewer long gaps without fuel", unit: "hours", measurementType: "number", direction: "lower", sportType: "general", valueMin: 0 },
+        { key: "life_daily_energy", name: "Afternoon energy", prompt: "Better energy through the day", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "life_energy_crashes", name: "Energy crashes", prompt: "Fewer crashes", unit: "days / week", measurementType: "number", direction: "lower", sportType: "general", valueMin: 0, valueMax: 7 },
+        { key: "life_hydration", name: "Hydration consistency", prompt: "Better hydration", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "life_focus", name: "Mood & concentration", prompt: "Better mood or concentration", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "life_body_weight", name: "Body weight", prompt: "Maintaining or changing body weight", unit: "kg", measurementType: "number", direction: "target_range", sportType: "general", requiresTarget: true }
+      ]
+    },
+    sport: {
+      label: "Sport & training",
+      description: "Choose a training or performance outcome only if it matters to you.",
+      outcomes: [
+        { key: "sport_training_energy", name: "Training energy", prompt: "Better training energy", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "sport_recovery", name: "Recovery quality", prompt: "Better recovery", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "running_5k", name: "5K time", prompt: "Faster running or race times", unit: "time", measurementType: "duration_seconds", direction: "lower", sportType: "running" },
+        { key: "strength_max", name: "Maximum strength test", prompt: "Improved strength", unit: "kg", measurementType: "number", direction: "higher", sportType: "strength" },
+        { key: "sport_endurance", name: "Endurance", prompt: "Improved endurance", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
+        { key: "football_yoyo", name: "Yo-Yo test", prompt: "Improved fitness test performance", unit: "level", measurementType: "number", direction: "higher", sportType: "football" }
+      ]
+    }
   };
 
   let impactState = {
@@ -71,14 +44,14 @@
     loaded: false,
     saving: false,
     range: "six_weeks",
-    sport: "running",
     metrics: [],
     results: [],
     feedback: [],
     trainingSessions: [],
     garminActivities: [],
     error: "",
-    message: ""
+    message: "",
+    editor: null
   };
   const promptedOnboardingUsers = new Set();
 
@@ -89,14 +62,14 @@
       loading: false,
       loaded: false,
       saving: false,
-      sport: "running",
       metrics: [],
       results: [],
       feedback: [],
       trainingSessions: [],
       garminActivities: [],
       error: "",
-      message: ""
+      message: "",
+      editor: null
     };
   }
 
@@ -113,11 +86,11 @@
   }
 
   function impactLoadErrorMessage(error) {
-    const message = String(error?.message || error || "Could not load Performance Impact.");
+    const message = String(error?.message || error || "Could not load Reflection.");
     const missingImpactSchema = String(error?.code || "") === "PGRST205"
       || (/schema cache/i.test(message) && /fuel_performance_(metrics|results)|fuel_training_feedback/i.test(message));
     if (missingImpactSchema) {
-      return "Performance Impact needs the current database release before it can load. The required Impact tables are not available to the Data API; your existing Fuel Guard data is unaffected.";
+      return "Reflection needs the current database release before it can load. The required private outcome tables are not available to the Data API; your existing Fuel Guard data is unaffected.";
     }
     return message;
   }
@@ -165,14 +138,6 @@
     }
   }
 
-  function dismissOnboarding(userId) {
-    try {
-      window.localStorage.setItem(onboardingStorageKey(userId), "dismissed");
-    } catch (_error) {
-      // The setup remains available on Impact when storage is unavailable.
-    }
-  }
-
   function genuinelyNewAthlete() {
     const user = cloud()?.user;
     const createdAt = new Date(user?.created_at || "").getTime();
@@ -185,18 +150,6 @@
       && noImpactData
       && localLogs().length === 0
       && !onboardingDismissed(user.id);
-  }
-
-  function onboardingMarkup() {
-    if (!genuinelyNewAthlete()) return "";
-    return `
-      <section class="impact-section impact-onboarding" aria-labelledby="impactOnboardingHeading">
-        <div class="impact-eyebrow">Welcome to Fuel Guard Athlete</div>
-        <h1 id="impactOnboardingHeading">Start with why performance matters to you.</h1>
-        <p>Choose your sport and up to three outcomes now. You can start with one, change them later and use Daily immediately.</p>
-        <ol><li><strong>Set your direction</strong><span>Choose the performance context that matters.</span></li><li><strong>Pick primary outcomes</strong><span>Record only the measures you actually care about.</span></li></ol>
-        <div class="button-row"><button type="button" class="primary" data-impact-onboarding-continue>Set up Impact</button><button type="button" class="secondary" data-impact-onboarding-later>Continue with Daily</button></div>
-      </section>`;
   }
 
   function promptNewAthleteOnce() {
@@ -302,20 +255,6 @@
     return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
   }
 
-  function directionMark(direction) {
-    if (direction === "improved") return "↑";
-    if (direction === "declined") return "↓";
-    if (direction === "stable") return "→";
-    return "";
-  }
-
-  function statusTone(id) {
-    if (["strong_positive", "positive", "strong_improvement", "improving"].includes(id)) return "positive";
-    if (["negative", "declining"].includes(id)) return "negative";
-    if (["mixed"].includes(id)) return "mixed";
-    return "neutral";
-  }
-
   function formatSignal(signal) {
     if (!Number.isFinite(signal.current) || !Number.isFinite(signal.baseline)) return "Not enough comparable data yet";
     const formatter = signal.unit === "minutes"
@@ -328,209 +267,186 @@
     return `${formatter(signal.baseline)} → ${formatter(signal.current)}`;
   }
 
-  function sparkline(metric, results) {
-    const values = results.map(result => Number(result.value)).filter(Number.isFinite);
-    if (values.length < 2) return `<div class="impact-sparkline-empty">Add another dated result to start the trend.</div>`;
-    const width = 280;
-    const height = 72;
-    const minimum = Math.min(...values);
-    const maximum = Math.max(...values);
-    const spread = maximum - minimum || 1;
-    const points = values.map((value, index) => {
-      const x = 8 + index * ((width - 16) / Math.max(1, values.length - 1));
-      const y = 8 + (maximum - value) / spread * (height - 16);
-      return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`;
-    }).join(" ");
-    return `<svg class="impact-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escape(metric.name)} result trend"><polyline points="${points}" fill="none" vector-effect="non-scaling-stroke"/></svg>`;
+  function resultsForMetric(metricId) {
+    return impactState.results
+      .filter(result => String(result.metric_id) === String(metricId))
+      .sort((left, right) => String(left.observed_on).localeCompare(String(right.observed_on)) || String(left.created_at || "").localeCompare(String(right.created_at || "")));
   }
 
-  function outcomeCard(outcome) {
-    const metric = outcome.metric;
-    const metricResults = impactState.results
-      .filter(result => result.metric_id === metric.id)
-      .sort((left, right) => left.observed_on.localeCompare(right.observed_on));
+  function resultBounds(metricId) {
+    const results = resultsForMetric(metricId);
+    return { results, baseline: results[0] || null, current: results.length > 1 ? results.at(-1) : null };
+  }
+
+  function dateLabel(value) {
+    const parsed = new Date(`${String(value || "")}T12:00:00`);
+    return Number.isNaN(parsed.getTime()) ? "Not recorded" : new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
+  }
+
+  function compactNumber(value) {
+    const number = Math.round(Math.abs(Number(value)) * 100) / 100;
+    return Number.isInteger(number) ? String(number) : String(number);
+  }
+
+  function distanceFromTarget(metric, value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    if (number < Number(metric.target_min)) return Number(metric.target_min) - number;
+    if (number > Number(metric.target_max)) return number - Number(metric.target_max);
+    return 0;
+  }
+
+  function comparisonChange(metric, baseline, current) {
+    if (!baseline || !current) return { label: "Add a current result", tone: "building" };
+    const before = Number(baseline.value);
+    const now = Number(current.value);
+    if (!Number.isFinite(before) || !Number.isFinite(now)) return { label: "Comparison unavailable", tone: "building" };
+    if (metric.direction === "target_range") {
+      const change = distanceFromTarget(metric, before) - distanceFromTarget(metric, now);
+      if (change > 0) return { label: "Closer to your target range", tone: "improved" };
+      if (change < 0) return { label: "Further from your target range", tone: "changed" };
+      return { label: "No measured change yet", tone: "stable" };
+    }
+    const improvement = metric.direction === "lower" ? before - now : now - before;
+    if (Math.abs(improvement) < 0.0001) return { label: "No measured change yet", tone: "stable" };
+    if (metric.measurement_type === "duration_seconds") {
+      return { label: `${durationValue(Math.abs(improvement))} ${improvement > 0 ? "faster" : "slower"}`, tone: improvement > 0 ? "improved" : "changed" };
+    }
+    const unit = metric.unit && metric.unit !== "/ 10" ? ` ${metric.unit}` : "";
+    if (improvement > 0) return { label: `+${compactNumber(improvement)}${unit} improvement`, tone: "improved" };
+    return { label: `${compactNumber(Math.abs(now - before))}${unit} ${now > before ? "higher" : "lower"}`, tone: "changed" };
+  }
+
+  function reflectionMetricCategory(metric) {
+    if (String(metric.preset_key || "").startsWith("life_")) return "Everyday life";
+    if (String(metric.preset_key || "").startsWith("sport_") || !["general", "custom"].includes(metric.sport_type)) return "Sport & training";
+    return "Personal outcome";
+  }
+
+  function comparisonCard(metric, { editorPreview = false } = {}) {
+    const { baseline, current } = resultBounds(metric.id);
+    const change = comparisonChange(metric, baseline, current);
+    const days = baseline && current ? Math.max(0, Math.round((new Date(`${current.observed_on}T12:00:00`) - new Date(`${baseline.observed_on}T12:00:00`)) / 86400000)) : 0;
     return `
-      <article class="impact-outcome-card ${escape(outcome.direction)}">
-        <div class="impact-outcome-heading">
-          <div><span>${escape(metric.unit)}</span><h3>${escape(metric.name)}</h3></div>
-          <strong>${escape(directionMark(outcome.direction))}</strong>
-        </div>
-        <div class="impact-before-now">
-          <div><span>Baseline</span><strong>${formatMetricValue(metric, outcome.baseline?.numericValue)}</strong><small>${escape(outcome.baseline?.observedKey || "Building")}</small></div>
+      <article class="reflection-comparison-card ${escape(change.tone)}" data-reflection-card="${escape(metric.id)}">
+        <header>
+          <div><span>${escape(reflectionMetricCategory(metric))}</span><h3>${escape(metric.name)}</h3></div>
+          ${editorPreview ? "" : `<details class="reflection-card-menu"><summary aria-label="Edit ${escape(metric.name)}">•••</summary><div>
+            <button type="button" data-reflection-edit="current" data-reflection-metric="${escape(metric.id)}">Update current result</button>
+            <button type="button" data-reflection-edit="baseline" data-reflection-metric="${escape(metric.id)}">Edit baseline</button>
+            <button type="button" data-reflection-edit="dates" data-reflection-metric="${escape(metric.id)}">Change dates</button>
+            <button type="button" data-reflection-change-metric="${escape(metric.id)}">Change metric</button>
+            <button type="button" class="danger" data-reflection-delete="${escape(metric.id)}">Delete reflection</button>
+          </div></details>`}
+        </header>
+        <div class="reflection-before-current">
+          <div><span>Baseline</span><strong>${formatMetricValue(metric, baseline?.value)}</strong><small>${dateLabel(baseline?.observed_on)}</small></div>
           <i aria-hidden="true">→</i>
-          <div><span>Current</span><strong>${formatMetricValue(metric, outcome.current?.numericValue)}</strong><small>${escape(outcome.current?.observedKey || "Not recorded")}</small></div>
+          <div><span>Current</span><strong>${formatMetricValue(metric, current?.value)}</strong><small>${dateLabel(current?.observed_on)}</small></div>
         </div>
-        ${sparkline(metric, metricResults)}
-        <p>${outcome.sufficient
-          ? `${escape(outcome.sampleCount)} athlete-entered results · ${escape(outcome.separationDays)} days from baseline to current.`
-          : `${escape(outcome.sampleCount)} athlete-entered result${outcome.sampleCount === 1 ? "" : "s"}. Two results at least 14 days apart are required.`}</p>
-      </article>
-    `;
+        <div class="reflection-change ${escape(change.tone)}">${escape(change.label)}</div>
+        ${days ? `<p>${escape(days)} day${days === 1 ? "" : "s"} using Fuel Guard</p>` : `<p>${baseline ? "Add where you are now to complete this reflection." : "Add a baseline to begin this reflection."}</p>`}
+        ${!editorPreview && !current ? `<button type="button" class="secondary compact" data-reflection-edit="${baseline ? "current" : "baseline"}" data-reflection-metric="${escape(metric.id)}">${baseline ? "Add current result" : "Add baseline"}</button>` : ""}
+      </article>`;
   }
 
-  function componentCard(label, component, detail) {
+  function goalsMarkup(metrics) {
     return `
-      <article class="impact-component ${statusTone(component.id)}">
-        <span>${escape(label)}</span>
-        <strong>${escape(component.label)} ${component.id === "improving" || component.id === "strong_improvement" ? "↑" : component.id === "declining" ? "↓" : ""}</strong>
-        <small>${escape(detail)}</small>
-      </article>
-    `;
+      <section class="reflection-page-section reflection-goals" aria-labelledby="reflectionGoalsHeading">
+        <div class="reflection-section-heading"><div><span>Your goals</span><h2 id="reflectionGoalsHeading">What matters to you</h2></div><button type="button" class="text-button" data-reflection-open-chooser>Edit goals</button></div>
+        <div class="reflection-goal-list">${metrics.map(metric => `<span>${escape(metric.name)}</span>`).join("")}</div>
+      </section>`;
   }
 
-  function signalsMarkup(signals) {
-    return signals.map(signal => `
-      <div class="impact-signal-row ${escape(signal.direction)}">
-        <div><strong>${escape(signal.label)}</strong><span>${escape(formatSignal(signal))}</span></div>
-        <small>${signal.direction === "insufficient" ? "Insufficient sample" : `${escape(signal.direction)} ${escape(directionMark(signal.direction))}`}</small>
-      </div>
-    `).join("");
-  }
-
-  function reportMarkup(report) {
-    const outcomeCount = report.outcomes.filter(outcome => outcome.sufficient).length;
+  function progressMarkup(metrics) {
     return `
-      <section class="impact-section">
-        <div class="impact-section-heading"><div><span>2 · Primary outcomes you want</span><h2>Baseline to current</h2></div>
-          <small>${escape(report.outcomes.length)} of 3 selected</small>
-        </div>
-        <div class="impact-outcome-grid">${report.outcomes.length ? report.outcomes.map(outcomeCard).join("") : `<p class="impact-empty">Choose a performance outcome above to establish what better performance means for you.</p>`}</div>
-      </section>
-
-      <section class="impact-section">
-        <div class="impact-section-heading impact-report-heading">
-          <div><span>3 · Comparison report</span><h2>${escape(RANGE_LABELS[impactState.range])}</h2><small>${escape(report.period.display)}</small></div>
-          <label class="impact-range-label">Period<select id="impactRangeSelect">
-            ${Object.entries(RANGE_LABELS).map(([value, label]) => `<option value="${value}"${impactState.range === value ? " selected" : ""}>${escape(label)}</option>`).join("")}
-          </select></label>
-        </div>
-        <div class="impact-window-labels"><span>Baseline · ${escape(report.period.baseline.display)}</span><span>Current · ${escape(report.period.current.display)}</span></div>
-        <div class="impact-report-columns">
-          <article><h3>Fuelling behaviour</h3>${signalsMarkup(report.signals.behavior)}</article>
-          <article><h3>Training experience</h3>${signalsMarkup(report.signals.training)}</article>
-        </div>
-        <details class="impact-calculation-note">
-          <summary>View calculation and sample rules</summary>
-          <p>Fuel/Hydration coverage compares 14-day windows. Gap measures need five measurable days in each window. Pre/post-training and feedback measures need three completed sessions or responses in each window. Outcome results need two dates at least 14 days apart.</p>
-        </details>
-      </section>
-
-      <section class="impact-hero impact-summary ${statusTone(report.overall.id)}">
-        <div class="impact-eyebrow">4 · Impact summary</div>
-        <h1>${escape(report.overall.label)}</h1>
-        <p>${escape(report.summary)}</p>
-        <div class="impact-component-grid">
-          ${componentCard("Fuelling behaviour", report.components.behavior, `${report.components.behavior.eligible} eligible signals`)}
-          ${componentCard("Training experience", report.components.trainingExperience, `${report.baseline.feedbackCount + report.current.feedbackCount} feedback responses in comparison windows`)}
-          ${componentCard("Performance outcomes", report.components.performanceOutcomes, `${outcomeCount} of ${report.outcomes.length} outcomes comparable`)}
-        </div>
-        <p class="impact-claims-note">This is observational evidence. Fuel Guard reports changes that occurred during the same period; it does not claim that fuelling caused a performance outcome.</p>
-        <div class="impact-evidence-line">Based on ${report.evidence.days} days · ${report.evidence.workouts} recorded sessions · ${report.evidence.feedback} feedback responses · ${report.evidence.performanceResults} performance tests</div>
-      </section>
-    `;
+      <section class="reflection-page-section" aria-labelledby="reflectionProgressHeading">
+        <div class="reflection-section-heading"><div><span>Your progress</span><h2 id="reflectionProgressHeading">Baseline to current</h2></div><small>Entered by you</small></div>
+        <div class="reflection-comparison-grid">${metrics.map(metric => comparisonCard(metric)).join("")}</div>
+      </section>`;
   }
 
-  function presetSetupMarkup() {
+  function evidenceMarkup(report) {
+    const available = report.signals.behavior.filter(signal => Number.isFinite(signal.baseline) && Number.isFinite(signal.current));
+    return `
+      <section class="reflection-page-section reflection-evidence" aria-labelledby="reflectionEvidenceHeading">
+        <div class="reflection-section-heading"><div><span>Fuel Guard evidence</span><h2 id="reflectionEvidenceHeading">Changes in your fuelling behaviour</h2></div><small>Calculated from recorded activity</small></div>
+        ${available.length ? `<div class="reflection-evidence-list">${available.map(signal => `<article class="${escape(signal.direction)}"><strong>${escape(signal.label)}</strong><span>${escape(formatSignal(signal))}</span><small>${signal.direction === "improved" ? "Moving in a positive direction" : signal.direction === "declined" ? "Worth noticing" : "Broadly stable"}</small></article>`).join("")}</div>` : `<p class="reflection-empty-inline">Keep using Daily and Training Mode. Fuel Guard will show behavioural comparisons when there is enough recorded evidence.</p>`}
+        <p class="reflection-causation-note">These changes happened during the same period as your reflections. They do not show that Fuel Guard or fuelling caused an external outcome.</p>
+      </section>`;
+  }
+
+  function emptyStateMarkup() {
+    return `
+      <section class="reflection-empty-state" aria-labelledby="reflectionEmptyHeading">
+        <span>Start your Reflection</span>
+        <h2 id="reflectionEmptyHeading">What does better performance look like for you?</h2>
+        <p>Start with something you actually care about — your energy, fuelling, training or performance.</p>
+        <button type="button" class="primary" data-reflection-open-chooser>Choose what I want to improve</button>
+      </section>`;
+  }
+
+  function choiceMarkup() {
     const metrics = activeMetrics();
-    const presets = PRESETS[impactState.sport] || [];
     const activeKeys = new Set(metrics.map(metric => metric.preset_key).filter(Boolean));
     return `
-      <section class="impact-section impact-setup">
-        <div class="impact-section-heading"><div><span>1 · Set your direction</span><h2>What does better performance look like for you?</h2></div><small>${metrics.length}/3 selected</small></div>
-        <label class="impact-sport-select">Sport<select id="impactSportSelect">
-          ${Object.entries(SPORT_LABELS).map(([value, label]) => `<option value="${value}"${impactState.sport === value ? " selected" : ""}>${escape(label)}</option>`).join("")}
-        </select></label>
-        ${metrics.length ? `<div class="impact-selected-metrics">${metrics.map(metric => `<div><span>${escape(metric.name)} · ${escape(metric.unit)}</span><button type="button" class="secondary" data-impact-archive-metric="${escape(metric.id)}">Change</button></div>`).join("")}</div>` : ""}
-        ${presets.length ? `<div class="impact-preset-grid">${presets.map(preset => `<button type="button" class="impact-preset" data-impact-preset="${escape(preset.key)}"${metrics.length >= 3 || activeKeys.has(preset.key) ? " disabled" : ""}><strong>${escape(preset.name)}</strong><span>${escape(preset.unit)} · ${preset.direction === "lower" ? "Lower is better" : "Higher is better"}</span></button>`).join("")}</div>` : `<p class="impact-empty">Add a custom metric that is meaningful to your sport.</p>`}
-        <details class="impact-custom-metric"${presets.length ? "" : " open"}>
-          <summary>+ Add custom performance metric</summary>
-          <div class="impact-form-grid">
-            <label>Metric name<input id="impactCustomName" type="text" maxlength="100" placeholder="e.g. 20 m sprint"></label>
-            <label>Unit<input id="impactCustomUnit" type="text" maxlength="24" placeholder="e.g. sec, cm, kg"></label>
-            <label>Result format<select id="impactCustomMeasurement"><option value="number">Number</option><option value="duration_seconds">Time (mm:ss or h:mm:ss)</option></select></label>
-            <label>Better means<select id="impactCustomDirection"><option value="higher">Higher</option><option value="lower">Lower</option><option value="target_range">Within a target range</option></select></label>
-            <label data-impact-target-field hidden>Target minimum<input id="impactCustomTargetMin" type="number" step="any" inputmode="decimal"></label>
-            <label data-impact-target-field hidden>Target maximum<input id="impactCustomTargetMax" type="number" step="any" inputmode="decimal"></label>
-          </div>
-          <button type="button" class="secondary" data-impact-save-custom${metrics.length >= 3 ? " disabled" : ""}>Save custom metric</button>
-        </details>
-        <p class="impact-note">Changing a selected metric archives it; existing result history is retained.</p>
-      </section>
-    `;
+      <div class="reflection-editor-intro"><span>Step 1 of 4</span><h2>Choose what matters</h2><p>Fuel Guard can help you reflect on changes in everyday fuelling, energy and training. Choose only the things that matter to you.</p></div>
+      ${Object.entries(OUTCOME_GROUPS).map(([key, group]) => `<section class="reflection-choice-group"><div><h3>${escape(group.label)}</h3><p>${escape(group.description)}</p></div><div>${group.outcomes.map(outcome => `<button type="button" data-reflection-outcome="${escape(outcome.key)}" data-reflection-group="${escape(key)}"${metrics.length >= 3 || activeKeys.has(outcome.key) ? " disabled" : ""}><strong>${escape(outcome.prompt)}</strong><span>${escape(outcome.name)} · ${escape(outcome.unit)}</span></button>`).join("")}</div></section>`).join("")}
+      <button type="button" class="secondary reflection-custom-action" data-reflection-custom-outcome${metrics.length >= 3 ? " disabled" : ""}>Create a custom outcome</button>
+      ${metrics.length >= 3 ? `<p class="reflection-editor-note">You already have three active reflections. Use a card’s menu to change or delete one.</p>` : ""}`;
   }
 
-  function resultEntryMarkup() {
-    const metrics = activeMetrics();
-    if (!metrics.length) return "";
+  function customMetricMarkup() {
+    const preset = outcomeByKey(impactState.editor?.presetKey);
+    const direction = preset?.direction || "higher";
     return `
-      <section class="impact-section">
-        <div class="impact-section-heading"><div><span>5 · Add new results</span><h2>Record a performance result</h2></div><small>Source: Athlete entry</small></div>
-        <div class="impact-form-grid">
-          <label>Performance outcome<select id="impactResultMetric">${metrics.map(metric => `<option value="${escape(metric.id)}">${escape(metric.name)}</option>`).join("")}</select></label>
-          <label>Date<input id="impactResultDate" type="date" value="${escape(domain().dateKey(new Date()))}"></label>
-          <label>Result<input id="impactResultValue" type="text" inputmode="decimal" placeholder="Number or mm:ss"></label>
-          <label>Notes (optional)<input id="impactResultNotes" type="text" maxlength="500" placeholder="Test conditions or context"></label>
-        </div>
-        <button type="button" class="primary" data-impact-save-result>Save result</button>
-      </section>
-    `;
+      <div class="reflection-editor-intro"><span>Step 1 of 4</span><h2>${preset?.requiresTarget ? "Set your target range" : "Create your outcome"}</h2><p>${preset?.requiresTarget ? "Define the range that represents your own intention; Fuel Guard will not assume whether higher or lower is better." : "Use a measure that is meaningful and repeatable for you."}</p></div>
+      <div class="reflection-editor-form two-column">
+        <label>Outcome name<input id="reflectionCustomName" type="text" maxlength="100" value="${escape(preset?.name || "")}" placeholder="e.g. Body weight"></label>
+        <label>Unit<input id="reflectionCustomUnit" type="text" maxlength="24" value="${escape(preset?.unit || "")}" placeholder="e.g. kg, / 10, sec"></label>
+        <label>Result format<select id="reflectionCustomMeasurement"><option value="number"${preset?.measurementType === "duration_seconds" ? "" : " selected"}>Number</option><option value="duration_seconds"${preset?.measurementType === "duration_seconds" ? " selected" : ""}>Time (mm:ss or h:mm:ss)</option></select></label>
+        <label>Better means<select id="reflectionCustomDirection"><option value="higher"${direction === "higher" ? " selected" : ""}>Higher</option><option value="lower"${direction === "lower" ? " selected" : ""}>Lower</option><option value="target_range"${direction === "target_range" ? " selected" : ""}>Within a target range</option></select></label>
+        <label data-reflection-target${direction === "target_range" ? "" : " hidden"}>Target minimum<input id="reflectionCustomTargetMin" type="number" step="any" inputmode="decimal"></label>
+        <label data-reflection-target${direction === "target_range" ? "" : " hidden"}>Target maximum<input id="reflectionCustomTargetMax" type="number" step="any" inputmode="decimal"></label>
+      </div>
+      <button type="button" class="primary" data-reflection-save-custom>Continue to baseline</button>`;
   }
 
-  function historyMarkup() {
-    const groups = impactState.metrics.map(metric => ({
-      metric,
-      results: impactState.results.filter(result => result.metric_id === metric.id).sort((left, right) => right.observed_on.localeCompare(left.observed_on))
-    })).filter(group => group.results.length);
-    if (!groups.length) return "";
+  function editorValueMarkup(metric, role) {
+    const bounds = resultBounds(metric.id);
+    const existing = role === "baseline" ? bounds.baseline : bounds.current;
+    const isBaseline = role === "baseline";
+    const defaultDate = existing?.observed_on || (isBaseline ? domain().dateKey(cloud()?.user?.created_at || new Date()) : domain().dateKey(new Date()));
     return `
-      <section class="impact-section">
-        <div class="impact-section-heading"><div><span>Outcome history</span><h2>Your recorded tests</h2></div></div>
-        <div class="impact-history-list">${groups.map(group => `
-          <details>
-            <summary><span>${escape(group.metric.name)}${group.metric.archived_at ? " · Archived" : ""}</span><strong>${group.results.length} result${group.results.length === 1 ? "" : "s"}</strong></summary>
-            ${group.results.map(result => `<div class="impact-history-row"><span>${escape(result.observed_on)}</span><strong>${formatMetricValue(group.metric, result.value)}</strong><small>Source: Athlete entry${result.notes ? ` · ${escape(result.notes)}` : ""}</small></div>`).join("")}
-          </details>
-        `).join("")}</div>
-      </section>
-    `;
+      <div class="reflection-editor-intro"><span>Step ${isBaseline ? "2" : "3"} of 4</span><h2>${isBaseline ? "Where were you when you started?" : "Where are you now?"}</h2><p>${escape(metric.name)} · ${escape(metric.unit)}</p></div>
+      <div class="reflection-editor-form">
+        <label>${isBaseline ? "Baseline" : "Current"} value<input id="reflectionEditorValue" type="text" inputmode="decimal" value="${existing ? escape(metric.measurement_type === "duration_seconds" ? durationValue(existing.value) : existing.value) : ""}" placeholder="${metric.measurement_type === "duration_seconds" ? "mm:ss" : `Value ${escape(metric.unit)}`}"></label>
+        <label>Date<input id="reflectionEditorDate" type="date" value="${escape(defaultDate)}"></label>
+      </div>
+      <button type="button" class="primary" data-reflection-save-value="${role}">${isBaseline ? "Continue to current result" : "Generate comparison"}</button>`;
   }
 
-  function pendingFeedbackSession() {
-    const feedbackSessionIds = new Set(impactState.feedback.map(item => String(item.training_mode_session_id || "")));
-    return [...impactState.trainingSessions, ...localTrainingSessions()]
-      .filter(session => session.status === "completed" && (session.ended_at || session.endedAt) && !feedbackSessionIds.has(String(session.id)))
-      .sort((left, right) => new Date(right.ended_at || right.endedAt) - new Date(left.ended_at || left.endedAt))[0] || null;
-  }
-
-  function feedbackMarkup() {
-    const session = pendingFeedbackSession();
-    const count = impactState.feedback.length;
-    if (!session) {
-      return `
-        <section class="impact-section impact-feedback-complete">
-          <div class="impact-section-heading"><div><span>Training experience</span><h2>Post-training feedback</h2></div><small>${count} response${count === 1 ? "" : "s"}</small></div>
-          <p class="impact-empty">Complete a Training Mode session to add a few-second energy and completion check-in.</p>
-        </section>
-      `;
-    }
+  function datesMarkup(metric) {
+    const { baseline, current } = resultBounds(metric.id);
     return `
-      <section class="impact-section impact-feedback" data-impact-feedback-session="${escape(session.id)}">
-        <div class="impact-section-heading"><div><span>Optional · few seconds</span><h2>How did training feel?</h2><small>${escape(session.title || "Training session")} · ${escape(domain().dateKey(session.ended_at || session.endedAt))}</small></div></div>
-        <div class="impact-feedback-group" role="group" aria-label="Training energy">
-          <button type="button" data-impact-energy="strong">Strong</button>
-          <button type="button" data-impact-energy="normal">Normal</button>
-          <button type="button" data-impact-energy="low_energy">Low energy</button>
-        </div>
-        <div class="impact-feedback-question"><strong>Did you complete the session as planned?</strong></div>
-        <div class="impact-feedback-group" role="group" aria-label="Session completion">
-          <button type="button" data-impact-completion="yes">Yes</button>
-          <button type="button" data-impact-completion="partially">Partially</button>
-          <button type="button" data-impact-completion="no">No</button>
-        </div>
-        <button type="button" class="primary" data-impact-save-feedback disabled>Save feedback</button>
-        <p class="impact-note">Source: Athlete entry. Optional feedback supports association analysis; it is not a medical assessment.</p>
-      </section>
-    `;
+      <div class="reflection-editor-intro"><span>Edit reflection</span><h2>Change dates</h2><p>${escape(metric.name)}</p></div>
+      <div class="reflection-editor-form">
+        <label>Baseline date<input id="reflectionBaselineDate" type="date" value="${escape(baseline?.observed_on || "")}"${baseline ? "" : " disabled"}></label>
+        <label>Current date<input id="reflectionCurrentDate" type="date" value="${escape(current?.observed_on || "")}"${current ? "" : " disabled"}></label>
+      </div>
+      <button type="button" class="primary" data-reflection-save-dates>Save dates</button>`;
+  }
+
+  function editorMarkup() {
+    const editor = impactState.editor;
+    if (!editor) return "";
+    const metric = metricById(editor.metricId);
+    let content = choiceMarkup();
+    if (editor.step === "custom") content = customMetricMarkup();
+    if ((editor.step === "baseline" || editor.step === "current") && metric) content = editorValueMarkup(metric, editor.step);
+    if (editor.step === "dates" && metric) content = datesMarkup(metric);
+    if (editor.step === "complete" && metric) content = `<div class="reflection-editor-intro"><span>Step 4 of 4</span><h2>Your comparison</h2><p>Your Reflection is ready.</p></div>${comparisonCard(metric, { editorPreview: true })}<button type="button" class="primary" data-reflection-close>Done</button>`;
+    return `<div class="reflection-editor-backdrop" data-reflection-close-backdrop><section class="reflection-editor" role="dialog" aria-modal="true" aria-label="Edit Reflection"><button type="button" class="reflection-editor-close" data-reflection-close aria-label="Close Reflection editor">×</button>${content}</section></div>`;
   }
 
   function render() {
@@ -539,27 +455,25 @@
     const signedIn = Boolean(cloud()?.user?.id);
     if (!signedIn) {
       target.innerHTML = `
-        <section class="impact-hero neutral"><div class="impact-eyebrow">Performance Impact</div><h1>Connect your evidence</h1><p>Log in to choose performance outcomes, keep result history and build a private Fuel Guard baseline.</p><button type="button" class="primary" data-open-screen="checklist">Open Profile &amp; Settings</button></section>
+        <section class="reflection-hero"><span>Reflection</span><h1>See what has changed for you</h1><p>Log in to choose outcomes, record a baseline and keep your private Reflection history.</p><button type="button" class="primary" data-open-screen="checklist">Open Profile &amp; Settings</button></section>
       `;
       return;
     }
     if (impactState.loading && !impactState.loaded) {
-      target.innerHTML = `<section class="impact-hero neutral"><div class="impact-eyebrow">Performance Impact</div><h1>Loading your evidence…</h1></section>`;
+      target.innerHTML = `<section class="reflection-hero"><span>Reflection</span><h1>Loading your Reflection…</h1></section>`;
       return;
     }
     if (impactState.error) {
-      target.innerHTML = `<section class="impact-hero negative"><div class="impact-eyebrow">Performance Impact</div><h1>Impact data is unavailable</h1><p>${escape(impactState.error)}</p><button type="button" class="secondary" data-impact-refresh>Try again</button></section>`;
+      target.innerHTML = `<section class="reflection-hero error"><span>Reflection</span><h1>Reflection data is unavailable</h1><p>${escape(impactState.error)}</p><button type="button" class="secondary" data-impact-refresh>Try again</button></section>`;
       return;
     }
+    const metrics = activeMetrics();
     const report = currentReport();
     target.innerHTML = `
       ${impactState.message ? `<div class="impact-status-message" role="status">${escape(impactState.message)}</div>` : ""}
-      ${onboardingMarkup()}
-      ${presetSetupMarkup()}
-      ${reportMarkup(report)}
-      ${resultEntryMarkup()}
-      ${feedbackMarkup()}
-      ${historyMarkup()}
+      <header class="reflection-hero"><span>Reflection</span><h1>Since using Fuel Guard, what has changed for you?</h1><p>See how your fuelling habits and the things that matter to you have changed over time.</p></header>
+      ${metrics.length ? `${goalsMarkup(metrics)}${progressMarkup(metrics)}${evidenceMarkup(report)}<section class="reflection-add"><button type="button" class="secondary" data-reflection-open-chooser${metrics.length >= 3 ? " disabled" : ""}>Add another reflection</button>${metrics.length >= 3 ? "<small>Three active reflections · use a card menu to make a change.</small>" : ""}</section>` : emptyStateMarkup()}
+      ${editorMarkup()}
     `;
   }
 
@@ -599,7 +513,6 @@
         feedback: feedbackResult.data || [],
         trainingSessions: trainingResult.data || [],
         garminActivities: garminResult.data || [],
-        sport: metrics.find(metric => !metric.archived_at)?.sport_type || impactState.sport,
         error: ""
       };
       promptNewAthleteOnce();
@@ -614,15 +527,16 @@
     const user = cloud()?.user;
     const client = cloud()?.client;
     const metrics = activeMetrics();
-    if (!user?.id || !client?.from || metrics.length >= 3 || impactState.saving) return;
+    if (!user?.id || !client?.from || metrics.length >= 3 || impactState.saving) return null;
     const openSlot = [1, 2, 3].find(slot => !metrics.some(metric => metric.display_order === slot));
-    if (!openSlot) return;
+    if (!openSlot) return null;
     impactState.saving = true;
+    let savedMetric = null;
     try {
       const row = {
         id: uuid(),
         user_id: user.id,
-        sport_type: impactState.sport,
+        sport_type: preset.sportType || "custom",
         preset_key: preset.key || null,
         name: preset.name,
         unit: preset.unit,
@@ -635,16 +549,19 @@
       const result = await client.from(METRICS_TABLE).insert(row).select(METRIC_COLUMNS).single();
       if (result.error) throw result.error;
       impactState.metrics = [...impactState.metrics, result.data];
-      impactState.message = `${preset.name} added as a primary outcome.`;
+      savedMetric = result.data;
+      impactState.editor = { step: "baseline", metricId: result.data.id };
+      impactState.message = `${preset.name} added to your Reflection.`;
     } catch (error) {
       impactState.message = error?.message || "Could not save that metric.";
     } finally {
       impactState.saving = false;
       render();
     }
+    return savedMetric;
   }
 
-  async function archiveMetric(metricId) {
+  async function archiveMetric(metricId, { openChooser = false, deleted = false } = {}) {
     const client = cloud()?.client;
     const userId = cloud()?.user?.id;
     if (!client?.from || !userId || impactState.saving) return;
@@ -654,7 +571,8 @@
       const result = await client.from(METRICS_TABLE).update({ archived_at: archivedAt }).eq("id", metricId).eq("user_id", userId).select(METRIC_COLUMNS).single();
       if (result.error) throw result.error;
       impactState.metrics = impactState.metrics.map(metric => metric.id === metricId ? result.data : metric);
-      impactState.message = "Metric changed. Its result history remains available.";
+      impactState.editor = openChooser ? { step: "choose" } : null;
+      impactState.message = deleted ? "Reflection removed. Its private result history is retained." : "Choose a replacement outcome. Existing result history is retained.";
     } catch (error) {
       impactState.message = error?.message || "Could not change that metric.";
     } finally {
@@ -663,146 +581,176 @@
     }
   }
 
-  async function saveResult() {
+  async function saveReflectionValue(role) {
     const client = cloud()?.client;
     const user = cloud()?.user;
-    const metric = metricById(document.getElementById("impactResultMetric")?.value);
-    const observedOn = domain().validDateKey(document.getElementById("impactResultDate")?.value);
-    const value = parseMetricValue(metric, document.getElementById("impactResultValue")?.value);
-    const notes = String(document.getElementById("impactResultNotes")?.value || "").trim();
+    const metric = metricById(impactState.editor?.metricId);
+    const observedOn = domain().validDateKey(document.getElementById("reflectionEditorDate")?.value);
+    const value = parseMetricValue(metric, document.getElementById("reflectionEditorValue")?.value);
     if (!client?.from || !user?.id || !metric || !observedOn || value === null) {
-      impactState.message = metric?.measurement_type === "duration_seconds" ? "Enter a valid result such as 27:51." : "Enter a valid dated result.";
+      impactState.message = metric?.measurement_type === "duration_seconds" ? "Enter a valid time such as 27:51." : "Enter a valid dated value.";
+      render();
+      return;
+    }
+    const preset = outcomeByKey(metric.preset_key);
+    if ((Number.isFinite(preset?.valueMin) && value < preset.valueMin) || (Number.isFinite(preset?.valueMax) && value > preset.valueMax)) {
+      impactState.message = Number.isFinite(preset?.valueMax)
+        ? `Enter a value between ${preset.valueMin} and ${preset.valueMax}.`
+        : `Enter a value of ${preset.valueMin} or more.`;
+      render();
+      return;
+    }
+    const existingBounds = resultBounds(metric.id);
+    if ((role === "baseline" && existingBounds.current && observedOn > existingBounds.current.observed_on)
+      || (role === "current" && existingBounds.baseline && observedOn < existingBounds.baseline.observed_on)) {
+      impactState.message = "The current result date must be on or after the baseline date.";
       render();
       return;
     }
     impactState.saving = true;
     try {
-      const row = { id: uuid(), user_id: user.id, metric_id: metric.id, observed_on: observedOn, value, source: "athlete_entry", notes: notes || null };
-      const result = await client.from(RESULTS_TABLE).insert(row).select(RESULT_COLUMNS).single();
+      const bounds = resultBounds(metric.id);
+      const existing = role === "baseline" ? bounds.baseline : bounds.current;
+      const query = existing
+        ? client.from(RESULTS_TABLE).update({ observed_on: observedOn, value }).eq("id", existing.id).eq("user_id", user.id).select(RESULT_COLUMNS).single()
+        : client.from(RESULTS_TABLE).insert({ id: uuid(), user_id: user.id, metric_id: metric.id, observed_on: observedOn, value, source: "athlete_entry", notes: null }).select(RESULT_COLUMNS).single();
+      const result = await query;
       if (result.error) throw result.error;
-      impactState.results = [...impactState.results, result.data];
-      impactState.message = `${metric.name} result saved.`;
+      impactState.results = existing
+        ? impactState.results.map(item => item.id === existing.id ? result.data : item)
+        : [...impactState.results, result.data];
+      impactState.editor = role === "baseline" ? { step: "current", metricId: metric.id } : { step: "complete", metricId: metric.id };
+      impactState.message = `${role === "baseline" ? "Baseline" : "Current result"} saved.`;
     } catch (error) {
-      impactState.message = error?.message || "Could not save that result.";
+      impactState.message = error?.message || "Could not save that Reflection value.";
     } finally {
       impactState.saving = false;
       render();
     }
   }
 
-  async function saveFeedback(button) {
-    const section = button.closest("[data-impact-feedback-session]");
-    const sessionId = section?.dataset.impactFeedbackSession;
-    const session = [...impactState.trainingSessions, ...localTrainingSessions()].find(item => String(item.id) === String(sessionId));
-    const energy = section?.querySelector("[data-impact-energy].selected")?.dataset.impactEnergy;
-    const completion = section?.querySelector("[data-impact-completion].selected")?.dataset.impactCompletion;
+  async function saveReflectionDates() {
     const client = cloud()?.client;
     const user = cloud()?.user;
-    if (!session || !energy || !completion || !client?.from || !user?.id) return;
+    const metric = metricById(impactState.editor?.metricId);
+    const bounds = resultBounds(metric?.id);
+    const baselineDate = bounds.baseline ? domain().validDateKey(document.getElementById("reflectionBaselineDate")?.value) : null;
+    const currentDate = bounds.current ? domain().validDateKey(document.getElementById("reflectionCurrentDate")?.value) : null;
+    if (!client?.from || !user?.id || !metric || (bounds.baseline && !baselineDate) || (bounds.current && !currentDate)) {
+      impactState.message = "Choose valid dates for the recorded values.";
+      render();
+      return;
+    }
+    if (baselineDate && currentDate && currentDate < baselineDate) {
+      impactState.message = "The current result date must be on or after the baseline date.";
+      render();
+      return;
+    }
     impactState.saving = true;
     try {
-      const row = {
-        id: uuid(),
-        user_id: user.id,
-        training_mode_session_id: session.id,
-        activity_source: "training_mode",
-        activity_external_id: null,
-        session_started_at: session.started_at || session.startedAt,
-        session_ended_at: session.ended_at || session.endedAt,
-        energy_rating: energy,
-        session_completion: completion,
-        source: "athlete_entry"
-      };
-      const result = await client.from(FEEDBACK_TABLE).insert(row).select(FEEDBACK_COLUMNS).single();
-      if (result.error) throw result.error;
-      impactState.feedback = [result.data, ...impactState.feedback];
-      impactState.message = "Training feedback saved.";
+      const updates = [];
+      if (bounds.baseline) updates.push(client.from(RESULTS_TABLE).update({ observed_on: baselineDate }).eq("id", bounds.baseline.id).eq("user_id", user.id).select(RESULT_COLUMNS).single());
+      if (bounds.current) updates.push(client.from(RESULTS_TABLE).update({ observed_on: currentDate }).eq("id", bounds.current.id).eq("user_id", user.id).select(RESULT_COLUMNS).single());
+      const results = await Promise.all(updates);
+      const failed = results.find(result => result.error);
+      if (failed) throw failed.error;
+      const updated = new Map(results.map(result => [result.data.id, result.data]));
+      impactState.results = impactState.results.map(item => updated.get(item.id) || item);
+      impactState.editor = null;
+      impactState.message = "Reflection dates updated.";
     } catch (error) {
-      impactState.message = error?.message || "Could not save training feedback.";
+      impactState.message = error?.message || "Could not update those dates.";
     } finally {
       impactState.saving = false;
       render();
     }
+  }
+
+  function customOutcomeFromEditor() {
+    const preset = outcomeByKey(impactState.editor?.presetKey);
+    const direction = document.getElementById("reflectionCustomDirection")?.value || "higher";
+    const targetMinText = String(document.getElementById("reflectionCustomTargetMin")?.value || "").trim();
+    const targetMaxText = String(document.getElementById("reflectionCustomTargetMax")?.value || "").trim();
+    return {
+      key: preset?.key || null,
+      name: String(document.getElementById("reflectionCustomName")?.value || "").trim(),
+      unit: String(document.getElementById("reflectionCustomUnit")?.value || "").trim(),
+      measurementType: document.getElementById("reflectionCustomMeasurement")?.value || "number",
+      direction,
+      targetMin: targetMinText ? Number(targetMinText) : NaN,
+      targetMax: targetMaxText ? Number(targetMaxText) : NaN,
+      sportType: preset?.sportType || "custom"
+    };
+  }
+
+  function outcomeByKey(key) {
+    return Object.values(OUTCOME_GROUPS).flatMap(group => group.outcomes).find(outcome => outcome.key === key) || null;
   }
 
   document.addEventListener("click", event => {
-    if (event.target.closest("[data-impact-onboarding-continue]")) {
-      document.querySelector(".impact-setup")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-      document.getElementById("impactSportSelect")?.focus?.();
-      return;
-    }
-    if (event.target.closest("[data-impact-onboarding-later]")) {
-      dismissOnboarding(cloud()?.user?.id || "");
-      if (typeof switchScreen === "function") switchScreen("dashboard");
+    if (event.target.closest("[data-reflection-open-chooser]")) {
+      impactState.editor = { step: "choose" };
       render();
       return;
     }
-    const presetButton = event.target.closest("[data-impact-preset]");
-    if (presetButton) {
-      const preset = (PRESETS[impactState.sport] || []).find(item => item.key === presetButton.dataset.impactPreset);
-      if (preset) saveMetric(preset);
+    if (event.target.closest("[data-reflection-custom-outcome]")) {
+      impactState.editor = { step: "custom" };
+      render();
       return;
     }
-    const archiveButton = event.target.closest("[data-impact-archive-metric]");
-    if (archiveButton) return archiveMetric(archiveButton.dataset.impactArchiveMetric);
-    if (event.target.closest("[data-impact-save-custom]")) {
-      const direction = document.getElementById("impactCustomDirection")?.value || "higher";
-      const targetMinText = String(document.getElementById("impactCustomTargetMin")?.value || "").trim();
-      const targetMaxText = String(document.getElementById("impactCustomTargetMax")?.value || "").trim();
-      const targetMin = targetMinText ? Number(targetMinText) : NaN;
-      const targetMax = targetMaxText ? Number(targetMaxText) : NaN;
-      const custom = {
-        key: null,
-        name: String(document.getElementById("impactCustomName")?.value || "").trim(),
-        unit: String(document.getElementById("impactCustomUnit")?.value || "").trim(),
-        measurementType: document.getElementById("impactCustomMeasurement")?.value || "number",
-        direction,
-        targetMin,
-        targetMax
-      };
-      if (!custom.name || !custom.unit || (direction === "target_range" && (!Number.isFinite(targetMin) || !Number.isFinite(targetMax) || targetMin > targetMax))) {
-        impactState.message = "Complete the custom metric name, unit and any target range.";
+    const outcomeButton = event.target.closest("[data-reflection-outcome]");
+    if (outcomeButton) {
+      const outcome = outcomeByKey(outcomeButton.dataset.reflectionOutcome);
+      if (outcome?.requiresTarget) {
+        impactState.editor = { step: "custom", presetKey: outcome.key };
+        render();
+      } else if (outcome) saveMetric(outcome);
+      return;
+    }
+    if (event.target.closest("[data-reflection-save-custom]")) {
+      const custom = customOutcomeFromEditor();
+      if (!custom.name || !custom.unit || (custom.direction === "target_range" && (!Number.isFinite(custom.targetMin) || !Number.isFinite(custom.targetMax) || custom.targetMin > custom.targetMax))) {
+        impactState.message = "Complete the outcome name, unit and any target range.";
         render();
       } else saveMetric(custom);
       return;
     }
-    if (event.target.closest("[data-impact-save-result]")) return saveResult();
-    const choice = event.target.closest("[data-impact-energy], [data-impact-completion]");
-    if (choice) {
-      const attribute = choice.dataset.impactEnergy ? "data-impact-energy" : "data-impact-completion";
-      choice.closest(".impact-feedback")?.querySelectorAll(`[${attribute}]`).forEach(button => button.classList.toggle("selected", button === choice));
-      const section = choice.closest(".impact-feedback");
-      const saveButton = section?.querySelector("[data-impact-save-feedback]");
-      if (saveButton) saveButton.disabled = !(section.querySelector("[data-impact-energy].selected") && section.querySelector("[data-impact-completion].selected"));
+    const editButton = event.target.closest("[data-reflection-edit]");
+    if (editButton) {
+      impactState.editor = { step: editButton.dataset.reflectionEdit, metricId: editButton.dataset.reflectionMetric };
+      render();
       return;
     }
-    const feedbackButton = event.target.closest("[data-impact-save-feedback]");
-    if (feedbackButton) return saveFeedback(feedbackButton);
+    const valueButton = event.target.closest("[data-reflection-save-value]");
+    if (valueButton) return saveReflectionValue(valueButton.dataset.reflectionSaveValue);
+    if (event.target.closest("[data-reflection-save-dates]")) return saveReflectionDates();
+    const changeButton = event.target.closest("[data-reflection-change-metric]");
+    if (changeButton) return archiveMetric(changeButton.dataset.reflectionChangeMetric, { openChooser: true });
+    const deleteButton = event.target.closest("[data-reflection-delete]");
+    if (deleteButton) {
+      if (window.confirm("Remove this Reflection? Its private result history will be retained.")) return archiveMetric(deleteButton.dataset.reflectionDelete, { deleted: true });
+      return;
+    }
+    if (event.target.closest("[data-reflection-close]") || event.target.matches("[data-reflection-close-backdrop]")) {
+      impactState.editor = null;
+      render();
+      return;
+    }
     if (event.target.closest("[data-impact-refresh]")) load({ force: true });
   });
 
   document.addEventListener("change", event => {
-    if (event.target.id === "impactSportSelect") {
-      impactState.sport = event.target.value;
-      render();
-    }
-    if (event.target.id === "impactRangeSelect") {
-      impactState.range = event.target.value;
-      render();
-    }
-    if (event.target.id === "impactCustomDirection") {
-      document.querySelectorAll("[data-impact-target-field]").forEach(field => { field.hidden = event.target.value !== "target_range"; });
+    if (event.target.id === "reflectionCustomDirection") {
+      document.querySelectorAll("[data-reflection-target]").forEach(field => { field.hidden = event.target.value !== "target_range"; });
     }
   });
 
   window.addEventListener("fuelguard:cloud-status", () => load());
   window.addEventListener("fuelguard:training-session-ended", event => {
     impactState.trainingSessions = [event.detail?.session, ...impactState.trainingSessions.filter(session => session.id !== event.detail?.session?.id)].filter(Boolean);
-    if (!event.detail?.deferNavigation && typeof switchScreen === "function") switchScreen("impact");
     load({ force: true });
   });
   window.addEventListener("fuelguard:training-completion-dismissed", () => {
-    if (typeof switchScreen === "function") switchScreen("impact");
     load({ force: true });
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) load({ force: true }); });
@@ -813,6 +761,6 @@
     render,
     load,
     report: currentReport,
-    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, genuinelyNewAthlete, PRESETS }
+    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, genuinelyNewAthlete, resultBounds, comparisonChange, OUTCOME_GROUPS }
   };
 })();

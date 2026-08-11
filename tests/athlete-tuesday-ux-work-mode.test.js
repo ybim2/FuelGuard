@@ -110,13 +110,14 @@ test("Daily streak milestones expose 3, 7, 14, 30, 60 and 100 day lock states", 
   assert.doesNotMatch(read("index.html").slice(read("index.html").indexOf('id="dashboard"'), read("index.html").indexOf('id="training"')), /FG Points|next reward/i);
 });
 
-test("primary Athlete navigation is Impact, Daily, Training with distinct matching icons and compact safe-area targets", () => {
+test("primary Athlete navigation is Reflection, Daily, Training with distinct matching icons and compact safe-area targets", () => {
   const html = read("index.html");
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   const impact = nav.indexOf('data-mobile-tab="impact"');
   const daily = nav.indexOf('data-mobile-tab="log"');
   const training = nav.indexOf('data-mobile-tab="training"');
   assert.ok(impact < daily && daily < training);
+  assert.match(nav.slice(impact, daily), /<span>Reflection<\/span>/);
   assert.match(nav.slice(impact, daily), /<circle[\s\S]*m14 10 5-5/);
   assert.match(nav.slice(daily, training), /m6 15 3-4 3 3 5-7/);
   assert.match(nav.slice(training), /circle cx="14" cy="4"[\s\S]*m8 21 3-6/);
@@ -215,30 +216,26 @@ test("Training completion has one transient summary and remains represented once
   assert.match(css, /\.training-completion-moment \{/);
 });
 
-test("Impact uses the Athlete card system, the requested hierarchy and guarded first-use onboarding", () => {
+test("Reflection uses a continuous Athlete surface with progressive editing and no legacy summary cards", () => {
   const impact = read("athlete-impact.js");
   const css = read("athlete-impact.css");
-  for (const label of ["1 · Set your direction", "2 · Primary outcomes you want", "3 · Comparison report", "4 · Impact summary", "5 · Add new results"]) {
-    assert.match(impact, new RegExp(label.replace("·", "\\·")));
-  }
-  const renderOrder = impact.slice(impact.indexOf("target.innerHTML = `", impact.indexOf("function render()")), impact.indexOf("async function load"));
-  assert.ok(renderOrder.indexOf("presetSetupMarkup()") < renderOrder.indexOf("reportMarkup(report)"));
-  assert.ok(renderOrder.indexOf("reportMarkup(report)") < renderOrder.indexOf("resultEntryMarkup()"));
-  const report = impact.slice(impact.indexOf("function reportMarkup"), impact.indexOf("function presetSetupMarkup"));
-  assert.ok(report.indexOf("2 · Primary outcomes") < report.indexOf("3 · Comparison report"));
-  assert.ok(report.indexOf("3 · Comparison report") < report.indexOf("4 · Impact summary"));
+  for (const label of ["Your goals", "Your progress", "Fuel Guard evidence", "Add another reflection", "Step 1 of 4", "Step 4 of 4", "Where were you when you started", "Where are you now"]) assert.match(impact, new RegExp(label));
+  assert.doesNotMatch(impact, /Impact summary|Training experience|function feedbackMarkup/);
+  assert.match(impact, /Update current result/);
+  assert.match(impact, /Edit baseline/);
+  assert.match(impact, /Change dates/);
+  assert.match(impact, /Delete reflection/);
   assert.match(impact, /age <= 72 \* 60 \* 60 \* 1000/);
   assert.match(impact, /noImpactData[\s\S]*localLogs\(\)\.length === 0/);
-  assert.match(impact, /Continue with Daily/);
-  assert.match(css, /Align Impact with the canonical light Athlete card system/);
-  assert.match(css, /background: rgba\(255, 255, 255, 0\.94\)/);
+  assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
+  assert.match(css, /\.reflection-editor-backdrop/);
 });
 
 test("the PWA cache advances once and includes every new Work Mode asset", () => {
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v136-experience-feedback/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v137-accepted-integration/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));
