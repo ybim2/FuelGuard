@@ -133,6 +133,9 @@ module FuelGuardHealthApi {
 
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
+        if (FuelGuardConnection.handleAuthenticationFailure(responseCode)) {
+            return;
+        }
         if (responseAcknowledged(responseCode, data)) {
             if (context instanceof String) {
                 FuelGuardHealthQueue.removeAcknowledged(context as String);

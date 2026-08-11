@@ -1,5 +1,8 @@
 (() => {
   const APP_ORDER = Object.freeze(["quick_log", "activity_logger"]);
+  const RECONNECT_POLL_INTERVAL_MS = 3000;
+  const RECONNECT_POLL_ATTEMPTS = 20;
+  const RECONNECT_SUCCESS_MS = 1800;
   const APP_DETAILS = Object.freeze({
     quick_log: Object.freeze({
       label: "Quick Log",
@@ -8,10 +11,9 @@
       storeLabel: "Get Quick Log",
       storeUrl: "https://apps.garmin.com/en-US/apps/daa45a0d-e858-4b08-84b1-e9bb9a8196f3",
       steps: Object.freeze([
-        "Open Fuel Guard Quick Log on your Garmin and press START on Connect.",
-        "Open the connection request in the Connect IQ Store app on your phone.",
-        "Sign in to Fuel Guard and approve the connection.",
-        "Return here and check that Quick Log shows Connected."
+        "Open Fuel Guard Quick Log on your Garmin.",
+        "Select Connect Fuel Guard.",
+        "Approve the Fuel Guard request in the Connect IQ Store app on your phone."
       ])
     }),
     activity_logger: Object.freeze({
@@ -22,9 +24,8 @@
       storeUrl: "https://apps.garmin.com/en-US/apps/2c53ef82-9139-4c73-ac75-2ed75abceb3b",
       steps: Object.freeze([
         "Open Fuel Guard Activity Logger settings on your Garmin.",
-        "Press ENTER on Connect Fuel Guard.",
-        "Open the connection request in the Connect IQ Store app on your phone and approve it.",
-        "Return here and check that Activity Logger shows Connected."
+        "Select Connect Fuel Guard.",
+        "Approve the Fuel Guard request in the Connect IQ Store app on your phone."
       ])
     })
   });
@@ -34,6 +35,10 @@
   let actionInFlight = false;
   let dialogState = null;
   let dialogTrigger = null;
+  let reconnectPollTimer = null;
+  let reconnectPollAttempts = 0;
+  let reconnectPollAppId = null;
+  let reconnectSuccessTimer = null;
 
   function els() {
     return {
@@ -142,7 +147,21 @@
     }).join("");
   }
 
+  function stopReconnectPolling() {
+    if (reconnectPollTimer !== null) window.clearTimeout(reconnectPollTimer);
+    reconnectPollTimer = null;
+    reconnectPollAttempts = 0;
+    reconnectPollAppId = null;
+  }
+
+  function stopReconnectSuccessTimer() {
+    if (reconnectSuccessTimer !== null) window.clearTimeout(reconnectSuccessTimer);
+    reconnectSuccessTimer = null;
+  }
+
   function closeDialog({ restoreFocus = true } = {}) {
+    stopReconnectPolling();
+    stopReconnectSuccessTimer();
     const { dialog } = els();
     if (dialog) {
       dialog.hidden = true;
@@ -174,10 +193,11 @@
           <button class="beta-garmin-dialog-close" type="button" data-garmin-dialog-close aria-label="Close connection guide">×</button>
           <span class="beta-garmin-dialog-eyebrow">Garmin &amp; Devices</span>
           <h3 id="garminConnectionGuideTitle" tabindex="-1" data-garmin-dialog-focus>${safe(title)}</h3>
+          <p class="beta-garmin-waiting-state"><strong>Waiting for your Garmin…</strong></p>
           <ol class="beta-garmin-guide-steps">
             ${details.steps.map(step => `<li>${safe(step)}</li>`).join("")}
           </ol>
-          <p class="beta-garmin-guide-support">Keep your Garmin connected to your phone while ${reconnecting ? "reconnecting" : "connecting"}.</p>
+          <p class="beta-garmin-guide-support">Fuel Guard will update automatically when your Garmin ${reconnecting ? "reconnects" : "connects"}.</p>
           <div class="beta-garmin-dialog-actions">
             <button class="secondary" type="button" data-garmin-dialog-close>Done</button>
             <a class="beta-garmin-store-link" href="${safe(details.storeUrl)}" target="_blank" rel="noopener noreferrer">${safe(details.storeLabel)}</a>
@@ -185,6 +205,51 @@
         </section>
       </div>
     `, { type: "guide", appId }, trigger);
+    startReconnectPolling(appId);
+  }
+
+  function showReconnectSuccess(appId) {
+    const details = APP_DETAILS[appId];
+    if (!details || dialogState?.type !== "guide" || dialogState.appId !== appId) return false;
+    const trigger = dialogTrigger;
+    stopReconnectPolling();
+    showDialog(`
+      <div class="beta-garmin-dialog-backdrop">
+        <section class="beta-garmin-dialog beta-garmin-success-dialog" role="dialog" aria-modal="true" aria-labelledby="garminConnectionSuccessTitle">
+          <span class="beta-garmin-dialog-eyebrow">Garmin &amp; Devices</span>
+          <div class="beta-garmin-success-mark" aria-hidden="true">✓</div>
+          <h3 id="garminConnectionSuccessTitle" tabindex="-1" data-garmin-dialog-focus>${safe(details.label)} connected</h3>
+          <p>Your Garmin can send Fuel Guard events again.</p>
+        </section>
+      </div>
+    `, { type: "success", appId }, trigger);
+    setStatus(`${details.label} connected. Your Garmin can send Fuel Guard events again.`);
+    reconnectSuccessTimer = window.setTimeout(() => {
+      if (dialogState?.type === "success" && dialogState.appId === appId) {
+        closeDialog({ restoreFocus: false });
+      }
+    }, RECONNECT_SUCCESS_MS);
+    return true;
+  }
+
+  function scheduleReconnectPoll() {
+    if (reconnectPollTimer !== null
+        || reconnectPollAttempts >= RECONNECT_POLL_ATTEMPTS
+        || dialogState?.type !== "guide"
+        || dialogState.appId !== reconnectPollAppId) return;
+    reconnectPollTimer = window.setTimeout(async () => {
+      reconnectPollTimer = null;
+      if (dialogState?.type !== "guide" || dialogState.appId !== reconnectPollAppId) return;
+      reconnectPollAttempts += 1;
+      await loadDevices({ quiet: true });
+      scheduleReconnectPoll();
+    }, RECONNECT_POLL_INTERVAL_MS);
+  }
+
+  function startReconnectPolling(appId) {
+    stopReconnectPolling();
+    reconnectPollAppId = appId;
+    scheduleReconnectPoll();
   }
 
   function openDisconnectConfirmation(appId, deviceIndex, trigger) {
@@ -214,13 +279,13 @@
 
   async function loadDevices({ quiet = false } = {}) {
     const { card, list } = els();
-    if (!card || loading || actionInFlight) return;
+    if (!card || loading || actionInFlight) return false;
     const account = cloud()?.accountView?.() || {};
     card.hidden = !account.signedIn;
-    if (!account.signedIn) return;
+    if (!account.signedIn) return false;
     if (!token()) {
       if (list) list.innerHTML = '<p class="row-note">Sign in again to manage Garmin connections.</p>';
-      return;
+      return false;
     }
     try {
       loading = true;
@@ -230,9 +295,14 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load Garmin apps.");
       renderRows(data.devices || []);
-      if (!quiet) setStatus("Garmin connection status is up to date.");
+      const reconnected = dialogState?.type === "guide"
+        && activeDevices(dialogState.appId).length > 0
+        && showReconnectSuccess(dialogState.appId);
+      if (!quiet && !reconnected) setStatus("Garmin connection status is up to date.");
+      return true;
     } catch (error) {
       setStatus(error?.message || "Could not load Garmin apps.");
+      return false;
     } finally {
       loading = false;
       updateControls();

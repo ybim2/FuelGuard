@@ -284,8 +284,9 @@ class FuelGuardQuickLogView extends WatchUi.View {
 
         if (!FuelGuardConnection.connected()) {
             drawCenter(dc, 28, Graphics.FONT_SMALL, "Fuel Guard", Graphics.COLOR_GREEN);
-            drawCenter(dc, height / 2 - 14, Graphics.FONT_XTINY, "Connect", Graphics.COLOR_WHITE);
-            drawCenter(dc, height / 2 + 14, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
+            drawCenter(dc, height / 2 - 24, Graphics.FONT_XTINY, "Disconnected", Graphics.COLOR_LT_GRAY);
+            drawCenter(dc, height / 2 + 2, Graphics.FONT_XTINY, "Connect Fuel Guard", Graphics.COLOR_WHITE);
+            drawCenter(dc, height / 2 + 28, Graphics.FONT_XTINY, "Press START", Graphics.COLOR_LT_GRAY);
             if (syncText != null) {
                 drawCenter(dc, height - 34, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
             }

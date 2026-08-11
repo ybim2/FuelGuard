@@ -276,6 +276,10 @@ module FuelGuardApi {
 
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
+        if (FuelGuardConnection.handleAuthenticationFailure(responseCode)) {
+            finishBatch();
+            return;
+        }
         var queuedEvent = FuelGuardQueue.peek();
         var trainingCommand = queuedEvent != null && FuelGuardTraining.isCommand(queuedEvent as Dictionary);
         var acknowledged = trainingCommand

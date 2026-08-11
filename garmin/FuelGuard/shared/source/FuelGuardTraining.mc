@@ -295,6 +295,9 @@ module FuelGuardTraining {
 
     function onStatusResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _refreshInFlight = false;
+        if (FuelGuardConnection.handleAuthenticationFailure(responseCode)) {
+            return;
+        }
         if (responseCode == 200 && data instanceof Dictionary) {
             var values = data as Dictionary;
             var nextActive = dictionaryBoolean(values, "active");

@@ -1823,6 +1823,11 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
   padding-left: 24px;
 }
 
+.beta-garmin-waiting-state strong {
+  color: #1f6b4d;
+  font-size: .9rem;
+}
+
 .beta-garmin-guide-steps li {
   padding-left: 4px;
   color: var(--ink, #17342e);
@@ -1852,6 +1857,26 @@ body.beta-mvp .beta-data-card .beta-daily-current-status {
 
 .beta-garmin-disconnect-dialog {
   align-self: center;
+}
+
+.beta-garmin-success-dialog {
+  align-self: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.beta-garmin-success-mark {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(35, 130, 90, .24);
+  border-radius: 50%;
+  color: #1f6b4d;
+  background: rgba(35, 130, 90, .12);
+  font-size: 1.7rem;
+  font-weight: 900;
+  box-shadow: 0 10px 28px rgba(35, 130, 90, .14);
 }
 
 #garminDevicesDialog[hidden] {

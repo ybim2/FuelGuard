@@ -130,3 +130,22 @@ function testFuelGuardActivityLoggerDisconnectDoesNotErasePendingEvents(logger) 
         && (FuelGuardQueue.externalEventId(queued) as String).equals(eventId as String)
         && !FuelGuardConnection.connected();
 }
+
+
+(:test)
+function testFuelGuardActivityLoggerRevokedTokenClearsAndPreservesPendingLap(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setConnectedForTest("revoked-device-token");
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useTestTransport(401, {"error" => "invalid_device_token"}, false);
+
+    var field = new FuelGuardActivityLoggerField();
+    field.onTimerLap();
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardConnection.statusText().equals("Disconnected - reconnect")
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardApi.dispatchCountForTest() == 1
+        && !field.isConfirmingForTest();
+}

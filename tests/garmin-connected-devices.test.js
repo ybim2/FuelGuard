@@ -42,6 +42,8 @@ function harness(responses = []) {
   const documentEvents = {};
   const windowEvents = {};
   const calls = [];
+  const timers = new Map();
+  let nextTimerId = 1;
   const document = {
     hidden: false,
     getElementById(id) { return elements.get(id) || null; },
@@ -53,7 +55,13 @@ function harness(responses = []) {
       accessToken() { return "athlete-session"; }
     },
     addEventListener(type, callback) { windowEvents[type] = callback; },
-    requestAnimationFrame(callback) { callback(); }
+    requestAnimationFrame(callback) { callback(); },
+    setTimeout(callback, delay) {
+      const id = nextTimerId++;
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id) { timers.delete(id); }
   };
   async function fetch(url, options = {}) {
     calls.push({ url, options });
@@ -73,7 +81,15 @@ function harness(responses = []) {
     String,
     Array
   }, { filename: "garmin-connected-devices.js" });
-  return { window, document, elements, documentEvents, windowEvents, calls };
+  async function runNextTimer() {
+    const next = timers.entries().next();
+    if (next.done) return null;
+    const [id, timer] = next.value;
+    timers.delete(id);
+    await timer.callback();
+    return timer.delay;
+  }
+  return { window, document, elements, documentEvents, windowEvents, calls, timers, runNextTimer };
 }
 
 test("first-use Garmin Settings shows useful Connect actions for both public apps", async () => {
@@ -92,8 +108,10 @@ test("first-use Garmin Settings shows useful Connect actions for both public app
   const guide = view.elements.get("garminDevicesDialog");
   assert.equal(guide.hidden, false);
   assert.match(guide.innerHTML, /Connect Quick Log/);
-  assert.match(guide.innerHTML, /press START on Connect/);
+  assert.match(guide.innerHTML, /Waiting for your Garmin/);
+  assert.match(guide.innerHTML, /Select Connect Fuel Guard/);
   assert.match(guide.innerHTML, /Connect IQ Store app/);
+  assert.match(guide.innerHTML, /update automatically when your Garmin connects/);
   assert.match(guide.innerHTML, /daa45a0d-e858-4b08-84b1-e9bb9a8196f3/);
   assert.doesNotMatch(guide.innerHTML, /Garmin Connect mobile app/);
 });
@@ -116,7 +134,7 @@ test("previously used Garmin apps remain visible as disconnected with Reconnect 
   const guide = view.elements.get("garminDevicesDialog").innerHTML;
   assert.match(guide, /Reconnect Activity Logger/);
   assert.match(guide, /Open Fuel Guard Activity Logger settings on your Garmin/);
-  assert.match(guide, /Press ENTER on Connect Fuel Guard/);
+  assert.match(guide, /Select Connect Fuel Guard/);
   assert.match(guide, /2c53ef82-9139-4c73-ac75-2ed75abceb3b/);
 });
 
@@ -184,4 +202,39 @@ test("returning to the app refreshes a completed Garmin connection automatically
   const html = view.elements.get("garminDevicesList").innerHTML;
   assert.match(html, /Connected <span aria-hidden="true">✓<\/span>/);
   assert.match(html, /Last used: Not yet used/);
+});
+
+test("Reconnect polls only while the guide is active, confirms success and closes automatically", async () => {
+  const revoked = { id: "old", app_id: "quick_log", revoked_at: "2026-08-11T12:00:00Z" };
+  const view = harness([
+    response({ devices: [revoked] }),
+    response({ devices: [revoked] }),
+    response({ devices: [revoked, { id: "new", app_id: "quick_log", last_used_at: null, revoked_at: null }] })
+  ]);
+  await view.window.fuelGuardGarminDevices.refresh();
+  view.documentEvents.click({ target: target({ "data-garmin-guide": "quick_log", "data-garmin-guide-mode": "reconnect" }) });
+  assert.equal(view.timers.size, 1);
+  assert.equal(await view.runNextTimer(), 3000);
+  assert.equal(view.timers.size, 1);
+  assert.equal(await view.runNextTimer(), 3000);
+
+  const dialog = view.elements.get("garminDevicesDialog");
+  assert.match(dialog.innerHTML, /Quick Log connected/);
+  assert.match(dialog.innerHTML, /Your Garmin can send Fuel Guard events again/);
+  assert.match(view.elements.get("garminDevicesList").innerHTML, /Connected <span aria-hidden="true">✓<\/span>/);
+  assert.match(view.elements.get("garminDevicesStatus").textContent, /Quick Log connected/);
+  assert.equal(view.timers.size, 1);
+  assert.equal(await view.runNextTimer(), 1800);
+  assert.equal(dialog.hidden, true);
+  assert.equal(view.timers.size, 0);
+});
+
+test("closing a reconnect guide cancels its bounded background refresh", async () => {
+  const view = harness([response({ devices: [{ id: "old", app_id: "activity_logger", revoked_at: "2026-08-11T12:00:00Z" }] })]);
+  await view.window.fuelGuardGarminDevices.refresh();
+  view.documentEvents.click({ target: target({ "data-garmin-guide": "activity_logger", "data-garmin-guide-mode": "reconnect" }) });
+  assert.equal(view.timers.size, 1);
+  view.documentEvents.click({ target: target({ "data-garmin-dialog-close": "" }) });
+  assert.equal(view.elements.get("garminDevicesDialog").hidden, true);
+  assert.equal(view.timers.size, 0);
 });

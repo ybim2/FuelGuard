@@ -314,10 +314,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v141-garmin-reconnect/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v142-fast-garmin-reconnect/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v141-garmin-reconnect/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v142-fast-garmin-reconnect/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

@@ -459,6 +459,31 @@ test("Garmin private beta packaging assets are dashboard-ready", () => {
   });
 });
 
+test("Garmin revoked credentials are cleared centrally across every connected async path", () => {
+  const connection = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
+  const api = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardApi.mc");
+  const training = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardTraining.mc");
+  const health = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardHealthApi.mc");
+  const quickView = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
+
+  const authFailure = sourceBlock(connection, "function handleAuthenticationFailure", "function logEndpoint");
+  assert.match(authFailure, /responseCode != 401/);
+  assert.match(authFailure, /clearLocalToken\(\)/);
+  assert.match(authFailure, /Disconnected - reconnect/);
+
+  for (const connectedCallback of [api, training, health]) {
+    assert.match(connectedCallback, /FuelGuardConnection\.handleAuthenticationFailure\(responseCode\)/);
+  }
+  const apiResponse = sourceBlock(api, "    function onResponse(responseCode", "(:debug)\n    function resetForTest");
+  const trainingStatus = sourceBlock(training, "    function onStatusResponse(responseCode", "(:debug)\n    function resetForTest");
+  const healthResponse = sourceBlock(health, "    function onResponse(responseCode", "(:debug)\n    function resetForTest");
+  assertSourceOrder(apiResponse, "FuelGuardConnection.handleAuthenticationFailure(responseCode)", "FuelGuardQueue.peek()");
+  assertSourceOrder(trainingStatus, "FuelGuardConnection.handleAuthenticationFailure(responseCode)", "if (responseCode == 200 && data instanceof Dictionary)");
+  assertSourceOrder(healthResponse, "FuelGuardConnection.handleAuthenticationFailure(responseCode)", "if (responseAcknowledged(responseCode, data))");
+  assert.match(quickView, /"Disconnected"/);
+  assert.match(quickView, /"Connect Fuel Guard"/);
+});
+
 test("Activity Logger uses onTimerLap and persists before upload", () => {
   const source = readRepoFile("garmin/FuelGuard/activity-logger/source/FuelGuardActivityLoggerField.mc");
 
