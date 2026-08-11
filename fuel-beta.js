@@ -1387,7 +1387,7 @@
       crashLogCount: hasCrash ? 1 : 0
     });
     const lines = [`Time beyond fuel window: ${debtText}`, `Recovery support: ${recoveryRiskLabel(recovery.riskLabel)}`];
-    if (costWindow && costWindow !== "stable for now") lines.push(`Possible impact window: ${costWindow}.`);
+    if (costWindow && costWindow !== "stable for now") lines.push(`Possible effect window: ${costWindow}.`);
 
     if (level === "stable") {
       lines.push("Support window steady.");
@@ -1397,10 +1397,10 @@
       lines.push("Support your work, training, and recovery window.");
       lines.push("This long gap may affect how steady you feel later.");
       if (level === "mild") {
-        lines.push("Later energy impact may be starting to build.");
+        lines.push("A later energy effect may be starting to build.");
         lines.push("You moved past your target fuel window, so a gentle support signal is showing up.");
       } else if (level === "medium") {
-        lines.push("Possible impact window: later today.");
+        lines.push("Possible effect window: later today.");
         lines.push("The pattern suggests today may need extra steady-fuelling support.");
       } else {
         lines.push("This longer gap may affect how steady you feel later today or post-shift.");
@@ -1411,7 +1411,7 @@
     if (hasCrash && level !== "stable") lines.push("A low-energy event was marked, so this pattern may be useful to review without treating it as medical proof.");
 
     return {
-      title: "Later Energy Impact",
+      title: "Later Energy Effect",
       level,
       debtText,
       costWindow: costWindow || "stable for now",
@@ -3049,14 +3049,14 @@
     const callouts = lines
       .filter(line => !/^time beyond fuel window:/i.test(line))
       .filter(line => !/^recovery support:/i.test(line))
-      .filter(line => !/^possible impact window:/i.test(line))
+      .filter(line => !/^possible effect window:/i.test(line))
       .slice(0, 6);
     return `
-      <section class="beta-crash-cost-insight ${safeText(tone)} ${safeText(insight.level || "stable")}" aria-label="Later energy impact">
+      <section class="beta-crash-cost-insight ${safeText(tone)} ${safeText(insight.level || "stable")}" aria-label="Later energy effect">
         <div class="beta-crash-insight-head">
           <span class="beta-icon-disc amber">${dailyIcon("recovery")}</span>
           <div>
-            <h4>${safeText(insight.title || "Later Energy Impact")}</h4>
+            <h4>${safeText(insight.title || "Later Energy Effect")}</h4>
             <p>Time beyond your fuel window shows where later support may help.</p>
           </div>
           <b class="beta-status-chip">${safeText(riskLabel)}</b>
@@ -3066,7 +3066,7 @@
           <article><span>${dailyIcon("warning")}Recovery support</span><strong>${safeText(riskLabel)}</strong></article>
           <article><span>${dailyIcon("shield")}Support window</span><strong>${safeText(costWindow)}</strong></article>
         </div>
-        <div class="beta-crash-timeline" aria-label="Later energy impact timeline">
+        <div class="beta-crash-timeline" aria-label="Later energy effect timeline">
           <span class="beta-crash-safe" style="left:${stylePercent(safeLeft)};width:${stylePercent(safeWidth)}"></span>
           <span class="beta-crash-debt" style="left:${stylePercent(debtLeft)};width:${stylePercent(debtWidth)}"></span>
           <span class="beta-crash-recovery" style="left:${stylePercent(recoveryLeft)};width:${stylePercent(recoveryWidth)}"></span>
@@ -6225,13 +6225,13 @@
   }
 
   function renderImpactDetail(entry) {
-    if (!entry) return `<p class="muted">No impact story yet. Log fuel for a day and Impact will explain possible later energy impact.</p>`;
+    if (!entry) return `<p class="muted">No fuelling insight yet. Log fuel for a day and Fuel Guard will explain possible later energy effects.</p>`;
     const fuelDebtMinutes = Math.max(0, Math.round(Number(entry.fuelDebtMinutes || 0)));
     const highestRiskWindow = hasLongGapSignal(entry) || Number(entry.crashLogCount || 0)
       ? impactWindowLabel(entry)
       : "Not clear yet";
     return `
-      <section class="beta-impact-simple-grid" aria-label="Impact insights">
+      <section class="beta-impact-simple-grid" aria-label="Fuelling insights">
         ${renderImpactCard({
           title: "Highest-Risk Window",
           text: highestRiskWindowImpactCopy(entry),
@@ -7071,7 +7071,7 @@
             ? `The highest-risk window moved from ${previousWindow.label} last week to ${currentWindow.label} this week.`
             : `${currentWindow.label} repeated ${currentWindow.count} time${currentWindow.count === 1 ? "" : "s"} this week.`;
     return `
-      <section class="beta-impact-trend-grid" aria-label="Impact signals over time">
+      <section class="beta-impact-trend-grid" aria-label="Fuelling signals over time">
         ${renderWeeklyFuelLogTimeline(current)}
         ${renderImpactTrendCard({
           title: "Highest-Risk Window Trend",

@@ -27,7 +27,7 @@ function section(source, id, nextId) {
   return source.slice(start, end);
 }
 
-test("primary navigation keeps Training beside Daily and adds a focused Impact surface", () => {
+test("primary navigation keeps Training beside Daily and adds a focused Reflection surface", () => {
   const html = read("index.html");
   const css = read("fuel-beta.css");
   const appUi = read("app-ui.js");
@@ -36,7 +36,7 @@ test("primary navigation keeps Training beside Daily and adds a focused Impact s
 
   assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
-    ["impact", "Impact"],
+    ["impact", "Reflection"],
     ["dashboard", "Daily"],
     ["training", "Training"]
   ]);
@@ -218,13 +218,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Athlete UX and Impact fix release", () => {
+test("PWA cache and asset versions are bumped for the Reflection UX release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v134-overnight-integration";
+  const version = "mobile-pwa-v135-reflection-ux";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -234,7 +234,7 @@ test("PWA cache and asset versions are bumped for the Athlete UX and Impact fix 
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260811T075857Z/);
+  assert.match(sw, /20260811T114600Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
