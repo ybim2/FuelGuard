@@ -1,5 +1,21 @@
 # Connect IQ public-beta submission record
 
+## Production completion 0.5.2 source candidate — physical acceptance pending
+
+- **Version:** 0.5.2
+- **Canonical base:** `512beeb80c42994c6bc141c6f68ca78e85e06d31`
+- **Quick Log production AppID:** `2F3B7C5E9F2D4A6B8C1D0E7F0F255002`
+- **Activity Logger production AppID:** `9C8A41410F0A4D46A7F7D1C68F0F2551`
+- **Manifest targets:** 31 per app; 46 generated device binaries expected per exported package
+- **Simulator validation:** Quick Log 1,364/1,364; Activity Logger 589/589; combined 1,953/1,953
+- **Node validation:** 391/391
+- **Garmin command/RLS pgTAP:** 26/26 in isolated acceptance; fixtures rolled back with zero retained records
+- **State authority:** watch active/completed state changes only after an authoritative backend response; queued and failed transitions remain explicit and retryable
+- **Athlete foreground sync:** canonical Garmin starts/stops are adopted while the visible signed-in app is open, with identity and stale-response protection
+- **Production dependency:** `20260810091806_garmin_training_mode_commands`, then `20260810100500_garmin_training_mode_command_hardening`; audited but not applied
+- **Package identity:** exact signed package paths and SHA-256 hashes are recorded in the completion report after packages are built from the final tested commit
+- **Physical status:** PENDING Store-delivered Forerunner 255 acceptance; do not upload or publish without explicit authorisation
+
 ## Failed 0.5.1 physical candidate — not releasable
 
 - **Version:** 0.5.1

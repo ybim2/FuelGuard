@@ -6,6 +6,7 @@ import Toybox.WatchUi;
 
 class FuelGuardActivityLoggerField extends WatchUi.DataField {
     private var _confirmStartedAt as Number?;
+    private var _pendingEventId as String?;
     private var _handlingLap as Boolean = false;
 
     public function initialize() {
@@ -16,6 +17,16 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
     public function compute(info as Activity.Info) as Void {
     }
 
+    (:debug)
+    public function isConfirmingForTest() as Boolean {
+        return FuelGuardFeedback.confirmationActive(_confirmStartedAt);
+    }
+
+    (:debug)
+    public function pendingEventIdForTest() as String? {
+        return _pendingEventId;
+    }
+
     public function onTimerLap() as Void {
         if (_handlingLap) {
             return;
@@ -23,13 +34,23 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
         _handlingLap = true;
 
         var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
+        var eventId = FuelGuardQueue.externalEventId(event);
         FuelGuardQueue.enqueue(event);
-        _confirmStartedAt = Time.now().value();
-        FuelGuardFeedback.vibrate();
+        _pendingEventId = eventId != null ? eventId as String : null;
         FuelGuardApi.trySync(true);
+        updateAcknowledgedConfirmation();
         WatchUi.requestUpdate();
 
         _handlingLap = false;
+    }
+
+    private function updateAcknowledgedConfirmation() as Void {
+        if (_pendingEventId == null || !FuelGuardApi.eventAcknowledged(_pendingEventId)) {
+            return;
+        }
+        _pendingEventId = null;
+        _confirmStartedAt = Time.now().value();
+        FuelGuardFeedback.vibrateSuccess();
     }
 
     public function onUpdate(dc as Graphics.Dc) as Void {
@@ -38,6 +59,7 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
             FuelGuardApi.trySync(false);
             FuelGuardTraining.refresh(false);
         }
+        updateAcknowledgedConfirmation();
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
@@ -47,8 +69,9 @@ class FuelGuardActivityLoggerField extends WatchUi.DataField {
         var smallLayout = height < 90 || width < 120;
 
         if (FuelGuardFeedback.confirmationActive(_confirmStartedAt)) {
+            FuelGuardFeedback.drawSuccessMark(dc, width / 2, height / 2 - (smallLayout ? 5 : 13), smallLayout ? 8 : 12);
             dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-            dc.drawText(width / 2, height / 2, smallLayout ? Graphics.FONT_XTINY : Graphics.FONT_SMALL, "FUEL LOGGED", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(width / 2, smallLayout ? height - 14 : height / 2 + 16, Graphics.FONT_XTINY, "FUEL LOGGED", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
 

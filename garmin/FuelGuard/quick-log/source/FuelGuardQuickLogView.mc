@@ -9,12 +9,15 @@ class FuelGuardQuickLogView extends WatchUi.View {
     private const ACTION_HYDRATION = 1;
     private const ACTION_SLEEPY = 2;
     private const ACTION_TRAINING = 3;
+    private const PENDING_INPUT_LOCK_SECONDS = 1;
 
     private var _selection as Number = 0;
     private var _confirmStartedAt as Number?;
     private var _confirmType as String = FuelGuardEvents.TYPE_FUEL;
     private var _confirmationTimer as Timer.Timer?;
     private var _syncStatusTimer as Timer.Timer?;
+    private var _pendingEventId as String?;
+    private var _pendingStartedAt as Number?;
 
     public function initialize() {
         View.initialize();
@@ -48,7 +51,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     public function logSelection() as Void {
-        if (confirming()) {
+        if (confirming() || pendingInputLocked()) {
             return;
         }
         if (!FuelGuardConnection.connected()) {
@@ -56,23 +59,20 @@ class FuelGuardQuickLogView extends WatchUi.View {
             return;
         }
         if (_selection == ACTION_TRAINING) {
-            var trainingAction = FuelGuardTraining.toggle();
-            _confirmStartedAt = Time.now().value();
-            _confirmType = trainingAction.equals("start") ? "training_start" : "training_end";
-            FuelGuardFeedback.vibrate();
-            startConfirmationTimer();
+            FuelGuardTraining.toggle();
             WatchUi.requestUpdate();
             return;
         }
         var eventType = typeForSelection(_selection);
         var event = FuelGuardEvents.create(eventType);
+        var eventId = FuelGuardQueue.externalEventId(event);
         FuelGuardQueue.enqueue(event);
-        _confirmStartedAt = Time.now().value();
         _confirmType = eventType;
-        FuelGuardFeedback.vibrate();
+        _pendingEventId = eventId != null ? eventId as String : null;
+        _pendingStartedAt = Time.now().value();
         FuelGuardApi.trySync(true);
         FuelGuardHealth.maybeCollectAndSync("fuel_log");
-        startConfirmationTimer();
+        updateAcknowledgedConfirmation();
         WatchUi.requestUpdate();
     }
 
@@ -109,8 +109,19 @@ class FuelGuardQuickLogView extends WatchUi.View {
         return confirmationFirstLine();
     }
 
+    (:debug)
+    public function pendingEventIdForTest() as String? {
+        return _pendingEventId;
+    }
+
     private function confirming() as Boolean {
         return FuelGuardFeedback.confirmationActive(_confirmStartedAt);
+    }
+
+    private function pendingInputLocked() as Boolean {
+        return _pendingEventId != null
+            && _pendingStartedAt != null
+            && Time.now().value() - (_pendingStartedAt as Number) < PENDING_INPUT_LOCK_SECONDS;
     }
 
     private function cancelConfirmationTimer() as Void {
@@ -141,6 +152,21 @@ class FuelGuardQuickLogView extends WatchUi.View {
         WatchUi.requestUpdate();
     }
 
+    private function updateAcknowledgedConfirmation() as Void {
+        if (_pendingEventId == null || !FuelGuardApi.eventAcknowledged(_pendingEventId)) {
+            return;
+        }
+        var acknowledgedType = FuelGuardApi.acknowledgedType();
+        if (acknowledgedType != null) {
+            _confirmType = acknowledgedType as String;
+        }
+        _pendingEventId = null;
+        _pendingStartedAt = null;
+        _confirmStartedAt = Time.now().value();
+        FuelGuardFeedback.vibrateSuccess();
+        startConfirmationTimer();
+    }
+
     public function finishSyncStatus() as Void {
         FuelGuardApi.clearSyncSummary();
         cancelSyncStatusTimer();
@@ -164,6 +190,13 @@ class FuelGuardQuickLogView extends WatchUi.View {
 
     private function labelForSelection(index as Number) as String {
         if (index == ACTION_TRAINING) {
+            var pendingAction = FuelGuardTraining.pendingAction();
+            if (pendingAction.length() > 0) {
+                if (FuelGuardTraining.transitionFailed()) {
+                    return pendingAction.equals("start") ? "Retry Start" : "Retry End";
+                }
+                return pendingAction.equals("start") ? "Starting Training" : "Ending Training";
+            }
             return FuelGuardTraining.active() ? "End Training" : "Start Training";
         }
         if (index == ACTION_HYDRATION) {
@@ -206,6 +239,9 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     private function pendingText() as String? {
+        if (FuelGuardTraining.transitionPending()) {
+            return FuelGuardTraining.statusText();
+        }
         var status = FuelGuardApi.syncStatusText();
         if (status != null) {
             return status as String;
@@ -215,6 +251,10 @@ class FuelGuardQuickLogView extends WatchUi.View {
 
     private function typeForSelection(index as Number) as String {
         if (index == ACTION_TRAINING) {
+            var pendingAction = FuelGuardTraining.pendingAction();
+            if (pendingAction.length() > 0) {
+                return pendingAction.equals("start") ? "training_start" : "training_end";
+            }
             return FuelGuardTraining.active() ? "training_end" : "training_start";
         }
         if (index == ACTION_HYDRATION) {
@@ -232,6 +272,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
             FuelGuardTraining.refresh(false);
             FuelGuardHealth.maybeCollectAndSync("refresh");
         }
+        updateAcknowledgedConfirmation();
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
@@ -252,9 +293,20 @@ class FuelGuardQuickLogView extends WatchUi.View {
             return;
         }
 
+        if (FuelGuardTraining.completionActive()) {
+            FuelGuardFeedback.drawSuccessMark(dc, center, height / 2 - 34, height < 230 ? 16 : 21);
+            drawCenter(dc, height / 2 + 8, Graphics.FONT_XTINY, "TRAINING COMPLETE", Graphics.COLOR_GREEN);
+            var completionDuration = FuelGuardTraining.completionDurationText();
+            if (completionDuration.length() > 0) {
+                drawCenter(dc, height / 2 + 34, Graphics.FONT_XTINY, completionDuration, Graphics.COLOR_LT_GRAY);
+            }
+            updateSyncStatusTimer();
+            return;
+        }
+
         if (confirming()) {
-            drawCenter(dc, height / 2 - 28, Graphics.FONT_SMALL, confirmationFirstLine(), Graphics.COLOR_GREEN);
-            drawCenter(dc, height / 2 + 2, Graphics.FONT_SMALL, confirmationSecondLine(), Graphics.COLOR_GREEN);
+            FuelGuardFeedback.drawSuccessMark(dc, center, height / 2 - 30, height < 230 ? 16 : 21);
+            drawCenter(dc, height / 2 + 10, Graphics.FONT_XTINY, confirmationFirstLine() + " " + confirmationSecondLine(), Graphics.COLOR_GREEN);
             if (syncText != null) {
                 drawCenter(dc, height / 2 + 42, Graphics.FONT_XTINY, syncText as String, Graphics.COLOR_LT_GRAY);
             }
@@ -307,22 +359,10 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     private function confirmationFirstLine() as String {
-        if (_confirmType.equals("training_start")) {
-            return "TRAINING MODE";
-        }
-        if (_confirmType.equals("training_end")) {
-            return "TRAINING";
-        }
         return FuelGuardFeedback.confirmationFirstLine(_confirmType);
     }
 
     private function confirmationSecondLine() as String {
-        if (_confirmType.equals("training_start")) {
-            return "STARTED";
-        }
-        if (_confirmType.equals("training_end")) {
-            return "COMPLETE";
-        }
         return FuelGuardFeedback.confirmationSecondLine(_confirmType);
     }
 }

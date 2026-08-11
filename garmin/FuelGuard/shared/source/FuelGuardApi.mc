@@ -33,6 +33,8 @@ module FuelGuardApi {
     var _batchFinishedAt = null;
     var _batchFinishedSyncedCount = 0;
     var _batchFinishedRemainingCount = 0;
+    var _lastAcknowledgedEventId = null;
+    var _lastAcknowledgedType = null;
 
     (:debug) var _testTransportEnabled = false;
     (:debug) var _testResponseCode = 201;
@@ -136,7 +138,17 @@ module FuelGuardApi {
     }
 
     function syncActive() as Boolean {
-        return _batchActive;
+      return _batchActive;
+    }
+
+    function eventAcknowledged(eventId as String?) as Boolean {
+        return eventId != null
+            && _lastAcknowledgedEventId instanceof String
+            && (_lastAcknowledgedEventId as String).equals(eventId as String);
+    }
+
+    function acknowledgedType() as String? {
+        return _lastAcknowledgedType instanceof String ? _lastAcknowledgedType as String : null;
     }
 
     function responseCallback() as Method {
@@ -238,6 +250,9 @@ module FuelGuardApi {
             dispatchRequest(event, eventId as String);
         } catch (e) {
             _inFlight = false;
+            if (FuelGuardTraining.isCommand(event)) {
+                FuelGuardTraining.handleCommandResponse(0, null);
+            }
             finishBatch();
         }
     }
@@ -262,12 +277,17 @@ module FuelGuardApi {
     function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
         _inFlight = false;
         var queuedEvent = FuelGuardQueue.peek();
-        if (queuedEvent != null && FuelGuardTraining.isCommand(queuedEvent as Dictionary)) {
-            FuelGuardTraining.handleCommandResponse(responseCode, data);
-        }
-        var acknowledged = responseAcknowledged(responseCode, data);
+        var trainingCommand = queuedEvent != null && FuelGuardTraining.isCommand(queuedEvent as Dictionary);
+        var acknowledged = trainingCommand
+            ? FuelGuardTraining.handleCommandResponse(responseCode, data)
+            : responseAcknowledged(responseCode, data);
         if (acknowledged) {
             if (context instanceof String) {
+                if (!trainingCommand && queuedEvent instanceof Dictionary) {
+                    var acknowledgedType = (queuedEvent as Dictionary)["type"];
+                    _lastAcknowledgedEventId = context as String;
+                    _lastAcknowledgedType = acknowledgedType instanceof String ? acknowledgedType as String : null;
+                }
                 FuelGuardQueue.removeAcknowledged(context as String);
                 _batchSyncedCount += 1;
             }
@@ -300,6 +320,8 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+        _lastAcknowledgedEventId = null;
+        _lastAcknowledgedType = null;
     }
 
     (:debug)
@@ -323,6 +345,8 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+        _lastAcknowledgedEventId = null;
+        _lastAcknowledgedType = null;
     }
 
     (:debug)
@@ -346,6 +370,17 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+        _lastAcknowledgedEventId = null;
+        _lastAcknowledgedType = null;
+    }
+
+    (:debug)
+    function deliverHeldResponseForTest(responseCode as Number, data as Dictionary or String or Null) as Void {
+        if (!_testHoldResponse || !_inFlight || !(_testLastEventId instanceof String)) {
+            return;
+        }
+        _testHoldResponse = false;
+        onResponse(responseCode, data, _testLastEventId as String);
     }
 
     (:debug)

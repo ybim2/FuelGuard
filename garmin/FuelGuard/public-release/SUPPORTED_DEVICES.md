@@ -1,6 +1,6 @@
 # Garmin public-beta supported devices
 
-Candidate version: **0.5.1**
+Candidate version: **0.5.2**
 Primary physical reference: **Forerunner 255**
 
 The production manifests for Quick Log and Activity Logger contain the same 31 Connect IQ product IDs below. Their locally installed device definitions support both Watch Apps and Data Fields, both apps compiled for every target, and the automated simulator tests passed for every target.
@@ -22,12 +22,12 @@ Garmin device definitions can map one product ID to multiple hardware part numbe
 
 ## Automated acceptance result
 
-- Quick Log: 31 product targets × 35 assertions = **1,085 passed**
+- Quick Log: 31 product targets × 44 assertions = **1,364 passed**
 - Activity Logger: 31 product targets × 19 assertions = **589 passed**
-- Total: **1,674 passed; 0 failed; 0 errors**
+- Total: **1,953 passed; 0 failed; 0 errors**
 - Result record: `build/garmin-public-matrix/RESULTS.tsv`
 
-One initial Activity Logger simulator transport timeout occurred on `fr965`; it produced no test failure and the exact target passed 19/19 on the immediate retry. The matrix harness retries one incomplete simulator transport run. The `epix2pro47mm` Activity Logger test log also passed 19/19 but its row was absent from the first summary file, so that exact target was rerun and recorded 19/19.
+One Activity Logger simulator transport run timed out on `fr255s`; it produced no test failure and the exact target passed 19/19 on the immediate bounded retry. The matrix harness retries one incomplete simulator transport run.
 
 ## Release qualification rule
 

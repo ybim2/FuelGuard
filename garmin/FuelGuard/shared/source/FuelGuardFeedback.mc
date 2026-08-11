@@ -9,6 +9,10 @@ module FuelGuardFeedback {
     const CONFIRM_SECONDS = 3;
 
     function vibrate() as Void {
+        vibrateSuccess();
+    }
+
+    function vibrateSuccess() as Void {
         if (Attention has :vibrate) {
             Attention.vibrate([
                 new Attention.VibeProfile(70, 120),
@@ -16,6 +20,15 @@ module FuelGuardFeedback {
                 new Attention.VibeProfile(70, 120)
             ]);
         }
+    }
+
+    function drawSuccessMark(dc as Graphics.Dc, centerX as Number, centerY as Number, radius as Number) as Void {
+        dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+        dc.setPenWidth(radius > 16 ? 4 : 3);
+        dc.drawCircle(centerX, centerY, radius);
+        dc.drawLine(centerX - (radius / 2), centerY, centerX - (radius / 8), centerY + (radius / 3));
+        dc.drawLine(centerX - (radius / 8), centerY + (radius / 3), centerX + (radius / 2), centerY - (radius / 3));
+        dc.setPenWidth(1);
     }
 
     function confirmationActive(startSeconds as Number?) as Boolean {

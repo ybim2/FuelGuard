@@ -107,6 +107,7 @@
     coachLoading: true,
     busy: false,
     coachAccessBlocked: false,
+    completionMoment: null,
     status: ""
   };
 
@@ -160,6 +161,45 @@
     if (authStatus && !authStatus.hidden) authStatus.textContent = state.status;
     const accessStatus = $("coachAccessStatus");
     if (accessStatus && !accessStatus.hidden) accessStatus.textContent = state.status;
+  }
+
+  function dailyBriefCompletionKey() {
+    const userId = coachUser()?.id || "signed-out";
+    const day = domain.dateKeyInTimeZone(new Date(), state.timeZone);
+    return `fuel_guard_coach_daily_brief:${userId}:${day}`;
+  }
+
+  function dailyBriefCompleted() {
+    try {
+      return window.localStorage?.getItem(dailyBriefCompletionKey()) === "complete";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function showCoachCompletion({ title, summary, details = [] } = {}) {
+    const target = $("coachCompletionMoment");
+    if (!target || !title) return;
+    target.innerHTML = `<b aria-hidden="true">✓</b><div><span>Coaching task complete</span><strong>${safe(title)}</strong><p>${safe(summary || "")}</p>${details.length ? `<ul>${details.map(detail => `<li>${safe(detail)}</li>`).join("")}</ul>` : ""}</div><button type="button" data-dismiss-coach-completion aria-label="Dismiss completion summary">×</button>`;
+    target.hidden = false;
+    state.completionMoment = { title, summary, details };
+  }
+
+  function completeDailyBrief() {
+    try {
+      window.localStorage?.setItem(dailyBriefCompletionKey(), "complete");
+    } catch (_error) {}
+    const attentionAthletes = new Set(state.attentionItems.map(item => String(item.athleteId || "")).filter(Boolean)).size;
+    const recoveryIssues = state.attentionItems.filter(item => /recovery|post.session/i.test(`${item.type} ${item.label}`)).length;
+    showCoachCompletion({
+      title: "Daily review complete",
+      summary: `${state.roster.length} athlete${state.roster.length === 1 ? "" : "s"} reviewed from today’s shared evidence.`,
+      details: [
+        `${attentionAthletes} athlete${attentionAthletes === 1 ? "" : "s"} currently need attention`,
+        `${recoveryIssues} recovery issue${recoveryIssues === 1 ? "" : "s"} identified`
+      ]
+    });
+    renderDailyBrief();
   }
 
   function friendlyError(error) {
@@ -609,6 +649,10 @@
           ${dailyBriefGroup("Logging / data gaps", "Missing or unreliable shared records that limit interpretation.", dataGapRows, "No current data-health gaps detected.")}
           ${dailyBriefGroup("Today’s sessions", "Practices, games and other scheduled sessions feeding the readiness view.", todaySessions, "No session is scheduled today.")}
         </div>
+        <div class="coach-button-row coach-brief-completion-action">
+          <button class="primary" type="button" data-complete-daily-brief${dailyBriefCompleted() ? " disabled" : ""}>${dailyBriefCompleted() ? "Daily brief reviewed ✓" : "Mark Daily Brief reviewed"}</button>
+          <small>This records workflow closure on this device; athlete evidence is not changed.</small>
+        </div>
       </section>
     `;
   }
@@ -743,12 +787,25 @@
       return;
     }
     const candidates = analytics.reviewCandidates;
+    const positiveChanges = analytics.improved || [];
+    const period = state.weeklyBrief.period;
+    const withinCurrentWeek = value => {
+      const key = value ? domain.dateKeyInTimeZone(value, state.timeZone) : "";
+      return key >= period.startKey && key <= period.endKey;
+    };
+    const reviewedAthletes = new Set(state.reports
+      .filter(report => withinCurrentWeek(report.completed_at || report.updated_at || report.created_at))
+      .map(report => String(report.athlete_id)));
+    const completedWeeklyBrief = state.reports.some(report => report.review_kind === "weekly"
+      && report.status === "completed"
+      && withinCurrentWeek(report.completed_at || report.updated_at || report.created_at));
+    const followUps = state.attentionActions.filter(action => action.status === "reviewed" && withinCurrentWeek(action.acted_at || action.updated_at)).length;
     target.innerHTML = `
       <section class="coach-card coach-team-intelligence">
         <div class="coach-card-heading compact">
           <div>
-            <h2>Team Intelligence</h2>
-            <p>Repeated squad patterns are separated from individual review signals.</p>
+            <h2>Review → identify → act → see progress</h2>
+            <p>Repeated squad patterns are separated from individual opportunities and positive changes.</p>
           </div>
         </div>
         <div class="coach-intelligence-grid">
@@ -761,7 +818,7 @@
             ` : `<div class="coach-empty compact">Not enough repeated multi-athlete data to identify a team-level pattern this week.</div>`}
           </section>
           <section class="coach-intelligence-column">
-            <div class="coach-intelligence-title"><span class="coach-chip individual">Individual</span><strong>Review candidates</strong></div>
+            <div class="coach-intelligence-title"><span class="coach-chip individual">Individual opportunity</span><strong>Where you can make a difference</strong></div>
             ${candidates.length ? `
               <div class="coach-candidate-list">
                 ${candidates.map(candidate => `
@@ -771,10 +828,32 @@
                   </article>
                 `).join("")}
               </div>
-            ` : `<div class="coach-empty compact">No athlete meets the weekly review threshold.</div>`}
+            ` : `<div class="coach-empty compact">No evidence-based coaching opportunity meets the review threshold.</div>`}
+          </section>
+          <section class="coach-intelligence-column positive">
+            <div class="coach-intelligence-title"><span class="coach-chip positive">Progress</span><strong>Positive changes</strong></div>
+            ${positiveChanges.length ? `
+              <div class="coach-candidate-list">
+                ${positiveChanges.map(change => `
+                  <article>
+                    <div><strong>${safe(change.athlete?.displayName || "Fuel Guard Athlete")}</strong><p>Positive change this week · ${safe(change.label)}</p></div>
+                    <button type="button" data-open-athlete="${safe(change.athleteId)}">View evidence</button>
+                  </article>
+                `).join("")}
+              </div>
+            ` : `<div class="coach-empty compact">No positive change has enough comparable evidence yet.</div>`}
           </section>
         </div>
-        <p class="coach-note">Patterns describe shared timing and context. They do not establish cause, blame athletes, or provide a medical interpretation of Sleepy events.</p>
+        <section class="coach-week-workflow" aria-label="Coach actions completed this week">
+          <div><span>This week</span><strong>Useful coaching actions</strong></div>
+          <ul>
+            <li class="${reviewedAthletes.size ? "complete" : "open"}">${reviewedAthletes.size ? "✓" : "○"} ${safe(reviewedAthletes.size)}/${safe(state.roster.length)} athletes reviewed</li>
+            <li class="${completedWeeklyBrief ? "complete" : "open"}">${completedWeeklyBrief ? "✓" : "○"} Weekly brief ${completedWeeklyBrief ? "completed" : "still to complete"}</li>
+            <li class="${followUps ? "complete" : "open"}">${followUps ? "✓" : "○"} ${safe(followUps)} flagged item${followUps === 1 ? "" : "s"} reviewed</li>
+            <li class="${candidates.length ? "open" : "complete"}">${candidates.length ? "○" : "✓"} ${safe(candidates.length)} athlete${candidates.length === 1 ? "" : "s"} currently to review</li>
+          </ul>
+        </section>
+        <p class="coach-note">Positive changes are observed alongside the review period. They do not establish that a coach caused the change, blame athletes, or provide a medical interpretation of Sleepy events.</p>
       </section>
     `;
   }
@@ -3536,7 +3615,19 @@
       state.reportSaved = true;
       if ($("coachReviewCompletionNote")) $("coachReviewCompletionNote").value = "";
       if ($("coachReviewAthleteFeedback")) $("coachReviewAthleteFeedback").value = "";
-      setStatus(`Weekly review completed${athleteFeedback ? " and athlete-visible feedback shared" : ""}. Current coach points: ${Number(state.pointsProfile?.coachPoints || 0).toLocaleString("en-GB")}.`);
+      const improved = state.weeklyBrief?.analytics?.improved?.length || 0;
+      const attentionAthletes = new Set(state.attentionItems.map(item => String(item.athleteId || "")).filter(Boolean)).size;
+      const recoveryIssues = state.attentionItems.filter(item => /recovery|post.session/i.test(`${item.type} ${item.label}`)).length;
+      setStatus(`Weekly review completed${athleteFeedback ? " and athlete-visible feedback shared" : ""}.`);
+      showCoachCompletion({
+        title: "Weekly review complete",
+        summary: `${state.roster.length} athlete${state.roster.length === 1 ? "" : "s"} included in the current shared roster.`,
+        details: [
+          `${attentionAthletes} athlete${attentionAthletes === 1 ? "" : "s"} currently need attention`,
+          `${recoveryIssues} recovery issue${recoveryIssues === 1 ? "" : "s"} identified`,
+          `${improved} athlete${improved === 1 ? "" : "s"} showing sample-gated positive change`
+        ]
+      });
       await loadCoachData({ reason: "weekly-review-completed" });
     });
   }
@@ -3877,6 +3968,18 @@
   }
 
   document.addEventListener("click", event => {
+    if (event.target.closest("[data-dismiss-coach-completion]")) {
+      const target = $("coachCompletionMoment");
+      if (target) target.hidden = true;
+      state.completionMoment = null;
+      return;
+    }
+
+    if (event.target.closest("[data-complete-daily-brief]")) {
+      completeDailyBrief();
+      return;
+    }
+
     if (event.target.closest("[data-open-daily-brief]")) {
       state.currentTab = "briefs";
       state.currentBriefView = "daily";

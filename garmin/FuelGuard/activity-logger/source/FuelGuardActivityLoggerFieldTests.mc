@@ -34,6 +34,8 @@ function testFuelGuardActivityLoggerLapCreatesFuelEvent(logger) as Boolean {
     var deviceId = event["device_id"];
 
     return FuelGuardQueue.pendingCount() == 1
+        && !field.isConfirmingForTest()
+        && field.pendingEventIdForTest() != null
         && FuelGuardApi.dispatchCountForTest() == 1
         && FuelGuardApi.queuedBeforeDispatchForTest()
         && eventId != null
@@ -47,6 +49,22 @@ function testFuelGuardActivityLoggerLapCreatesFuelEvent(logger) as Boolean {
         && (eventType as String).equals(FuelGuardEvents.TYPE_FUEL)
         && deviceId instanceof String
         && (deviceId as String).equals(FuelGuardEvents.DEVICE_ID);
+}
+
+(:test)
+function testFuelGuardActivityLoggerAcknowledgedLapShowsSuccess(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.setConnectedForTest("device-token-test");
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, false);
+
+    var field = new FuelGuardActivityLoggerField();
+    field.onTimerLap();
+
+    return field.isConfirmingForTest()
+        && field.pendingEventIdForTest() == null
+        && FuelGuardQueue.pendingCount() == 0;
 }
 
 

@@ -204,3 +204,26 @@ function testFuelGuardApiBatchSyncPartialFailureSummary(logger) as Boolean {
         && status != null
         && (status as String).equals("2 logs still pending");
 }
+
+(:test)
+function testFuelGuardApiOnlyMarksExactSuccessfulEventAcknowledged(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useHeldTestTransport();
+    var event = fuelGuardApiTestEnqueue(FuelGuardEvents.TYPE_HYDRATION);
+    var eventId = FuelGuardQueue.externalEventId(event);
+    if (eventId == null) {
+        return false;
+    }
+
+    FuelGuardApi.trySync(true);
+    if (FuelGuardApi.eventAcknowledged(eventId as String)) {
+        return false;
+    }
+    FuelGuardApi.deliverHeldResponseForTest(201, {"result" => "ok"});
+
+    return FuelGuardApi.eventAcknowledged(eventId as String)
+        && FuelGuardApi.acknowledgedType() != null
+        && (FuelGuardApi.acknowledgedType() as String).equals(FuelGuardEvents.TYPE_HYDRATION)
+        && FuelGuardQueue.pendingCount() == 0;
+}

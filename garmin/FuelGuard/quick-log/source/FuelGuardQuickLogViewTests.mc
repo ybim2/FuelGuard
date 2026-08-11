@@ -126,7 +126,9 @@ function fuelGuardQuickLogSelectedType(selectionMoves as Number, expectedType as
         && dispatchedLoggedAt != null
         && (dispatchedLoggedAt as String).equals(loggedAt as String)
         && fuelGuardQuickEventMatches(event, expectedType)
-        && view.isConfirming()
+        && !view.isConfirming()
+        && view.pendingEventIdForTest() != null
+        && (view.pendingEventIdForTest() as String).equals(eventId as String)
         && view.confirmationTypeForTest().equals(expectedType)
         && view.confirmationFirstLineForTest().equals(expectedFirstLine);
 }
@@ -180,8 +182,9 @@ function testFuelGuardQuickLogStartsTrainingModeThroughRetryQueue(logger) as Boo
         && FuelGuardApi.dispatchCountForTest() == 1
         && FuelGuardApi.queuedBeforeDispatchForTest()
         && (FuelGuardApi.lastEndpointForTest() as String).equals(FuelGuardConnection.trainingEndpoint())
-        && view.isConfirming()
-        && view.confirmationFirstLineForTest().equals("TRAINING MODE");
+        && !FuelGuardTraining.transitionPending()
+        && !view.isConfirming()
+        && view.selectedLabelForTest().equals("End Training");
 }
 
 (:test)
@@ -196,9 +199,12 @@ function testFuelGuardQuickLogEndsTrainingModeThroughRetryQueue(logger) as Boole
     view.logSelection();
 
     return !FuelGuardTraining.active()
+        && FuelGuardTraining.completionActive()
         && FuelGuardQueue.pendingCount() == 0
         && FuelGuardApi.dispatchCountForTest() == 1
-        && view.confirmationFirstLineForTest().equals("TRAINING");
+        && !FuelGuardTraining.transitionPending()
+        && !view.isConfirming()
+        && view.selectedLabelForTest().equals("Start Training");
 }
 
 (:test)
@@ -212,21 +218,156 @@ function testFuelGuardQuickLogTrainingCommandSurvivesConnectionFailure(logger) a
     return pending != null
         && FuelGuardTraining.isCommand(pending as Dictionary)
         && FuelGuardQueue.pendingCount() == 1
-        && FuelGuardTraining.statusText().equals("Training update saved pending");
+        && !FuelGuardTraining.active()
+        && FuelGuardTraining.pendingAction().equals("start")
+        && FuelGuardTraining.transitionFailed()
+        && FuelGuardTraining.statusText().equals("Training start failed - retry")
+        && view.selectedLabelForTest().equals("Retry Start");
 }
 
 (:test)
-function testFuelGuardQuickLogEnterFuelPersistsAndConfirms(logger) as Boolean {
+function testFuelGuardQuickLogFailedEndPreservesConfirmedActiveState(logger) as Boolean {
+    fuelGuardQuickReset(500, null);
+    FuelGuardTraining.setActiveForTest(true);
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+
+    return FuelGuardTraining.active()
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardTraining.pendingAction().equals("end")
+        && FuelGuardTraining.transitionFailed()
+        && FuelGuardTraining.statusText().equals("Training end failed - retry")
+        && view.selectedLabelForTest().equals("Retry End");
+}
+
+(:test)
+function testFuelGuardQuickLogDelayedStartRemainsPendingUntilAuthoritativeResponse(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardApi.useHeldTestTransport();
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+
+    if (FuelGuardTraining.active()
+            || !FuelGuardTraining.transitionPending()
+            || FuelGuardTraining.transitionFailed()
+            || !FuelGuardTraining.pendingAction().equals("start")
+            || !view.selectedLabelForTest().equals("Starting Training")
+            || FuelGuardQueue.pendingCount() != 1) {
+        return false;
+    }
+
+    FuelGuardApi.deliverHeldResponseForTest(200, {"result" => "started", "active" => true, "session_id" => "training-delayed"});
+    return FuelGuardTraining.active()
+        && FuelGuardTraining.sessionId().equals("training-delayed")
+        && !FuelGuardTraining.transitionPending()
+        && FuelGuardQueue.pendingCount() == 0
+        && view.selectedLabelForTest().equals("End Training");
+}
+
+(:test)
+function testFuelGuardQuickLogDelayedEndPreservesActiveStateUntilAuthoritativeResponse(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardTraining.setActiveForTest(true);
+    FuelGuardApi.useHeldTestTransport();
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+
+    if (!FuelGuardTraining.active()
+            || !FuelGuardTraining.pendingAction().equals("end")
+            || !view.selectedLabelForTest().equals("Ending Training")) {
+        return false;
+    }
+
+    FuelGuardApi.deliverHeldResponseForTest(200, {"result" => "ended", "active" => false, "session_id" => "training-ended"});
+    return !FuelGuardTraining.active()
+        && FuelGuardTraining.completionActive()
+        && !FuelGuardTraining.transitionPending()
+        && FuelGuardQueue.pendingCount() == 0
+        && view.selectedLabelForTest().equals("Start Training");
+}
+
+(:test)
+function testFuelGuardQuickLogRetryDoesNotDuplicatePendingTrainingCommand(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardApi.useHeldTestTransport();
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+    var commandId = FuelGuardApi.lastEventIdForTest();
+    view.logSelection();
+
+    return commandId != null
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardApi.dispatchCountForTest() == 1
+        && FuelGuardTraining.pendingAction().equals("start")
+        && FuelGuardTraining.statusText().equals("Retrying Training start")
+        && !FuelGuardTraining.active();
+}
+
+(:test)
+function testFuelGuardQuickLogMalformedSuccessKeepsTrainingCommandForRetry(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+
+    return FuelGuardQueue.pendingCount() == 1
+        && !FuelGuardTraining.active()
+        && FuelGuardTraining.transitionFailed()
+        && FuelGuardTraining.pendingAction().equals("start");
+}
+
+(:test)
+function testFuelGuardQuickLogStatusRefreshCanConfirmPendingTrainingStart(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardApi.useHeldTestTransport();
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+    FuelGuardTraining.useHeldRefreshTransportForTest(200, {
+        "active" => true,
+        "session" => {"id" => "training-status-confirmed"}
+    });
+    FuelGuardTraining.refresh(true);
+    FuelGuardTraining.deliverHeldRefreshResponseForTest();
+
+    return FuelGuardTraining.active()
+        && FuelGuardTraining.sessionId().equals("training-status-confirmed")
+        && !FuelGuardTraining.transitionPending();
+}
+
+(:test)
+function testFuelGuardQuickLogStatusMismatchCannotOptimisticallyConfirmPendingStart(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardApi.useHeldTestTransport();
+    var view = new FuelGuardQuickLogView();
+    view.move(3);
+    view.logSelection();
+    FuelGuardTraining.useHeldRefreshTransportForTest(200, {"active" => false, "session" => null});
+    FuelGuardTraining.refresh(true);
+    FuelGuardTraining.deliverHeldRefreshResponseForTest();
+
+    return !FuelGuardTraining.active()
+        && FuelGuardTraining.transitionPending()
+        && FuelGuardTraining.pendingAction().equals("start")
+        && FuelGuardQueue.pendingCount() == 1;
+}
+
+(:test)
+function testFuelGuardQuickLogEnterFuelPersistsPendingWithoutFalseSuccess(logger) as Boolean {
     return fuelGuardQuickLogSelectedType(0, FuelGuardEvents.TYPE_FUEL, "FUEL");
 }
 
 (:test)
-function testFuelGuardQuickLogEnterHydrationPersistsAndConfirms(logger) as Boolean {
+function testFuelGuardQuickLogEnterHydrationPersistsPendingWithoutFalseSuccess(logger) as Boolean {
     return fuelGuardQuickLogSelectedType(1, FuelGuardEvents.TYPE_HYDRATION, "HYDRATION");
 }
 
 (:test)
-function testFuelGuardQuickLogEnterSleepyPersistsAndConfirms(logger) as Boolean {
+function testFuelGuardQuickLogEnterSleepyPersistsPendingWithoutFalseSuccess(logger) as Boolean {
     return fuelGuardQuickLogSelectedType(2, FuelGuardEvents.TYPE_SLEEPY, "SLEEPY");
 }
 
@@ -243,11 +384,24 @@ function testFuelGuardQuickLogDirectLogSelectionUsesProductionPath(logger) as Bo
         return false;
     }
 
-    return view.isConfirming()
+    return !view.isConfirming()
         && FuelGuardQueue.pendingCount() == 1
         && FuelGuardApi.dispatchCountForTest() == 1
         && FuelGuardApi.queuedBeforeDispatchForTest()
         && fuelGuardQuickEventMatches(event, FuelGuardEvents.TYPE_HYDRATION);
+}
+
+(:test)
+function testFuelGuardQuickLogAcknowledgedEventShowsSuccess(logger) as Boolean {
+    fuelGuardQuickReset(201, {"result" => "ok"});
+
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+
+    return view.isConfirming()
+        && view.pendingEventIdForTest() == null
+        && view.confirmationTypeForTest().equals(FuelGuardEvents.TYPE_FUEL)
+        && FuelGuardQueue.pendingCount() == 0;
 }
 
 
