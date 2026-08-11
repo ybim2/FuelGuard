@@ -102,6 +102,21 @@
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
+  function formatRecency(value, { now = new Date(), prefix = "Last logged", locale = "en-GB" } = {}) {
+    const date = parseDate(value);
+    const reference = parseDate(now) || new Date();
+    if (!date) return "";
+    const elapsedMinutes = Math.max(0, Math.floor((reference - date) / 60000));
+    if (elapsedMinutes < 1) return `${prefix} just now`;
+    if (elapsedMinutes < 60) return `${prefix} ${elapsedMinutes} min ago`;
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+    if (elapsedHours < 24) return `${prefix} ${elapsedHours} hour${elapsedHours === 1 ? "" : "s"} ago`;
+    const elapsedDays = Math.floor(elapsedHours / 24);
+    if (elapsedDays === 1) return `${prefix} yesterday`;
+    if (elapsedDays < 7) return `${prefix} ${elapsedDays} days ago`;
+    return `${prefix} ${new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date)}`;
+  }
+
   function logDate(log) {
     if (!log || typeof log !== "object" || log instanceof Date) return parseDate(log);
     for (const value of [
@@ -802,6 +817,46 @@
       firstPostFuelAt: context?.hasPostFuel ? context.nextFuelEvent?.date || null : null,
       coverageMessage
     };
+  }
+
+  function loggingAcknowledgement({ type = "fuel", logsBefore = [], loggedAt = new Date(), targets = {}, activeSession = null, completedSessions = [] } = {}) {
+    const timestamp = parseDate(loggedAt) || new Date();
+    const normalizedType = String(type || "fuel");
+    const before = logsWithDates(logsBefore).filter(log => log.date <= timestamp);
+    const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
+    const includesHydration = normalizedType === "hydration" || normalizedType === "fuel_hydration";
+    const headline = normalizedType === "fuel_hydration"
+      ? "Fuel + hydration logged"
+      : includesHydration
+        ? "Hydration logged"
+        : "Fuel logged";
+    if (!before.length) {
+      return { headline, context: "First Fuel Guard log recorded.", level: "milestone", reason: "first_log" };
+    }
+    const completed = (Array.isArray(completedSessions) ? completedSessions : [])
+      .map(session => ({ session, endedAt: parseDate(session?.endedAt || session?.ended_at) }))
+      .filter(item => item.endedAt && item.endedAt <= timestamp)
+      .sort((left, right) => right.endedAt - left.endedAt)[0];
+    if (includesFuel && completed) {
+      const recoveryMinutes = Math.floor((timestamp - completed.endedAt) / 60000);
+      if (recoveryMinutes <= 30) {
+        return { headline, context: `Recovery logged within ${Math.max(0, recoveryMinutes)} minutes of training.`, level: "micro", reason: "prompt_recovery" };
+      }
+    }
+    if (activeSession && (includesFuel || includesHydration)) {
+      return { headline, context: "Recorded against your active Training Mode session.", level: "micro", reason: "active_training" };
+    }
+    if (includesFuel) {
+      const previousFuel = before.filter(isFuelLog).at(-1);
+      const sameDay = previousFuel && dateKey(previousFuel.date) === dateKey(timestamp);
+      if (!sameDay) return { headline, context: "First fuel of the day logged.", level: "micro", reason: "first_fuel" };
+      const gapMinutes = Math.floor((timestamp - previousFuel.date) / 60000);
+      const targetMinutes = maximumFuelGapMinutes(targets);
+      if (gapMinutes >= 0 && gapMinutes <= targetMinutes) {
+        return { headline, context: "Keeping the gap under control.", level: "micro", reason: "within_gap" };
+      }
+    }
+    return { headline, context: "", level: "micro", reason: "logged" };
   }
 
   function workLogSessionId(log = {}) {
@@ -2864,7 +2919,7 @@
       const garminStatus = row.garmin_connection_status || row.garminConnectionStatus || "not_connected";
       let id = "reporting_normally";
       let label = "Reporting normally";
-      let detail = lastLogAt ? `Last log ${formatClock(lastLogAt)} today` : "Logging status unavailable";
+      let detail = lastLogAt ? formatRecency(lastLogAt, { now }) : "Logging status unavailable";
       let priority = 0;
       if (garminStatus === "connection_revoked") {
         id = "garmin_reconnect";
@@ -2879,12 +2934,12 @@
       } else if (daysSinceLog >= 3) {
         id = "prolonged_absence";
         label = `No logs for ${daysSinceLog} days`;
-        detail = `Last log ${dateKey(lastLogAt)}`;
+        detail = formatRecency(lastLogAt, { now });
         priority = 70;
       } else if (daysSinceLog >= 1) {
         id = "no_logs_today";
         label = "No logs today";
-        detail = daysSinceLog === 1 ? "Last logged yesterday" : `Last logged ${daysSinceLog} days ago`;
+        detail = formatRecency(lastLogAt, { now });
         priority = 50;
       }
       return {
@@ -3480,6 +3535,7 @@
     PERFORMANCE_IMPACT_RULES,
     escapeHtml,
     parseDate,
+    formatRecency,
     logDate,
     dateKey,
     startOfLocalDay,
@@ -3524,6 +3580,7 @@
     trainingSessionIntakeSummary,
     completedTrainingSessionMetrics,
     trainingCompletionSummary,
+    loggingAcknowledgement,
     workLogSessionId,
     workSessionMetrics,
     workSessionSummary,

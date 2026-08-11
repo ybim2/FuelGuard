@@ -190,6 +190,7 @@
   let selectedTodayTimelineLogId = "";
   let quickLogConfirmation = "";
   let quickLogConfirmationTimer = 0;
+  let actionFeedbackTimer = 0;
   let demandPlannerStatus = "";
   let garminPatternsState = {
     loaded: false,
@@ -2066,7 +2067,28 @@
     };
   };
 
-  function setQuickLogConfirmation(type = "fuel", date = new Date(), syncResult = null) {
+  function showAthleteActionFeedback(acknowledgement, type = "fuel") {
+    const target = document.getElementById("athleteActionFeedback");
+    if (!target || !acknowledgement?.headline) return;
+    if (actionFeedbackTimer && typeof clearTimeout === "function") clearTimeout(actionFeedbackTimer);
+    const icon = acknowledgement.level === "milestone" ? "✦" : "✓";
+    target.className = `beta-action-feedback ${acknowledgement.level === "milestone" ? "milestone" : "micro"} ${safeText(type)}`;
+    target.innerHTML = `<b aria-hidden="true">${icon}</b><span><strong>${safeText(acknowledgement.headline)}</strong>${acknowledgement.context ? `<small>${safeText(acknowledgement.context)}</small>` : ""}</span>`;
+    target.hidden = false;
+    document.querySelectorAll(type === "hydration" ? "#graphLogHydrationButton, [data-training-log=\"hydration\"]" : "#graphLogFoodButton, [data-training-log=\"fuel\"]").forEach(button => {
+      button.classList.remove("is-acknowledged");
+      void button.offsetWidth;
+      button.classList.add("is-acknowledged");
+    });
+    actionFeedbackTimer = typeof setTimeout === "function" ? setTimeout(() => {
+      target.hidden = true;
+      target.innerHTML = "";
+      document.querySelectorAll(".is-acknowledged").forEach(button => button.classList.remove("is-acknowledged"));
+      actionFeedbackTimer = 0;
+    }, acknowledgement.level === "milestone" ? 2200 : 1100) : 0;
+  }
+
+  function setQuickLogConfirmation(type = "fuel", date = new Date(), syncResult = null, acknowledgement = null) {
     const label = type === "hydration"
       ? "Hydration logged"
       : type === "fuel_hydration"
@@ -2081,7 +2103,8 @@
         : syncResult?.status === "pending"
           ? "Saved here; waiting to sync."
           : "Saving...";
-    quickLogConfirmation = `${label} - ${formatClock(date)}. ${syncCopy}`;
+    const contextCopy = acknowledgement?.context ? ` ${acknowledgement.context}` : "";
+    quickLogConfirmation = `${label} - ${formatClock(date)}.${contextCopy} ${syncCopy}`;
     if (quickLogConfirmationTimer && typeof clearTimeout === "function") clearTimeout(quickLogConfirmationTimer);
     quickLogConfirmationTimer = typeof setTimeout === "function" ? setTimeout(() => {
       quickLogConfirmation = "";
@@ -2090,19 +2113,19 @@
     }, 3500) : 0;
   }
 
-  function persistQuickLog(log, type, loggedAt) {
+  function persistQuickLog(log, type, loggedAt, acknowledgement = null) {
     const cloud = window.fuelGuardCloud;
     if (!cloud?.saveLog) {
-      setQuickLogConfirmation(type, loggedAt, { status: "pending" });
+      setQuickLogConfirmation(type, loggedAt, { status: "pending" }, acknowledgement);
       renderFuelGap();
       return Promise.resolve({ status: "pending", persisted: false, reason: "cloud_unavailable" });
     }
     return Promise.resolve(cloud.saveLog(log)).then(result => {
-      setQuickLogConfirmation(type, loggedAt, result || { status: "error" });
+      setQuickLogConfirmation(type, loggedAt, result || { status: "error" }, acknowledgement);
       renderFuelGap();
       return result;
     }).catch(error => {
-      setQuickLogConfirmation(type, loggedAt, { status: "error", error });
+      setQuickLogConfirmation(type, loggedAt, { status: "error", error }, acknowledgement);
       renderFuelGap();
       return { status: "error", persisted: false, error };
     });
@@ -2122,6 +2145,7 @@
     }
 
     const loggedAt = new Date();
+    const logsBefore = betaState().logs.slice();
     const key = dateKey(loggedAt);
     const localId = uid();
     const log = {
@@ -2149,6 +2173,15 @@
       Object.assign(log, context);
     }
     Object.assign(log, window.FuelGuardWorkMode?.contextForEvent?.(loggedAt) || {});
+    const trainingMode = betaState().trainingMode || {};
+    const acknowledgement = window.FuelGuardDomain?.loggingAcknowledgement?.({
+      type: normalizedType,
+      logsBefore,
+      loggedAt,
+      targets: betaState().targets || {},
+      activeSession: trainingMode.activeSession,
+      completedSessions: trainingMode.sessions || []
+    }) || { headline: label, context: "", level: "micro" };
     betaState().logs.push(log);
     if (includesFuel && !options.bypassCooldown) setCooldown();
     if (includesFuel) applyOpportunityMatchesForDay(key);
@@ -2158,17 +2191,18 @@
       recordFuelMomentum(
         normalizedType === "hydration" ? "hydrationLogged" : "fuelLogged",
         normalizedType === "hydration" ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.",
-        normalizedType === "hydration" ? "Hydration logged. Fuel rhythm comparison updated. +1 Fuel Momentum" : "Fuel logged. Your fuel rhythm is up to date. +1 Fuel Momentum",
+        normalizedType === "hydration" ? "Hydration logged. Fuel rhythm comparison updated." : "Fuel logged. Your fuel rhythm is up to date.",
         { dedupeDaily: false }
       );
     } else if (typeof addActivityEntry === "function") {
       addActivityEntry(normalizedType === "hydration" ? "hydrationLogged" : "fuelLogged", normalizedType === "hydration" ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
     }
-    setQuickLogConfirmation(normalizedType, loggedAt);
+    setQuickLogConfirmation(normalizedType, loggedAt, null, acknowledgement);
+    showAthleteActionFeedback(acknowledgement, normalizedType);
     save();
     renderAll();
     window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
-    return persistQuickLog(log, normalizedType, loggedAt);
+    return persistQuickLog(log, normalizedType, loggedAt, acknowledgement);
   }
 
   recordFuelled = function recordFuelledBeta(options = {}) {
@@ -4694,7 +4728,6 @@
 
   function renderCurrentFuellingStatus(key = todayViewKey(), now = new Date()) {
     const snapshot = fuelGapSnapshot(now);
-    const hydrationSince = timeSinceLogForDay(key, isHydrationLog, now);
     const logs = logsForDay(key);
     const fuelLogs = logs.filter(isFuelLog);
     const hydrationLogs = logs.filter(isHydrationLog);
@@ -4753,8 +4786,8 @@
           </section>
         </section>
         <div class="beta-today-status-grid">
-          ${dailyMetricCard("Last fuel", lastFuel ? formatClock(lastFuel.date) : "Not logged", hasFuel ? `${snapshot.timeSinceFuel} ago` : "No fuel logged yet", "fuel")}
-          ${dailyMetricCard("Last hydration", lastHydration ? formatClock(lastHydration.date) : "Not logged", lastHydration ? `${hydrationSince} ago` : "No hydration logged yet", "hydration")}
+          ${dailyMetricCard("Last fuel", lastFuel ? formatClock(lastFuel.date) : "Not logged", lastFuel ? window.FuelGuardDomain.formatRecency(lastFuel.date, { now }) : "No fuel logged yet", "fuel")}
+          ${dailyMetricCard("Last hydration", lastHydration ? formatClock(lastHydration.date) : "Not logged", lastHydration ? window.FuelGuardDomain.formatRecency(lastHydration.date, { now }) : "No hydration logged yet", "hydration")}
           ${dailyMetricCard("Fuel logs", String(fuelLogs.length), "Logged on the selected day.", "fuel")}
           ${dailyMetricCard("Hydration logs", String(hydrationLogs.length), "Logged on the selected day.", "hydration")}
         </div>

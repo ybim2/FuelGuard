@@ -18,6 +18,8 @@
   let lastExternalEndNotification = "";
   let statusMessage = "";
   let durationTimer = 0;
+  let completionMoment = null;
+  let completionTimer = 0;
 
   function domain() {
     return window.FuelGuardDomain;
@@ -64,6 +66,9 @@
     foregroundReadGeneration += 1;
     lastExternalEndNotification = "";
     statusMessage = "";
+    completionMoment = null;
+    if (completionTimer) clearTimeout(completionTimer);
+    completionTimer = 0;
     persist();
   }
 
@@ -347,11 +352,62 @@
   }
 
   function completedSessionMetrics(session) {
-    return domain().trainingCompletionSummary({
-      session,
-      logs: logs(),
-      now: new Date(session.endedAt || session.ended_at)
-    });
+    if (typeof domain()?.trainingCompletionSummary === "function") {
+      return domain().trainingCompletionSummary({
+        session,
+        logs: logs(),
+        now: new Date(session.endedAt || session.ended_at)
+      });
+    }
+    const startedAt = new Date(session.startedAt || session.started_at || 0);
+    const endedAt = new Date(session.endedAt || session.ended_at || Date.now());
+    return {
+      durationSeconds: Number.isNaN(startedAt.getTime()) ? 0 : Math.max(0, Math.round((endedAt - startedAt) / 1000)),
+      fuelEventCount: 0,
+      hydrationEventCount: 0,
+      totals: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 }
+    };
+  }
+
+  function trainingCompletionMarkup(moment) {
+    const summary = moment.summary;
+    const eventCopy = `${summary.fuelEventCount} fuel log${summary.fuelEventCount === 1 ? "" : "s"} · ${summary.hydrationEventCount} hydration log${summary.hydrationEventCount === 1 ? "" : "s"}`;
+    const totals = [
+      ["Carbohydrate", summary.totals.carbsG, "g"],
+      ["Fluid", summary.totals.fluidMl, "ml"],
+      ["Sodium", summary.totals.sodiumMg, "mg"],
+      ["Caffeine", summary.totals.caffeineMg, "mg"]
+    ].filter(([, value]) => Number(value) > 0);
+    return `
+      <section class="training-completion-moment" role="status" aria-live="assertive">
+        <div class="training-completion-mark" aria-hidden="true">✓</div>
+        <span>${moment.source === "garmin" ? "Synced from Garmin" : "Session saved"}</span>
+        <h1>Training complete</h1>
+        <strong>${escape(domain().duration(Math.round(summary.durationSeconds / 60)))}</strong>
+        <p>${escape(eventCopy)}</p>
+        ${totals.length ? `<div class="training-completion-totals">${totals.map(([label, value, unit]) => `<span><small>${escape(label)}</small><b>${escape(`${Math.round(Number(value))}${unit}`)}</b></span>`).join("")}</div>` : ""}
+        <button class="primary" type="button" data-training-completion-dismiss>Continue</button>
+      </section>
+    `;
+  }
+
+  function showTrainingCompletion(session, { source = "athlete" } = {}) {
+    if (!session?.id) return;
+    completionMoment = { sessionId: session.id, session: { ...session }, source, summary: completedSessionMetrics(session) };
+    if (typeof switchScreen === "function") switchScreen("training");
+    if (completionTimer) clearTimeout(completionTimer);
+    completionTimer = typeof setTimeout === "function" ? setTimeout(() => {
+      dismissTrainingCompletion();
+    }, 5500) : 0;
+  }
+
+  function dismissTrainingCompletion() {
+    const completed = completionMoment?.session || null;
+    completionMoment = null;
+    if (completionTimer) clearTimeout(completionTimer);
+    completionTimer = 0;
+    render();
+    if (completed) window.dispatchEvent(new CustomEvent("fuelguard:training-completion-dismissed", { detail: { session: completed } }));
   }
 
   function intakeCards(summary, session) {
@@ -488,7 +544,7 @@
     const target = document.getElementById("trainingModeSurface");
     if (!target || !domain()) return;
     const active = activeSession();
-    target.innerHTML = active ? activeMarkup(active) : setupMarkup();
+    target.innerHTML = active ? activeMarkup(active) : completionMoment ? trainingCompletionMarkup(completionMoment) : setupMarkup();
     if (durationTimer) clearInterval(durationTimer);
     durationTimer = active ? setInterval(() => {
       const duration = document.querySelector("[data-training-duration]");
@@ -520,6 +576,9 @@
       return;
     }
     if (!window.confirm("Start Training Mode with these one-tap presets?")) return;
+    completionMoment = null;
+    if (completionTimer) clearTimeout(completionTimer);
+    completionTimer = 0;
     training.presets.fuel = { ...fuel, ...fuelValidation.preset };
     training.presets.hydration = { ...hydration, ...hydrationValidation.preset };
     const planned = setupPlan({ readForm: true });
@@ -571,11 +630,12 @@
     active.dirty = true;
     training.sessions = training.sessions.map(item => item.id === active.id ? { ...active } : item);
     training.activeSession = null;
-    statusMessage = "Training Mode ended. Session summary saved.";
+    statusMessage = "Training complete. Session summary saved.";
+    showTrainingCompletion(active);
     persist();
     render();
     await syncCloud();
-    window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...active } } }));
+    window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...active }, deferNavigation: true } }));
   }
 
   function presetRow(type, currentUser) {
@@ -727,7 +787,8 @@
       if (announceExternal) statusMessage = training.activeSession ? "Training Mode changed from Garmin." : "Training Mode ended from Garmin.";
       if (announceExternal && lastExternalEndNotification !== previousActive.id) {
         lastExternalEndNotification = previousActive.id;
-        window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...completed } } }));
+        showTrainingCompletion(completed, { source: "garmin" });
+        window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...completed }, deferNavigation: true } }));
       }
     }
 
@@ -879,6 +940,10 @@
   }
 
   document.addEventListener("click", async event => {
+    if (event.target.closest("[data-training-completion-dismiss]")) {
+      dismissTrainingCompletion();
+      return;
+    }
     if (event.target.closest("[data-training-start]")) return startSession();
     if (event.target.closest("[data-training-end]")) return endSession();
     const logButton = event.target.closest("[data-training-log]");

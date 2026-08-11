@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v135-garmin-training-authority";
-const BUILD_VERSION = "2026-08-11T09:26:44Z";
+const APP_VERSION = "mobile-pwa-v136-experience-feedback";
+const BUILD_VERSION = "2026-08-11T10:44:49Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v135-garmin-training-authority-20260811T092644Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v136-experience-feedback-20260811T104449Z";
 const APP_SHELL = [
   "./",
   "./index.html",

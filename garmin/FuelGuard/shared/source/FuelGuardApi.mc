@@ -33,6 +33,8 @@ module FuelGuardApi {
     var _batchFinishedAt = null;
     var _batchFinishedSyncedCount = 0;
     var _batchFinishedRemainingCount = 0;
+    var _lastAcknowledgedEventId = null;
+    var _lastAcknowledgedType = null;
 
     (:debug) var _testTransportEnabled = false;
     (:debug) var _testResponseCode = 201;
@@ -136,7 +138,17 @@ module FuelGuardApi {
     }
 
     function syncActive() as Boolean {
-        return _batchActive;
+      return _batchActive;
+    }
+
+    function eventAcknowledged(eventId as String?) as Boolean {
+        return eventId != null
+            && _lastAcknowledgedEventId instanceof String
+            && (_lastAcknowledgedEventId as String).equals(eventId as String);
+    }
+
+    function acknowledgedType() as String? {
+        return _lastAcknowledgedType instanceof String ? _lastAcknowledgedType as String : null;
     }
 
     function responseCallback() as Method {
@@ -271,6 +283,11 @@ module FuelGuardApi {
             : responseAcknowledged(responseCode, data);
         if (acknowledged) {
             if (context instanceof String) {
+                if (!trainingCommand && queuedEvent instanceof Dictionary) {
+                    var acknowledgedType = (queuedEvent as Dictionary)["type"];
+                    _lastAcknowledgedEventId = context as String;
+                    _lastAcknowledgedType = acknowledgedType instanceof String ? acknowledgedType as String : null;
+                }
                 FuelGuardQueue.removeAcknowledged(context as String);
                 _batchSyncedCount += 1;
             }
@@ -303,6 +320,8 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+        _lastAcknowledgedEventId = null;
+        _lastAcknowledgedType = null;
     }
 
     (:debug)
@@ -326,6 +345,8 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+        _lastAcknowledgedEventId = null;
+        _lastAcknowledgedType = null;
     }
 
     (:debug)
@@ -349,6 +370,8 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
+        _lastAcknowledgedEventId = null;
+        _lastAcknowledgedType = null;
     }
 
     (:debug)

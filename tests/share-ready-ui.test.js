@@ -122,8 +122,8 @@ test("Daily is a status-first beta instrument panel", () => {
   assert.match(statusRender, /Fuel logs/);
   assert.match(statusRender, /Hydration logs/);
   assert.doesNotMatch(statusRender, /graphLogFoodButton|graphLogHydrationButton|foodLogCooldownMessage/);
-  assert.match(js, /quickLogConfirmation = `\$\{label\} - \$\{formatClock\(date\)\}\. \$\{syncCopy\}`/);
-  assert.match(js, /return persistQuickLog\(log, normalizedType, loggedAt\)/);
+  assert.match(js, /quickLogConfirmation = `\$\{label\} - \$\{formatClock\(date\)\}\.\$\{contextCopy\} \$\{syncCopy\}`/);
+  assert.match(js, /return persistQuickLog\(log, normalizedType, loggedAt, acknowledgement\)/);
 });
 
 test("Today’s Patterns switches between fuel, hydration and sleepy event counts", () => {
@@ -218,13 +218,13 @@ test("Settings keeps only essential production sections", () => {
   assert.doesNotMatch(settings, /Garmin health patterns|Advanced settings|Daily targets|Support thresholds/);
 });
 
-test("PWA cache and asset versions are bumped for the Athlete UX and Impact fix release", () => {
+test("PWA cache and asset versions are bumped for the experience feedback release", () => {
   const html = read("index.html");
   const coachHtml = read("coach/index.html");
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v135-garmin-training-authority";
+  const version = "mobile-pwa-v136-experience-feedback";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -234,7 +234,7 @@ test("PWA cache and asset versions are bumped for the Athlete UX and Impact fix 
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260811T092644Z/);
+  assert.match(sw, /20260811T104449Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

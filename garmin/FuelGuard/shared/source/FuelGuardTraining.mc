@@ -27,6 +27,9 @@ module FuelGuardTraining {
     const STATUS_KEY = "fg_training_status";
     const PENDING_ACTION_KEY = "fg_training_pending_action";
     const PENDING_FAILED_KEY = "fg_training_pending_failed";
+    const STARTED_AT_KEY = "fg_training_started_at";
+    const COMPLETED_AT_KEY = "fg_training_completed_at";
+    const COMPLETED_DURATION_KEY = "fg_training_completed_duration";
     const STATUS_REQUEST_CONTEXT = "training_status";
     const REFRESH_INTERVAL_SECONDS = 60;
 
@@ -71,6 +74,45 @@ module FuelGuardTraining {
     function transitionFailed() as Boolean {
         var value = Storage.getValue(PENDING_FAILED_KEY);
         return value instanceof Boolean ? value as Boolean : false;
+    }
+
+    function completionActive() as Boolean {
+        var value = Storage.getValue(COMPLETED_AT_KEY);
+        return value instanceof Number && Time.now().value() - (value as Number) < 5;
+    }
+
+    function completionDurationText() as String {
+        var value = Storage.getValue(COMPLETED_DURATION_KEY);
+        if (!(value instanceof Number) || (value as Number) < 60) {
+            return "";
+        }
+        var minutes = (value as Number) / 60;
+        var hours = minutes / 60;
+        if (hours > 0) {
+            return Lang.format("$1$h $2$m", [hours, minutes % 60]);
+        }
+        return Lang.format("$1$m", [minutes]);
+    }
+
+    function recordConfirmedTransition(action as String, nextActive as Boolean) as Void {
+        var now = Time.now().value();
+        if (action.equals("start") && nextActive) {
+            Storage.setValue(STARTED_AT_KEY, now);
+            Storage.deleteValue(COMPLETED_AT_KEY);
+            Storage.deleteValue(COMPLETED_DURATION_KEY);
+            FuelGuardFeedback.vibrateSuccess();
+        } else if (action.equals("end") && !nextActive) {
+            var startedAt = Storage.getValue(STARTED_AT_KEY);
+            if (startedAt instanceof Number) {
+                var duration = now - (startedAt as Number);
+                Storage.setValue(COMPLETED_DURATION_KEY, duration > 0 ? duration : 0);
+            } else {
+                Storage.deleteValue(COMPLETED_DURATION_KEY);
+            }
+            Storage.setValue(COMPLETED_AT_KEY, now);
+            Storage.deleteValue(STARTED_AT_KEY);
+            FuelGuardFeedback.vibrateSuccess();
+        }
     }
 
     function setTransition(action as String, failed as Boolean, status as String) as Void {
@@ -170,12 +212,14 @@ module FuelGuardTraining {
     }
 
     function handleCommandResponse(responseCode as Number, data as Dictionary or String or Null) as Boolean {
+        var action = pendingAction();
         if ((responseCode == 200 || responseCode == 201) && data instanceof Dictionary) {
             var values = data as Dictionary;
             var result = dictionaryString(values, "result");
             var nextActive = dictionaryBoolean(values, "active");
             var nextSessionId = dictionarySessionId(values);
             if (nextActive != null) {
+                recordConfirmedTransition(action, nextActive as Boolean);
                 var message = nextActive as Boolean ? "Training Mode started" : "Training complete";
                 if (result.equals("already_active")) {
                     message = "Training Mode active";
@@ -187,7 +231,6 @@ module FuelGuardTraining {
                 return true;
             }
         }
-        var action = pendingAction();
         var failureStatus = "Training update failed - retry";
         if (action.equals("start")) {
             failureStatus = "Training start failed - retry";
@@ -261,6 +304,7 @@ module FuelGuardTraining {
                 var transitionConfirmed = (action.equals("start") && canonicalActive)
                     || (action.equals("end") && !canonicalActive);
                 if (transitionConfirmed) {
+                    recordConfirmedTransition(action, canonicalActive);
                     clearTransition();
                     setState(canonicalActive, dictionarySessionId(values), canonicalActive ? "Training Mode active" : "Training complete");
                 } else if (action.length() == 0) {
@@ -277,6 +321,9 @@ module FuelGuardTraining {
         Storage.deleteValue(STATUS_KEY);
         Storage.deleteValue(PENDING_ACTION_KEY);
         Storage.deleteValue(PENDING_FAILED_KEY);
+        Storage.deleteValue(STARTED_AT_KEY);
+        Storage.deleteValue(COMPLETED_AT_KEY);
+        Storage.deleteValue(COMPLETED_DURATION_KEY);
         _refreshInFlight = false;
         _lastRefreshAt = 0;
         _testThrowOnRefreshRequest = false;

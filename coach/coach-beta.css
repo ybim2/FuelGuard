@@ -1492,6 +1492,87 @@ body.coach-beta {
   background: rgba(217, 144, 36, .1);
 }
 
+.coach-chip.positive {
+  color: #0e6b51;
+  border-color: rgba(21, 139, 99, .28);
+  background: rgba(37, 187, 127, .1);
+}
+
+.coach-intelligence-column.positive {
+  background: rgba(34, 171, 108, .035);
+}
+
+.coach-week-workflow {
+  display: grid;
+  grid-template-columns: minmax(150px, .42fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--coach-line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.coach-week-workflow > div span,
+.coach-week-workflow > div strong { display: block; }
+.coach-week-workflow > div span { color: var(--coach-muted); font-size: .7rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.coach-week-workflow > div strong { margin-top: 4px; color: var(--coach-text); }
+.coach-week-workflow ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.coach-week-workflow li { min-width: 0; padding: 9px 11px; border-radius: 11px; background: rgba(16, 32, 25, .035); color: var(--coach-muted); font-size: .8rem; font-weight: 750; overflow-wrap: anywhere; }
+.coach-week-workflow li.complete { background: rgba(24, 151, 87, .09); color: #11653d; }
+
+.coach-brief-completion-action {
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--coach-line);
+}
+
+.coach-brief-completion-action small { max-width: 390px; color: var(--coach-muted); line-height: 1.4; }
+
+.coach-completion-moment {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  z-index: 500;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  width: min(calc(100vw - 36px), 430px);
+  padding: 17px;
+  border: 1px solid rgba(42, 196, 118, .3);
+  border-radius: 20px;
+  background: rgba(8, 30, 21, .97);
+  color: #fff;
+  box-shadow: 0 24px 60px rgba(6, 35, 23, .3);
+  animation: coach-completion-arrive .7s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.coach-completion-moment[hidden] { display: none !important; }
+.coach-completion-moment > b { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: #32d37f; color: #082317; }
+.coach-completion-moment span,
+.coach-completion-moment strong { display: block; }
+.coach-completion-moment span { color: rgba(255, 255, 255, .58); font-size: .65rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.coach-completion-moment strong { margin-top: 3px; font-size: 1rem; }
+.coach-completion-moment p { margin: 5px 0 0; color: rgba(255, 255, 255, .78); font-size: .8rem; }
+.coach-completion-moment ul { margin: 8px 0 0; padding-left: 18px; color: rgba(255, 255, 255, .68); font-size: .74rem; }
+.coach-completion-moment button { align-self: start; padding: 2px 6px; border: 0; background: transparent; color: rgba(255, 255, 255, .7); font-size: 1.25rem; }
+
+@keyframes coach-completion-arrive {
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 760px) {
+  .coach-week-workflow { grid-template-columns: 1fr; }
+  .coach-week-workflow ul { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-completion-moment { animation: none; }
+}
+
 .coach-pattern-list,
 .coach-candidate-list {
   display: grid;

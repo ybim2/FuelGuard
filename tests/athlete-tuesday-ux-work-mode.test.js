@@ -198,10 +198,13 @@ test("Work Mode migration enforces one active owner-scoped session and composite
   assert.match(rls, /Composite ownership prevents linking a log to another athlete/);
 });
 
-test("Training completion is represented once in history with responsive three-line summary hierarchy", () => {
+test("Training completion has one transient summary and remains represented once in history", () => {
   const training = read("training-mode.js");
   assert.doesNotMatch(training, /function completionSummaryMarkup/);
-  assert.doesNotMatch(training, /Training complete/);
+  assert.match(training, /function trainingCompletionMarkup/);
+  assert.equal((training.match(/<h1>Training complete<\/h1>/g) || []).length, 1);
+  assert.match(training, /fuelEventCount/);
+  assert.match(training, /hydrationEventCount/);
   assert.match(training, /Recent Training Mode sessions/);
   assert.match(training, /training-mode-review-time/);
   assert.match(training, /training-mode-review-actual/);
@@ -209,6 +212,7 @@ test("Training completion is represented once in history with responsive three-l
   const css = read("training-mode.css");
   assert.match(css, /\.training-mode-review-time \{/);
   assert.match(css, /\.training-mode-review-actual,[\s\S]*\.training-mode-review-events \{/);
+  assert.match(css, /\.training-completion-moment \{/);
 });
 
 test("Impact uses the Athlete card system, the requested hierarchy and guarded first-use onboarding", () => {
@@ -234,7 +238,7 @@ test("the PWA cache advances once and includes every new Work Mode asset", () =>
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v135-garmin-training-authority/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v136-experience-feedback/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));

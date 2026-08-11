@@ -798,6 +798,10 @@
   window.addEventListener("fuelguard:cloud-status", () => load());
   window.addEventListener("fuelguard:training-session-ended", event => {
     impactState.trainingSessions = [event.detail?.session, ...impactState.trainingSessions.filter(session => session.id !== event.detail?.session?.id)].filter(Boolean);
+    if (!event.detail?.deferNavigation && typeof switchScreen === "function") switchScreen("impact");
+    load({ force: true });
+  });
+  window.addEventListener("fuelguard:training-completion-dismissed", () => {
     if (typeof switchScreen === "function") switchScreen("impact");
     load({ force: true });
   });

@@ -155,7 +155,7 @@
       ? details.map(item => `<li class="attention-row">
           <div><strong>${safe(item.athleteName)}</strong><small>${safe(item.issue)}</small></div>
           <div><strong>${safe(item.unitName || "Unassigned unit")}</strong><small>${safe(item.responsibleStaffName || "Unassigned staff")}</small></div>
-          <div><strong>${item.lastLogAt ? `Last log ${safe(dateTime(item.lastLogAt))}` : "No logging data"}</strong><small>${item.followUpDue ? "Follow-up due" : "Operational signal"}</small></div>
+          <div><strong>${item.lastLogAt ? safe(window.FuelGuardDomain.formatRecency(item.lastLogAt)) : "No logging data"}</strong><small>${item.followUpDue ? "Follow-up due" : "Operational signal"}</small></div>
           <div class="attention-actions"><span class="status-badge ${safe(item.status)}">${safe(String(item.status || "open").replaceAll("_", " "))}</span><button class="text-button compact-button" type="button" data-athlete-detail="${safe(item.athleteId)}">Open athlete</button></div>
         </li>`).join("")
       : grouped.length
