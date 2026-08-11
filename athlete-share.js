@@ -5,6 +5,9 @@
   const STATUS_ID = "athleteDailyShareStatus";
   let activeIdentity = "";
   let sharing = false;
+  let selectedTemplate = "";
+  let selectedRendered = null;
+  let selectedIdentity = "";
 
   function cloudUserId() {
     return String(window.fuelGuardCloud?.user?.id || "");
@@ -78,6 +81,89 @@
     setBusy(false);
   }
 
+  function settingsStatus(message = "") {
+    const status = document.getElementById("athleteShareSettingsStatus");
+    if (status) status.textContent = message;
+  }
+
+  function summaryData(now = new Date()) {
+    const gap = typeof fuelGapState === "function" ? fuelGapState() : {};
+    return {
+      logs: Array.isArray(gap?.logs) ? gap.logs : [],
+      sessions: Array.isArray(gap?.trainingMode?.sessions) ? gap.trainingMode.sessions : [],
+      maximumGapMinutes: gap?.maximumFuelGapMinutes,
+      domain: window.FuelGuardDomain,
+      now
+    };
+  }
+
+  function summaryFilename(template, now = new Date()) {
+    const key = window.FuelGuardDomain?.dateKey?.(now) || now.toISOString().slice(0, 10);
+    return `fuel-guard-${String(template || "story").replace(/[^a-z0-9-]+/gi, "-")}-${key}.png`;
+  }
+
+  function renderSettingsStory(template, now = new Date()) {
+    resetForCurrentIdentity();
+    const model = window.FuelGuardShareCard.buildSummaryModel(template, summaryData(now));
+    const canvas = window.FuelGuardShareCard.renderTemplate(template, model);
+    selectedTemplate = template;
+    selectedIdentity = activeIdentity;
+    selectedRendered = { model, canvas, filename: summaryFilename(template, now) };
+    const preview = document.getElementById("athleteSharePreviewCanvas");
+    const panel = document.getElementById("athleteSharePreview");
+    if (preview?.getContext) {
+      preview.width = canvas.width;
+      preview.height = canvas.height;
+      preview.getContext("2d").drawImage(canvas, 0, 0);
+    }
+    if (panel) panel.hidden = false;
+    document.querySelectorAll("[data-athlete-share-template]").forEach(button => {
+      button.classList.toggle("selected", button.dataset.athleteShareTemplate === template);
+    });
+    settingsStatus("Preview uses your current Athlete records only.");
+    return selectedRendered;
+  }
+
+  function shareSelectedStory({ downloadOnly = false } = {}) {
+    if (selectedIdentity !== cloudUserId()) {
+      resetForCurrentIdentity();
+      settingsStatus("Your account changed. Choose a share card again.");
+      return;
+    }
+    if (!selectedRendered || !selectedTemplate) {
+      settingsStatus("Choose a share card first.");
+      return;
+    }
+    let blob;
+    try {
+      blob = storyBlob(selectedRendered.canvas);
+    } catch (error) {
+      settingsStatus(`Card could not be exported: ${error?.message || "unknown error"}`);
+      return;
+    }
+    if (downloadOnly) {
+      downloadStory(blob, selectedRendered.filename);
+      settingsStatus("Image saved. Share it from Photos or Files.");
+      return;
+    }
+    const file = typeof File === "function" ? new File([blob], selectedRendered.filename, { type: "image/png" }) : null;
+    let canShare = false;
+    try {
+      canShare = Boolean(file && typeof navigator.share === "function" && navigator.canShare?.({ files: [file] }));
+    } catch {
+      canShare = false;
+    }
+    if (!canShare) {
+      downloadStory(blob, selectedRendered.filename);
+      settingsStatus("Native image sharing is unavailable, so the card was saved instead.");
+      return;
+    }
+    settingsStatus("Opening your share sheet…");
+    Promise.resolve(navigator.share({ files: [file], title: selectedRendered.model.title, text: "My Fuel Guard Athlete summary" }))
+      .then(() => settingsStatus("Card shared."))
+      .catch(error => settingsStatus(error?.name === "AbortError" ? "Share cancelled." : "Sharing failed. Use Save image instead."));
+  }
+
   function shareDailyStory() {
     if (sharing) return;
     resetForCurrentIdentity();
@@ -136,13 +222,28 @@
     if (nextIdentity === activeIdentity) return;
     activeIdentity = nextIdentity;
     sharing = false;
+    selectedTemplate = "";
+    selectedRendered = null;
+    selectedIdentity = "";
     setBusy(false);
     setStatus("");
+    settingsStatus("");
+    const preview = document.getElementById("athleteSharePreview");
+    if (preview) preview.hidden = true;
   }
 
   function init() {
     activeIdentity = cloudUserId();
     document.getElementById(BUTTON_ID)?.addEventListener("click", shareDailyStory);
+    document.querySelectorAll("[data-athlete-share-template]").forEach(button => button.addEventListener("click", () => {
+      try {
+        renderSettingsStory(button.dataset.athleteShareTemplate, new Date());
+      } catch (error) {
+        settingsStatus(`Card could not be created: ${error?.message || "unknown error"}`);
+      }
+    }));
+    document.getElementById("athleteShareSelectedButton")?.addEventListener("click", () => shareSelectedStory());
+    document.getElementById("athleteShareDownloadButton")?.addEventListener("click", () => shareSelectedStory({ downloadOnly: true }));
     window.addEventListener("fuelguard:cloud-status", resetForCurrentIdentity);
     window.addEventListener("pageshow", resetForCurrentIdentity);
   }
@@ -150,7 +251,9 @@
   window.FuelGuardAthleteShare = Object.freeze({
     renderDailyStoryCanvas,
     shareDailyStory,
-    _test: Object.freeze({ dailyModel, storyBlob, dataUrlToBlob, resetForCurrentIdentity })
+    renderSettingsStory,
+    shareSelectedStory,
+    _test: Object.freeze({ dailyModel, summaryData, summaryFilename, storyBlob, dataUrlToBlob, resetForCurrentIdentity })
   });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });

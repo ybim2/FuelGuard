@@ -36,9 +36,9 @@ test("primary navigation keeps Training beside Daily and adds a focused Impact s
 
   assert.doesNotMatch(html, /<nav class="side-nav beta-nav">/);
   assert.deepEqual([...mobileNav.matchAll(/data-mobile-screen="([^"]+)"[\s\S]*?<span>([^<]+)<\/span>/g)].map(match => [match[1], match[2]]), [
+    ["impact", "Impact"],
     ["dashboard", "Daily"],
-    ["training", "Training"],
-    ["impact", "Impact"]
+    ["training", "Training"]
   ]);
   assert.match(html, /data-open-screen="checklist"/);
   assert.match(html, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important;/);
@@ -224,7 +224,7 @@ test("PWA cache and asset versions are bumped for the Athlete UX and Impact fix 
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v132-athlete-ux-impact-fix";
+  const version = "mobile-pwa-v134-overnight-integration";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -234,7 +234,7 @@ test("PWA cache and asset versions are bumped for the Athlete UX and Impact fix 
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260810T162615Z/);
+  assert.match(sw, /20260811T075857Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

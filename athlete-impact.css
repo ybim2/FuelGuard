@@ -474,3 +474,153 @@
   .impact-history-row strong { text-align: right; }
   .impact-history-row small { grid-column: 1 / -1; text-align: left; }
 }
+
+/* Align Impact with the canonical light Athlete card system. */
+body.beta-mvp .impact-surface {
+  color: var(--text);
+}
+
+body.beta-mvp .impact-hero,
+body.beta-mvp .impact-section {
+  border-color: rgba(var(--fg-brand-dark-rgb), 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 30px rgba(var(--fg-brand-dark-rgb), 0.07);
+}
+
+body.beta-mvp .impact-hero::after {
+  background: rgba(var(--fg-fuel-rgb), 0.12);
+}
+
+body.beta-mvp .impact-hero.positive { border-color: rgba(var(--fg-fuel-rgb), 0.42); }
+body.beta-mvp .impact-hero.negative { border-color: rgba(190, 88, 67, 0.32); }
+body.beta-mvp .impact-hero.mixed { border-color: rgba(196, 144, 39, 0.34); }
+
+body.beta-mvp .impact-eyebrow,
+body.beta-mvp .impact-section-heading > div > span {
+  color: var(--fg-brand-mid);
+}
+
+body.beta-mvp .impact-hero p,
+body.beta-mvp .impact-evidence-line,
+body.beta-mvp .impact-section-heading small,
+body.beta-mvp .impact-outcome-card p,
+body.beta-mvp .impact-note,
+body.beta-mvp .impact-claims-note,
+body.beta-mvp .impact-feedback-question,
+body.beta-mvp .impact-sparkline-empty,
+body.beta-mvp .impact-range-label,
+body.beta-mvp .impact-sport-select,
+body.beta-mvp .impact-form-grid label,
+body.beta-mvp .impact-empty {
+  color: var(--muted);
+}
+
+body.beta-mvp .impact-evidence-line,
+body.beta-mvp .impact-claims-note {
+  border-color: rgba(var(--fg-brand-dark-rgb), 0.1);
+}
+
+body.beta-mvp .impact-component,
+body.beta-mvp .impact-outcome-card,
+body.beta-mvp .impact-report-columns > article,
+body.beta-mvp .impact-window-labels,
+body.beta-mvp .impact-calculation-note,
+body.beta-mvp .impact-custom-metric,
+body.beta-mvp .impact-history-list details,
+body.beta-mvp .impact-selected-metrics > div {
+  border-color: rgba(var(--fg-brand-dark-rgb), 0.1);
+  background: rgba(244, 248, 243, 0.9);
+}
+
+body.beta-mvp .impact-component > span,
+body.beta-mvp .impact-outcome-heading span,
+body.beta-mvp .impact-before-now span,
+body.beta-mvp .impact-before-now small,
+body.beta-mvp .impact-window-labels,
+body.beta-mvp .impact-history-row span,
+body.beta-mvp .impact-history-row small,
+body.beta-mvp .impact-signal-row span,
+body.beta-mvp .impact-signal-row small,
+body.beta-mvp .impact-preset span {
+  color: var(--muted);
+}
+
+body.beta-mvp .impact-range-label select,
+body.beta-mvp .impact-sport-select select,
+body.beta-mvp .impact-form-grid input,
+body.beta-mvp .impact-form-grid select,
+body.beta-mvp .impact-feedback-group button,
+body.beta-mvp .impact-preset {
+  border-color: rgba(var(--fg-brand-dark-rgb), 0.16);
+  background: #ffffff;
+  color: var(--text);
+}
+
+body.beta-mvp .impact-feedback-group button.selected {
+  border-color: var(--fg-brand-mid);
+  background: rgba(var(--fg-fuel-rgb), 0.15);
+  color: var(--text);
+}
+
+body.beta-mvp .impact-summary .impact-component {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+body.beta-mvp .impact-onboarding {
+  border-color: rgba(var(--fg-fuel-rgb), 0.45);
+  background: linear-gradient(145deg, rgba(var(--fg-fuel-rgb), 0.13), rgba(255, 255, 255, 0.96));
+}
+
+body.beta-mvp .impact-onboarding h1,
+body.beta-mvp .impact-onboarding p {
+  margin-top: 0;
+}
+
+body.beta-mvp .impact-onboarding h1 {
+  max-width: 620px;
+  margin-bottom: 10px;
+  font-size: clamp(1.5rem, 6vw, 2.2rem);
+  line-height: 1.08;
+}
+
+body.beta-mvp .impact-onboarding ol {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: impact-onboarding;
+}
+
+body.beta-mvp .impact-onboarding li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  align-items: center;
+  counter-increment: impact-onboarding;
+}
+
+body.beta-mvp .impact-onboarding li::before {
+  grid-row: 1 / span 2;
+  content: counter(impact-onboarding);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--fg-brand-dark);
+  color: white;
+  font-weight: 900;
+}
+
+body.beta-mvp .impact-onboarding li span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+body.beta-mvp .impact-status-message {
+  border-color: rgba(var(--fg-fuel-rgb), 0.35);
+  background: rgba(255, 255, 255, 0.97);
+  color: var(--text);
+  box-shadow: 0 9px 22px rgba(var(--fg-brand-dark-rgb), 0.12);
+}

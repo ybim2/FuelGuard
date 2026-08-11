@@ -252,17 +252,17 @@ test("schema links Training Mode to fuel_logs with user-owned RLS and canonical 
   assert.doesNotMatch(migration, /calories|protein|fibre|body_weight|meal_plan/i);
 });
 
-test("Athlete header Settings and Coach use the cleaned continuous visual language", () => {
+test("Athlete header Settings stays continuous while Coach uses light operational cards", () => {
   const athleteCss = read("fuel-beta.css");
   const coachCss = read("coach/coach-beta.css");
   assert.match(athleteCss, /\.beta-topbar-logo \{[\s\S]*position: absolute;[\s\S]*left:/);
   assert.match(athleteCss, /#checklist > \.card \{[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
-  assert.match(coachCss, /#coachAppShell \.coach-card \{[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
+  assert.match(coachCss, /v133 Coach workflow redesign:[\s\S]*#coachAppShell \.coach-card \{[\s\S]*border-radius: 20px;[\s\S]*background: var\(--coach-surface\)/);
 });
 
 test("Athlete navigation keeps three usable equal touch targets at 375px", () => {
   const css = read("fuel-beta.css");
   assert.match(css, /body\.beta-mvp \.mobile-bottom-nav \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(css, /mobile-bottom-nav \.mobile-nav-item \{[\s\S]*min-height: calc\(58px/);
+  assert.match(css, /mobile-bottom-nav \.mobile-nav-item \{[\s\S]*min-height: calc\(52px/);
   assert.match(css, /@media \(max-width: 390px\)[\s\S]*mobile-bottom-nav \.mobile-nav-item \{ min-width: 0; \}/);
 });

@@ -13,6 +13,11 @@ class FuelGuardActivityLoggerApp extends Application.AppBase {
         FuelGuardConnection.registerForOAuthMessages();
     }
 
+    public function onAuthenticationRequest() as Void {
+        FuelGuardConnection.configure(FuelGuardConnection.APP_ACTIVITY_LOGGER);
+        FuelGuardConnection.registerForOAuthMessages();
+    }
+
     public function onStop(state as Dictionary?) as Void {
     }
 

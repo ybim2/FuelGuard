@@ -12,6 +12,11 @@ class FuelGuardQuickLogApp extends Application.AppBase {
 
     }
 
+    public function onAuthenticationRequest() as Void {
+        FuelGuardConnection.configure(FuelGuardConnection.APP_QUICK_LOG);
+        FuelGuardConnection.registerForOAuthMessages();
+    }
+
     public function onStop(state as Dictionary?) as Void {
     }
 

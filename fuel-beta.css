@@ -611,8 +611,98 @@ body.beta-mvp .beta-streak-visuals {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 12px;
+  margin-top: 6px;
   min-width: 0;
+}
+
+body.beta-mvp .beta-streak-milestone-progress {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+body.beta-mvp .beta-streak-milestone-lane {
+  display: grid;
+  grid-template-columns: minmax(104px, 28%) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-streak-milestone-lane header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1px 6px;
+  min-width: 0;
+}
+
+body.beta-mvp .beta-streak-milestone-lane header > span { grid-row: 1 / span 2; }
+
+body.beta-mvp .beta-streak-milestone-lane header strong,
+body.beta-mvp .beta-streak-milestone-lane header small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.beta-mvp .beta-streak-milestone-lane header strong {
+  color: var(--fg-brand-dark);
+  font-size: .69rem;
+}
+
+body.beta-mvp .beta-streak-milestone-lane header small {
+  color: #65736d;
+  font-size: .62rem;
+  font-weight: 800;
+}
+
+body.beta-mvp .beta-streak-milestone-track {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  padding: 3px 2px 7px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scroll-snap-type: inline proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.beta-mvp .beta-streak-milestone {
+  display: grid;
+  flex: 0 0 58px;
+  justify-items: center;
+  gap: 0;
+  padding: 7px 5px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), .12);
+  border-radius: 13px;
+  background: #f4f7f5;
+  color: #7d8984;
+  scroll-snap-align: start;
+}
+
+body.beta-mvp .beta-streak-milestone > b { font-size: .66rem; }
+body.beta-mvp .beta-streak-milestone > strong { font-size: .88rem; line-height: 1.05; }
+body.beta-mvp .beta-streak-milestone > small { font-size: .55rem; font-weight: 800; }
+
+body.beta-mvp .beta-streak-milestone.unlocked {
+  border-color: rgba(var(--fg-fuel-rgb), .32);
+  background: rgba(var(--fg-fuel-rgb), .11);
+  color: var(--fg-brand-dark);
+}
+
+body.beta-mvp .beta-streak-milestone.next {
+  border-color: rgba(var(--fg-hydration-rgb), .42);
+  background: #ffffff;
+  color: var(--fg-brand-dark);
+  box-shadow: 0 0 0 2px rgba(var(--fg-hydration-rgb), .1);
+}
+
+@media (max-width: 390px) {
+  body.beta-mvp .beta-streak-milestone-lane {
+    grid-template-columns: 86px minmax(0, 1fr);
+  }
 }
 
 body.beta-mvp .beta-streak-visual {
@@ -8887,6 +8977,12 @@ body.beta-mvp #checklist > .card {
 
 body.beta-mvp .mobile-bottom-nav {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item {
+  min-height: calc(52px + env(safe-area-inset-bottom, 0px));
+  padding-top: 5px;
+  padding-bottom: calc(5px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 390px) {

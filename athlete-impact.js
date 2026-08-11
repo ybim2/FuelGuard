@@ -80,6 +80,7 @@
     error: "",
     message: ""
   };
+  const promptedOnboardingUsers = new Set();
 
   function resetImpactIdentity(userId = "") {
     impactState = {
@@ -150,6 +151,69 @@
   function targetSettings() {
     const gap = typeof fuelGapState === "function" ? fuelGapState() : {};
     return { maximumFuelGapMinutes: gap?.maximumFuelGapMinutes };
+  }
+
+  function onboardingStorageKey(userId) {
+    return `fuelGuardImpactOnboarding:${String(userId || "")}`;
+  }
+
+  function onboardingDismissed(userId) {
+    try {
+      return window.localStorage.getItem(onboardingStorageKey(userId)) === "dismissed";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function dismissOnboarding(userId) {
+    try {
+      window.localStorage.setItem(onboardingStorageKey(userId), "dismissed");
+    } catch (_error) {
+      // The setup remains available on Impact when storage is unavailable.
+    }
+  }
+
+  function genuinelyNewAthlete() {
+    const user = cloud()?.user;
+    const createdAt = new Date(user?.created_at || "").getTime();
+    const age = Date.now() - createdAt;
+    const noImpactData = !impactState.metrics.length && !impactState.results.length && !impactState.feedback.length;
+    return Boolean(user?.id)
+      && Number.isFinite(createdAt)
+      && age >= 0
+      && age <= 72 * 60 * 60 * 1000
+      && noImpactData
+      && localLogs().length === 0
+      && !onboardingDismissed(user.id);
+  }
+
+  function onboardingMarkup() {
+    if (!genuinelyNewAthlete()) return "";
+    return `
+      <section class="impact-section impact-onboarding" aria-labelledby="impactOnboardingHeading">
+        <div class="impact-eyebrow">Welcome to Fuel Guard Athlete</div>
+        <h1 id="impactOnboardingHeading">Start with why performance matters to you.</h1>
+        <p>Choose your sport and up to three outcomes now. You can start with one, change them later and use Daily immediately.</p>
+        <ol><li><strong>Set your direction</strong><span>Choose the performance context that matters.</span></li><li><strong>Pick primary outcomes</strong><span>Record only the measures you actually care about.</span></li></ol>
+        <div class="button-row"><button type="button" class="primary" data-impact-onboarding-continue>Set up Impact</button><button type="button" class="secondary" data-impact-onboarding-later>Continue with Daily</button></div>
+      </section>`;
+  }
+
+  function promptNewAthleteOnce() {
+    const userId = cloud()?.user?.id || "";
+    if (!userId || !genuinelyNewAthlete()) return;
+    const key = `${onboardingStorageKey(userId)}:prompted`;
+    if (promptedOnboardingUsers.has(userId)) return;
+    try {
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, "true");
+    } catch (_error) {
+      // The in-memory guard below still prevents repeat routing for this load.
+    }
+    promptedOnboardingUsers.add(userId);
+    requestAnimationFrame(() => {
+      if (cloud()?.user?.id === userId && typeof switchScreen === "function") switchScreen("impact");
+    });
   }
 
   function athleteTimeZone() {
@@ -326,34 +390,16 @@
   function reportMarkup(report) {
     const outcomeCount = report.outcomes.filter(outcome => outcome.sufficient).length;
     return `
-      <section class="impact-hero ${statusTone(report.overall.id)}">
-        <div class="impact-eyebrow">Your Fuel Guard Impact</div>
-        <h1>${escape(report.overall.label)}</h1>
-        <p>${escape(report.summary)}</p>
-        <div class="impact-evidence-line">Based on ${report.evidence.days} days · ${report.evidence.workouts} recorded sessions · ${report.evidence.feedback} feedback responses · ${report.evidence.performanceResults} performance tests</div>
-      </section>
-
       <section class="impact-section">
-        <div class="impact-section-heading"><div><span>Visible evidence</span><h2>What is moving?</h2></div></div>
-        <div class="impact-component-grid">
-          ${componentCard("Fuelling behaviour", report.components.behavior, `${report.components.behavior.eligible} eligible signals`)}
-          ${componentCard("Training experience", report.components.trainingExperience, `${report.baseline.feedbackCount + report.current.feedbackCount} feedback responses in comparison windows`)}
-          ${componentCard("Performance outcomes", report.components.performanceOutcomes, `${outcomeCount} of ${report.outcomes.length} outcomes comparable`)}
-        </div>
-        <p class="impact-claims-note">This is observational evidence. Fuel Guard reports changes that occurred during the same period; it does not claim that fuelling caused a performance outcome.</p>
-      </section>
-
-      <section class="impact-section">
-        <div class="impact-section-heading">
-          <div><span>Primary outcomes</span><h2>Baseline to current</h2></div>
+        <div class="impact-section-heading"><div><span>2 · Primary outcomes you want</span><h2>Baseline to current</h2></div>
           <small>${escape(report.outcomes.length)} of 3 selected</small>
         </div>
-        <div class="impact-outcome-grid">${report.outcomes.length ? report.outcomes.map(outcomeCard).join("") : `<p class="impact-empty">Choose a performance outcome below to establish what better performance means for you.</p>`}</div>
+        <div class="impact-outcome-grid">${report.outcomes.length ? report.outcomes.map(outcomeCard).join("") : `<p class="impact-empty">Choose a performance outcome above to establish what better performance means for you.</p>`}</div>
       </section>
 
       <section class="impact-section">
         <div class="impact-section-heading impact-report-heading">
-          <div><span>Comparison report</span><h2>${escape(RANGE_LABELS[impactState.range])}</h2><small>${escape(report.period.display)}</small></div>
+          <div><span>3 · Comparison report</span><h2>${escape(RANGE_LABELS[impactState.range])}</h2><small>${escape(report.period.display)}</small></div>
           <label class="impact-range-label">Period<select id="impactRangeSelect">
             ${Object.entries(RANGE_LABELS).map(([value, label]) => `<option value="${value}"${impactState.range === value ? " selected" : ""}>${escape(label)}</option>`).join("")}
           </select></label>
@@ -368,6 +414,19 @@
           <p>Fuel/Hydration coverage compares 14-day windows. Gap measures need five measurable days in each window. Pre/post-training and feedback measures need three completed sessions or responses in each window. Outcome results need two dates at least 14 days apart.</p>
         </details>
       </section>
+
+      <section class="impact-hero impact-summary ${statusTone(report.overall.id)}">
+        <div class="impact-eyebrow">4 · Impact summary</div>
+        <h1>${escape(report.overall.label)}</h1>
+        <p>${escape(report.summary)}</p>
+        <div class="impact-component-grid">
+          ${componentCard("Fuelling behaviour", report.components.behavior, `${report.components.behavior.eligible} eligible signals`)}
+          ${componentCard("Training experience", report.components.trainingExperience, `${report.baseline.feedbackCount + report.current.feedbackCount} feedback responses in comparison windows`)}
+          ${componentCard("Performance outcomes", report.components.performanceOutcomes, `${outcomeCount} of ${report.outcomes.length} outcomes comparable`)}
+        </div>
+        <p class="impact-claims-note">This is observational evidence. Fuel Guard reports changes that occurred during the same period; it does not claim that fuelling caused a performance outcome.</p>
+        <div class="impact-evidence-line">Based on ${report.evidence.days} days · ${report.evidence.workouts} recorded sessions · ${report.evidence.feedback} feedback responses · ${report.evidence.performanceResults} performance tests</div>
+      </section>
     `;
   }
 
@@ -377,7 +436,7 @@
     const activeKeys = new Set(metrics.map(metric => metric.preset_key).filter(Boolean));
     return `
       <section class="impact-section impact-setup">
-        <div class="impact-section-heading"><div><span>Set your direction</span><h2>What does better performance look like for you?</h2></div><small>${metrics.length}/3 selected</small></div>
+        <div class="impact-section-heading"><div><span>1 · Set your direction</span><h2>What does better performance look like for you?</h2></div><small>${metrics.length}/3 selected</small></div>
         <label class="impact-sport-select">Sport<select id="impactSportSelect">
           ${Object.entries(SPORT_LABELS).map(([value, label]) => `<option value="${value}"${impactState.sport === value ? " selected" : ""}>${escape(label)}</option>`).join("")}
         </select></label>
@@ -405,7 +464,7 @@
     if (!metrics.length) return "";
     return `
       <section class="impact-section">
-        <div class="impact-section-heading"><div><span>Athlete entry</span><h2>Add a performance result</h2></div><small>Source: Athlete entry</small></div>
+        <div class="impact-section-heading"><div><span>5 · Add new results</span><h2>Record a performance result</h2></div><small>Source: Athlete entry</small></div>
         <div class="impact-form-grid">
           <label>Performance outcome<select id="impactResultMetric">${metrics.map(metric => `<option value="${escape(metric.id)}">${escape(metric.name)}</option>`).join("")}</select></label>
           <label>Date<input id="impactResultDate" type="date" value="${escape(domain().dateKey(new Date()))}"></label>
@@ -495,10 +554,11 @@
     const report = currentReport();
     target.innerHTML = `
       ${impactState.message ? `<div class="impact-status-message" role="status">${escape(impactState.message)}</div>` : ""}
-      ${reportMarkup(report)}
-      ${feedbackMarkup()}
-      ${resultEntryMarkup()}
+      ${onboardingMarkup()}
       ${presetSetupMarkup()}
+      ${reportMarkup(report)}
+      ${resultEntryMarkup()}
+      ${feedbackMarkup()}
       ${historyMarkup()}
     `;
   }
@@ -542,6 +602,7 @@
         sport: metrics.find(metric => !metric.archived_at)?.sport_type || impactState.sport,
         error: ""
       };
+      promptNewAthleteOnce();
     } catch (error) {
       if (impactState.userId !== userId) return;
       impactState = { ...impactState, loading: false, loaded: true, error: impactLoadErrorMessage(error) };
@@ -665,6 +726,17 @@
   }
 
   document.addEventListener("click", event => {
+    if (event.target.closest("[data-impact-onboarding-continue]")) {
+      document.querySelector(".impact-setup")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      document.getElementById("impactSportSelect")?.focus?.();
+      return;
+    }
+    if (event.target.closest("[data-impact-onboarding-later]")) {
+      dismissOnboarding(cloud()?.user?.id || "");
+      if (typeof switchScreen === "function") switchScreen("dashboard");
+      render();
+      return;
+    }
     const presetButton = event.target.closest("[data-impact-preset]");
     if (presetButton) {
       const preset = (PRESETS[impactState.sport] || []).find(item => item.key === presetButton.dataset.impactPreset);
@@ -737,6 +809,6 @@
     render,
     load,
     report: currentReport,
-    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, PRESETS }
+    _test: { parseMetricValue, formatMetricValue, durationValue, completedSessionWorkouts, impactLoadErrorMessage, resetImpactIdentity, genuinelyNewAthlete, PRESETS }
   };
 })();

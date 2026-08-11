@@ -6,6 +6,7 @@
     training: "Training",
     garmin: "Garmin & Devices",
     notifications: "Notifications",
+    social: "Social Media",
     sharing: "Coach & Sharing",
     support: "App & Support"
   });

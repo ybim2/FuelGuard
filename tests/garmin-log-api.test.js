@@ -75,6 +75,7 @@ class FakeSupabase {
     this.deviceTokens = [];
     this.logs = [];
     this.trainingModeSessions = [];
+    this.workModeSessions = [];
     this.trainingCommands = [];
     this.failTrainingCommand = false;
     this.nextAuth = 1;
@@ -202,6 +203,10 @@ class FakeSupabase {
 
     if (path === "/rest/v1/fuel_training_mode_sessions" && method === "GET") {
       return okJson(this.filter(this.trainingModeSessions, parsed.searchParams));
+    }
+
+    if (path === "/rest/v1/fuel_work_mode_sessions" && method === "GET") {
+      return okJson(this.filter(this.workModeSessions, parsed.searchParams));
     }
 
     if (path === "/rest/v1/rpc/fuel_garmin_training_command" && method === "POST") {
@@ -361,6 +366,35 @@ test("Garmin Fuel uses the active Training Mode Fuel preset only inside the sess
     [fake.logs[0].carbs_g, fake.logs[0].fluid_ml, fake.logs[0].sodium_mg, fake.logs[0].caffeine_mg],
     [30, 0, 0, 0]
   );
+}));
+
+test("Garmin events inherit the same athlete's Work Mode context without replacing Training context", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.workModeSessions.push({
+    id: "work-a",
+    user_id: USERS["user-token-a"].id,
+    status: "active",
+    started_at: "2026-07-18T08:00:00.000Z",
+    ended_at: null
+  });
+  fake.trainingModeSessions.push({
+    id: "training-a",
+    user_id: USERS["user-token-a"].id,
+    status: "active",
+    started_at: "2026-07-18T08:00:00.000Z",
+    ended_at: null,
+    fuel_preset_id: "preset-fuel",
+    hydration_preset_id: "preset-hydration",
+    fuel_carbs_g: 30,
+    fuel_fluid_ml: 0,
+    fuel_sodium_mg: 0,
+    fuel_caffeine_mg: 0
+  });
+  const res = await call(auth.garminLogHandler, { token: paired.deviceToken, body: VALID_EVENT });
+  assert.equal(res.statusCode, 201);
+  assert.equal(fake.logs[0].work_mode_session_id, "work-a");
+  assert.equal(fake.logs[0].training_mode_session_id, "training-a");
+  assert.equal(fake.logs[0].carbs_g, 30);
 }));
 
 test("Garmin Hydrate preserves mixed Training Mode carbohydrate fluid and sodium quantities", async () => withFake(async (fake) => {

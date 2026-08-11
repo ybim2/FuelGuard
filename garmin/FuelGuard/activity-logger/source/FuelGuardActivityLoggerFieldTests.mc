@@ -67,6 +67,16 @@ function testFuelGuardActivityLoggerSettingsInitiatesAuth(logger) as Boolean {
 }
 
 (:test)
+function testFuelGuardActivityLoggerAuthenticationWakeRegistersConnection(logger) as Boolean {
+    FuelGuardConnection.resetForTest();
+
+    var app = new FuelGuardActivityLoggerApp();
+    app.onAuthenticationRequest();
+
+    return FuelGuardConnection.appId().equals(FuelGuardConnection.APP_ACTIVITY_LOGGER);
+}
+
+(:test)
 function testFuelGuardActivityLoggerUnconnectedLapQueuesSafely(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
     FuelGuardConnection.resetForTest();

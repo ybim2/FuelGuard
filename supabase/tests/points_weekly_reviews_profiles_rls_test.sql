@@ -42,12 +42,12 @@ select set_config('request.jwt.claims', '{"sub":"a1000000-0000-4000-8000-0000000
 insert into public.fuel_logs (user_id, logged_at, type, source)
 select
   'a1000000-0000-4000-8000-000000000101',
-  ('2026-08-07 08:00:00+00'::timestamptz + ((moment - 1) * interval '20 minutes')),
+  (date_trunc('day', now()) - interval '2 days' + interval '8 hours' + ((moment - 1) * interval '20 minutes')),
   'fuel', 'manual'
 from generate_series(1, 23) moment;
 insert into public.fuel_logs (user_id, logged_at, type, source) values
-  ('a1000000-0000-4000-8000-000000000101', '2026-08-08 08:00:00+00', 'fuel', 'manual'),
-  ('a1000000-0000-4000-8000-000000000101', '2026-08-09 08:00:00+00', 'fuel', 'manual');
+  ('a1000000-0000-4000-8000-000000000101', date_trunc('day', now()) - interval '1 day' + interval '8 hours', 'fuel', 'manual'),
+  ('a1000000-0000-4000-8000-000000000101', date_trunc('day', now()) + interval '8 hours', 'fuel', 'manual');
 
 -- 7-13: athlete awards are derived, idempotent, and isolated.
 select is(public.fuel_sync_athlete_points('UTC'), 2, 'Three-day streak and 25 Fuel milestones are awarded together');

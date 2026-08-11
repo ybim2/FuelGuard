@@ -116,7 +116,7 @@ test("Active Training shows honest totals while completed sessions calculate act
   assert.doesNotMatch(activeUi, /summary\.perHour|\/h actual/);
   assert.match(js.slice(js.indexOf("function completedSessionsMarkup")), /summary\.actualPerHour/);
   assert.match(js, /at least 15 minutes and a logged Training event/);
-  assert.match(js, /durationText\(summary\.durationSeconds\).*actual/);
+  assert.match(js, /training-mode-review-time[\s\S]*training-mode-review-actual[\s\S]*training-mode-review-events/);
 });
 
 test("Training Insights separates completed-session evidence from today’s observations", () => {

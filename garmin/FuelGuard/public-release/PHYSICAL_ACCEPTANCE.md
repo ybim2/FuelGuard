@@ -1,12 +1,12 @@
 # Forerunner 255 physical release acceptance
 
-Candidate version: **0.5.0**
+Candidate version: **0.5.1**
 
-Both public apps remain blocked from Connect IQ submission until every required physical result below is recorded against the exact package hashes in `SUBMISSION_RECORD.md`.
+The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28bc8d3ab159322d995284d07f7ec0da76cf9a273484a` and the first signed replacement with SHA-256 `33c6beb99a9518ceb4e5ec501de1620dce1de4e490fb2603bda24ae871f36c23` both failed physical acceptance with delayed `IQ!` after connection. Both are permanently marked not releasable. No package has been built from the subsequently corrected callback source.
 
 ## Prerequisites
 
-- Install the exact Forerunner 255 `.prg` binaries extracted from the signed production-candidate `.iq` packages. The permanent release folder contains friendly `*-fr255.prg` copies and `FR255-SHA256SUMS.txt`; do not rebuild a different candidate for this test.
+- Install or update the exact public candidate through its existing Connect IQ Store listing after the upload has been explicitly authorised and Garmin has made that version available. USB `.prg` sideloading is not the physical acceptance route.
 - Keep the Connect IQ Store mobile app installed, signed in and allowed to open notifications.
 - Sign in to the intended Fuel Guard athlete account on the phone.
 - Use temporary events where practical; do not alter another athlete's data.
@@ -21,6 +21,18 @@ Both public apps remain blocked from Connect IQ submission until every required 
 6. Confirm the browser returns through the Garmin `connectiq://oauth` callback.
 7. Confirm the watch advances through `Completing connection` to `Connected`.
 8. Record the result and exact failure status if any.
+
+## Connected-runtime recovery status
+
+- Known-good physical beta reference: `1be8d5fcef55f380bd5fa9a8b6ced166e6bf1c89`, after the original runtime and timestamp crash fixes and before source consolidation.
+- The 0.5.1 physical result proves the new `onAuthenticationRequest()` callback path works and must remain.
+- The connected public app introduced a Training Mode status request that could let a request-start exception escape during `onShow()` or `onUpdate()`. The known-good runtime guarded request startup instead of allowing an exception to terminate the app.
+- Source consolidation also removed the known-good defensive Glance state-render fallback.
+- The first isolated source recovery restored both safety boundaries without moving network work into `onStart()`, removing actions, or changing queue/idempotency behavior, but its signed replacement still failed physically after the connected UI appeared.
+- The delayed failure matched the Training status response timing. Its callback required `(responseCode, data, context)`, but its `makeWebRequest()` options did not provide `:context`. Garmin SDK 9.2.0 documents that the third callback argument is supplied only when `:context` is populated.
+- The corrected source now pairs the Training callback with explicit request context, matching the physically known-good `FuelGuardApi` and `FuelGuardHealthApi` pattern. The same audit also corrected the latent revoke callback mismatch.
+- Corrected unpackaged source validation: 31-product simulator matrix **1,736/1,736**; full Node **361/361**.
+- No new `.iq` has been built from the corrected source. Both prior Quick Log packages remain blocked and must not be uploaded.
 
 ## Quick Log outside Training Mode
 
@@ -63,16 +75,18 @@ Both public apps remain blocked from Connect IQ submission until every required 
 
 | Gate | Result | Evidence/notes |
 | --- | --- | --- |
-| Quick Log account connection | PENDING | |
+| Quick Log account connection | PASS | Physical FR255 OAuth completed against public 0.5.1 candidate. |
+| Quick Log device registration/details | PASS | Fuel Guard displayed the connected watch/device details. |
+| Quick Log connected runtime | FAIL / CORRECTED SOURCE UNPACKAGED | Original and first replacement packages displayed delayed `IQ!`; corrected callback source has no `.iq` candidate yet. |
 | Activity Logger account connection | PENDING | |
-| Quick Log Fuel | PENDING | |
-| Quick Log Hydrate | PENDING | |
-| Quick Log Sleepy | PENDING | |
-| Quick Log retry/idempotency | PENDING | |
-| Quick Log Training Mode enrichment | PENDING | |
-| Quick Log Training Mode start/end | PENDING | |
+| Quick Log Fuel | PENDING | Replacement Store candidate. |
+| Quick Log Hydrate | PENDING | Replacement Store candidate. |
+| Quick Log Sleepy | PENDING | Replacement Store candidate. |
+| Quick Log retry/idempotency | PENDING | Replacement Store candidate. |
+| Quick Log Training Mode enrichment | PENDING | Replacement Store candidate. |
+| Quick Log Training Mode start/end | PENDING | Replacement Store candidate. |
 | Activity Logger one-LAP Fuel | PENDING | |
 | Activity Logger retry/idempotency | PENDING | |
 | Activity Logger Training Mode enrichment | PENDING | |
 
-Any failed row blocks public submission.
+Both physically failed Quick Log packages are not releasable. Any failed or pending row prevents public release of a future replacement candidate.

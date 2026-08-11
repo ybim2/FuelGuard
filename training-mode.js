@@ -439,32 +439,6 @@
     return `<div class="training-mode-review-context"><span>Before session <strong>${context.hasPreviousFuel ? `${domain().duration(context.preFuelGapMinutes)} before session` : "No prior Fuel recorded"}</strong></span><span>After session <strong>${context.hasPostFuel ? `${domain().duration(context.postFuelGapMinutes)} to first recorded Fuel` : "No post-training Fuel has been recorded yet"}</strong></span></div>`;
   }
 
-  function completionSummaryMarkup(session) {
-    const summary = completedSessionMetrics(session);
-    const startedAt = new Date(session.startedAt);
-    const endedAt = new Date(session.endedAt);
-    const plannedItems = summary.planned ? QUANTITIES.filter(item => summary.planned.totals[item.field] > 0) : [];
-    return `
-      <section class="training-mode-section training-mode-complete" aria-label="Latest completed Training Mode summary">
-        <div class="training-mode-complete-heading">
-          <div><span>Training complete</span><h2>${escape(summary.title)}</h2><p>${escape(domain().formatClock(startedAt))}–${escape(domain().formatClock(endedAt))} local · ${escape(durationText(summary.durationSeconds))}</p></div>
-          <strong>${escape(domain().duration(Math.round(summary.durationSeconds / 60)))}</strong>
-        </div>
-        <div class="training-mode-complete-events">
-          <article><span>Fuel events</span><strong>${summary.fuelEventCount}</strong></article>
-          <article><span>Hydration events</span><strong>${summary.hydrationEventCount}</strong></article>
-          <article><span>First post-training Fuel</span><strong>${Number.isFinite(summary.postFuelGapMinutes) ? `${escape(domain().duration(summary.postFuelGapMinutes))} after finish` : "Not recorded yet"}</strong></article>
-        </div>
-        <div class="training-mode-complete-block">
-          <h3>Actual recorded</h3>
-          <div class="training-mode-complete-quantities">${QUANTITIES.map(item => `<span><small>${escape(item.label)}</small><strong>${escape(trainingValue(summary.totals[item.field], item))}</strong>${Number.isFinite(summary.actualPerHour[item.field]) ? `<em>${escape(trainingValue(summary.actualPerHour[item.field], item, { perHour: true }))}</em>` : ""}</span>`).join("")}</div>
-        </div>
-        ${plannedItems.length ? `<div class="training-mode-complete-block planned"><h3>Planned separately</h3><div class="training-mode-complete-quantities">${plannedItems.map(item => `<span><small>${escape(item.label)}</small><strong>${escape(trainingValue(summary.planned.totals[item.field], item))}</strong><em>${escape(trainingValue(session.plan?.[item.field] || 0, item, { perHour: true }))}</em></span>`).join("")}</div></div>` : ""}
-        <p class="training-mode-rate-note">${escape(summary.coverageMessage)}</p>
-      </section>
-    `;
-  }
-
   function completedSessionsMarkup() {
     const sessions = (state()?.sessions || []).filter(item => item.status === "completed" && item.endedAt).sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt)).slice(0, 6);
     if (!sessions.length) return "";
@@ -476,7 +450,6 @@
       { label: "Average session duration", value: Number.isFinite(recent.averages.durationSeconds) ? domain().duration(Math.round(recent.averages.durationSeconds / 60)) : "" }
     ].filter(item => item.value);
     return `
-      ${completionSummaryMarkup(sessions[0])}
       ${averageItems.length ? `<section class="training-mode-section training-mode-recent-summary">
         <div class="training-mode-heading"><div><span>Completed sessions</span><h2>Recent Training Summary</h2></div><small>Simple averages from valid completed sessions only.</small></div>
         <div class="training-mode-summary-grid">${averageItems.map(item => `<article><span>${escape(item.label)}</span><strong>${escape(item.value)}</strong></article>`).join("")}</div>
@@ -488,8 +461,10 @@
           const rateNote = summary.coverageMessage || "Actual rates require at least 15 minutes and a logged Training event.";
           const startedAt = new Date(session.startedAt);
           const endedAt = new Date(session.endedAt);
+          const actualCarbs = trainingValue(summary.totals.carbsG, QUANTITIES[0]);
+          const plannedCarbs = summary.planned ? trainingValue(summary.planned.totals.carbsG, QUANTITIES[0]) : "Not set";
           return `<article class="training-mode-review-card">
-            <div><span>${startedAt.toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><h3>${escape(session.title)}</h3><small>${escape(domain().formatClock(startedAt))}–${escape(domain().formatClock(endedAt))} local · ${durationText(summary.durationSeconds)} actual${session.estimatedDurationMinutes ? ` · ${domain().duration(session.estimatedDurationMinutes)} planned` : ""} · ${summary.fuelEventCount} Fuel · ${summary.hydrationEventCount} Hydration</small>${summary.validLoggedIntake ? "" : `<small class="training-mode-rate-note">${escape(rateNote)}</small>`}</div>
+            <div class="training-mode-review-copy"><span>${startedAt.toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><h3>${escape(session.title)}</h3><small class="training-mode-review-time">${escape(domain().formatClock(startedAt))}–${escape(domain().formatClock(endedAt))}</small><small class="training-mode-review-actual">Actual ${escape(actualCarbs)} <b aria-hidden="true">•</b> Planned ${escape(plannedCarbs)}</small><small class="training-mode-review-events">${summary.fuelEventCount} Fuel <b aria-hidden="true">•</b> ${summary.hydrationEventCount} Hydration</small>${summary.validLoggedIntake ? "" : `<small class="training-mode-rate-note">${escape(rateNote)}</small>`}</div>
             <div class="training-mode-review-totals">${QUANTITIES.map(item => {
               const plannedRate = Math.max(0, Number(session.plan?.[item.field] || 0));
               const actualRate = summary.actualPerHour[item.field];

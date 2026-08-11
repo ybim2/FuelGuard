@@ -13,15 +13,31 @@ class FuelGuardTrainingStatusCallback {
     }
 }
 
+(:debug)
+class FuelGuardTrainingTestRequestException extends Lang.Exception {
+    public function initialize() {
+        Exception.initialize();
+        self.mMessage = "Fuel Guard training test request-start exception";
+    }
+}
+
 module FuelGuardTraining {
     const ACTIVE_KEY = "fg_training_active";
     const SESSION_KEY = "fg_training_session_id";
     const STATUS_KEY = "fg_training_status";
+    const STATUS_REQUEST_CONTEXT = "training_status";
     const REFRESH_INTERVAL_SECONDS = 60;
 
     var _statusCallback = null;
     var _refreshInFlight = false;
     var _lastRefreshAt = 0;
+
+    (:debug) var _testThrowOnRefreshRequest = false;
+    (:debug) var _testHoldRefreshResponse = false;
+    (:debug) var _testRefreshResponseCode = 200;
+    (:debug) var _testRefreshResponseData = null;
+    (:debug) var _testRefreshDispatchCount = 0;
+    (:debug) var _testLastRefreshContext = null;
 
     function active() as Boolean {
         var value = Storage.getValue(ACTIVE_KEY);
@@ -131,6 +147,28 @@ module FuelGuardTraining {
         return (_statusCallback as FuelGuardTrainingStatusCallback).method(:onResponse);
     }
 
+    function sendRefreshRequest(options as Dictionary) as Void {
+        Communications.makeWebRequest(FuelGuardConnection.trainingEndpoint(), {}, options, statusCallback());
+    }
+
+    (:release)
+    function dispatchRefreshRequest(options as Dictionary) as Void {
+        sendRefreshRequest(options);
+    }
+
+    (:debug)
+    function dispatchRefreshRequest(options as Dictionary) as Void {
+        if (_testThrowOnRefreshRequest) {
+            throw new FuelGuardTrainingTestRequestException();
+        }
+        if (_testHoldRefreshResponse) {
+            _testRefreshDispatchCount += 1;
+            _testLastRefreshContext = options[:context];
+            return;
+        }
+        sendRefreshRequest(options);
+    }
+
     function refresh(force as Boolean) as Void {
         if (_refreshInFlight || !FuelGuardConnection.connected()) {
             return;
@@ -144,9 +182,14 @@ module FuelGuardTraining {
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :headers => {"Authorization" => "Bearer " + FuelGuardConnection.token()},
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+            :context => STATUS_REQUEST_CONTEXT
         };
-        Communications.makeWebRequest(FuelGuardConnection.trainingEndpoint(), {}, options, statusCallback());
+        try {
+            dispatchRefreshRequest(options);
+        } catch (e) {
+            _refreshInFlight = false;
+        }
     }
 
     function onStatusResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
@@ -167,10 +210,52 @@ module FuelGuardTraining {
         Storage.deleteValue(STATUS_KEY);
         _refreshInFlight = false;
         _lastRefreshAt = 0;
+        _testThrowOnRefreshRequest = false;
+        _testHoldRefreshResponse = false;
+        _testRefreshResponseCode = 200;
+        _testRefreshResponseData = null;
+        _testRefreshDispatchCount = 0;
+        _testLastRefreshContext = null;
     }
 
     (:debug)
     function setActiveForTest(value as Boolean) as Void {
         setState(value, null, value ? "Training Mode active" : "Training Mode ready");
+    }
+
+    (:debug)
+    function useThrowingRefreshTransportForTest() as Void {
+        _testThrowOnRefreshRequest = true;
+    }
+
+    (:debug)
+    function useHeldRefreshTransportForTest(responseCode as Number, data as Dictionary or String or Null) as Void {
+        _testHoldRefreshResponse = true;
+        _testRefreshResponseCode = responseCode;
+        _testRefreshResponseData = data;
+    }
+
+    (:debug)
+    function deliverHeldRefreshResponseForTest() as Void {
+        if (!_testHoldRefreshResponse || _testLastRefreshContext == null) {
+            return;
+        }
+        _testHoldRefreshResponse = false;
+        statusCallback().invoke(_testRefreshResponseCode, _testRefreshResponseData, _testLastRefreshContext as Object);
+    }
+
+    (:debug)
+    function refreshDispatchCountForTest() as Number {
+        return _testRefreshDispatchCount;
+    }
+
+    (:debug)
+    function lastRefreshContextForTest() as Object? {
+        return _testLastRefreshContext;
+    }
+
+    (:debug)
+    function refreshInFlightForTest() as Boolean {
+        return _refreshInFlight;
     }
 }

@@ -55,6 +55,7 @@ function controllerFixture({ nativeShare = false, shareImplementation = null } =
       readyState: "complete",
       body: { appendChild() {} },
       getElementById(id) { return id === "athleteDailyShareButton" ? button : id === "athleteDailyShareStatus" ? status : null; },
+      querySelectorAll() { return []; },
       createElement(tag) { return tag === "a" ? download : {}; }
     },
     FuelGuardDomain: {},
@@ -130,12 +131,84 @@ test("Daily Story renderer is an exact 9:16 export with concise Fuel Guard conte
   assert.equal(fixture.text.some(value => /@|user[_ -]?id|organisation/i.test(value)), false);
 });
 
-test("Story renderer exposes a reusable template registry while shipping only Daily", () => {
-  assert.deepEqual(shareCard.templateNames(), ["daily-story"]);
+test("Story renderer exposes a reusable template registry for Daily and four Settings cards", () => {
+  assert.deepEqual(shareCard.templateNames(), ["daily-story", "daily-summary", "pre-post-workout", "during-workout", "sleepiness"]);
   const fixture = canvasFixture();
   shareCard.registerTemplate("test-template", () => fixture.canvas);
   assert.equal(shareCard.renderTemplate("test-template", {}).getContext("2d"), fixture.canvas.getContext("2d"));
   assert.throws(() => shareCard.renderTemplate("missing", {}), /Unknown Fuel Guard story template/);
+});
+
+test("Settings share models use actual Daily, pre/post, during-workout and Sleepy records", () => {
+  const now = new Date("2026-08-10T10:00:00Z");
+  const session = {
+    id: "session-share",
+    userId: "athlete-a",
+    title: "Morning ride",
+    status: "completed",
+    startedAt: "2026-08-10T08:00:00Z",
+    endedAt: "2026-08-10T09:00:00Z",
+    estimatedDurationMinutes: 60,
+    plan: { carbsG: 60, fluidMl: 500, sodiumMg: 600, caffeineMg: 0 }
+  };
+  const logs = [
+    log("2026-08-10T07:30:00Z", "fuel", { user_id: "athlete-a" }),
+    log("2026-08-10T08:30:00Z", "fuel", { user_id: "athlete-a", trainingModeSessionId: "session-share", carbsG: 30, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 }),
+    log("2026-08-10T08:45:00Z", "hydration", { user_id: "athlete-a", trainingModeSessionId: "session-share", carbsG: 0, fluidMl: 250, sodiumMg: 300, caffeineMg: 40 }),
+    log("2026-08-10T09:30:00Z", "fuel", { user_id: "athlete-a" }),
+    log("2026-08-10T09:40:00Z", "hydration", { user_id: "athlete-a" }),
+    log("2026-08-09T14:00:00Z", "fuel", { notes: 'fuel_guard_checkin:{"checkinType":"sleepy"}' }),
+    log("2026-08-10T15:00:00Z", "fuel", { notes: 'fuel_guard_checkin:{"checkinType":"sleepy"}' }),
+    log("2026-08-10T09:55:00Z", "fuel", { deleted_at: "2026-08-10T09:56:00Z" }),
+    log("2026-08-10T06:00:00Z", "fuel", { user_id: "athlete-a" })
+  ];
+
+  const daily = shareCard.buildDailySummaryModel({ logs, now, domain });
+  assert.equal(daily.metrics.find(metric => metric.label === "Last Fuel").value, domain.formatClock(new Date("2026-08-10T09:30:00Z")));
+  assert.equal(daily.metrics.find(metric => metric.label === "Last Hydration").value, domain.formatClock(new Date("2026-08-10T09:40:00Z")));
+
+  const prePost = shareCard.buildPrePostWorkoutModel({ logs, sessions: [session], domain });
+  assert.equal(prePost.headline, "MORNING RIDE");
+  assert.deepEqual(prePost.metrics.map(metric => metric.value), ["30m before", "30m after"]);
+
+  const during = shareCard.buildDuringWorkoutModel({ logs, sessions: [session], domain });
+  assert.deepEqual(during.metrics.map(metric => metric.value), ["30g", "250ml", "300mg", "40mg"]);
+  assert.match(during.note, /Actual 30g carbohydrate · Planned 60g/);
+
+  const sleepy = shareCard.buildSleepinessModel({ logs, now: new Date("2026-08-10T18:00:00Z"), domain });
+  assert.equal(sleepy.headline, "2 SLEEPY EVENTS");
+  assert.equal(sleepy.metrics.find(metric => metric.label === "Common period").value, "Afternoon");
+  assert.match(sleepy.note, /not a causal or medical conclusion/);
+});
+
+test("all Settings share cards export at 9:16 without account or organisation identifiers", () => {
+  for (const template of [
+    shareCard.DAILY_SUMMARY_TEMPLATE,
+    shareCard.PRE_POST_TEMPLATE,
+    shareCard.DURING_WORKOUT_TEMPLATE,
+    shareCard.SLEEPINESS_TEMPLATE
+  ]) {
+    const fixture = canvasFixture();
+    const model = shareCard.buildSummaryModel(template, { logs: [], sessions: [], now: new Date("2026-08-10T18:00:00Z"), domain });
+    const canvas = shareCard.renderTemplate(template, model, { canvasFactory: () => fixture.canvas });
+    assert.deepEqual([canvas.width, canvas.height], [1080, 1920]);
+    assert.equal(fixture.text.some(value => /@|user[_ -]?id|organisation|organization/i.test(value)), false);
+  }
+});
+
+test("Settings exposes four intentional cards with native share and explicit save fallback", () => {
+  const html = read("index.html");
+  const controller = read("athlete-share.js");
+  assert.equal((html.match(/data-athlete-share-template=/g) || []).length, 4);
+  assert.match(html, /athlete-share-option-grid" role="group" aria-label="Fuel Guard share cards"/);
+  assert.doesNotMatch(html, /data-athlete-share-template="[^"]+" role="listitem"/);
+  assert.match(html, /Daily Fuel \+ Hydration/);
+  assert.match(html, /Pre\/Post Workout Fuelling/);
+  assert.match(html, /During-Workout Fuelling/);
+  assert.match(html, /Sleepiness/);
+  assert.match(controller, /shareSelectedStory/);
+  assert.match(controller, /Native image sharing is unavailable, so the card was saved instead/);
+  assert.match(controller, /Your account changed\. Choose a share card again/);
 });
 
 test("canonical Daily has one compact share action at the bottom and no legacy summary controls", () => {

@@ -56,6 +56,17 @@
     return [...merged.values()].sort((a, b) => new Date(a.achievedAt) - new Date(b.achievedAt));
   }
 
+  const STREAK_MILESTONE_DAYS = Object.freeze([3, 7, 14, 30, 60, 100]);
+
+  function streakMilestoneProgress(value) {
+    const current = Math.max(0, Number(value) || 0);
+    const next = STREAK_MILESTONE_DAYS.find(threshold => threshold > current) || null;
+    return STREAK_MILESTONE_DAYS.map(threshold => ({
+      threshold,
+      state: current >= threshold ? "unlocked" : threshold === next ? "next" : "locked"
+    }));
+  }
+
   function renderHistory(currentSummary = summary()) {
     const target = document.getElementById("athleteMilestones");
     if (!target || !domain()) return;
@@ -72,6 +83,16 @@
           <b>${category.value.toLocaleString("en-GB")} <small>${category.value === 1 ? "day" : "days"}</small></b>
           <small>${domain().escapeHtml(category.detail)}</small>
         </article>`).join("")}
+      </div>
+      <div class="beta-streak-milestone-progress" aria-label="Streak milestone progression">
+        ${categories.map(category => `<section class="beta-streak-milestone-lane ${category.id}" aria-label="${domain().escapeHtml(category.label)} milestones">
+          <header><span aria-hidden="true">${category.icon}</span><strong>${domain().escapeHtml(category.label)}</strong><small>${category.value} day${category.value === 1 ? "" : "s"}</small></header>
+          <div class="beta-streak-milestone-track" role="list" tabindex="0" aria-label="${domain().escapeHtml(category.label)} milestones; swipe horizontally to see all">
+            ${streakMilestoneProgress(category.value).map(item => `<span class="beta-streak-milestone ${item.state}" role="listitem" aria-label="${item.threshold} days, ${item.state === "unlocked" ? "unlocked" : item.state === "next" ? "next milestone" : "locked"}">
+              <b>${item.state === "unlocked" ? "✓" : item.state === "next" ? "○" : "·"}</b><strong>${item.threshold}</strong><small>days</small>
+            </span>`).join("")}
+          </div>
+        </section>`).join("")}
       </div>
     `;
   }
@@ -284,6 +305,6 @@
     syncPoints,
     renderHistory,
     renderPoints,
-    _test: { mergeAchievements }
+    _test: { mergeAchievements, streakMilestoneProgress }
   };
 })();
