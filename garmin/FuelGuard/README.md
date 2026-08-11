@@ -191,7 +191,7 @@ Activity Logger is fuel-only. It has no separate in-activity Hydration action. U
 5. Approve the connection on the phone while signed into Fuel Guard.
 6. Fuel is selected by default after pairing.
 7. Use UP/DOWN to select Fuel, Hydrate, Sleepy or Training.
-8. Press ENTER to log or toggle Training Mode.
+8. Press START to log or toggle Training Mode (the select/enter action on models that label it differently).
 9. ESC exits normally.
 
 ## Offline queue behaviour

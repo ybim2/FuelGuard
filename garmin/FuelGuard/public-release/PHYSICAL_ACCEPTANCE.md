@@ -1,8 +1,8 @@
 # Forerunner 255 physical release acceptance
 
-Candidate version: **0.5.2**
+Candidate version: **0.5.3**
 
-The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28bc8d3ab159322d995284d07f7ec0da76cf9a273484a` and the first signed replacement with SHA-256 `33c6beb99a9518ceb4e5ec501de1620dce1de4e490fb2603bda24ae871f36c23` both failed physical acceptance with delayed `IQ!` after connection. Both are permanently marked not releasable. Version 0.5.2 is a distinct replacement candidate and must be built from the final tested completion commit.
+The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28bc8d3ab159322d995284d07f7ec0da76cf9a273484a` and the first signed replacement with SHA-256 `33c6beb99a9518ceb4e5ec501de1620dce1de4e490fb2603bda24ae871f36c23` both failed physical acceptance with delayed `IQ!` after connection. Both are permanently marked not releasable. Version 0.5.2 was then physically blocked because the disconnected Quick Log screen displayed `Press START` without handling the raw Garmin `KEY_START` input. Version 0.5.3 adds that missing input path while preserving the existing OAuth flow.
 
 ## Production database dependency — not yet applied
 
@@ -90,7 +90,8 @@ This completion branch does not apply either migration and does not modify Produ
 | --- | --- | --- |
 | Quick Log account connection | PASS | Physical FR255 OAuth completed against public 0.5.1 candidate. |
 | Quick Log device registration/details | PASS | Fuel Guard displayed the connected watch/device details. |
-| Quick Log connected runtime | PENDING PHYSICAL 0.5.2 | Both 0.5.1 packages displayed delayed `IQ!`; the corrected 0.5.2 source passes every simulator target. |
+| Quick Log connected runtime | PENDING USER HARDWARE SPOT-CHECK 0.5.3 | Both 0.5.1 packages displayed delayed `IQ!`; the corrected runtime remains present. |
+| Quick Log disconnected START action | PENDING USER HARDWARE SPOT-CHECK 0.5.3 | Raw `KEY_START` now invokes the same existing OAuth path as the selection behavior. |
 | Activity Logger account connection | PENDING | |
 | Quick Log Fuel | PENDING | Replacement Store candidate. |
 | Quick Log Hydrate | PENDING | Replacement Store candidate. |
@@ -102,4 +103,4 @@ This completion branch does not apply either migration and does not modify Produ
 | Activity Logger retry/idempotency | PENDING | |
 | Activity Logger Training Mode enrichment | PENDING | |
 
-Both physically failed 0.5.1 Quick Log packages are not releasable. Any failed or pending row prevents public release of the 0.5.2 replacement candidate.
+Both physically failed 0.5.1 Quick Log packages and the physically blocked 0.5.2 package are not releasable. Version 0.5.3 is the next Store-delivered hardware spot-check candidate; all advertised products must remain source/build/package compatible.

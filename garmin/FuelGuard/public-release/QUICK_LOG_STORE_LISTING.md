@@ -3,7 +3,7 @@
 ## Listing fields
 
 - **App name:** Fuel Guard Quick Log
-- **Version:** 0.5.2
+- **Version:** 0.5.3
 - **App type:** Watch App
 - **Category:** Health & Fitness
 - **Language:** English

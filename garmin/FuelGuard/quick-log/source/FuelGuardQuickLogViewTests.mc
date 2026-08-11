@@ -1,6 +1,7 @@
 import Toybox.Lang;
 import Toybox.Application.Properties;
 import Toybox.Test;
+import Toybox.WatchUi;
 
 (:debug)
 function fuelGuardQuickReset(responseCode as Number, data as Dictionary or String or Null) as Void {
@@ -417,6 +418,23 @@ function testFuelGuardQuickLogUnconnectedEnterInitiatesAuth(logger) as Boolean {
     delegate.onSelect();
 
     return FuelGuardQueue.pendingCount() == 0
+        && FuelGuardConnection.authRequestCountForTest() == 1
+        && FuelGuardConnection.lastAuthStateForTest() != null;
+}
+
+(:test)
+function testFuelGuardQuickLogDisconnectedRawStartInitiatesAuth(logger) as Boolean {
+    FuelGuardQueue.saveQueue([]);
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.useTestAuthRequestOnly();
+    FuelGuardApi.resetForTest();
+
+    var view = new FuelGuardQuickLogView();
+    var delegate = new FuelGuardQuickLogDelegate(view);
+    var handled = delegate.activateKeyForTest(WatchUi.KEY_START);
+
+    return handled
+        && FuelGuardQueue.pendingCount() == 0
         && FuelGuardConnection.authRequestCountForTest() == 1
         && FuelGuardConnection.lastAuthStateForTest() != null;
 }

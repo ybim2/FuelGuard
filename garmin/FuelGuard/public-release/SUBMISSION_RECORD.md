@@ -1,5 +1,15 @@
 # Connect IQ public-beta submission record
 
+## Quick Log START-input fix 0.5.3 — physical hardware spot-check pending
+
+- **Version:** 0.5.3
+- **Quick Log production AppID:** `2F3B7C5E9F2D4A6B8C1D0E7F0F255002`
+- **Activity Logger production AppID:** `9C8A41410F0A4D46A7F7D1C68F0F2551`
+- **Root cause:** the disconnected screen advertised `Press START`, but the input delegate handled only the device-independent `onSelect()` behavior and had no raw `KEY_START` fallback.
+- **Fix:** raw `KEY_START` and `KEY_ENTER` events invoke the same existing Quick Log action and OAuth path; `onSelect()` remains unchanged for devices that map the action button to selection.
+- **Compatibility requirement:** source/build/package acceptance covers all 31 manifest products; the user's FR255 is an additional hardware spot check.
+- **Package status:** build and hash are recorded after the fix is merged and rebuilt from canonical `main`.
+
 ## Production completion 0.5.2 source candidate — physical acceptance pending
 
 - **Version:** 0.5.2

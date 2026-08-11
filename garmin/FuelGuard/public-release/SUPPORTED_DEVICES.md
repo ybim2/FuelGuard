@@ -1,6 +1,6 @@
 # Garmin public-beta supported devices
 
-Candidate version: **0.5.2**
+Candidate version: **0.5.3**
 Primary physical reference: **Forerunner 255**
 
 The production manifests for Quick Log and Activity Logger contain the same 31 Connect IQ product IDs below. Their locally installed device definitions support both Watch Apps and Data Fields, both apps compiled for every target, and the automated simulator tests passed for every target.
@@ -31,4 +31,4 @@ One Activity Logger simulator transport run timed out on `fr255s`; it produced n
 
 ## Release qualification rule
 
-Compilation and simulator tests qualify the advertised device range for public-beta submission, but they do not replace the mandatory Forerunner 255 physical acceptance. Remove a target from both production manifests if later device-specific functional or layout evidence shows that it is unsafe. Do not add a product ID based only on family name.
+Source, build and package compatibility are required across all 31 advertised products. Physical hardware behavior can additionally be spot-checked on the user's Forerunner 255; that spot check does not redefine Fuel Guard as an FR255-only implementation. Remove a target from both production manifests if later device-specific functional or layout evidence shows that it is unsafe. Do not add a product ID based only on family name.
