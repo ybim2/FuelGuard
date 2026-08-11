@@ -152,6 +152,16 @@ module FuelGuardConnection {
         return token().length() > 0;
     }
 
+    function handleAuthenticationFailure(responseCode as Number) as Boolean {
+        if (responseCode != 401) {
+            return false;
+        }
+        clearLocalToken();
+        Storage.setValue(STATUS_KEY, "Disconnected - reconnect");
+        WatchUi.requestUpdate();
+        return true;
+    }
+
     function logEndpoint() as String {
         return PRODUCTION_BASE_URL + LOG_PATH;
     }

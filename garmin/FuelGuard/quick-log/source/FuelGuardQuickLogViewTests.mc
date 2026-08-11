@@ -466,6 +466,30 @@ function testFuelGuardQuickLogConnectedTrainingResponseUsesContextWithoutRefresh
 }
 
 (:test)
+function testFuelGuardQuickLogRevokedTokenClearsAfterLogResponseAndPreservesQueue(logger) as Boolean {
+    fuelGuardQuickReset(401, {"error" => "invalid_device_token"});
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardConnection.statusText().equals("Disconnected - reconnect")
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardApi.dispatchCountForTest() == 1;
+}
+
+(:test)
+function testFuelGuardQuickLogRevokedTokenClearsAfterTrainingStatusResponse(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardTraining.useHeldRefreshTransportForTest(401, {"error" => "invalid_device_token"});
+    FuelGuardTraining.refresh(true);
+    FuelGuardTraining.deliverHeldRefreshResponseForTest();
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardConnection.statusText().equals("Disconnected - reconnect")
+        && !FuelGuardTraining.refreshInFlightForTest();
+}
+
+(:test)
 function testFuelGuardQuickLogStateMismatchDoesNotStoreToken(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
     FuelGuardConnection.resetForTest();
@@ -642,4 +666,16 @@ function testFuelGuardQuickHealthFailedUploadStaysQueued(logger) as Boolean {
         && remaining != null
         && FuelGuardHealthQueue.snapshotId(remaining as Dictionary) != null
         && (FuelGuardHealthQueue.snapshotId(remaining as Dictionary) as String).equals("health-failed");
+}
+
+(:test)
+function testFuelGuardQuickHealthRevokedTokenClearsAndPreservesSnapshot(logger) as Boolean {
+    fuelGuardQuickHealthReset(401, {"error" => "invalid_device_token"}, false);
+    FuelGuardHealthQueue.enqueue(fuelGuardQuickHealthSnapshot("health-reconnect"));
+    FuelGuardHealthApi.trySync(true);
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardConnection.statusText().equals("Disconnected - reconnect")
+        && FuelGuardHealthApi.dispatchCountForTest() == 1
+        && FuelGuardHealthQueue.pendingCount() == 1;
 }
