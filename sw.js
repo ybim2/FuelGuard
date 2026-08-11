@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v139-athlete-system";
-const BUILD_VERSION = "2026-08-11T18:54:08Z";
+const APP_VERSION = "mobile-pwa-v140-athlete-polish";
+const BUILD_VERSION = "2026-08-11T19:49:26Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v139-athlete-system-20260811T185408Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v140-athlete-polish-20260811T194926Z";
 const APP_SHELL = [
   "./",
   "./index.html",

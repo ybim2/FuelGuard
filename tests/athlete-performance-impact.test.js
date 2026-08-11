@@ -230,16 +230,16 @@ test("completed Training Mode sessions, not session starts, open the feedback fl
 test("Reflection separates the universal Everyday baseline from optional performance outcomes", () => {
   const js = read("athlete-impact.js");
   const everyday = read("athlete-everyday-reflection.js");
-  assert.match(js, /Start your Performance Reflection/);
+  assert.match(js, /What matters to your performance\?/);
   assert.match(js, /Set performance baseline/);
   assert.match(js, /FuelGuardEverydayReflection/);
   assert.match(everyday, /Meal prep organisation/);
   assert.match(everyday, /Healthy snacking ability/);
   assert.match(everyday, /Work mood & energy/);
   assert.match(everyday, /Training energy/);
-  assert.match(js, /Sport & training/);
-  assert.match(js, /5K time/);
-  assert.match(js, /Yo-Yo test/);
+  assert.match(js, /Improve my 5K/);
+  assert.match(js, /Improve match fitness/);
+  assert.match(js, /unit: "\/ 5"/);
   assert.match(js, /Create a custom outcome/);
   assert.match(js, /metrics\.length >= 3/);
 });
@@ -314,10 +314,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v139-athlete-system/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v140-athlete-polish/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v139-athlete-system/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v140-athlete-polish/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

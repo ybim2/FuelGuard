@@ -35,6 +35,8 @@
     streak: Object.freeze([3, 5, 7, 14, 30, 50, 100]),
     fuel: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
     hydration: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
+    sleepy: Object.freeze([10, 25, 50, 100, 250, 500, 1000]),
+    ready: Object.freeze([5, 10, 25, 50, 100, 250]),
     training: Object.freeze([5, 10, 25, 50, 100, 250]),
     work: Object.freeze([5, 10, 25, 50, 100, 250])
   });
@@ -282,6 +284,8 @@
       fluidMl: row?.fluid_ml ?? row?.fluidMl ?? null,
       sodiumMg: row?.sodium_mg ?? row?.sodiumMg ?? null,
       caffeineMg: row?.caffeine_mg ?? row?.caffeineMg ?? null,
+      mealType: String(row?.meal_type || row?.mealType || row?.meal_category || row?.mealCategory || "").trim().toLowerCase(),
+      label: String(row?.label || "").trim(),
       notes,
       checkin,
       externalEventId: row?.external_event_id || row?.externalEventId || ""
@@ -582,9 +586,31 @@
     return (endedAt - startedAt) / 60000 >= Math.max(0, Number(minimumMinutes) || 0);
   }
 
-  function activityMilestoneSummary({ logs = [], trainingSessions = [], workSessions = [], now = new Date() } = {}) {
+  function activityMilestoneSummary({ logs = [], trainingSessions = [], workSessions = [], readyChecks = [], now = new Date() } = {}) {
+    const reference = parseDate(now) || new Date();
+    const sleepyMoments = (Array.isArray(logs) ? logs : []).filter(log => {
+      const date = logDate(log);
+      const source = String(log?.source || "manual").trim().toLowerCase();
+      return Boolean(
+        date
+        && date <= reference
+        && !log.deleted_at
+        && !log.deletedAt
+        && !log.revoked_at
+        && !log.revokedAt
+        && log.valid !== false
+        && !["test", "fixture", "invalid"].includes(source)
+        && isSleepyLog(log)
+      );
+    }).length;
+    const readyDays = new Set((Array.isArray(readyChecks) ? readyChecks : [])
+      .filter(check => check?.prepared === true)
+      .map(check => String(check.checkedOn || check.checked_on || ""))
+      .filter(key => validDateKey(key) && dateFromKey(key) <= reference));
     return {
       ...activityUsageSummary(logs, now),
+      sleepyMoments,
+      readyMoments: readyDays.size,
       trainingMoments: (Array.isArray(trainingSessions) ? trainingSessions : []).filter(session => validCompletedSession(session, { minimumMinutes: 15 })).length,
       workMoments: (Array.isArray(workSessions) ? workSessions : []).filter(session => validCompletedSession(session)).length
     };
@@ -711,6 +737,91 @@
     };
   }
 
+  function mostCommonHour(logs = []) {
+    if (!logs.length) return null;
+    const buckets = new Map();
+    logs.forEach(log => {
+      const date = logDate(log);
+      if (!date) return;
+      const hour = date.getHours();
+      if (!buckets.has(hour)) buckets.set(hour, []);
+      buckets.get(hour).push(date);
+    });
+    const ranked = [...buckets.entries()].sort((left, right) => right[1].length - left[1].length || left[0] - right[0]);
+    const [hour, dates] = ranked[0] || [];
+    return Number.isFinite(hour) ? { hour, label: hourWindowLabel(hour), sampleCount: dates.length } : null;
+  }
+
+  function explicitMealTaxonomy(log = {}) {
+    const value = String(log.mealType || log.meal_type || log.mealCategory || log.meal_category || log.label || "").trim().toLowerCase();
+    return ["snack", "brunch"].includes(value) ? value : "";
+  }
+
+  function athleteFuelTimingObservations({ logs = [], period = "30d", now = new Date() } = {}) {
+    const fuelLogs = (Array.isArray(logs) ? logs : [])
+      .filter(validActivityUsageLog)
+      .map(normalizeLog)
+      .filter(log => log && isFuelLog(log) && inAnalyticsPeriod(log.date, period, now))
+      .sort((left, right) => left.date - right.date);
+    const byDay = new Map();
+    fuelLogs.forEach(log => {
+      const key = dateKey(log.date);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(log);
+    });
+    const days = [...byDay.values()].filter(day => day.length);
+    const firstLogs = days.map(day => day[0]);
+    const lastLogs = days.map(day => day.at(-1));
+    const snackOrBrunch = days.map(day => day.find(log => ["snack", "brunch"].includes(explicitMealTaxonomy(log)))).filter(Boolean);
+    const sufficient = fuelLogs.length >= 3 && days.length >= 2;
+    return {
+      period,
+      eventCount: fuelLogs.length,
+      loggedDays: days.length,
+      sufficient,
+      firstFuel: sufficient ? mostCommonHour(firstLogs) : null,
+      firstSnackOrBrunch: sufficient && snackOrBrunch.length >= 2 ? mostCommonHour(snackOrBrunch) : null,
+      lastMeal: sufficient ? mostCommonHour(lastLogs) : null,
+      snackOrBrunchSampleCount: snackOrBrunch.length
+    };
+  }
+
+  function athletePreparationRhythm({ checks = [], period = "30d", now = new Date() } = {}) {
+    const reference = parseDate(now) || new Date();
+    const unique = new Map();
+    (Array.isArray(checks) ? checks : []).forEach(check => {
+      const key = validDateKey(check?.checkedOn || check?.checked_on);
+      if (!key || !inAnalyticsPeriod(`${key}T12:00:00`, period, reference)) return;
+      unique.set(key, { checkedOn: key, prepared: check.prepared === true });
+    });
+    const included = [...unique.values()].sort((left, right) => left.checkedOn.localeCompare(right.checkedOn));
+    const weekday = Array.from({ length: 7 }, (_, day) => ({ day, checked: 0, prepared: 0 }));
+    included.forEach(check => {
+      const day = dateFromKey(check.checkedOn).getDay();
+      weekday[day].checked += 1;
+      if (check.prepared) weekday[day].prepared += 1;
+    });
+    const weekdays = weekday.map(item => ({
+      ...item,
+      percentage: item.checked ? Math.round(item.prepared / item.checked * 100) : null,
+      label: new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(new Date(2026, 7, 2 + item.day))
+    }));
+    const comparable = weekdays.filter(item => item.checked >= 2);
+    const ranked = [...comparable].sort((left, right) => right.percentage - left.percentage || right.checked - left.checked || left.day - right.day);
+    const preparedDays = included.filter(check => check.prepared).length;
+    const sufficient = included.length >= 3;
+    return {
+      period,
+      checkedDays: included.length,
+      preparedDays,
+      preparedPercentage: included.length ? Math.round(preparedDays / included.length * 100) : null,
+      sufficient,
+      strongestWeekday: ranked[0] || null,
+      weakestWeekday: ranked.length > 1 ? [...ranked].sort((left, right) => left.percentage - right.percentage || right.checked - left.checked || left.day - right.day)[0] : null,
+      weekdays
+    };
+  }
+
   function applyDayTypeOverride(dayTypes = {}, key, value) {
     const target = dayTypes && typeof dayTypes === "object" && !Array.isArray(dayTypes) ? dayTypes : {};
     const date = String(key || "");
@@ -756,6 +867,8 @@
     if (category === "streak") return Number(summary.dayStreak || 0);
     if (category === "fuel") return Number(summary.fuelMoments || 0);
     if (category === "hydration") return Number(summary.hydrationMoments || 0);
+    if (category === "sleepy") return Number(summary.sleepyMoments || 0);
+    if (category === "ready") return Number(summary.readyMoments || 0);
     if (category === "training") return Number(summary.trainingMoments || 0);
     if (category === "work") return Number(summary.workMoments || 0);
     return 0;
@@ -766,6 +879,8 @@
     if (category === "streak") return `${formatted} day streak`;
     if (category === "fuel") return `${formatted} fuelling moments`;
     if (category === "hydration") return `${formatted} hydration moments`;
+    if (category === "sleepy") return `${formatted} Sleepy moments`;
+    if (category === "ready") return `${formatted} Ready for the Day checks`;
     if (category === "training") return `${formatted} training moments`;
     return `${formatted} work moments`;
   }
@@ -3715,6 +3830,8 @@
     activityMilestoneSummary,
     analyticsPeriodStart,
     athleteFuelRhythm,
+    athleteFuelTimingObservations,
+    athletePreparationRhythm,
     athleteTrainingFuelAnalytics,
     hourWindowLabel,
     applyDayTypeOverride,

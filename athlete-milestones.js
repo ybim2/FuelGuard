@@ -26,8 +26,9 @@
       logs: gap.logs || [],
       trainingSessions: gap.trainingMode?.sessions || [],
       workSessions: gap.workMode?.sessions || [],
+      readyChecks: gap.fuelKit?.checks || [],
       now: new Date()
-    }) || { dayStreak: 0, fuelMoments: 0, hydrationMoments: 0, trainingMoments: 0, workMoments: 0 };
+    }) || { dayStreak: 0, fuelMoments: 0, hydrationMoments: 0, sleepyMoments: 0, readyMoments: 0, trainingMoments: 0, workMoments: 0 };
   }
 
   function canonicalHistoryReady() {
@@ -104,6 +105,8 @@
     const categories = [
       { id: "fuel", label: "Fuel moments", icon: "F", value: Number(currentSummary.fuelMoments || 0), detail: "Valid Fuel logs" },
       { id: "hydration", label: "Hydration moments", icon: "H", value: Number(currentSummary.hydrationMoments || 0), detail: "Valid Hydration logs" },
+      { id: "sleepy", label: "Sleepy moments", icon: "S", value: Number(currentSummary.sleepyMoments || 0), detail: "Recorded Sleepy check-ins" },
+      { id: "ready", label: "Ready for the Day", icon: "R", value: Number(currentSummary.readyMoments || 0), detail: "Prepared Ready Checks" },
       { id: "training", label: "Training moments", icon: "T", value: Number(currentSummary.trainingMoments || 0), detail: "Completed sessions" },
       { id: "work", label: "Work moments", icon: "W", value: Number(currentSummary.workMoments || 0), detail: "Completed work periods" }
     ].map(category => ({ ...category, progress: cumulativeMilestoneProgress(category.id, category.value) }));
@@ -216,7 +219,7 @@
     const target = document.getElementById("athleteMilestoneToast");
     if (!target || !achievement || !domain()) return;
     const label = domain().milestoneLabel(achievement.category, achievement.threshold);
-    const icon = { streak: "D", fuel: "F", hydration: "H", training: "T", work: "W" }[achievement.category] || "FG";
+    const icon = { streak: "D", fuel: "F", hydration: "H", sleepy: "S", ready: "R", training: "T", work: "W" }[achievement.category] || "FG";
     target.innerHTML = `<b aria-hidden="true">${icon}</b><span><strong>${domain().escapeHtml(label)}</strong><small>Milestone reached</small></span>`;
     target.hidden = false;
     acknowledgeLocal(achievement.key);

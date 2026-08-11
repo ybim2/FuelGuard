@@ -5,7 +5,10 @@
   margin: 0 auto;
   padding: 14px 12px 108px;
   color: var(--ink, #16251d);
+  background: #fff;
 }
+
+body.beta-mvp #analytics { min-width: 0; background: #fff; }
 
 .athlete-analytics-header {
   padding: 12px 4px 0;
@@ -68,12 +71,13 @@
 
 .athlete-analytics-hero,
 .athlete-training-analytics,
-.athlete-analytics-insights {
+.athlete-analytics-insights,
+.athlete-preparation-analytics {
   overflow: hidden;
   border: 1px solid #dce7df;
   border-radius: 26px;
   background: #fff;
-  box-shadow: 0 16px 36px rgba(23, 57, 38, .08);
+  box-shadow: 0 8px 22px rgba(23, 57, 38, .055);
 }
 
 .athlete-analytics-hero {
@@ -84,7 +88,8 @@
 }
 
 .athlete-analytics-hero > header,
-.athlete-training-analytics > header {
+.athlete-training-analytics > header,
+.athlete-preparation-analytics > header {
   display: flex;
   align-items: start;
   justify-content: space-between;
@@ -93,7 +98,8 @@
 
 .athlete-analytics-hero h2,
 .athlete-training-analytics h2,
-.athlete-analytics-insights h2 {
+.athlete-analytics-insights h2,
+.athlete-preparation-analytics h2 {
   max-width: 460px;
   margin: 5px 0 0;
   font-size: clamp(1.2rem, 5vw, 1.65rem);
@@ -102,7 +108,8 @@
 }
 
 .athlete-analytics-hero > header > b,
-.athlete-training-analytics > header > b {
+.athlete-training-analytics > header > b,
+.athlete-preparation-analytics > header > b {
   flex: 0 0 auto;
   padding: 7px 9px;
   border-radius: 999px;
@@ -180,6 +187,31 @@
 .athlete-training-analytics {
   padding: 20px 18px;
 }
+
+.athlete-preparation-analytics { padding: 20px 18px; }
+.athlete-preparation-analytics > header span { display: block; color: #2c7a4b; font-size: .68rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.athlete-preparation-rhythm { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: 12px; margin-top: 18px; }
+.athlete-preparation-total { display: grid; align-content: center; min-height: 150px; padding: 18px; border-radius: 20px; background: #eff8f2; }
+.athlete-preparation-total > strong { color: #0f6539; font-size: clamp(2.15rem, 10vw, 3.1rem); line-height: 1; letter-spacing: -.06em; }
+.athlete-preparation-total > span { margin-top: 4px; color: #214d34; font-size: .76rem; font-weight: 900; text-transform: uppercase; }
+.athlete-preparation-total > small { margin-top: 9px; color: #64736a; font-size: .68rem; }
+.athlete-preparation-weekdays { display: grid; gap: 8px; }
+.athlete-preparation-weekdays > span { display: grid; gap: 3px; padding: 13px; border: 1px solid #e0e9e2; border-radius: 16px; }
+.athlete-preparation-weekdays small { color: #69766e; font-size: .63rem; font-weight: 800; text-transform: uppercase; }
+.athlete-preparation-weekdays strong { font-size: .88rem; }
+.athlete-preparation-weekdays b { color: #36704d; font-size: .69rem; }
+.athlete-preparation-weekdays p { margin: 0; padding: 15px; border: 1px dashed #cad9ce; border-radius: 16px; color: #617067; font-size: .72rem; line-height: 1.45; }
+.athlete-preparation-day-list { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.athlete-preparation-day-list > span { display: grid; min-width: 0; justify-items: center; gap: 3px; padding: 9px 2px; border: 1px solid #e0e9e2; border-radius: 13px; background: #fbfdfb; text-align: center; }
+.athlete-preparation-day-list small { color: #65746b; font-size: .59rem; font-weight: 900; text-transform: uppercase; }
+.athlete-preparation-day-list strong { color: #15452c; font-size: .78rem; }
+.athlete-preparation-day-list b { overflow: hidden; max-width: 100%; color: #758078; font-size: .52rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.athlete-preparation-rhythm > button { grid-column: 1 / -1; justify-self: start; margin: 0; }
+.athlete-preparation-empty { display: grid; gap: 8px; margin-top: 18px; padding: 17px; border: 1px dashed #cad9ce; border-radius: 18px; background: #fafcfb; }
+.athlete-preparation-empty h3,
+.athlete-preparation-empty p { margin: 0; }
+.athlete-preparation-empty p { color: #617067; font-size: .75rem; line-height: 1.45; }
+.athlete-preparation-empty button { justify-self: start; margin-top: 5px; }
 
 .athlete-training-intake-system {
   display: grid;
@@ -306,6 +338,8 @@
   .athlete-analytics-surface { padding-inline: 8px; }
   .athlete-analytics-hero,
   .athlete-training-analytics,
-  .athlete-analytics-insights { padding-inline: 14px; border-radius: 22px; }
+  .athlete-analytics-insights,
+  .athlete-preparation-analytics { padding-inline: 14px; border-radius: 22px; }
   .athlete-rhythm-bars { gap: 2px; }
+  .athlete-preparation-rhythm { grid-template-columns: 1fr; }
 }

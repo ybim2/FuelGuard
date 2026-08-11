@@ -36,6 +36,7 @@ const DEFAULT_STATE = {
       },
       plan: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
       estimatedDurationMinutes: 60,
+      bonkRisk: { sessionId: "", anchorAt: "", alertedForAnchor: "", active: false },
       activeSession: null,
       sessions: [],
       lastSyncedAt: "",
@@ -147,6 +148,10 @@ function load() {
         trainingMode: {
           ...defaults.fuelGap.trainingMode,
           ...(isPlainObject(parsedFuelGap.trainingMode) ? parsedFuelGap.trainingMode : {}),
+          bonkRisk: {
+            ...defaults.fuelGap.trainingMode.bonkRisk,
+            ...(isPlainObject(parsedFuelGap.trainingMode?.bonkRisk) ? parsedFuelGap.trainingMode.bonkRisk : {})
+          },
           presets: {
             fuel: {
               ...defaults.fuelGap.trainingMode.presets.fuel,

@@ -205,6 +205,8 @@
       kit.lastError = "";
       message = check.prepared ? "Fuel Kit ready. You're covered for the day." : "Ready Check saved. Add to it whenever your plans change.";
       if (typeof save === "function") save();
+      window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
+      window.FuelGuardAthleteAnalytics?.render?.();
     } catch (error) {
       kit.lastError = error?.message || "Ready Check could not sync.";
       message = /fuel_kit_checks|schema cache|does not exist/i.test(kit.lastError)
@@ -248,6 +250,8 @@
     }
     if (typeof save === "function") save();
     render();
+    window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
+    window.FuelGuardAthleteAnalytics?.render?.();
   }
 
   document.addEventListener("click", event => {

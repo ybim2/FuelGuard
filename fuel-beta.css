@@ -606,6 +606,15 @@ body.beta-mvp .beta-milestone-tile.recent::after {
 
 body.beta-mvp .beta-streaks-card {
   margin-top: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+body.beta-mvp #athleteMilestones {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 body.beta-mvp .beta-streak-visuals {
@@ -631,10 +640,14 @@ body.beta-mvp .beta-milestone-carousel {
   display: flex;
   gap: 12px;
   width: 100%;
-  padding: 5px 2px 9px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 5px 18px 12px 2px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scroll-snap-type: inline mandatory;
+  scroll-padding-inline: 2px 18px;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
 }
@@ -670,6 +683,8 @@ body.beta-mvp .beta-cumulative-milestone header > span {
 }
 
 body.beta-mvp .beta-cumulative-milestone.hydration header > span { background: rgba(var(--fg-hydration-rgb), .16); }
+body.beta-mvp .beta-cumulative-milestone.sleepy header > span { background: rgba(130, 101, 196, .14); }
+body.beta-mvp .beta-cumulative-milestone.ready header > span { background: rgba(39, 153, 91, .14); }
 body.beta-mvp .beta-cumulative-milestone.training header > span { background: rgba(232, 156, 54, .16); }
 body.beta-mvp .beta-cumulative-milestone.work header > span { background: rgba(111, 124, 238, .13); }
 body.beta-mvp .beta-cumulative-milestone header div { display: grid; gap: 2px; min-width: 0; }
@@ -9069,6 +9084,18 @@ body.beta-mvp .beta-main-account strong {
   white-space: nowrap;
 }
 
+body.beta-mvp .beta-main-account.resolving strong {
+  width: 86px;
+  height: .8em;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(var(--fg-brand-dark-rgb), .08), rgba(var(--fg-brand-dark-rgb), .16), rgba(var(--fg-brand-dark-rgb), .08));
+  background-size: 200% 100%;
+  color: transparent;
+  animation: beta-identity-resolving 1.2s ease-in-out infinite;
+}
+
+@keyframes beta-identity-resolving { to { background-position: -200% 0; } }
+
 body.beta-mvp .beta-product-switcher {
   display: flex;
   max-width: 100%;
@@ -9440,3 +9467,21 @@ body.beta-mvp .beta-settings-destination-card .beta-settings-actions {
     grid-template-columns: 1fr;
   }
 }
+
+/* Final five-tab Athlete shell geometry: compact, centred and safe-area aware. */
+body.beta-mvp .mobile-bottom-nav {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  padding-top: 4px;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+}
+
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item {
+  min-height: 48px;
+  gap: 2px;
+  align-content: center;
+  padding: 3px 2px;
+}
+
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item svg { width: 19px; height: 19px; }
+body.beta-mvp .mobile-bottom-nav .mobile-nav-item span { font-size: .56rem; line-height: 1; }

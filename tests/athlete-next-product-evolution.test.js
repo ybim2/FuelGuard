@@ -48,8 +48,8 @@ test("Athlete shell identity cannot fall back to email", () => {
   const source = read("product-shell.js");
   const identity = source.slice(source.indexOf("function identityModel"), source.indexOf("function renderMainAccountIdentity"));
   assert.match(identity, /profile\.username/);
-  assert.match(identity, /profile\.first_name/);
-  assert.match(identity, /value: "Athlete"/);
+  assert.doesNotMatch(identity, /profile\.first_name|value: "Athlete"/);
+  assert.match(identity, /value: ""/);
   assert.doesNotMatch(identity, /account\.email|\bemail\b/);
 });
 
@@ -185,8 +185,8 @@ test("new Athlete assets are included in the versioned offline app shell", () =>
   const html = read("index.html");
   const sw = read("sw.js");
   for (const asset of ["athlete-everyday-reflection", "athlete-analytics", "athlete-tools"]) {
-    assert.match(html, new RegExp(`${asset}\\.css\\?v=mobile-pwa-v139-athlete-system`));
-    assert.match(html, new RegExp(`${asset}\\.js\\?v=mobile-pwa-v139-athlete-system`));
+    assert.match(html, new RegExp(`${asset}\\.css\\?v=mobile-pwa-v140-athlete-polish`));
+    assert.match(html, new RegExp(`${asset}\\.js\\?v=mobile-pwa-v140-athlete-polish`));
     assert.match(sw, new RegExp(`${asset}\\.css`));
     assert.match(sw, new RegExp(`${asset}\\.js`));
   }
