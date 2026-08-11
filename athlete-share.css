@@ -62,8 +62,74 @@ body.beta-mvp .athlete-daily-share-status {
   overflow-wrap: anywhere;
 }
 
+body.beta-mvp .athlete-social-settings {
+  overflow: hidden;
+}
+
+body.beta-mvp .athlete-share-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.beta-mvp .athlete-share-option-grid button {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 104px;
+  padding: 14px;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), 0.13);
+  border-radius: 16px;
+  background: rgba(246, 249, 244, 0.9);
+  color: var(--text);
+  text-align: left;
+}
+
+body.beta-mvp .athlete-share-option-grid button.selected {
+  border-color: rgba(var(--fg-fuel-rgb), 0.55);
+  box-shadow: inset 0 0 0 2px rgba(var(--fg-fuel-rgb), 0.13);
+}
+
+body.beta-mvp .athlete-share-option-grid strong {
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+body.beta-mvp .athlete-share-option-grid span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+body.beta-mvp .athlete-share-preview {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(var(--fg-brand-dark-rgb), 0.1);
+}
+
+body.beta-mvp .athlete-share-preview[hidden] {
+  display: none !important;
+}
+
+body.beta-mvp .athlete-share-preview canvas {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  aspect-ratio: 9 / 16;
+  border-radius: 18px;
+  box-shadow: 0 16px 32px rgba(var(--fg-brand-dark-rgb), 0.2);
+}
+
 @media (max-width: 390px) {
   body.beta-mvp .athlete-daily-share {
     padding-inline: 4px;
+  }
+
+  body.beta-mvp .athlete-share-option-grid {
+    grid-template-columns: 1fr;
   }
 }

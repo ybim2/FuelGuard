@@ -4,7 +4,7 @@
   const TARGETS_TABLE = "fuel_targets";
   const DEMAND_BLOCKS_TABLE = "fuel_demand_blocks";
   const WORK_BREAKS_TABLE = "fuel_work_breaks";
-  const LOG_SELECT_COLUMNS = "id,user_id,logged_at,type,source,external_event_id,day_type,training_session,training_mode_session_id,training_mode_preset_id,carbs_g,fluid_ml,sodium_mg,caffeine_mg,notes,created_at";
+  const LOG_SELECT_COLUMNS = "id,user_id,logged_at,type,source,external_event_id,day_type,training_session,training_mode_session_id,training_mode_preset_id,work_mode_session_id,carbs_g,fluid_ml,sodium_mg,caffeine_mg,notes,created_at";
   const TARGET_SELECT_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,maximum_fuel_gap_minutes,updated_at,created_at";
   const TARGET_SELECT_LEGACY_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at";
   const STATUS_EVENT = "fuelguard:cloud-status";
@@ -184,6 +184,7 @@
       row?.training_session || "",
       row?.training_mode_session_id || "",
       row?.training_mode_preset_id || "",
+      row?.work_mode_session_id || "",
       nullableQuantity(row?.carbs_g),
       nullableQuantity(row?.fluid_ml),
       nullableQuantity(row?.sodium_mg),
@@ -203,6 +204,7 @@
       log?.trainingSession || "",
       log?.trainingModeSessionId || "",
       log?.trainingModePresetId || "",
+      log?.workModeSessionId || "",
       nullableQuantity(log?.carbsG),
       nullableQuantity(log?.fluidMl),
       nullableQuantity(log?.sodiumMg),
@@ -271,6 +273,7 @@
       trainingSession: row.training_session || "",
       trainingModeSessionId: row.training_mode_session_id || "",
       trainingModePresetId: row.training_mode_preset_id || "",
+      workModeSessionId: row.work_mode_session_id || "",
       carbsG: nullableQuantity(row.carbs_g),
       fluidMl: nullableQuantity(row.fluid_ml),
       sodiumMg: nullableQuantity(row.sodium_mg),
@@ -301,6 +304,7 @@
       training_session: log.trainingSession || null,
       training_mode_session_id: log.trainingModeSessionId || log.training_mode_session_id || null,
       training_mode_preset_id: log.trainingModePresetId || log.training_mode_preset_id || null,
+      work_mode_session_id: log.workModeSessionId || log.work_mode_session_id || null,
       carbs_g: nullableQuantity(log.carbsG ?? log.carbs_g),
       fluid_ml: nullableQuantity(log.fluidMl ?? log.fluid_ml),
       sodium_mg: nullableQuantity(log.sodiumMg ?? log.sodium_mg),
@@ -862,6 +866,7 @@
     localLog.trainingSession = row.training_session || localLog.trainingSession || "";
     localLog.trainingModeSessionId = row.training_mode_session_id || "";
     localLog.trainingModePresetId = row.training_mode_preset_id || "";
+    localLog.workModeSessionId = row.work_mode_session_id || "";
     localLog.carbsG = nullableQuantity(row.carbs_g);
     localLog.fluidMl = nullableQuantity(row.fluid_ml);
     localLog.sodiumMg = nullableQuantity(row.sodium_mg);
@@ -878,6 +883,7 @@
       && (log.dayType || "") === (row.day_type || "")
       && (log.trainingSession || "") === (row.training_session || "")
       && (log.trainingModeSessionId || "") === (row.training_mode_session_id || "")
+      && (log.workModeSessionId || "") === (row.work_mode_session_id || "")
       && nullableQuantity(log.carbsG) === nullableQuantity(row.carbs_g)
       && nullableQuantity(log.fluidMl) === nullableQuantity(row.fluid_ml)
       && nullableQuantity(log.sodiumMg) === nullableQuantity(row.sodium_mg)
@@ -936,6 +942,7 @@
   async function uploadLogs(logs) {
     const currentUser = user();
     if (!client || !currentUser || !logs.length) return [];
+    for (const log of logs) await window.FuelGuardWorkMode?.ensureSessionSyncedForLog?.(log);
     const rows = logs
       .map(log => ({ log, row: rowForLog(log, currentUser) }))
       .filter(item => item.row);

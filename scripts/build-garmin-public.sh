@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/build/garmin-public"
-VERSION="${GARMIN_PUBLIC_VERSION:-0.5.0}"
+VERSION="${GARMIN_PUBLIC_VERSION:-0.5.1}"
 DEFAULT_KEY="$HOME/.garmin-connectiq/developer_key.der"
 DEVELOPER_KEY="${GARMIN_DEVELOPER_KEY:-$DEFAULT_KEY}"
 

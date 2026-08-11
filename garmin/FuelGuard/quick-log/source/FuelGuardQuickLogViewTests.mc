@@ -268,6 +268,50 @@ function testFuelGuardQuickLogUnconnectedEnterInitiatesAuth(logger) as Boolean {
 }
 
 (:test)
+function testFuelGuardQuickLogAuthenticationWakeRegistersConnection(logger) as Boolean {
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.configure(FuelGuardConnection.APP_ACTIVITY_LOGGER);
+
+    var app = new FuelGuardQuickLogApp();
+    app.onAuthenticationRequest();
+
+    return FuelGuardConnection.appId().equals(FuelGuardConnection.APP_QUICK_LOG);
+}
+
+(:test)
+function testFuelGuardQuickLogConnectedTrainingRefreshContainsRequestStartFailure(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardTraining.useThrowingRefreshTransportForTest();
+
+    FuelGuardTraining.refresh(true);
+
+    return FuelGuardConnection.connected()
+        && !FuelGuardTraining.refreshInFlightForTest();
+}
+
+(:test)
+function testFuelGuardQuickLogConnectedTrainingResponseUsesContextWithoutRefreshLoop(logger) as Boolean {
+    fuelGuardQuickReset(200, {"result" => "ok"});
+    FuelGuardTraining.useHeldRefreshTransportForTest(200, {"active" => true});
+
+    FuelGuardTraining.refresh(true);
+    var context = FuelGuardTraining.lastRefreshContextForTest();
+    if (!FuelGuardTraining.refreshInFlightForTest()
+            || FuelGuardTraining.refreshDispatchCountForTest() != 1
+            || !(context instanceof String)
+            || !(context as String).equals(FuelGuardTraining.STATUS_REQUEST_CONTEXT)) {
+        return false;
+    }
+
+    FuelGuardTraining.deliverHeldRefreshResponseForTest();
+    FuelGuardTraining.refresh(false);
+
+    return FuelGuardTraining.active()
+        && !FuelGuardTraining.refreshInFlightForTest()
+        && FuelGuardTraining.refreshDispatchCountForTest() == 1;
+}
+
+(:test)
 function testFuelGuardQuickLogStateMismatchDoesNotStoreToken(logger) as Boolean {
     FuelGuardQueue.saveQueue([]);
     FuelGuardConnection.resetForTest();

@@ -1,0 +1,124 @@
+.work-mode-surface {
+  min-width: 0;
+}
+
+.work-mode-card {
+  display: grid;
+  gap: 11px;
+  margin: 0 0 12px;
+  padding: 15px;
+  border: 1px solid rgba(31, 83, 59, 0.13);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(246, 249, 244, 0.98), rgba(235, 242, 236, 0.94));
+  color: var(--text);
+}
+
+.work-mode-card.active {
+  border-color: rgba(var(--fg-fuel-rgb), 0.34);
+  box-shadow: inset 3px 0 0 rgba(var(--fg-fuel-rgb), 0.66);
+}
+
+.work-mode-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.work-mode-heading span {
+  color: var(--fg-brand-mid);
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.work-mode-heading h3,
+.work-mode-card p {
+  margin: 0;
+}
+
+.work-mode-heading h3 {
+  margin-top: 3px;
+  font-size: 1rem;
+}
+
+.work-mode-heading > strong {
+  white-space: nowrap;
+  color: var(--fg-brand-dark);
+  font-size: 0.86rem;
+}
+
+.work-mode-card p,
+.work-mode-card > small,
+.work-mode-latest summary {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.work-mode-card > button {
+  justify-self: start;
+  min-height: 42px;
+}
+
+.work-mode-latest {
+  border-top: 1px solid rgba(31, 83, 59, 0.1);
+  padding-top: 10px;
+}
+
+.work-mode-latest summary {
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.work-mode-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.work-mode-summary-grid span,
+.work-mode-gap-row span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.work-mode-summary-grid small,
+.work-mode-gap-row span {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.work-mode-summary-grid strong,
+.work-mode-gap-row strong {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.work-mode-gap-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.work-mode-sleepy,
+.work-mode-comparison {
+  margin-top: 8px !important;
+}
+
+@media (max-width: 390px) {
+  .work-mode-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .work-mode-gap-row {
+    grid-template-columns: 1fr;
+  }
+}

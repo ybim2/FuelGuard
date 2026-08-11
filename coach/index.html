@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#07130f" />
+  <meta name="theme-color" content="#ffffff" />
   <meta name="description" content="Fuel Guard Coach Beta helps coaches notice athlete fuelling rhythm signals." />
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v129-pre-practice-streaks" />
-  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v129-pre-practice-streaks" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v134-overnight-integration" />
+  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v134-overnight-integration" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
     <a class="coach-logo" href="../" aria-label="Open Fuel Guard athlete app">FG</a>
     <div>
-      <strong>Coach Beta</strong>
-      <span>Behavioural fuelling signals</span>
+      <strong>Fuel Guard Coach</strong>
+      <span id="coachHeaderIdentity">Coach workspace</span>
     </div>
   </header>
 
@@ -75,22 +75,18 @@
 
     <section id="coachAppShell" hidden>
       <nav class="coach-tabbar" aria-label="Coach navigation">
-        <button class="active" type="button" data-coach-tab="dashboard">Dashboard</button>
-        <button type="button" data-coach-tab="athletes">Athletes</button>
-        <button type="button" data-coach-tab="reports">Reports</button>
-        <button type="button" data-coach-tab="settings">Settings</button>
+        <button class="active" type="button" data-coach-tab="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
+        <button type="button" data-coach-tab="athletes"><span aria-hidden="true">◎</span><small>Athletes</small></button>
+        <button type="button" data-coach-tab="briefs"><span aria-hidden="true">▤</span><small>Briefs</small></button>
+        <button type="button" data-coach-tab="schedule"><span aria-hidden="true">□</span><small>Schedule</small></button>
+        <button type="button" data-coach-tab="settings"><span aria-hidden="true">⚙</span><small>Settings</small></button>
       </nav>
 
       <section id="coachGroupFilter" class="coach-group-filter" aria-label="Saved group filter"></section>
 
-      <section id="coachDashboardPanel" class="coach-panel active" aria-label="Coach dashboard">
-        <div id="coachNeedsAttention"></div>
-        <div id="coachDataHealth"></div>
-        <div id="coachDueReviews"></div>
-        <div id="coachWeeklyBrief"></div>
-        <div id="coachTeamPatterns"></div>
+      <section id="coachHomePanel" class="coach-panel active" aria-label="Coach Home">
+        <div id="coachHomeOverview"></div>
         <div class="coach-feature-stack" data-coach-feature-host="dashboard"></div>
-        <div id="coachRoster"></div>
       </section>
 
       <section id="coachAthletesPanel" class="coach-panel" aria-label="Athletes">
@@ -114,9 +110,28 @@
         <div class="coach-feature-stack" data-coach-feature-host="athletes"></div>
       </section>
 
-      <section id="coachReportsPanel" class="coach-panel" aria-label="Athlete review reports">
-        <div id="coachInterventionReview"></div>
-        <div id="coachTrainingSchedule"></div>
+      <section id="coachBriefsPanel" class="coach-panel" aria-label="Daily and weekly Coach Briefs">
+        <section class="coach-briefs-intro">
+          <p class="coach-kicker">Briefs</p>
+          <h1>Daily action. Weekly evidence.</h1>
+          <p>Use the Daily Brief for today’s exceptions and the Weekly Brief for the live Monday-to-today picture and formal reporting.</p>
+        </section>
+        <nav class="coach-brief-switch" aria-label="Coach Brief type">
+          <button class="active" type="button" data-coach-brief="daily">Daily Brief</button>
+          <button type="button" data-coach-brief="weekly">Weekly Brief</button>
+        </nav>
+
+        <section data-coach-brief-view="daily">
+          <div id="coachDailyBrief"></div>
+          <div id="coachNeedsAttention"></div>
+          <div id="coachDataHealth"></div>
+          <div id="coachDueReviews"></div>
+        </section>
+
+        <section data-coach-brief-view="weekly" hidden>
+          <div id="coachWeeklyBrief"></div>
+          <div id="coachTeamPatterns"></div>
+          <div id="coachInterventionReview"></div>
         <section class="coach-card">
           <div class="coach-card-heading compact">
             <div>
@@ -169,7 +184,8 @@
           <div class="coach-form-grid">
             <label>Athlete<select id="coachReportAthlete"></select></label>
             <label>Review period<select id="coachReportPeriod">
-              <option value="week" selected>Weekly review</option>
+              <option value="week_to_date" selected>Week-to-date live brief</option>
+              <option value="week">Weekly review — previous completed week</option>
               <option value="4_weeks">4 Weeks</option>
               <option value="8_weeks">8 Weeks</option>
               <option value="12_weeks">12 Weeks</option>
@@ -203,10 +219,39 @@
         </section>
         <div id="coachReportPreview"></div>
         <div id="coachWeeklyReviewHistory"></div>
+        </section>
         <div class="coach-feature-stack" data-coach-feature-host="reports"></div>
       </section>
 
+      <section id="coachSchedulePanel" class="coach-panel" aria-label="Coach Schedule">
+        <section class="coach-panel-intro">
+          <p class="coach-kicker">Schedule</p>
+          <h1>Practices, games and team readiness.</h1>
+          <p>One authorised schedule feeds Coach readiness and Athlete pre-session context without changing normal logging.</p>
+        </section>
+        <div id="coachTrainingSchedule"></div>
+      </section>
+
       <section id="coachSettingsPanel" class="coach-panel" aria-label="Coach settings">
+        <section class="coach-settings-intro" data-coach-settings-menu>
+          <p class="coach-kicker">Settings</p>
+          <h1>Coach workspace settings</h1>
+          <p>Open a category to manage one part of Fuel Guard Coach at a time.</p>
+          <nav class="coach-settings-menu" aria-label="Coach settings categories">
+            <button type="button" data-coach-settings-open="profile"><span>Profile</span><small>Coach name and account details</small><b aria-hidden="true">›</b></button>
+            <button type="button" data-coach-settings-open="team"><span>Team</span><small>Team details, athletes, codes and invitations</small><b aria-hidden="true">›</b></button>
+            <button type="button" data-coach-settings-open="sessions"><span>Sessions &amp; Schedule</span><small>Session defaults and training schedule</small><b aria-hidden="true">›</b></button>
+            <button type="button" data-coach-settings-open="notifications"><span>Notifications</span><small>Athlete reminders and Coach notification context</small><b aria-hidden="true">›</b></button>
+            <button type="button" data-coach-settings-open="reports"><span>Reports &amp; Briefs</span><small>Weekly reporting, export and review schedules</small><b aria-hidden="true">›</b></button>
+            <button type="button" data-coach-settings-open="account"><span>Account</span><small>Authentication and sign out</small><b aria-hidden="true">›</b></button>
+          </nav>
+        </section>
+        <header class="coach-settings-category-header" data-coach-settings-header hidden>
+          <button class="secondary" type="button" data-coach-settings-back>← Settings</button>
+          <div><span>Settings</span><h2 id="coachSettingsCategoryTitle" tabindex="-1">Profile</h2></div>
+        </header>
+
+        <section data-coach-settings-section="profile" hidden>
         <section class="coach-card">
           <div class="coach-card-heading compact">
             <div>
@@ -226,11 +271,12 @@
           <div id="coachPointsProfile" class="coach-points-profile"></div>
           <div class="coach-button-row">
             <button id="coachSaveProfileButton" class="secondary" type="button">Save profile</button>
-            <button id="coachSignOutButton" class="secondary" type="button">Log out</button>
           </div>
           <p id="coachProfileStatus" class="coach-note" aria-live="polite"></p>
         </section>
+        </section>
 
+        <section data-coach-settings-section="team" hidden>
         <section class="coach-card">
           <div class="coach-card-heading compact">
             <div>
@@ -243,6 +289,23 @@
         </section>
         <div id="coachTeamSetup"></div>
         <div id="coachSavedGroups"></div>
+        </section>
+
+        <section data-coach-settings-section="sessions" hidden>
+          <section class="coach-card"><div class="coach-card-heading compact"><div><h2>Sessions &amp; Schedule</h2><p>Session type, date, time, team and timezone are set when a practice or game is created. Team timezone remains the default.</p></div></div><div class="coach-button-row"><button class="primary" type="button" data-open-schedule>Open Schedule</button></div></section>
+        </section>
+
+        <section data-coach-settings-section="notifications" hidden>
+          <section class="coach-card"><div class="coach-card-heading compact"><div><h2>Notification context</h2><p>Scheduled sessions can create one behaviour-aware pre-session reminder. Each athlete’s existing notification preference, dismissal and deduplication rules remain authoritative.</p></div></div><p class="coach-note">Coach cannot override an athlete’s private reminder preference or create repeated reminders for the same session.</p></section>
+        </section>
+
+        <section data-coach-settings-section="reports" hidden>
+          <section class="coach-card"><div class="coach-card-heading compact"><div><h2>Reports &amp; Briefs</h2><p>Daily evidence feeds the live Weekly Brief. Formal report generation, scheduled reviews and CSV/PDF export stay in that same workflow.</p></div></div><div class="coach-button-row"><button class="primary" type="button" data-open-weekly-report>Open Weekly Brief &amp; reports</button></div></section>
+        </section>
+
+        <section data-coach-settings-section="account" hidden>
+          <section class="coach-card"><div class="coach-card-heading compact"><div><h2>Account</h2><p>Authentication remains tied to your signed-in Fuel Guard Coach identity.</p></div></div><div class="coach-button-row"><button id="coachSignOutButton" class="secondary" type="button">Log out</button></div></section>
+        </section>
         <div class="coach-feature-stack" data-coach-feature-host="settings"></div>
       </section>
     </section>
@@ -250,19 +313,19 @@
     <p id="coachGlobalStatus" class="coach-global-status" aria-live="polite"></p>
   </main>
 
-  <script src="../build-info.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="../api/supabase-config.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
+  <script src="../build-info.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v134-overnight-integration"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="../app-pwa.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="../transactional-email-client.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-platform.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-attention.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-intervention-workflow.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-team-intelligence.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-review-scheduling.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-team-structure.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
-  <script src="coach-training-schedule.js?v=mobile-pwa-v129-pre-practice-streaks"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="../app-pwa.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="../transactional-email-client.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-platform.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-attention.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-intervention-workflow.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-team-intelligence.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-review-scheduling.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-team-structure.js?v=mobile-pwa-v134-overnight-integration"></script>
+  <script src="coach-training-schedule.js?v=mobile-pwa-v134-overnight-integration"></script>
 </body>
 </html>

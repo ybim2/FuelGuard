@@ -1,10 +1,11 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v132-athlete-ux-impact-fix";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v134-overnight-integration";
   const SERVICE_WORKER_SCOPE = buildInfo.serviceWorkerScope || "./";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;
+  let reloadOnControllerChange = false;
 
   function updateStatus(message) {
     window.dispatchEvent(new CustomEvent("fuelguard:pwa-update-status", {
@@ -27,7 +28,11 @@
   if (!("serviceWorker" in navigator)) return;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshing) return;
+    // A first install can acquire a controller after the page is already
+    // visible. That is not an app update and must not flash the global loader
+    // a second time. Reload only after the athlete explicitly accepts an
+    // already-downloaded update from Settings.
+    if (!reloadOnControllerChange || refreshing) return;
     refreshing = true;
     updateStatus("Update status: new app shell active. Reloading...");
     window.location.reload();
@@ -35,11 +40,14 @@
 
   function activateWaitingWorker(registration) {
     if (registration.waiting) {
+      reloadOnControllerChange = true;
       registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      return true;
     }
+    return false;
   }
 
-  function waitForInstallingWorker(registration) {
+  function waitForInstallingWorker(registration, { activate = false } = {}) {
     return new Promise(resolve => {
       const worker = registration.installing;
       if (!worker) {
@@ -47,13 +55,13 @@
         return;
       }
       if (worker.state === "installed" || worker.state === "activated") {
-        activateWaitingWorker(registration);
+        if (activate) activateWaitingWorker(registration);
         resolve(Boolean(registration.waiting));
         return;
       }
       worker.addEventListener("statechange", () => {
         if (worker.state === "installed") {
-          activateWaitingWorker(registration);
+          if (activate) activateWaitingWorker(registration);
           resolve(Boolean(registration.waiting));
         }
       });
@@ -65,9 +73,10 @@
     registrationPromise = navigator.serviceWorker
       .register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE, updateViaCache: "none" })
       .then(registration => {
-        activateWaitingWorker(registration);
         registration.addEventListener("updatefound", () => {
-          waitForInstallingWorker(registration);
+          waitForInstallingWorker(registration).then(waiting => {
+            if (waiting) updateStatus("Update status: a new app shell is ready in Settings.");
+          });
         });
         return registration;
       });
@@ -92,8 +101,8 @@
       }
       if (registration.installing) {
         updateStatus("Update status: downloading update...");
-        await waitForInstallingWorker(registration);
-        return { status: "installing", buildVersion: buildLabel() };
+        const waiting = await waitForInstallingWorker(registration, { activate: true });
+        return { status: waiting ? "activating" : "installing", buildVersion: buildLabel() };
       }
       updateStatus(`Update status: latest available build loaded (${buildLabel()}).`);
       return { status: "current", buildVersion: buildLabel() };

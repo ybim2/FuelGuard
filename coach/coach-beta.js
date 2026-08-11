@@ -86,13 +86,15 @@
     weeklyBrief: null,
     teamSessionBrief: null,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    currentTab: "dashboard",
+    currentTab: "home",
+    currentBriefView: "daily",
+    selectedSettingsCategory: "",
     selectedAthleteId: "",
     selectedReportAthleteId: "",
     selectedScheduleId: "",
     selectedTrainingSessionId: "",
     editingTrainingSessionId: "",
-    reportPeriod: "week",
+    reportPeriod: "week_to_date",
     generatedReport: null,
     savedWeeklyReportId: "",
     reportSaved: false,
@@ -200,8 +202,11 @@
   }
 
   function profileName(profile, relation) {
-    const firstName = String(profile?.first_name || "").trim();
-    return firstName || relation?.athlete_label || profile?.display_name || `Athlete ${String(relation?.athlete_id || profile?.user_id || "").slice(0, 8)}`;
+    const fullName = [profile?.first_name, profile?.last_name]
+      .map(value => String(value || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    return fullName || relation?.athlete_label || profile?.display_name || `Athlete ${String(relation?.athlete_id || profile?.user_id || "").slice(0, 8)}`;
   }
 
   function athleteRows() {
@@ -274,7 +279,7 @@
       targetsByUser: targetsByUser(),
       now: new Date()
     });
-    state.weeklyBrief = domain.buildWeeklyCoachBrief({
+    state.weeklyBrief = domain.buildWeekToDateCoachBrief({
       athletes,
       relationships: state.relationships,
       coachId: coachUser()?.id || "",
@@ -367,13 +372,6 @@
     });
   }
 
-  function currentStatusCopy(item) {
-    if (!item.lastFuel) return "No fuel logged today yet.";
-    if (item.beyondFuelGapMinutes !== null) return `${domain.duration(item.beyondFuelGapMinutes)} beyond target`;
-    if (item.remainingFuelGapMinutes !== null) return `${domain.duration(item.remainingFuelGapMinutes)} until target`;
-    return "Fuel timing visible";
-  }
-
   function flagTone(flag) {
     if (!flag) return "steady";
     if (flag.id === "gap_exceeded") return "critical";
@@ -385,22 +383,23 @@
     const topFlag = item.flags[0] || null;
     const tone = topFlag ? flagTone(topFlag) : "steady";
     const id = safe(item.athlete.userId);
+    const summary = !item.logs.length
+      ? "Not enough recent logging data"
+      : ["red", "crash"].includes(item.status)
+        ? "Needs attention"
+        : item.status === "amber"
+          ? "May need fuel soon"
+          : "No immediate intervention";
     return `
       <article class="coach-roster-row ${safe(tone)}">
         <div>
           <div class="coach-athlete-title">
             <strong>${safe(item.athlete.displayName)}</strong>
-            <span class="coach-status-chip ${safe(item.status)}">${safe(item.statusLabel)}</span>
+            <span class="coach-status-chip ${safe(!item.logs.length ? "grey" : item.status)}">${safe(summary)}</span>
           </div>
-          <div class="coach-row-meta">
-            <span>${safe(currentStatusCopy(item))}</span>
-            <span>${safe(item.fuelLogs.length)} fuel</span>
-            <span>${safe(item.hydrationLogs.length)} hydration</span>
-            <span>${safe(item.sleepyLogs.length)} Sleepy</span>
-          </div>
-          ${topFlag ? `<p class="coach-note">${safe(topFlag.detail)}</p>` : compact ? "" : `<p class="coach-note">No attention flag right now.</p>`}
+          ${compact ? "" : `<p class="coach-note">Open the athlete profile to review shared evidence and coaching history.</p>`}
         </div>
-        <button type="button" data-open-athlete="${id}">View</button>
+        <button type="button" data-open-athlete="${id}">Open profile</button>
       </article>
     `;
   }
@@ -485,6 +484,135 @@
     `;
   }
 
+  function sessionsForDay(key = domain.dateKeyInTimeZone(new Date(), state.timeZone)) {
+    return state.trainingSessions
+      .filter(session => session.status === "scheduled" && domain.dateKeyInTimeZone(session.starts_at, session.timezone_name || state.timeZone) === key)
+      .sort((left, right) => new Date(left.starts_at) - new Date(right.starts_at));
+  }
+
+  function nextScheduledSession() {
+    const now = new Date();
+    return state.trainingSessions
+      .filter(session => session.status === "scheduled" && new Date(session.ends_at) >= now)
+      .sort((left, right) => new Date(left.starts_at) - new Date(right.starts_at))[0] || null;
+  }
+
+  function homeStatusMetric(label, value, tone) {
+    return `<article class="coach-home-stat ${safe(tone)}"><strong>${safe(value)}</strong><span>${safe(label)}</span></article>`;
+  }
+
+  function renderHome() {
+    const target = $("coachHomeOverview");
+    if (!target) return;
+    const now = new Date();
+    const todayKey = domain.dateKeyInTimeZone(now, state.timeZone);
+    const todaySessions = sessionsForDay(todayKey);
+    const nextSession = nextScheduledSession();
+    const nextContexts = nextSession ? sessionContexts(nextSession.id) : [];
+    const readiness = domain.prePracticeTeamSummary(nextContexts);
+    const fuelSoon = state.roster.filter(item => item.status === "amber").length;
+    const eatNow = state.roster.filter(item => ["red", "crash"].includes(item.status)).length;
+    const notLogged = state.roster.filter(item => !item.logs.length).length;
+    const brief = state.weeklyBrief;
+    const sessionTeam = nextSession ? state.teams.find(team => String(team.id) === String(nextSession.team_id)) : null;
+    const sessionZone = nextSession?.timezone_name || state.timeZone;
+    target.innerHTML = `
+      <section class="coach-home-hero" aria-labelledby="coachHomeTitle">
+        <p class="coach-kicker">Coach Home</p>
+        <h1 id="coachHomeTitle">What needs your attention today?</h1>
+        <p>Shared Fuel Guard evidence, upcoming sessions and the developing weekly picture.</p>
+      </section>
+
+      <section class="coach-card coach-home-priority-card">
+        <div class="coach-card-heading compact"><div><span class="coach-section-label">Today’s Brief</span><h2>${safe(state.attentionItems.length ? `${state.attentionItems.length} action${state.attentionItems.length === 1 ? "" : "s"} to review` : "No new exceptions")}</h2><p>Current status is based only on authorised athlete records.</p></div></div>
+        <div class="coach-home-stat-grid">
+          ${homeStatusMetric("Fuel soon", fuelSoon, "amber")}
+          ${homeStatusMetric("Eat now", eatNow, "red")}
+          ${homeStatusMetric("Not logged", notLogged, "grey")}
+          ${homeStatusMetric("Sessions today", todaySessions.length, "green")}
+        </div>
+        <div class="coach-button-row"><button class="primary" type="button" data-open-daily-brief>View today’s brief</button></div>
+      </section>
+
+      <section class="coach-card coach-home-session-card">
+        <div class="coach-card-heading compact"><div><span class="coach-section-label">Upcoming Session</span><h2>${safe(nextSession ? nextSession.session_name || sessionTypeLabel(nextSession.session_type) : "No upcoming session")}</h2><p>${safe(nextSession ? `${sessionTeam?.name || "Team"} · ${domain.dateKeyInTimeZone(nextSession.starts_at, sessionZone)} · ${domain.formatClockInTimeZone(nextSession.starts_at, sessionZone)}` : "Add a practice, game or other session to connect scheduling with fuelling readiness.")}</p></div></div>
+        ${nextSession ? `
+          <div class="coach-readiness-strip" aria-label="Upcoming session readiness">
+            ${homeStatusMetric("Ready", readiness.counts.green, "green")}
+            ${homeStatusMetric("Fuel soon", readiness.counts.amber, "amber")}
+            ${homeStatusMetric("Needs attention", readiness.counts.red, "red")}
+            ${homeStatusMetric("Not enough data", readiness.counts.grey, "grey")}
+          </div>
+          <p class="coach-evidence-sentence">${safe(readiness.insight)}</p>
+        ` : ""}
+        <div class="coach-button-row"><button class="secondary" type="button" data-open-schedule="${safe(nextSession?.id || "")}">${nextSession ? "Review session" : "Open Schedule"}</button></div>
+      </section>
+
+      <section class="coach-card coach-home-week-card">
+        <div class="coach-card-heading compact"><div><span class="coach-section-label">Week-to-Date Brief</span><h2>${safe(brief?.period?.display || "This week")}</h2><p>${safe(brief?.summary || "Weekly evidence is loading.")}</p></div></div>
+        <div class="coach-home-stat-grid compact">
+          ${homeStatusMetric("Fuel moments", brief?.evidence?.fuelMoments || 0, "neutral")}
+          ${homeStatusMetric("Hydration", brief?.evidence?.hydrationMoments || 0, "neutral")}
+          ${homeStatusMetric("Logged athlete-days", brief?.evidence?.loggedAthleteDays || 0, "neutral")}
+          ${homeStatusMetric("Review candidates", brief?.reviewCount || 0, "neutral")}
+        </div>
+        <div class="coach-button-row"><button class="primary" type="button" data-open-weekly-brief>View weekly brief</button><button class="secondary" type="button" data-open-weekly-report>Generate / export report</button></div>
+      </section>
+    `;
+  }
+
+  function dailyBriefRow({ title, detail, athleteId = "", tone = "neutral", action = "Open athlete" } = {}) {
+    return `<article class="coach-brief-action-row ${safe(tone)}"><div><strong>${safe(title)}</strong><span>${safe(detail)}</span></div>${athleteId ? `<button type="button" data-open-athlete="${safe(athleteId)}">${safe(action)}</button>` : ""}</article>`;
+  }
+
+  function dailyBriefGroup(title, description, rows, empty) {
+    return `<section class="coach-daily-group"><header><h3>${safe(title)}</h3><span>${safe(rows.length)}</span></header><p>${safe(description)}</p><div>${rows.length ? rows.join("") : `<div class="coach-empty compact">${safe(empty)}</div>`}</div></section>`;
+  }
+
+  function renderDailyBrief() {
+    const target = $("coachDailyBrief");
+    if (!target) return;
+    const actionRows = state.attentionItems.map(item => dailyBriefRow({
+      title: item.athlete?.displayName || "Athlete",
+      detail: `${item.label} · ${item.detail}`,
+      athleteId: item.athleteId,
+      tone: attentionTone(item)
+    }));
+    const goingWell = state.roster
+      .filter(item => item.status === "green" && item.logs.length)
+      .map(item => dailyBriefRow({
+        title: item.athlete.displayName,
+        detail: `${item.fuelLogs.length} Fuel · ${item.hydrationLogs.length} Hydration recorded today`,
+        athleteId: item.athlete.userId,
+        tone: "steady"
+      }));
+    const dataGapRows = (state.teamDataHealth.items || [])
+      .filter(item => item.id !== "reporting_normally")
+      .map(item => dailyBriefRow({
+        title: item.athlete?.displayName || "Athlete",
+        detail: `${item.label} · ${item.detail}`,
+        athleteId: item.athleteId,
+        tone: "muted"
+      }));
+    const todaySessions = sessionsForDay().map(session => {
+      const rows = sessionContexts(session.id);
+      const summary = domain.prePracticeTeamSummary(rows);
+      const team = state.teams.find(item => String(item.id) === String(session.team_id));
+      return `<article class="coach-brief-action-row session"><div><strong>${safe(session.session_name || sessionTypeLabel(session.session_type))}</strong><span>${safe(`${team?.name || "Team"} · ${domain.formatClockInTimeZone(session.starts_at, session.timezone_name || state.timeZone)} · ${summary.insight}`)}</span></div><button type="button" data-open-schedule="${safe(session.id)}">Review</button></article>`;
+    });
+    target.innerHTML = `
+      <section class="coach-card coach-daily-brief-card">
+        <div class="coach-card-heading compact"><div><span class="coach-section-label">Daily Coach Brief</span><h2>${safe(domain.dateKeyInTimeZone(new Date(), state.timeZone))}</h2><p>Action groups are derived from today’s shared evidence. Missing records are shown as missing data, not adequate fuelling.</p></div></div>
+        <div class="coach-daily-grid">
+          ${dailyBriefGroup("Needs attention", "Exceptions and follow-ups that may need a coaching action.", actionRows, "No new exception needs action.")}
+          ${dailyBriefGroup("Going well", "Athletes with recent shared evidence and no current fuel-gap flag.", goingWell, "No positive status has enough shared evidence yet.")}
+          ${dailyBriefGroup("Logging / data gaps", "Missing or unreliable shared records that limit interpretation.", dataGapRows, "No current data-health gaps detected.")}
+          ${dailyBriefGroup("Today’s sessions", "Practices, games and other scheduled sessions feeding the readiness view.", todaySessions, "No session is scheduled today.")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderGroupFilter() {
     const target = $("coachGroupFilter");
     if (!target) return;
@@ -507,34 +635,85 @@
     if (!target) return;
     const brief = state.weeklyBrief;
     if (!brief) {
-      target.innerHTML = `<section class="coach-card"><div class="coach-empty">Weekly team intelligence is loading.</div></section>`;
+      target.innerHTML = `<section class="coach-card"><div class="coach-empty">Week-to-date team intelligence is loading.</div></section>`;
       return;
     }
     const coverage = Number.isFinite(brief.loggingCoveragePct) ? `${brief.loggingCoveragePct}%` : "Not enough data";
-    const gapWindow = brief.biggestGapWindow?.label || "No repeated window yet";
-    const gapDetail = brief.biggestGapWindow
-      ? `${brief.biggestGapWindow.count} gaps · ${brief.biggestGapWindow.athleteCount} athletes`
-      : "Requires repeated >target gaps across athletes";
+    const gapWindow = brief.analytics.commonGapWindow?.meaningful ? brief.analytics.commonGapWindow.label : "No repeated window yet";
+    const gapDetail = brief.analytics.commonGapWindow?.meaningful
+      ? `${brief.analytics.commonGapWindow.count} gaps · ${brief.analytics.commonGapWindow.athleteCount} athletes`
+      : "Available evidence remains visible below";
     const sessions = state.teamSessionBrief;
     const sessionPercent = value => Number.isFinite(value) ? `${value}%` : "Not enough data";
+    const dailyFindingNames = rows => rows.length ? rows.map(row => row.athleteName).join(", ") : "None from available evidence";
+    const weeklyDayCard = day => {
+      if (day.future) {
+        return `<article class="future"><header><strong>${safe(day.label)}</strong><time>${safe(day.key.slice(5))}</time></header><p>Upcoming</p></article>`;
+      }
+      const daySessions = state.trainingSessions
+        .filter(session => session.status !== "cancelled" && domain.dateKeyInTimeZone(session.starts_at, session.timezone_name || state.timeZone) === day.key)
+        .sort((left, right) => new Date(left.starts_at) - new Date(right.starts_at));
+      const sessionEvidence = daySessions.map(session => {
+        const team = state.teams.find(item => String(item.id) === String(session.team_id));
+        const contextRows = sessionContexts(session.id);
+        const readiness = domain.prePracticeTeamSummary(contextRows);
+        const completedRows = contextRows.filter(row => String(row.post_session_status || "pending") !== "pending");
+        const prompt = completedRows.filter(row => row.post_session_status === "prompt").length;
+        const late = completedRows.filter(row => row.post_session_status === "late").length;
+        const noFuel = completedRows.filter(row => row.post_session_status === "no_fuel").length;
+        const ended = new Date(session.ends_at) <= new Date();
+        const recovery = completedRows.length
+          ? ` Post-session: ${prompt} prompt, ${late} late, ${noFuel} without a recovery Fuel record.`
+          : ended
+            ? " Post-session recovery evidence is not yet available."
+            : "";
+        return `${session.session_name || sessionTypeLabel(session.session_type)} · ${team?.name || "Team"} · ${readiness.insight}${recovery}`;
+      });
+      const nutrition = [
+        `${day.hydrationMoments} Hydration`,
+        day.caffeineMoments ? `${day.caffeineMoments} caffeine record${day.caffeineMoments === 1 ? "" : "s"}` : "",
+        day.sodiumMoments ? `${day.sodiumMoments} sodium record${day.sodiumMoments === 1 ? "" : "s"}` : ""
+      ].filter(Boolean).join(" · ");
+      return `
+        <details class="${day.exceededTargetDays ? "attention" : day.loggedAthletes ? "recorded" : "limited"}"${day.key === brief.period.endKey ? " open" : ""}>
+          <summary>
+            <span><strong>${safe(day.label)}</strong><time>${safe(day.key.slice(5))}</time></span>
+            <span>${safe(day.loggedAthletes)} of ${safe(day.eligibleAthletes)} athletes logged</span>
+            <small>${safe(day.exceededTargetDays ? `${day.exceededTargetDays} measurable day${day.exceededTargetDays === 1 ? "" : "s"} beyond target` : day.metricDays ? `${day.withinTargetDays} of ${day.metricDays} measurable days within target` : "Limited gap evidence")}</small>
+          </summary>
+          <div class="coach-week-day-detail">
+            <p><strong>Scheduled sessions</strong><span>${safe(sessionEvidence.length ? sessionEvidence.join("; ") : "No scheduled practice or game")}</span></p>
+            <p><strong>Needs attention</strong><span>${safe(dailyFindingNames(day.findings.needsAttention))}</span></p>
+            <p><strong>Going well</strong><span>${safe(dailyFindingNames(day.findings.goingWell))}</span></p>
+            <p><strong>Logging / data gaps</strong><span>${safe(dailyFindingNames(day.findings.loggingGaps))}</span></p>
+            <p><strong>Available nutrition evidence</strong><span>${safe(`${day.fuelMoments} Fuel · ${nutrition} · ${day.sleepyMoments} Sleepy`)}</span></p>
+          </div>
+        </details>`;
+    };
     target.innerHTML = `
-      <section class="coach-card coach-weekly-brief">
+      <section class="coach-card coach-weekly-brief coach-week-to-date-brief">
         <div class="coach-card-heading">
           <span class="coach-icon">W</span>
           <div>
-            <p class="coach-kicker">Weekly Coach Brief</p>
+            <p class="coach-kicker">Week-to-Date Brief</p>
             <h1>${safe(brief.period.display)}</h1>
-            <p>Previous complete Monday-Sunday · ${safe(state.timeZone)}</p>
+            <p>Live Monday-to-today evidence · ${safe(state.timeZone)}</p>
           </div>
         </div>
+        <p class="coach-evidence-sentence">${safe(brief.summary)}</p>
         <div class="coach-brief-grid">
           ${briefMetric("Active athletes", brief.athleteCount)}
           ${briefMetric("Logging coverage", coverage, `${brief.analytics.loggingCoverage.loggedAthleteDays} of ${brief.analytics.loggingCoverage.eligibleAthleteDays} eligible athlete-days`)}
-          ${briefMetric("Frequently exceeded", brief.frequentlyExceededCount, "At least 2 days and half of measurable days")}
+          ${briefMetric("Fuel moments", brief.evidence.fuelMoments, "Shared Monday-to-today records")}
+          ${briefMetric("Hydration moments", brief.evidence.hydrationMoments, "Shared Monday-to-today records")}
+          ${briefMetric("Beyond target", brief.evidence.exceededTargetDays, "Measurable athlete-days")}
           ${briefMetric("Biggest gap window", gapWindow, gapDetail)}
-          ${briefMetric("Improved", brief.improvedCount, "Comparable week-to-week data")}
-          ${briefMetric("Deteriorated", brief.deterioratedCount, "Material adherence or gap change")}
+          ${briefMetric("Improved", brief.improvedCount, "Comparable week-to-date evidence")}
+          ${briefMetric("Deteriorated", brief.deterioratedCount, "Comparable week-to-date evidence")}
           ${briefMetric("Need review", brief.reviewCount, "Evidence-based review candidates")}
+        </div>
+        <div class="coach-week-days" aria-label="Daily week-to-date evidence">
+          ${brief.dailyEvidence.map(weeklyDayCard).join("")}
         </div>
         ${sessions?.sessionCount ? `
           <div class="coach-team-session-brief">
@@ -546,9 +725,10 @@
           </div>
           <p class="coach-note">${safe(sessions.milestone || `${sessions.improving.length} improving · ${sessions.deteriorating.length} deteriorating · ${sessions.missingPatterns.length} with missing session patterns`)}</p>
         ` : ""}
-        ${brief.limited ? `<p class="coach-limited-note">Small squad or limited logging coverage - counts are shown, but team percentages and patterns are withheld until the sample is meaningful.</p>` : ""}
+        ${brief.limited ? `<p class="coach-limited-note">Limited data: every available count is shown, while percentages or repeated team patterns remain sample-gated where interpretation would be unreliable.</p>` : ""}
         <div class="coach-button-row">
-          <button class="primary" type="button" data-review-team>Review Team</button>
+          <button class="primary" type="button" data-open-weekly-report>Generate / export weekly report</button>
+          <button class="secondary" type="button" data-review-team>Review athletes</button>
         </div>
       </section>
     `;
@@ -1384,14 +1564,16 @@
     const periodSelect = $("coachReportPeriod");
     if (periodSelect) periodSelect.value = state.reportPeriod;
     if ($("coachReportEnd") && !$("coachReportEnd").value) {
-      const defaultPeriod = state.reportPeriod === "week"
-        ? domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone })
-        : null;
+      const defaultPeriod = state.reportPeriod === "week_to_date"
+        ? domain.weekToDateReportingPeriod({ now: new Date(), timeZone: state.timeZone })
+        : state.reportPeriod === "week"
+          ? domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone })
+          : null;
       $("coachReportStart").value = defaultPeriod?.startKey || "";
       $("coachReportEnd").value = defaultPeriod?.endKey || today;
     }
     if ($("coachGenerateReviewButton")) {
-      $("coachGenerateReviewButton").textContent = state.reportPeriod === "week" ? "Generate Weekly Review" : "Assemble review";
+      $("coachGenerateReviewButton").textContent = state.reportPeriod === "week_to_date" ? "Generate Week-to-Date Review" : state.reportPeriod === "week" ? "Generate Weekly Review" : "Assemble review";
     }
     if ($("coachInterventionDate") && !$("coachInterventionDate").value) $("coachInterventionDate").value = today;
     if ($("coachInterventionReviewDate") && !$("coachInterventionReviewDate").value) $("coachInterventionReviewDate").value = defaultReviewDate(today);
@@ -1908,7 +2090,7 @@
 
   function sessionTypeLabel(value) {
     const type = String(value || "other").toLowerCase();
-    return type === "game" ? "Game" : type === "training" ? "Training" : "Other";
+    return type === "game" ? "Game" : type === "training" ? "Practice" : "Other";
   }
 
   function trainingSessionTriage(session) {
@@ -2019,10 +2201,10 @@
         ${writableTeams.length ? `
           <div class="coach-form-grid">
             <label>Team<select id="coachTrainingTeam" ${editing ? "disabled" : ""}>${writableTeams.map(team => `<option value="${safe(team.id)}"${String(team.id) === String(firstTeam?.id) ? " selected" : ""}>${safe(team.name)}</option>`).join("")}</select></label>
-            <label>Session type<select id="coachTrainingType"><option value="training"${editing?.session_type === "training" ? " selected" : ""}>Training</option><option value="game"${editing?.session_type === "game" ? " selected" : ""}>Game</option><option value="other"${editing?.session_type === "other" ? " selected" : ""}>Other</option></select></label>
+            <label>Session type<select id="coachTrainingType"><option value="training"${editing?.session_type === "training" ? " selected" : ""}>Practice</option><option value="game"${editing?.session_type === "game" ? " selected" : ""}>Game</option><option value="other"${editing?.session_type === "other" ? " selected" : ""}>Other</option></select></label>
             <label>Title<input id="coachTrainingName" type="text" maxlength="160" value="${safe(editing?.session_name || "")}" placeholder="Evening training"></label>
             <label>Starts<input id="coachTrainingStarts" type="datetime-local" value="${safe(localValue(start))}"></label>
-            <label>Ends<input id="coachTrainingEnds" type="datetime-local" value="${safe(localValue(end))}"></label>
+            <label>Ends (optional)<input id="coachTrainingEnds" type="datetime-local" value="${safe(editing ? localValue(end) : "")}" placeholder="Defaults to 90 minutes"></label>
             <label>Timezone<input id="coachTrainingTimezone" type="text" maxlength="80" value="${safe(initialTimeZone)}"></label>
             <label>Location<input id="coachTrainingLocation" type="text" maxlength="160" value="${safe(editing?.location || "")}" placeholder="Optional"></label>
             <label class="coach-form-wide">Coach note<textarea id="coachTrainingNote" maxlength="2000" placeholder="Internal note, never shown to athletes">${safe(note)}</textarea></label>
@@ -2037,6 +2219,7 @@
 
   function renderSettings() {
     const user = coachUser();
+    const headerIdentity = $("coachHeaderIdentity");
     const displayName = $("coachDisplayName");
     const firstName = $("coachFirstName");
     const lastName = $("coachLastName");
@@ -2051,6 +2234,10 @@
     if (jobTitle && document.activeElement !== jobTitle) jobTitle.value = state.profile?.job_title || "";
     if (avatarUrl && document.activeElement !== avatarUrl) avatarUrl.value = state.profile?.avatar_url || "";
     if (userId) userId.value = user?.id || "";
+    if (headerIdentity) {
+      const name = [state.profile?.first_name, state.profile?.last_name].map(value => String(value || "").trim()).filter(Boolean).join(" ");
+      headerIdentity.textContent = name || state.profile?.display_name || user?.email || "Coach workspace";
+    }
     const points = $("coachPointsProfile");
     if (points) {
       const profile = state.pointsProfile || {};
@@ -2072,6 +2259,39 @@
     renderRelationships();
     renderTeamSetup();
     renderSavedGroups();
+  }
+
+  const SETTINGS_LABELS = Object.freeze({
+    profile: "Profile",
+    team: "Team",
+    sessions: "Sessions & Schedule",
+    notifications: "Notifications",
+    reports: "Reports & Briefs",
+    account: "Account"
+  });
+
+  function renderBriefViews() {
+    document.querySelectorAll("[data-coach-brief]").forEach(button => {
+      const active = button.dataset.coachBrief === state.currentBriefView;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-coach-brief-view]").forEach(section => {
+      section.hidden = section.dataset.coachBriefView !== state.currentBriefView;
+    });
+  }
+
+  function renderSettingsNavigation() {
+    const selected = Object.hasOwn(SETTINGS_LABELS, state.selectedSettingsCategory) ? state.selectedSettingsCategory : "";
+    const menu = document.querySelector("[data-coach-settings-menu]");
+    const header = document.querySelector("[data-coach-settings-header]");
+    const title = $("coachSettingsCategoryTitle");
+    if (menu) menu.hidden = Boolean(selected);
+    if (header) header.hidden = !selected;
+    if (title && selected) title.textContent = SETTINGS_LABELS[selected];
+    document.querySelectorAll("[data-coach-settings-section]").forEach(section => {
+      section.hidden = section.dataset.coachSettingsSection !== selected;
+    });
   }
 
   function renderAuth() {
@@ -2103,6 +2323,8 @@
     renderAuth();
     renderTabs();
     renderGroupFilter();
+    renderHome();
+    renderDailyBrief();
     renderWeeklyBrief();
     renderTeamPatterns();
     renderDueReviews();
@@ -2115,6 +2337,8 @@
     renderInterventionReview();
     renderTrainingSchedule();
     renderSettings();
+    renderBriefViews();
+    renderSettingsNavigation();
   }
 
   async function ensureCoachProfile({ enableCoach = false } = {}) {
@@ -2822,7 +3046,8 @@
       const team = state.teams.find(item => String(item.id) === String(teamId));
       const timeZone = $("coachTrainingTimezone")?.value?.trim() || team?.timezone_name || state.timeZone;
       const startsAt = trainingDateTime($("coachTrainingStarts")?.value, timeZone);
-      const endsAt = trainingDateTime($("coachTrainingEnds")?.value, timeZone);
+      const requestedEnd = trainingDateTime($("coachTrainingEnds")?.value, timeZone);
+      const endsAt = requestedEnd || (startsAt ? new Date(startsAt.getTime() + 90 * 60000) : null);
       if (!coachUser() || !team) throw new Error("Choose a team for this session.");
       if (!startsAt || !endsAt || endsAt <= startsAt || endsAt - startsAt > 86400000) throw new Error("Choose a valid session start and end within 24 hours.");
       const editingId = state.editingTrainingSessionId || null;
@@ -3099,7 +3324,8 @@
       });
       state.interventionReview = { intervention, comparison };
       state.selectedReportAthleteId = intervention.athlete_id;
-      state.currentTab = "reports";
+      state.currentTab = "briefs";
+      state.currentBriefView = "weekly";
       render();
       $("coachInterventionReview")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -3373,7 +3599,8 @@
       state.generatedReport = null;
       state.reportSaved = false;
       state.savedWeeklyReportId = "";
-      state.currentTab = "reports";
+      state.currentTab = "briefs";
+      state.currentBriefView = "weekly";
       render();
       if ($("coachReportAthlete")) $("coachReportAthlete").value = item.athlete.userId;
       if ($("coachReportPeriod")) $("coachReportPeriod").value = period.preset;
@@ -3433,7 +3660,8 @@
     state.reportPeriod = "week";
     state.generatedReport = null;
     state.reportSaved = false;
-    state.currentTab = "reports";
+    state.currentTab = "briefs";
+    state.currentBriefView = "weekly";
     render();
     const period = domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
     if ($("coachReportStart")) $("coachReportStart").value = period.startKey;
@@ -3443,7 +3671,8 @@
 
   function openInterventionBuilder(athleteId) {
     state.selectedReportAthleteId = athleteId || state.selectedReportAthleteId;
-    state.currentTab = "reports";
+    state.currentTab = "briefs";
+    state.currentBriefView = "weekly";
     render();
     $("coachInterventionObservation")?.focus();
   }
@@ -3648,6 +3877,71 @@
   }
 
   document.addEventListener("click", event => {
+    if (event.target.closest("[data-open-daily-brief]")) {
+      state.currentTab = "briefs";
+      state.currentBriefView = "daily";
+      render();
+      $("coachDailyBrief")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (event.target.closest("[data-open-weekly-brief]")) {
+      state.currentTab = "briefs";
+      state.currentBriefView = "weekly";
+      render();
+      $("coachWeeklyBrief")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (event.target.closest("[data-open-weekly-report]")) {
+      state.currentTab = "briefs";
+      state.currentBriefView = "weekly";
+      state.reportPeriod = "week_to_date";
+      state.generatedReport = null;
+      state.reportSaved = false;
+      state.savedWeeklyReportId = "";
+      render();
+      const period = domain.weekToDateReportingPeriod({ now: new Date(), timeZone: state.timeZone });
+      if ($("coachReportPeriod")) $("coachReportPeriod").value = "week_to_date";
+      if ($("coachReportStart")) $("coachReportStart").value = period.startKey;
+      if ($("coachReportEnd")) $("coachReportEnd").value = period.endKey;
+      $("coachReportAthlete")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    const openSchedule = event.target.closest("[data-open-schedule]");
+    if (openSchedule) {
+      state.currentTab = "schedule";
+      if (openSchedule.dataset.openSchedule) state.selectedTrainingSessionId = openSchedule.dataset.openSchedule;
+      render();
+      $("coachTrainingSchedule")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    const briefTab = event.target.closest("[data-coach-brief]");
+    if (briefTab) {
+      state.currentBriefView = briefTab.dataset.coachBrief === "weekly" ? "weekly" : "daily";
+      renderBriefViews();
+      return;
+    }
+
+    const settingCategory = event.target.closest("[data-coach-settings-open]");
+    if (settingCategory) {
+      state.selectedSettingsCategory = Object.hasOwn(SETTINGS_LABELS, settingCategory.dataset.coachSettingsOpen)
+        ? settingCategory.dataset.coachSettingsOpen
+        : "";
+      renderSettingsNavigation();
+      $("coachSettingsCategoryTitle")?.focus();
+      return;
+    }
+
+    if (event.target.closest("[data-coach-settings-back]")) {
+      state.selectedSettingsCategory = "";
+      renderSettingsNavigation();
+      document.querySelector("[data-coach-settings-open]")?.focus();
+      return;
+    }
+
     if (event.target.closest("[data-review-team]")) {
       state.currentTab = "athletes";
       render();
@@ -3906,14 +4200,16 @@
     state.generatedReport = null;
     state.reportSaved = false;
     state.savedWeeklyReportId = "";
-    if (state.reportPeriod === "week") {
-      const period = domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
+    if (state.reportPeriod === "week_to_date" || state.reportPeriod === "week") {
+      const period = state.reportPeriod === "week_to_date"
+        ? domain.weekToDateReportingPeriod({ now: new Date(), timeZone: state.timeZone })
+        : domain.weeklyReportingPeriod({ now: new Date(), timeZone: state.timeZone });
       if ($("coachReportStart")) $("coachReportStart").value = period.startKey;
       if ($("coachReportEnd")) $("coachReportEnd").value = period.endKey;
     }
     const generateButton = $("coachGenerateReviewButton");
     if (generateButton) {
-      generateButton.textContent = state.reportPeriod === "week" ? "Generate Weekly Review" : "Assemble review";
+      generateButton.textContent = state.reportPeriod === "week_to_date" ? "Generate Week-to-Date Review" : state.reportPeriod === "week" ? "Generate Weekly Review" : "Assemble review";
     }
     renderScheduleDraftContext();
     renderReportPreview();

@@ -301,8 +301,8 @@ test("Coach Beta exposes the weekly brief, team distinction, and weekly-review-s
   assert.match(html, /Custom review/);
   assert.match(html, /Generate Weekly Review/);
   assert.match(html, /id="coachSaveReviewButton"/);
-  assert.match(js, /Weekly Coach Brief/);
-  assert.match(js, /Review Team/);
+  assert.match(js, /Week-to-Date Brief/);
+  assert.match(js, /Review athletes/);
   assert.match(js, /Team pattern/);
   assert.match(js, /Individual/);
   assert.match(js, /async function assembleReportDraft/);

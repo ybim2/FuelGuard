@@ -2148,6 +2148,7 @@
       if (!context?.trainingModeSessionId) return Promise.resolve({ status: "error", persisted: false, reason: "training_mode_inactive" });
       Object.assign(log, context);
     }
+    Object.assign(log, window.FuelGuardWorkMode?.contextForEvent?.(loggedAt) || {});
     betaState().logs.push(log);
     if (includesFuel && !options.bypassCooldown) setCooldown();
     if (includesFuel) applyOpportunityMatchesForDay(key);
@@ -2302,6 +2303,8 @@
       updatedAt: new Date().toISOString(),
       syncStatus: "pending"
     });
+    const workContext = window.FuelGuardWorkMode?.contextForEvent?.(eventDate) || {};
+    log.workModeSessionId = workContext.workModeSessionId || "";
     if (!existing) betaState().logs.push(log);
     if (type === "fuel") applyOpportunityMatchesForDay(key);
     refreshLogDatesAfterChange(oldDate, eventDate);
@@ -2373,6 +2376,7 @@
       updatedAt: new Date().toISOString(),
       syncStatus: "pending"
     };
+    Object.assign(log, window.FuelGuardWorkMode?.contextForEvent?.(loggedAt) || {});
     betaState().logs.push(log);
     storeArchive(key);
     state.completed.liveFuelStatus = true;
@@ -10011,6 +10015,7 @@
       renderCoachNudges();
       renderAthleteActivitySummary();
       renderAthleteTeamSessionContext();
+      window.FuelGuardWorkMode?.render?.();
       renderDayTypeControls();
       renderSelectedDayCard();
       renderDailyLog();

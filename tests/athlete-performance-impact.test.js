@@ -213,7 +213,7 @@ test("canonical Athlete UI adds one mobile Impact surface without overloading Da
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   assert.match(html, /id="impact" class="screen"/);
   assert.match(html, /id="athleteImpactSurface"/);
-  assert.match(nav, /data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"[\s\S]*data-mobile-screen="impact"/);
+  assert.match(nav, /data-mobile-screen="impact"[\s\S]*data-mobile-screen="dashboard"[\s\S]*data-mobile-screen="training"/);
   assert.doesNotMatch(dashboard, /performance result|six-week impact|post-training feedback/i);
 });
 
@@ -306,10 +306,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v132-athlete-ux-impact-fix/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v134-overnight-integration/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v132-athlete-ux-impact-fix/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v134-overnight-integration/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

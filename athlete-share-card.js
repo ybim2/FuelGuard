@@ -8,6 +8,10 @@
   const STORY_WIDTH = 1080;
   const STORY_HEIGHT = 1920;
   const DAILY_TEMPLATE = "daily-story";
+  const DAILY_SUMMARY_TEMPLATE = "daily-summary";
+  const PRE_POST_TEMPLATE = "pre-post-workout";
+  const DURING_WORKOUT_TEMPLATE = "during-workout";
+  const SLEEPINESS_TEMPLATE = "sleepiness";
   const templates = new Map();
 
   function clamp(value, minimum, maximum) {
@@ -173,6 +177,160 @@
     });
   }
 
+  function normalizedLogs(logs = [], domain = null) {
+    return (Array.isArray(logs) ? logs : [])
+      .filter(log => dateFromLog(log))
+      .filter(log => !(log.deleted_at || log.deletedAt || log.revoked_at || log.revokedAt || log.valid === false))
+      .filter(log => !["test", "fixture", "invalid"].includes(String(log.source || "manual").trim().toLowerCase()))
+      .map(log => domain?.normalizeLog ? domain.normalizeLog(log) : { ...log, date: dateFromLog(log) })
+      .map(log => ({ ...log, date: safeDate(log?.date) || dateFromLog(log) }))
+      .filter(log => log.date)
+      .sort((left, right) => left.date - right.date);
+  }
+
+  function latestCompletedSession(sessions = []) {
+    return (Array.isArray(sessions) ? sessions : [])
+      .filter(session => String(session?.status || "").toLowerCase() === "completed" && sessionDate(session))
+      .sort((left, right) => sessionDate(right) - sessionDate(left))[0] || null;
+  }
+
+  function clock(value, domain = null) {
+    const date = safeDate(value);
+    if (!date) return "Not recorded";
+    return domain?.formatClock ? domain.formatClock(date) : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function measurement(value, unit) {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? `${Math.round(amount * 10) / 10}${unit}` : "Not recorded";
+  }
+
+  function baseSummaryModel(template, title, { kicker = "FUEL GUARD ATHLETE", headline = "", detail = "", metrics = [], note = "", date = new Date() } = {}) {
+    return Object.freeze({
+      template,
+      title,
+      kicker,
+      headline,
+      detail,
+      metrics: metrics.slice(0, 6),
+      note,
+      dateLabel: new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(safeDate(date) || new Date())
+    });
+  }
+
+  function buildDailySummaryModel({ logs = [], now = new Date(), maximumGapMinutes = 180, domain = null } = {}) {
+    const current = safeDate(now) || new Date();
+    const key = domain?.dateKey ? domain.dateKey(current) : localDateKey(current);
+    const today = normalizedLogs(logs, domain).filter(log => (domain?.dateKey ? domain.dateKey(log.date) : localDateKey(log.date)) === key);
+    const fuel = today.filter(log => domain?.isFuelLog ? domain.isFuelLog(log) : isFuel(log));
+    const hydration = today.filter(log => domain?.isHydrationLog ? domain.isHydrationLog(log) : isHydration(log));
+    const lastFuel = fuel.at(-1)?.date || null;
+    const lastHydration = hydration.at(-1)?.date || null;
+    const fuelMinutes = lastFuel ? Math.max(0, (current - lastFuel) / 60000) : null;
+    const hydrationMinutes = lastHydration ? Math.max(0, (current - lastHydration) / 60000) : null;
+    const status = dailyStatus(lastFuel, current, maximumGapMinutes);
+    return baseSummaryModel(DAILY_SUMMARY_TEMPLATE, "Daily Fuel + Hydration", {
+      headline: status.label,
+      detail: status.detail,
+      metrics: [
+        { label: "Last Fuel", value: clock(lastFuel, domain), accent: "fuel" },
+        { label: "Since Fuel", value: Number.isFinite(fuelMinutes) ? formatRelativeMinutes(fuelMinutes) : "No Fuel yet", accent: "fuel" },
+        { label: "Last Hydration", value: clock(lastHydration, domain), accent: "hydration" },
+        { label: "Since Hydration", value: Number.isFinite(hydrationMinutes) ? formatRelativeMinutes(hydrationMinutes) : "No Hydration yet", accent: "hydration" }
+      ],
+      note: `${fuel.length} Fuel · ${hydration.length} Hydration recorded today`,
+      date: current
+    });
+  }
+
+  function buildPrePostWorkoutModel({ logs = [], sessions = [], domain = null } = {}) {
+    const session = latestCompletedSession(sessions);
+    if (!session) return baseSummaryModel(PRE_POST_TEMPLATE, "Pre/Post Workout Fuelling", {
+      headline: "BUILD YOUR FIRST SESSION",
+      detail: "Complete Training Mode to create a pre/post-workout summary.",
+      metrics: []
+    });
+    const startAt = safeDate(session.startedAt || session.started_at);
+    const endAt = safeDate(session.endedAt || session.ended_at);
+    const context = domain?.getWorkoutFuelContext?.({
+      id: session.id,
+      athleteId: session.userId || session.user_id || "",
+      source: "training_mode",
+      type: session.sessionType || session.session_type || "training",
+      title: session.title || "Training session",
+      startAt,
+      endAt
+    }, normalizedLogs(logs, domain)) || {};
+    return baseSummaryModel(PRE_POST_TEMPLATE, "Pre/Post Workout Fuelling", {
+      headline: String(session.title || "Training session").toUpperCase(),
+      detail: `${clock(startAt, domain)}–${clock(endAt, domain)}`,
+      metrics: [
+        { label: "Fuel before", value: context.hasPreviousFuel ? `${domain?.duration?.(context.preFuelGapMinutes) || `${context.preFuelGapMinutes}m`} before` : "Not recorded", accent: "fuel" },
+        { label: "Fuel after", value: context.hasPostFuel ? `${domain?.duration?.(context.postFuelGapMinutes) || `${context.postFuelGapMinutes}m`} after` : "Not recorded", accent: "fuel" }
+      ],
+      note: "Timing reflects recorded Fuel moments around this completed session.",
+      date: endAt
+    });
+  }
+
+  function buildDuringWorkoutModel({ logs = [], sessions = [], domain = null } = {}) {
+    const session = latestCompletedSession(sessions);
+    if (!session || !domain?.trainingCompletionSummary) return baseSummaryModel(DURING_WORKOUT_TEMPLATE, "During-Workout Fuelling", {
+      headline: "NO COMPLETED SESSION YET",
+      detail: "Complete Training Mode to create a session nutrition summary."
+    });
+    const summary = domain.trainingCompletionSummary({ session, logs: normalizedLogs(logs, domain), now: new Date() });
+    const plannedCarbs = summary.planned?.totals?.carbsG;
+    return baseSummaryModel(DURING_WORKOUT_TEMPLATE, "During-Workout Fuelling", {
+      headline: String(summary.title || "Training session").toUpperCase(),
+      detail: `${clock(summary.startedAt, domain)}–${clock(summary.endedAt, domain)} · ${summary.fuelEventCount} Fuel · ${summary.hydrationEventCount} Hydration`,
+      metrics: [
+        { label: "Carbohydrate", value: measurement(summary.totals.carbsG, "g"), accent: "fuel" },
+        { label: "Fluid", value: measurement(summary.totals.fluidMl, "ml"), accent: "hydration" },
+        { label: "Sodium", value: measurement(summary.totals.sodiumMg, "mg"), accent: "hydration" },
+        { label: "Caffeine", value: measurement(summary.totals.caffeineMg, "mg"), accent: "neutral" }
+      ],
+      note: Number.isFinite(plannedCarbs) ? `Actual ${measurement(summary.totals.carbsG, "g")} carbohydrate · Planned ${measurement(plannedCarbs, "g")}` : summary.coverageMessage,
+      date: summary.endedAt
+    });
+  }
+
+  function sleepPeriod(date) {
+    const hour = date.getHours();
+    if (hour < 12) return "Morning";
+    if (hour < 17) return "Afternoon";
+    return "Evening";
+  }
+
+  function buildSleepinessModel({ logs = [], now = new Date(), domain = null } = {}) {
+    const current = safeDate(now) || new Date();
+    const start = new Date(current.getTime() - 7 * 86400000);
+    const sleepy = normalizedLogs(logs, domain)
+      .filter(log => domain?.isSleepyLog ? domain.isSleepyLog(log) : String(log?.type || "").toLowerCase() === "sleepy")
+      .filter(log => log.date >= start && log.date <= current)
+      .sort((left, right) => left.date - right.date);
+    const counts = sleepy.reduce((map, log) => map.set(sleepPeriod(log.date), (map.get(sleepPeriod(log.date)) || 0) + 1), new Map());
+    const common = sleepy.length >= 2 ? [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] : null;
+    return baseSummaryModel(SLEEPINESS_TEMPLATE, "Sleepiness", {
+      headline: sleepy.length ? `${sleepy.length} SLEEPY EVENT${sleepy.length === 1 ? "" : "S"}` : "NO SLEEPY EVENTS",
+      detail: "Recorded over the last seven days.",
+      metrics: [
+        { label: "Latest", value: sleepy.length ? `${clock(sleepy.at(-1).date, domain)} · ${sleepPeriod(sleepy.at(-1).date)}` : "Not recorded", accent: "neutral" },
+        { label: "Common period", value: common || "Needs two events", accent: "neutral" }
+      ],
+      note: sleepy.length >= 2 ? "This is a timing pattern from your records, not a causal or medical conclusion." : "More recorded events are needed before showing a timing pattern.",
+      date: current
+    });
+  }
+
+  function buildSummaryModel(template, data = {}) {
+    if (template === DAILY_SUMMARY_TEMPLATE) return buildDailySummaryModel(data);
+    if (template === PRE_POST_TEMPLATE) return buildPrePostWorkoutModel(data);
+    if (template === DURING_WORKOUT_TEMPLATE) return buildDuringWorkoutModel(data);
+    if (template === SLEEPINESS_TEMPLATE) return buildSleepinessModel(data);
+    throw new Error(`Unknown Fuel Guard share model: ${template}`);
+  }
+
   function roundedRect(ctx, x, y, width, height, radius) {
     const r = Math.min(radius, width / 2, height / 2);
     ctx.beginPath();
@@ -206,7 +364,7 @@
     return floor;
   }
 
-  function drawBrand(ctx) {
+  function drawBrand(ctx, subtitle = "DAILY RHYTHM") {
     ctx.save();
     fillPill(ctx, 72, 78, 118, 72, "#b9ff66");
     ctx.fillStyle = "#08120e";
@@ -220,7 +378,7 @@
     ctx.fillText("FUEL GUARD", 220, 101);
     ctx.fillStyle = "rgba(244,250,247,0.5)";
     ctx.font = "650 18px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("DAILY RHYTHM", 220, 132);
+    ctx.fillText(String(subtitle || "FUEL GUARD ATHLETE"), 220, 132);
     ctx.restore();
   }
 
@@ -388,6 +546,86 @@
     return canvas;
   }
 
+  function wrappedText(ctx, text, x, y, maximumWidth, lineHeight, maximumLines = 3) {
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "";
+    words.forEach(word => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maximumWidth || !line) line = candidate;
+      else {
+        lines.push(line);
+        line = word;
+      }
+    });
+    if (line) lines.push(line);
+    lines.slice(0, maximumLines).forEach((value, index) => ctx.fillText(value, x, y + index * lineHeight));
+    return Math.min(lines.length, maximumLines);
+  }
+
+  function renderSummaryStory(model, { canvasFactory } = {}) {
+    const makeCanvas = canvasFactory || (() => {
+      if (typeof document === "undefined") throw new Error("A canvas factory is required outside the browser.");
+      return document.createElement("canvas");
+    });
+    const canvas = makeCanvas();
+    canvas.width = STORY_WIDTH;
+    canvas.height = STORY_HEIGHT;
+    const ctx = canvas.getContext?.("2d");
+    if (!ctx) throw new Error("Story image export is not supported in this browser.");
+    drawBackground(ctx, STORY_WIDTH, STORY_HEIGHT);
+    drawBrand(ctx, "ATHLETE STORY");
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(244,250,247,0.5)";
+    ctx.font = "700 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(String(model.kicker || "FUEL GUARD ATHLETE"), 72, 248);
+    ctx.fillStyle = "#f4faf7";
+    fitFont(ctx, model.title, { maximum: 58, minimum: 40, width: 936, weight: 860 });
+    ctx.fillText(String(model.title || "Fuel Guard"), 72, 330);
+
+    ctx.fillStyle = "#b9ff66";
+    fitFont(ctx, model.headline, { maximum: 88, minimum: 48, width: 936, weight: 900 });
+    wrappedText(ctx, model.headline, 72, 490, 936, 96, 2);
+    ctx.fillStyle = "rgba(244,250,247,0.72)";
+    ctx.font = "540 30px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    wrappedText(ctx, model.detail, 72, 700, 900, 42, 3);
+
+    const metrics = Array.isArray(model.metrics) ? model.metrics : [];
+    const columns = metrics.length <= 2 ? 1 : 2;
+    const gap = 24;
+    const width = columns === 1 ? 936 : (936 - gap) / 2;
+    const cardHeight = metrics.length <= 2 ? 220 : 190;
+    metrics.forEach((metric, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      const x = 72 + column * (width + gap);
+      const y = 880 + row * (cardHeight + gap);
+      const accent = metric.accent === "hydration" ? "#65c8ff" : metric.accent === "fuel" ? "#b9ff66" : "#f4faf7";
+      roundedRect(ctx, x, y, width, cardHeight, 28);
+      ctx.fillStyle = "rgba(236,250,242,0.075)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(236,250,242,0.14)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(244,250,247,0.48)";
+      ctx.font = "700 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(String(metric.label || "VALUE").toUpperCase(), x + 34, y + 54);
+      ctx.fillStyle = accent;
+      fitFont(ctx, metric.value, { maximum: 48, minimum: 28, width: width - 68, weight: 850 });
+      wrappedText(ctx, metric.value, x + 34, y + 126, width - 68, 48, 2);
+    });
+
+    ctx.fillStyle = "rgba(244,250,247,0.66)";
+    ctx.font = "560 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    wrappedText(ctx, model.note, 72, 1628, 920, 38, 3);
+    ctx.fillStyle = "rgba(244,250,247,0.4)";
+    ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(String(model.dateLabel || "").toUpperCase(), 72, 1770);
+    ctx.fillText("FUELGUARDAPP.COM", 72, 1815);
+    return canvas;
+  }
+
   function registerTemplate(name, renderer) {
     const key = String(name || "").trim();
     if (!key || typeof renderer !== "function") throw new TypeError("A template name and renderer are required.");
@@ -402,16 +640,30 @@
   }
 
   registerTemplate(DAILY_TEMPLATE, renderDailyStory);
+  registerTemplate(DAILY_SUMMARY_TEMPLATE, renderSummaryStory);
+  registerTemplate(PRE_POST_TEMPLATE, renderSummaryStory);
+  registerTemplate(DURING_WORKOUT_TEMPLATE, renderSummaryStory);
+  registerTemplate(SLEEPINESS_TEMPLATE, renderSummaryStory);
 
   return Object.freeze({
     STORY_WIDTH,
     STORY_HEIGHT,
     DAILY_TEMPLATE,
+    DAILY_SUMMARY_TEMPLATE,
+    PRE_POST_TEMPLATE,
+    DURING_WORKOUT_TEMPLATE,
+    SLEEPINESS_TEMPLATE,
     registerTemplate,
     templateNames: () => Array.from(templates.keys()),
     renderTemplate,
     renderDailyStory,
+    renderSummaryStory,
     buildDailyStoryModel,
+    buildDailySummaryModel,
+    buildPrePostWorkoutModel,
+    buildDuringWorkoutModel,
+    buildSleepinessModel,
+    buildSummaryModel,
     dailyStoryFilename: model => `fuel-guard-daily-${model?.dateKey || localDateKey()}.png`,
     _test: Object.freeze({ dailyStatus, formatRelativeMinutes, validActivityLog, localDateKey })
   });

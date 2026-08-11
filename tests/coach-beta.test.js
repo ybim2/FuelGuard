@@ -34,9 +34,10 @@ test("Coach Beta is a separate route and athlete Daily navigation remains simple
 
   assert.match(coachHtml, /Fuel Guard Coach Beta/);
   assert.match(coachHtml, /Fuel Guard Coach/);
-  assert.match(coachHtml, /data-coach-tab="dashboard"/);
+  assert.match(coachHtml, /data-coach-tab="home"/);
   assert.match(coachHtml, /data-coach-tab="athletes"/);
-  assert.match(coachHtml, /data-coach-tab="reports"/);
+  assert.match(coachHtml, /data-coach-tab="briefs"/);
+  assert.match(coachHtml, /data-coach-tab="schedule"/);
   assert.match(coachHtml, /data-coach-tab="settings"/);
   assert.match(coachHtml, /id="coachLoadingPanel"/);
   assert.match(coachHtml, /id="coachAuthPanel" class="coach-card coach-auth-card" hidden/);
@@ -44,7 +45,7 @@ test("Coach Beta is a separate route and athlete Daily navigation remains simple
   assert.match(coachHtml, /Create coach account/);
   assert.match(coachHtml, /Forgot password\?/);
   assert.doesNotMatch(coachHtml, /Enable Coach Beta|Open athlete app/);
-  assert.match(coachHtml, /id="coachReportsPanel"/);
+  assert.match(coachHtml, /id="coachBriefsPanel"/);
   assert.match(coachHtml, /fuel-guard-domain\.js/);
   assert.match(coachHtml, /api\/supabase-config\.js/);
   assert.match(coachJs, /TABLES = \{[\s\S]*profiles:[\s\S]*relationships:[\s\S]*logs:[\s\S]*targets:[\s\S]*reports:[\s\S]*interventions:/);
@@ -231,8 +232,8 @@ test("Coach athlete linking uses Athlete Codes instead of raw UUID search", () =
   assert.match(coachHtml, /Find Athlete/);
   assert.match(coachJs, /Send Connection Request/);
   assert.match(coachJs, /function relationshipRows/);
-  assert.match(coachJs, /const firstName = String\(profile\?\.first_name/);
-  assert.match(coachJs, /return firstName \|\| relation\?\.athlete_label \|\| profile\?\.display_name/);
+  assert.match(coachJs, /const fullName = \[profile\?\.first_name, profile\?\.last_name\]/);
+  assert.match(coachJs, /return fullName \|\| relation\?\.athlete_label \|\| profile\?\.display_name/);
   assert.match(coachJs, /function normalizeAthleteCode/);
   assert.match(coachJs, /function findAthleteByCode/);
   assert.match(coachJs, /fuel_coach_find_athlete_by_code/);

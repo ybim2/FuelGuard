@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v132-athlete-ux-impact-fix";
-const BUILD_VERSION = "2026-08-10T16:26:15Z";
+const APP_VERSION = "mobile-pwa-v134-overnight-integration";
+const BUILD_VERSION = "2026-08-11T07:58:57Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v132-athlete-ux-impact-fix-20260810T162615Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v134-overnight-integration-20260811T075857Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,6 +31,7 @@ const APP_SHELL = [
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
   "./training-mode.css",
+  "./work-mode.css",
   "./athlete-impact.css",
   "./athlete-share.css",
   "./fuel-guard-domain.js",
@@ -43,6 +44,7 @@ const APP_SHELL = [
   "./app-pwa.js",
   "./fuel-beta.js",
   "./training-mode.js",
+  "./work-mode.js",
   "./athlete-impact.js",
   "./transactional-email-client.js",
   "./athlete-milestones.js",
@@ -69,7 +71,6 @@ self.addEventListener("install", event => {
     caches
       .open(CACHE_NAME)
       .then(cache => cache.addAll(appShellRequests()))
-      .then(() => self.skipWaiting())
   );
 });
 

@@ -397,6 +397,32 @@ body.beta-mvp #training {
 .training-mode-review-card span,
 .training-mode-review-card small { color: #65736d; font-size: .72rem; }
 
+.training-mode-review-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.training-mode-review-copy > small {
+  display: block;
+  line-height: 1.35;
+}
+
+.training-mode-review-time {
+  color: #101820 !important;
+  font-size: .82rem !important;
+  font-weight: 850;
+}
+
+.training-mode-review-actual,
+.training-mode-review-events {
+  overflow-wrap: anywhere;
+}
+
+.training-mode-review-copy small b {
+  padding-inline: 4px;
+  color: #168a46;
+}
+
 .training-mode-rate-note {
   display: block;
   margin-top: 6px;

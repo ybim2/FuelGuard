@@ -41,6 +41,13 @@ const DEFAULT_STATE = {
       lastSyncedAt: "",
       lastError: ""
     },
+    workMode: {
+      ownerUserId: "",
+      activeSession: null,
+      sessions: [],
+      lastSyncedAt: "",
+      lastError: ""
+    },
     graphMode: "fuel",
     fuelWindowMinutes: 720,
     maximumFuelGapMinutes: 180,
@@ -150,6 +157,13 @@ function load() {
           estimatedDurationMinutes: Math.min(1440, Math.max(15, Number(parsedFuelGap.trainingMode?.estimatedDurationMinutes) || 60)),
           activeSession: isPlainObject(parsedFuelGap.trainingMode?.activeSession) ? parsedFuelGap.trainingMode.activeSession : null,
           sessions: Array.isArray(parsedFuelGap.trainingMode?.sessions) ? parsedFuelGap.trainingMode.sessions : []
+        },
+        workMode: {
+          ...defaults.fuelGap.workMode,
+          ...(isPlainObject(parsedFuelGap.workMode) ? parsedFuelGap.workMode : {}),
+          ownerUserId: String(parsedFuelGap.workMode?.ownerUserId || ""),
+          activeSession: isPlainObject(parsedFuelGap.workMode?.activeSession) ? parsedFuelGap.workMode.activeSession : null,
+          sessions: Array.isArray(parsedFuelGap.workMode?.sessions) ? parsedFuelGap.workMode.sessions : []
         },
         fuelWindowMinutes: Number.isFinite(Number(parsedFuelGap.fuelWindowMinutes))
           ? Number(parsedFuelGap.fuelWindowMinutes)

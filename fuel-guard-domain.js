@@ -254,6 +254,7 @@
       trainingSession: row?.training_session || row?.trainingSession || "",
       trainingModeSessionId: row?.training_mode_session_id || row?.trainingModeSessionId || "",
       trainingModePresetId: row?.training_mode_preset_id || row?.trainingModePresetId || "",
+      workModeSessionId: row?.work_mode_session_id || row?.workModeSessionId || "",
       carbsG: row?.carbs_g ?? row?.carbsG ?? null,
       fluidMl: row?.fluid_ml ?? row?.fluidMl ?? null,
       sodiumMg: row?.sodium_mg ?? row?.sodiumMg ?? null,
@@ -801,6 +802,63 @@
       firstPostFuelAt: context?.hasPostFuel ? context.nextFuelEvent?.date || null : null,
       coverageMessage
     };
+  }
+
+  function workLogSessionId(log = {}) {
+    return String(log.workModeSessionId || log.work_mode_session_id || "");
+  }
+
+  function longestEventGapMinutes(events = []) {
+    const ordered = events.map(logDate).filter(Boolean).sort((left, right) => left - right);
+    if (ordered.length < 2) return null;
+    let longest = 0;
+    for (let index = 1; index < ordered.length; index += 1) {
+      longest = Math.max(longest, Math.round((ordered[index] - ordered[index - 1]) / 60000));
+    }
+    return longest;
+  }
+
+  function workSessionMetrics({ session = {}, logs = [], now = new Date() } = {}) {
+    const sessionId = String(session.id || session.sessionId || "");
+    const startedAt = parseDate(session.startedAt || session.started_at);
+    const endedAt = parseDate(session.endedAt || session.ended_at);
+    const effectiveEnd = endedAt || parseDate(now) || new Date();
+    const matching = logsWithDates(logs).filter(log => sessionId && workLogSessionId(log) === sessionId);
+    const fuelLogs = matching.filter(isFuelLog);
+    const hydrationLogs = matching.filter(isHydrationLog);
+    const sleepyLogs = matching.filter(isSleepyLog);
+    return {
+      sessionId,
+      startedAt,
+      endedAt,
+      completed: String(session.status || "") === "completed" && Boolean(endedAt),
+      durationMinutes: startedAt ? Math.max(0, Math.round((effectiveEnd - startedAt) / 60000)) : 0,
+      fuelCount: fuelLogs.length,
+      hydrationCount: hydrationLogs.length,
+      sleepyCount: sleepyLogs.length,
+      longestFuelGapMinutes: longestEventGapMinutes(fuelLogs),
+      longestHydrationGapMinutes: longestEventGapMinutes(hydrationLogs),
+      sleepyTimes: sleepyLogs.map(log => formatClock(log.date)),
+      logs: matching
+    };
+  }
+
+  function workSessionSummary({ session = {}, sessions = [], logs = [], now = new Date() } = {}) {
+    const metrics = workSessionMetrics({ session, logs, now });
+    const previous = (Array.isArray(sessions) ? sessions : [])
+      .filter(candidate => String(candidate.id || candidate.sessionId || "") !== metrics.sessionId)
+      .filter(candidate => String(candidate.status || "") === "completed" && (candidate.endedAt || candidate.ended_at))
+      .map(candidate => workSessionMetrics({ session: candidate, logs, now }))
+      .filter(candidate => candidate.completed)
+      .sort((left, right) => right.endedAt - left.endedAt)
+      .slice(0, 6);
+    const comparison = previous.length >= 3 ? {
+      sampleCount: previous.length,
+      fuelDifference: metrics.fuelCount - averageFinite(previous.map(item => item.fuelCount)),
+      hydrationDifference: metrics.hydrationCount - averageFinite(previous.map(item => item.hydrationCount)),
+      sleepyDifference: metrics.sleepyCount - averageFinite(previous.map(item => item.sleepyCount))
+    } : null;
+    return { ...metrics, comparison };
   }
 
   function activeTrainingSessionInsights({ session = {}, logs = [], now = new Date() } = {}) {
@@ -1547,6 +1605,15 @@
     return periodFromKeys(shiftDateKey(currentMonday, -7), shiftDateKey(currentMonday, -1), "weekly", zone);
   }
 
+  function weekToDateReportingPeriod({ now = new Date(), timeZone } = {}) {
+    const zone = resolvedTimeZone(timeZone);
+    const todayKey = dateKeyInTimeZone(now, zone);
+    const [year, month, day] = todayKey.split("-").map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    const daysSinceMonday = (weekday + 6) % 7;
+    return periodFromKeys(shiftDateKey(todayKey, -daysSinceMonday), todayKey, "week_to_date", zone);
+  }
+
   function reviewPeriodRange({ preset = "12_weeks", customStart, customEnd, now = new Date(), timeZone } = {}) {
     const zone = resolvedTimeZone(timeZone);
     const todayKey = dateKeyInTimeZone(now, zone);
@@ -1554,6 +1621,9 @@
       const endKey = validDateKey(customEnd) || todayKey;
       const startKey = validDateKey(customStart) || endKey;
       return periodFromKeys(startKey <= endKey ? startKey : endKey, startKey <= endKey ? endKey : startKey, "custom", zone);
+    }
+    if (preset === "week_to_date") {
+      return weekToDateReportingPeriod({ now, timeZone: zone });
     }
     if (preset === "season") {
       return periodFromKeys(`${todayKey.slice(0, 4)}-01-01`, todayKey, "season", zone);
@@ -2461,6 +2531,108 @@
     };
   }
 
+  function buildWeekToDateCoachBrief({ now = new Date(), timeZone, ...options } = {}) {
+    const period = weekToDateReportingPeriod({ now, timeZone });
+    const comparisonPeriod = periodFromKeys(
+      shiftDateKey(period.startKey, -7),
+      shiftDateKey(period.endKey, -7),
+      "previous_week_to_date",
+      period.timeZone
+    );
+    const analytics = buildTeamAnalytics({ ...options, period, comparisonPeriod, timeZone: period.timeZone });
+    const weekEndKey = shiftDateKey(period.startKey, 6);
+    const dayFormatter = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" });
+    const dailyEvidence = dateKeysBetween(period.startKey, weekEndKey).map(key => {
+      const athleteDays = analytics.summaries
+        .map(summary => ({ summary, day: summary.days.find(item => item.key === key) }))
+        .filter(item => item.day);
+      const loggedAthletes = athleteDays.filter(item => item.day.logged).length;
+      const metricDays = athleteDays.filter(item => item.day.metricDay).length;
+      const withinTargetDays = athleteDays.filter(item => item.day.withinTarget === true).length;
+      const exceededTargetDays = athleteDays.filter(item => item.day.exceededTarget).length;
+      const fuelMoments = athleteDays.reduce((total, item) => total + item.day.fuelLogs.length, 0);
+      const hydrationMoments = athleteDays.reduce((total, item) => total + item.day.hydrationLogs.length, 0);
+      const sleepyMoments = athleteDays.reduce((total, item) => total + item.day.sleepyLogs.length, 0);
+      const athleteFinding = (item, detail) => {
+        const athlete = item.summary.athlete || {};
+        return {
+          athleteId: item.summary.athleteId,
+          athleteName: athlete.displayName || athlete.display_name || [athlete.firstName || athlete.first_name, athlete.lastName || athlete.last_name].filter(Boolean).join(" ") || "Athlete",
+          detail
+        };
+      };
+      const needsAttention = athleteDays
+        .filter(item => item.day.exceededTarget)
+        .map(item => athleteFinding(item, `${item.day.gaps.filter(gap => gap.exceededTarget).length} recorded fuel gap${item.day.gaps.filter(gap => gap.exceededTarget).length === 1 ? "" : "s"} beyond target`));
+      const goingWell = athleteDays
+        .filter(item => item.day.withinTarget === true)
+        .map(item => athleteFinding(item, "Recorded fuel gaps stayed within target"));
+      const loggingGaps = athleteDays
+        .filter(item => !item.day.logged)
+        .map(item => athleteFinding(item, "No shared Fuel Guard record for this day"));
+      const caffeineMoments = athleteDays.reduce((total, item) => total + item.day.logs.filter(log => Number(log.caffeineMg) > 0).length, 0);
+      const sodiumMoments = athleteDays.reduce((total, item) => total + item.day.logs.filter(log => Number(log.sodiumMg) > 0).length, 0);
+      const future = key > period.endKey;
+      const [keyYear, keyMonth, keyDay] = key.split("-").map(Number);
+      return {
+        key,
+        label: dayFormatter.format(new Date(Date.UTC(keyYear, keyMonth - 1, keyDay))),
+        future,
+        eligibleAthletes: athleteDays.length,
+        loggedAthletes,
+        missingAthletes: Math.max(0, athleteDays.length - loggedAthletes),
+        metricDays,
+        withinTargetDays,
+        exceededTargetDays,
+        fuelMoments,
+        hydrationMoments,
+        sleepyMoments,
+        caffeineMoments,
+        sodiumMoments,
+        findings: {
+          needsAttention,
+          goingWell,
+          loggingGaps
+        },
+        evidenceAvailable: !future && (loggedAthletes > 0 || athleteDays.length > 0)
+      };
+    });
+    const observedDays = dailyEvidence.filter(day => !day.future);
+    const evidence = {
+      loggedAthleteDays: observedDays.reduce((total, day) => total + day.loggedAthletes, 0),
+      missingAthleteDays: observedDays.reduce((total, day) => total + day.missingAthletes, 0),
+      fuelMoments: observedDays.reduce((total, day) => total + day.fuelMoments, 0),
+      hydrationMoments: observedDays.reduce((total, day) => total + day.hydrationMoments, 0),
+      sleepyMoments: observedDays.reduce((total, day) => total + day.sleepyMoments, 0),
+      exceededTargetDays: observedDays.reduce((total, day) => total + day.exceededTargetDays, 0),
+      withinTargetDays: observedDays.reduce((total, day) => total + day.withinTargetDays, 0),
+      metricDays: observedDays.reduce((total, day) => total + day.metricDays, 0)
+    };
+    let summary = "No shared athlete evidence is available yet this week.";
+    if (evidence.exceededTargetDays) {
+      summary = `${evidence.exceededTargetDays} measurable athlete-day${evidence.exceededTargetDays === 1 ? "" : "s"} included a recorded fuel gap beyond target this week.`;
+    } else if (evidence.metricDays) {
+      summary = `${evidence.withinTargetDays} of ${evidence.metricDays} measurable athlete-days stayed within the configured fuel-gap target.`;
+    } else if (evidence.loggedAthleteDays) {
+      summary = `${evidence.loggedAthleteDays} athlete-day${evidence.loggedAthleteDays === 1 ? " has" : "s have"} shared Fuel Guard evidence so far; more fuel moments are needed for gap analysis.`;
+    }
+    return {
+      period,
+      comparisonPeriod,
+      analytics,
+      weekEndKey,
+      dailyEvidence,
+      evidence,
+      summary,
+      athleteCount: analytics.athleteCount,
+      loggingCoveragePct: analytics.loggingCoverage.pct,
+      improvedCount: analytics.improved.length,
+      deterioratedCount: analytics.deteriorated.length,
+      reviewCount: analytics.reviewCandidates.length,
+      limited: analytics.athleteCount < MIN_TEAM_PATTERN_ATHLETES || !analytics.loggingCoverage.sufficient
+    };
+  }
+
   function buildTeamSessionCoachBrief({ contexts = [], period, comparisonPeriod, timeZone } = {}) {
     const zone = resolvedTimeZone(timeZone || period?.timeZone);
     const rows = (Array.isArray(contexts) ? contexts : []).filter(row => {
@@ -3352,6 +3524,9 @@
     trainingSessionIntakeSummary,
     completedTrainingSessionMetrics,
     trainingCompletionSummary,
+    workLogSessionId,
+    workSessionMetrics,
+    workSessionSummary,
     activeTrainingSessionInsights,
     completedTrainingSessionAverages,
     trainingPlanProgress,
@@ -3379,6 +3554,7 @@
     dateKeysBetween,
     periodFromKeys,
     weeklyReportingPeriod,
+    weekToDateReportingPeriod,
     reviewPeriodRange,
     previousPeriodRange,
     periodQueryBounds,
@@ -3398,6 +3574,7 @@
     authorizedAthletes,
     buildTeamAnalytics,
     buildWeeklyCoachBrief,
+    buildWeekToDateCoachBrief,
     buildTeamSessionCoachBrief,
     addMonthsClamped,
     reviewScheduleDefinition,

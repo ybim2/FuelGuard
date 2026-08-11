@@ -436,7 +436,8 @@ module FuelGuardConnection {
                 "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON,
                 "Authorization" => "Bearer " + currentToken
             },
-            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
+            :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+            :context => appId()
         };
         Communications.makeWebRequest(revokeEndpoint(), {"app_id" => appId()}, options, revokeCallback());
         WatchUi.requestUpdate();

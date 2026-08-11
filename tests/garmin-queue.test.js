@@ -552,21 +552,76 @@ test("Quick Log glance shows local fuel status without lifecycle network sync", 
   const appSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogGlance.mc");
   const glanceStateSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardGlanceState.mc");
-  const onStart = sourceBlock(appSource, "function onStart", "public function onStop");
+  const onStart = sourceBlock(appSource, "function onStart", "public function onAuthenticationRequest");
+  const onAuthenticationRequest = sourceBlock(
+    appSource,
+    "public function onAuthenticationRequest",
+    "public function onStop"
+  );
 
   assert.doesNotMatch(onStart, /FuelGuardConnection\.configure/);
   assert.doesNotMatch(onStart, /registerForOAuthMessages/);
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
+  assert.match(onAuthenticationRequest, /FuelGuardConnection\.configure\(FuelGuardConnection\.APP_QUICK_LOG\)/);
+  assert.match(onAuthenticationRequest, /FuelGuardConnection\.registerForOAuthMessages\(\)/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardFeedback/);
   assert.doesNotMatch(glanceSource, /FuelGuardQueue/);
   assert.doesNotMatch(glanceSource, /FuelGuardHealth/);
   assert.match(glanceSource, /FuelGuardGlanceState\.metric\(\)/);
   assert.match(glanceSource, /FuelGuardGlanceState\.label\(\)/);
+  assert.match(glanceSource, /try \{[\s\S]*FuelGuardGlanceState\.metric\(\)[\s\S]*catch \(e\)/);
   assert.match(glanceSource, /getTextWidthInPixels/);
   assert.match(glanceStateSource, /TODAY_FUEL_COUNT_KEY/);
   assert.match(glanceStateSource, /recordFuel\(timestamp as Number\)/);
   assert.doesNotMatch(glanceSource, /Open to log/);
+});
+
+test("connected Quick Log contains Training status request-start failures", () => {
+  const trainingSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardTraining.mc");
+
+  assert.match(trainingSource, /function sendRefreshRequest\(options as Dictionary\)/);
+  assert.match(trainingSource, /\(:release\)\s*function dispatchRefreshRequest/);
+  assert.match(trainingSource, /\(:debug\)\s*function dispatchRefreshRequest/);
+  assert.match(trainingSource, /try \{\s*dispatchRefreshRequest\(options\);/s);
+  assert.match(trainingSource, /catch \(e\) \{\s*_refreshInFlight = false;/s);
+  assert.match(trainingSource, /function useThrowingRefreshTransportForTest/);
+});
+
+test("connected Quick Log pairs every three-argument web callback with request context", () => {
+  const trainingSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardTraining.mc");
+  const connectionSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
+  const apiSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardApi.mc");
+  const healthSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardHealthApi.mc");
+
+  assert.match(trainingSource, /:context => STATUS_REQUEST_CONTEXT/);
+  assert.match(trainingSource, /statusCallback\(\)\.invoke\(_testRefreshResponseCode, _testRefreshResponseData, _testLastRefreshContext as Object\)/);
+  assert.match(connectionSource, /:context => state/);
+  assert.match(connectionSource, /:context => appId\(\)/);
+  assert.match(apiSource, /:context => eventId/);
+  assert.match(healthSource, /:context => snapshotId/);
+});
+
+test("Training callback refresh updates once and remains throttled after response", () => {
+  const trainingSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardTraining.mc");
+  const quickLogTests = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogViewTests.mc");
+
+  assert.match(trainingSource, /const STATUS_REQUEST_CONTEXT = "training_status"/);
+  assert.match(trainingSource, /_refreshInFlight = false;[\s\S]*responseCode == 200/);
+  assert.match(trainingSource, /!force && _lastRefreshAt > 0 && now - _lastRefreshAt < REFRESH_INTERVAL_SECONDS/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogConnectedTrainingResponseUsesContextWithoutRefreshLoop/);
+});
+
+test("Activity Logger registers pairing callbacks during authentication wake-up", () => {
+  const appSource = readRepoFile("garmin/FuelGuard/activity-logger/source/FuelGuardActivityLoggerApp.mc");
+  const onAuthenticationRequest = sourceBlock(
+    appSource,
+    "public function onAuthenticationRequest",
+    "public function onStop"
+  );
+
+  assert.match(onAuthenticationRequest, /FuelGuardConnection\.configure\(FuelGuardConnection\.APP_ACTIVITY_LOGGER\)/);
+  assert.match(onAuthenticationRequest, /FuelGuardConnection\.registerForOAuthMessages\(\)/);
 });
 
 test("Quick Log wearable copy uses short safe labels", () => {

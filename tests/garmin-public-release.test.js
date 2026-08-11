@@ -28,14 +28,14 @@ function pngDimensions(relativePath) {
   return [buffer.readUInt32BE(16), buffer.readUInt32BE(20)];
 }
 
-test("public manifests preserve the 0.5.0 production identities and exact 31-device matrix", () => {
+test("public manifests preserve the 0.5.1 production identities and exact 31-device matrix", () => {
   const quick = read("garmin/FuelGuard/quick-log/manifest.xml");
   const activity = read("garmin/FuelGuard/activity-logger/manifest.xml");
 
   assert.match(quick, /id="2F3B7C5E9F2D4A6B8C1D0E7F0F255002"/);
-  assert.match(quick, /type="watch-app" version="0\.5\.0"/);
+  assert.match(quick, /type="watch-app" version="0\.5\.1"/);
   assert.match(activity, /id="9C8A41410F0A4D46A7F7D1C68F0F2551"/);
-  assert.match(activity, /type="datafield" version="0\.5\.0"/);
+  assert.match(activity, /type="datafield" version="0\.5\.1"/);
   assert.deepEqual(manifestProducts(quick), EXPECTED_PRODUCTS);
   assert.deepEqual(manifestProducts(activity), EXPECTED_PRODUCTS);
 
@@ -77,9 +77,13 @@ test("public build and simulator tooling use the exact manifest device matrix", 
 });
 
 test("expanded-device layout and pairing UX retain canonical Garmin Training Mode", () => {
+  const quickApp = read("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogApp.mc");
+  const activityApp = read("garmin/FuelGuard/activity-logger/source/FuelGuardActivityLoggerApp.mc");
   const view = read("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
   const connection = read("garmin/FuelGuard/shared/source/FuelGuardConnection.mc");
 
+  assert.match(quickApp, /public function onAuthenticationRequest\(\)[\s\S]*APP_QUICK_LOG[\s\S]*registerForOAuthMessages\(\)/);
+  assert.match(activityApp, /public function onAuthenticationRequest\(\)[\s\S]*APP_ACTIVITY_LOGGER[\s\S]*registerForOAuthMessages\(\)/);
   assert.match(view, /ACTION_COUNT = 4/);
   assert.match(view, /ACTION_TRAINING = 3/);
   assert.match(view, /FuelGuardTraining\.toggle\(\)/);
@@ -97,7 +101,7 @@ test("public release documentation and 500px Store assets are present", () => {
   const supported = read("garmin/FuelGuard/public-release/SUPPORTED_DEVICES.md");
   const physical = read("garmin/FuelGuard/public-release/PHYSICAL_ACCEPTANCE.md");
   assert.match(supported, /31 Connect IQ product IDs/);
-  assert.match(supported, /1,612 passed; 0 failed; 0 errors/);
+  assert.match(supported, /1,674 passed; 0 failed; 0 errors/);
   assert.match(physical, /Forerunner 255 physical release acceptance/);
   assert.deepEqual(pngDimensions("garmin/FuelGuard/public-release/assets/quick-log/store-icon-500.png"), [500, 500]);
   assert.deepEqual(pngDimensions("garmin/FuelGuard/public-release/assets/activity-logger/store-icon-500.png"), [500, 500]);
