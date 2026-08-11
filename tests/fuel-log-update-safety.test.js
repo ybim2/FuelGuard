@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+const domain = require("../fuel-guard-domain.js");
 
 process.env.TZ = "Europe/London";
 
@@ -41,7 +42,8 @@ class FakeQuery {
     this.orderColumn = "";
   }
 
-  select() {
+  select(columns = "") {
+    this.selectedColumns = columns;
     return this;
   }
 
@@ -91,6 +93,9 @@ class FakeQuery {
 
   async execute() {
     if (this.table !== "fuel_logs") return { data: [], error: null };
+    if (this.database.missingWorkModeColumn && String(this.selectedColumns || "").includes("work_mode_session_id")) {
+      return { data: null, error: { code: "PGRST204", message: "Could not find the 'work_mode_session_id' column of 'fuel_logs' in the schema cache" } };
+    }
     if (this.database.failNextRead && this.operation === "select") {
       this.database.failNextRead = false;
       return { data: null, error: new Error("simulated read failure") };
@@ -139,6 +144,7 @@ function createDatabase(rows = []) {
     rows: clone(rows),
     failNextRead: false,
     failNextWrite: false,
+    missingWorkModeColumn: false,
     nextId() {
       sequence += 1;
       return `99999999-9999-4999-8999-${String(sequence).padStart(12, "0")}`;
@@ -293,6 +299,40 @@ test("incident fixture retries initialization and restores five cloud logs befor
   assert.equal(reopened.state.logs.filter(log => log.source === "manual").length, 1);
 });
 
+test("canonical history falls back across an older log schema without hiding existing activity", async () => {
+  const database = createDatabase(INCIDENT_ROWS);
+  database.missingWorkModeColumn = true;
+  const app = createHarness({ database });
+  assert.deepEqual(JSON.parse(JSON.stringify(app.cloud.historyReadiness())), { status: "loading", ready: false, userId: "" });
+
+  const result = await app.cloud.init();
+  assert.equal(result.status, "synced");
+  assert.equal(app.state.logs.length, INCIDENT_ROWS.length);
+  assert.equal(app.cloud.historyReadiness().ready, true);
+  assert.equal(app.cloud.historyReadiness().userId, USER_ID);
+
+  const manual = pendingManual("12121212-1212-4212-8212-121212121212");
+  manual.workModeSessionId = "34343434-3434-4434-8434-343434343434";
+  app.state.logs.push(manual);
+  const saved = await app.cloud.saveLog(manual);
+  assert.equal(saved.status, "synced");
+  assert.equal(app.database.rows.length, INCIDENT_ROWS.length + 1);
+  assert.equal(Object.hasOwn(app.database.rows.at(-1), "work_mode_session_id"), false, "an optional newer field must not make an older schema reject the entire event");
+});
+
+test("streak reconstruction accepts older persisted log shapes and uses the full applicable history", () => {
+  const logs = [
+    { id: "old-1", logged_at: "2026-08-07T08:00:00Z", event_type: "fuel_hydration", source: "manual" },
+    { id: "old-2", timestamp: "2026-08-08T08:00:00Z", log_type: "fuel_hydration", source: "garmin" },
+    { id: "old-3", created_at: "2026-08-09T08:00:00Z", logType: "fuel_hydration", source: "manual" },
+    { id: "old-4", loggedAt: "2026-08-10T08:00:00Z", type: "fuel_hydration", source: "manual" },
+    { id: "old-5", date: "2026-08-11T08:00:00Z", type: "fuel_hydration", source: "manual" },
+    { id: "fixture", logged_at: "2026-08-11T09:00:00Z", event_type: "fuel", source: "test" }
+  ];
+  const summary = domain.activityUsageSummary(logs, new Date("2026-08-11T12:00:00Z"));
+  assert.deepEqual(summary, { dayStreak: 5, fuelStreak: 5, hydrationStreak: 5, fuelMoments: 5, hydrationMoments: 5 });
+});
+
 test("reconciliation keeps legitimate same-time events and dedupes only stable cloud or external identities", () => {
   const app = createHarness({ configured: false });
   const duplicateContent = {
@@ -430,13 +470,13 @@ test("service-worker update is atomic and never caches authenticated API respons
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const pwa = fs.readFileSync(path.join(__dirname, "..", "app-pwa.js"), "utf8");
   const index = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(sw, /mobile-pwa-v137-accepted-integration/);
+  assert.match(sw, /mobile-pwa-v138-reflection-journey/);
   assert.match(sw, /cache\.addAll\(appShellRequests\(\)\)/);
   assert.match(sw, /new Request\([^\n]+\{ cache: "reload" \}\)/);
   assert.match(sw, /requestUrl\.pathname\.startsWith\("\/api\/"\)/);
   assert.doesNotMatch(sw, /localStorage|indexedDB|fuel_logs/);
   assert.match(pwa, /updateViaCache: "none"/);
-  assert.match(index, /fuel-supabase\.js\?v=mobile-pwa-v137-accepted-integration/);
+  assert.match(index, /fuel-supabase\.js\?v=mobile-pwa-v138-reflection-journey/);
 });
 
 test("ordinary startup and synchronization do not issue fuel-log DELETE operations", () => {

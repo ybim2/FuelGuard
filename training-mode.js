@@ -304,7 +304,7 @@
         </div>
       </section>
       <section class="training-mode-section training-mode-strategy">
-        <div class="training-mode-heading"><div><span>Timing strategy</span><h2>How often do you intend to tap?</h2></div><small>Fuel Guard derives your hourly plan.</small></div>
+        <div class="training-mode-heading"><div><span>Timing strategy</span><h2>How often do you intend to fuel?</h2></div><small>Fuel Guard derives your hourly plan.</small></div>
         <div class="training-mode-interval-grid">${intervalInput("fuel", training.presets.fuel.intervalMinutes)}${intervalInput("hydration", training.presets.hydration.intervalMinutes)}</div>
         <div id="trainingDerivedPlan" class="training-mode-derived-plan">${derivedPlanMarkup(setupPlan())}</div>
       </section>

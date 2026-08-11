@@ -46,6 +46,30 @@ function loadMilestoneTests() {
   return sandbox.FuelGuardMilestones._test;
 }
 
+function loadMilestoneRuntime({ historyReady }) {
+  const target = { innerHTML: "" };
+  const gap = {
+    logs: [{ id: "today", type: "fuel", timestamp: new Date().toISOString(), source: "manual" }],
+    milestones: { achievements: [], lastSummary: null }
+  };
+  const sandbox = {
+    console,
+    Date,
+    setTimeout,
+    clearTimeout,
+    requestAnimationFrame() {},
+    document: { addEventListener() {}, getElementById(id) { return id === "athleteMilestones" ? target : null; } },
+    fuelGapState: () => gap,
+    FuelGuardDomain: domain,
+    fuelGuardCloud: { historyReadiness: () => ({ ready: historyReady, status: historyReady ? "ready" : "loading" }) },
+    addEventListener() {}
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(read("athlete-milestones.js"), sandbox, { filename: "athlete-milestones.js" });
+  return { api: sandbox.FuelGuardMilestones, gap, target };
+}
+
 test("service-worker acquisition never reloads the visible app until Settings explicitly activates an update", async () => {
   const workerMessages = [];
   const serviceWorkerListeners = {};
@@ -100,6 +124,30 @@ test("the global loader is boot-only and never re-added after Daily is visible",
   assert.doesNotMatch(installHandler, /skipWaiting\(\)/);
 });
 
+test("loading rotates exactly three approved hooks while the explanatory sentence remains permanent", () => {
+  const html = read("index.html");
+  const beta = read("fuel-beta.js");
+  const hooks = [
+    "Fuel Guard makes sure your ambition isn’t running on an empty tank.",
+    "Fuel Guard — when someone asks, “When did you last eat?” you know Fuel Guard has your back.",
+    "Fuel Guard — because four hours without fuel shouldn’t sneak up on you."
+  ];
+  const hookSource = beta.slice(beta.indexOf("const fuelGuardLoadingHooks"), beta.indexOf("let fuelGuardLoadingHookTimer"));
+  hooks.forEach(copy => assert.match(hookSource, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+  assert.equal((hookSource.match(/^\s+"Fuel Guard/gm) || []).length, 3);
+  assert.match(html, /<p class="app-boot-explainer">Simple fuelling awareness for athletes, work and everyday life\.<\/p>/);
+  assert.doesNotMatch(hookSource, /Simple fuelling awareness/);
+});
+
+test("Training Mode uses behaviour language and Settings contains the subtle Hal tribute", () => {
+  assert.match(read("training-mode.js"), /How often do you intend to fuel\?/);
+  assert.doesNotMatch(read("training-mode.js"), /How often do you intend to tap\?/);
+  const html = read("index.html");
+  const css = read("fuel-beta.css");
+  assert.match(html, /id="halTributeButton"[\s\S]*id="halTributeMessage"[^>]*hidden>For H 🧡 — thanks for the push\./);
+  assert.match(css, /\.beta-hal-tribute-button span[\s\S]*background: #e77a2d/);
+});
+
 test("Daily streak milestones expose 3, 7, 14, 30, 60 and 100 day lock states", () => {
   const milestones = loadMilestoneTests().streakMilestoneProgress(14);
   assert.deepEqual(Array.from(milestones, item => item.threshold), [3, 7, 14, 30, 60, 100]);
@@ -110,17 +158,29 @@ test("Daily streak milestones expose 3, 7, 14, 30, 60 and 100 day lock states", 
   assert.doesNotMatch(read("index.html").slice(read("index.html").indexOf('id="dashboard"'), read("index.html").indexOf('id="training"')), /FG Points|next reward/i);
 });
 
-test("primary Athlete navigation is Reflection, Daily, Training with distinct matching icons and compact safe-area targets", () => {
+test("Daily streaks do not publish or persist a partial local value before canonical history is ready", () => {
+  const pending = loadMilestoneRuntime({ historyReady: false });
+  assert.deepEqual(Array.from(pending.api.evaluate({ allowToast: false })), []);
+  assert.equal(pending.gap.milestones.lastSummary, null);
+  assert.match(pending.target.innerHTML, /Checking full history/);
+
+  const ready = loadMilestoneRuntime({ historyReady: true });
+  ready.api.evaluate({ allowToast: false });
+  assert.equal(ready.gap.milestones.lastSummary.dayStreak, 1);
+  assert.match(ready.target.innerHTML, /Day streak/);
+});
+
+test("primary Athlete navigation is Daily, Training, Reflection with distinct matching icons and compact safe-area targets", () => {
   const html = read("index.html");
   const nav = html.slice(html.indexOf('<nav class="mobile-bottom-nav'), html.indexOf('<script src="build-info.js'));
   const impact = nav.indexOf('data-mobile-tab="impact"');
   const daily = nav.indexOf('data-mobile-tab="log"');
   const training = nav.indexOf('data-mobile-tab="training"');
-  assert.ok(impact < daily && daily < training);
-  assert.match(nav.slice(impact, daily), /<span>Reflection<\/span>/);
-  assert.match(nav.slice(impact, daily), /<circle[\s\S]*m14 10 5-5/);
+  assert.ok(daily < training && training < impact);
   assert.match(nav.slice(daily, training), /m6 15 3-4 3 3 5-7/);
-  assert.match(nav.slice(training), /circle cx="14" cy="4"[\s\S]*m8 21 3-6/);
+  assert.match(nav.slice(training, impact), /circle cx="14" cy="4"[\s\S]*m8 21 3-6/);
+  assert.match(nav.slice(impact), /<span>Reflection<\/span>/);
+  assert.match(nav.slice(impact), /<circle[\s\S]*m14 10 5-5/);
   assert.match(read("fuel-beta.css"), /min-height: calc\(52px \+ env\(safe-area-inset-bottom/);
 });
 
@@ -219,9 +279,9 @@ test("Training completion has one transient summary and remains represented once
 test("Reflection uses a continuous Athlete surface with progressive editing and no legacy summary cards", () => {
   const impact = read("athlete-impact.js");
   const css = read("athlete-impact.css");
-  for (const label of ["Your goals", "Your progress", "Fuel Guard evidence", "Add another reflection", "Step 1 of 4", "Step 4 of 4", "Where were you when you started", "Where are you now"]) assert.match(impact, new RegExp(label));
+  for (const label of ["Your journey", "Your baseline", "Current check-in", "Fuel Guard evidence", "Set my baseline", "Where are you currently", "How are things going now"]) assert.match(impact, new RegExp(label));
   assert.doesNotMatch(impact, /Impact summary|Training experience|function feedbackMarkup/);
-  assert.match(impact, /Update current result/);
+  assert.match(impact, /Edit latest check-in/);
   assert.match(impact, /Edit baseline/);
   assert.match(impact, /Change dates/);
   assert.match(impact, /Delete reflection/);
@@ -235,7 +295,7 @@ test("the PWA cache advances once and includes every new Work Mode asset", () =>
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v137-accepted-integration/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v138-reflection-journey/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));

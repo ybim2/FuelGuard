@@ -46,9 +46,15 @@ test("Daily keeps Maximum Fuel Gap immediately under Day type and nowhere in Set
   assert.doesNotMatch(settings, /id="maximumFuelGapPreset"|id="maximumFuelGapCustom"/);
 });
 
-test("Athlete loading state uses the complete approved purpose copy", () => {
+test("Athlete loading state uses the approved rotating hooks and permanent purpose copy", () => {
   const html = read("index.html");
-  assert.match(html, /Every fuel and hydration moment builds a better fuelling rhythm\./);
+  const beta = read("fuel-beta.js");
+  for (const copy of [
+    "Fuel Guard makes sure your ambition isn’t running on an empty tank.",
+    "Fuel Guard — when someone asks, “When did you last eat?” you know Fuel Guard has your back.",
+    "Fuel Guard — because four hours without fuel shouldn’t sneak up on you."
+  ]) assert.ok(beta.includes(copy));
+  assert.match(html, /Simple fuelling awareness for athletes, work and everyday life\./);
   assert.doesNotMatch(html, />Notice the rhythm\.</);
 });
 

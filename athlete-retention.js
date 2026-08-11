@@ -94,7 +94,7 @@
   function eligibleNudges() {
     const gap = gapState() || {};
     const currentPreferences = preferences();
-    return domain().athleteNudgeEligibility({
+    const contextual = domain().athleteNudgeEligibility({
       logs: gap.logs || [],
       sessions: trainingSessions(),
       teamSessions: sharedTeamSessions(),
@@ -102,7 +102,9 @@
       preferences: currentPreferences,
       now: new Date(),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-    }).filter(item => !currentPreferences.dismissedKeys.includes(item.occurrenceKey));
+    });
+    const reflection = window.AthleteImpact?.reviewPrompt?.();
+    return [reflection, ...contextual].filter(item => item && !currentPreferences.dismissedKeys.includes(item.occurrenceKey));
   }
 
   function renderContextualNudge() {
@@ -114,7 +116,7 @@
       target.innerHTML = "";
       return;
     }
-    target.innerHTML = `<div><span>Useful now</span><strong>${escape(item.title)}</strong><small>${escape(item.detail)}</small></div><button type="button" data-dismiss-athlete-nudge="${escape(item.occurrenceKey)}" aria-label="Dismiss this contextual prompt">×</button>`;
+    target.innerHTML = `<div><span>Useful now</span><strong>${escape(item.title)}</strong><small>${escape(item.detail)}</small>${item.id === "reflection_review" ? `<button type="button" class="beta-contextual-nudge-open" data-open-screen="impact">Open Reflection</button>` : ""}</div><button type="button" data-dismiss-athlete-nudge="${escape(item.occurrenceKey)}" aria-label="Dismiss this contextual prompt">×</button>`;
   }
 
   function renderPreferences() {

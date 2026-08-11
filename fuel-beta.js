@@ -10894,11 +10894,46 @@
     }, delay);
   }
 
+  const fuelGuardLoadingHooks = Object.freeze([
+    "Fuel Guard makes sure your ambition isn’t running on an empty tank.",
+    "Fuel Guard — when someone asks, “When did you last eat?” you know Fuel Guard has your back.",
+    "Fuel Guard — because four hours without fuel shouldn’t sneak up on you."
+  ]);
+  let fuelGuardLoadingHookTimer = 0;
+
+  function startFuelGuardLoadingHooks() {
+    const target = document.getElementById("appBootHook");
+    if (!target) return;
+    let index = 0;
+    try {
+      index = Number(window.sessionStorage.getItem("fuelGuardLoadingHookIndex") || 0) % fuelGuardLoadingHooks.length;
+    } catch (_error) {
+      index = 0;
+    }
+    const showNext = () => {
+      target.textContent = fuelGuardLoadingHooks[index];
+      index = (index + 1) % fuelGuardLoadingHooks.length;
+      try { window.sessionStorage.setItem("fuelGuardLoadingHookIndex", String(index)); } catch (_error) {}
+    };
+    showNext();
+    fuelGuardLoadingHookTimer = window.setInterval(showNext, 2200);
+  }
+
   function markFuelGuardAppReady() {
+    if (fuelGuardLoadingHookTimer) window.clearInterval(fuelGuardLoadingHookTimer);
     document.body?.classList.remove("app-booting");
     document.body?.classList.add("app-ready");
   }
 
+  const halTributeButton = document.getElementById("halTributeButton");
+  const halTributeMessage = document.getElementById("halTributeMessage");
+  halTributeButton?.addEventListener("click", () => {
+    const reveal = Boolean(halTributeMessage?.hidden);
+    if (halTributeMessage) halTributeMessage.hidden = !reveal;
+    halTributeButton.setAttribute("aria-expanded", String(reveal));
+  });
+
+  startFuelGuardLoadingHooks();
   lastAutoFuelWindowDateKey = dateKey();
   renderAll();
   requestAnimationFrame(markFuelGuardAppReady);

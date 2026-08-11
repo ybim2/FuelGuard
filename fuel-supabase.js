@@ -5,6 +5,7 @@
   const DEMAND_BLOCKS_TABLE = "fuel_demand_blocks";
   const WORK_BREAKS_TABLE = "fuel_work_breaks";
   const LOG_SELECT_COLUMNS = "id,user_id,logged_at,type,source,external_event_id,day_type,training_session,training_mode_session_id,training_mode_preset_id,work_mode_session_id,carbs_g,fluid_ml,sodium_mg,caffeine_mg,notes,created_at";
+  const LOG_SELECT_LEGACY_COLUMNS = "id,user_id,logged_at,type,source,external_event_id,day_type,training_session,training_mode_session_id,training_mode_preset_id,carbs_g,fluid_ml,sodium_mg,caffeine_mg,notes,created_at";
   const TARGET_SELECT_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,maximum_fuel_gap_minutes,updated_at,created_at";
   const TARGET_SELECT_LEGACY_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at";
   const STATUS_EVENT = "fuelguard:cloud-status";
@@ -25,6 +26,9 @@
   let lastStatus = "Cloud sync is not configured yet.";
   let targetMaximumGapColumnAvailable = true;
   let athleteTeamSessions = [];
+  let supportedLogSelectColumns = LOG_SELECT_COLUMNS;
+  let canonicalHistoryStatus = "loading";
+  let canonicalHistoryUserId = "";
 
   function config() {
     return window.FUEL_GUARD_SUPABASE_CONFIG || {};
@@ -42,6 +46,21 @@
   function status(message) {
     lastStatus = message;
     window.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail: { message } }));
+  }
+
+  function setCanonicalHistoryStatus(next, userId = user()?.id || "") {
+    canonicalHistoryStatus = next;
+    canonicalHistoryUserId = next === "ready" ? String(userId || "") : "";
+  }
+
+  function historyReadiness() {
+    const currentUserId = String(user()?.id || "");
+    const localOnly = !configured() || (initialized && !currentUserId);
+    return {
+      status: localOnly ? "local" : canonicalHistoryStatus,
+      ready: localOnly || (canonicalHistoryStatus === "ready" && canonicalHistoryUserId === currentUserId),
+      userId: currentUserId
+    };
   }
 
   function recoveryRedirectUrl() {
@@ -311,6 +330,7 @@
       caffeine_mg: nullableQuantity(log.caffeineMg ?? log.caffeine_mg),
       notes: crash ? CRASH_NOTE : checkin ? checkinNote : log.note || log.notes || null
     };
+    if (!supportedLogSelectColumns.includes("work_mode_session_id")) delete row.work_mode_session_id;
     if (id) row.id = id;
     return row;
   }
@@ -916,13 +936,24 @@
   async function fetchRows() {
     const currentUser = user();
     if (!client || !currentUser) return [];
-    const { data, error } = await client
-      .from(TABLE)
-      .select(LOG_SELECT_COLUMNS)
-      .eq("user_id", currentUser.id)
-      .order("logged_at", { ascending: true });
-    if (error) throw error;
-    return data || [];
+    const candidates = [...new Set([supportedLogSelectColumns, LOG_SELECT_COLUMNS, LOG_SELECT_LEGACY_COLUMNS])];
+    let lastError = null;
+    for (const columns of candidates) {
+      const { data, error } = await client
+        .from(TABLE)
+        .select(columns)
+        .eq("user_id", currentUser.id)
+        .order("logged_at", { ascending: true });
+      if (!error) {
+        supportedLogSelectColumns = columns;
+        return data || [];
+      }
+      lastError = error;
+      const optionalColumnUnavailable = /work_mode_session_id/i.test(String(error?.message || ""))
+        && (/schema cache|does not exist|column/i.test(String(error?.message || "")) || ["PGRST204", "42703"].includes(String(error?.code || "")));
+      if (!optionalColumnUnavailable || columns === LOG_SELECT_LEGACY_COLUMNS) throw error;
+    }
+    throw lastError || new Error("Fuel history could not be loaded.");
   }
 
   async function fetchAthleteTeamSessions() {
@@ -956,7 +987,7 @@
       const { data, error } = await client
         .from(TABLE)
         .upsert(withId.map(item => item.row), { onConflict: "id" })
-        .select(LOG_SELECT_COLUMNS);
+        .select(supportedLogSelectColumns);
       if (error) throw error;
       (data || []).forEach(row => {
         const item = withId.find(candidate => rowIdentityKeys(row).some(key => logIdentityKeys(candidate.log).includes(key)));
@@ -972,7 +1003,7 @@
       const { data, error } = await client
         .from(TABLE)
         .insert(withoutId.map(item => item.row))
-        .select(LOG_SELECT_COLUMNS);
+        .select(supportedLogSelectColumns);
       if (error) throw error;
       (data || []).forEach((row, index) => {
         const rowKeys = new Set(rowIdentityKeys(row));
@@ -1012,19 +1043,23 @@
     if (syncPromise) return syncPromise;
     const gap = gapState();
     if (!configured()) {
+      setCanonicalHistoryStatus("local");
       status("Cloud sync needs Supabase public URL/key configuration.");
       return { status: "unconfigured", cloudCount: 0, pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length };
     }
     if (!user()) {
+      setCanonicalHistoryStatus("local");
       status("Not signed in. Logs are cached on this device.");
       return { status: "signed_out", cloudCount: 0, pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length };
     }
     if (!isOnline()) {
+      setCanonicalHistoryStatus("waiting");
       status("Offline. New logs are cached locally and will sync when online.");
       return { status: PENDING, cloudCount: 0, pendingCount: allLogs().filter(log => log.syncStatus !== SYNCED).length };
     }
 
     syncPromise = (async () => {
+      setCanonicalHistoryStatus("loading");
       status("Syncing Fuel Guard logs...");
       try {
         await flushDeletes();
@@ -1056,10 +1091,12 @@
           gap.cloud.lastSyncedAt = new Date().toISOString();
           gap.cloud.lastError = "";
         }
+        setCanonicalHistoryStatus("ready", user()?.id);
         status(`Synced ${reconciliation.cloudCount} cloud log${reconciliation.cloudCount === 1 ? "" : "s"}.${targetWarning}${planningWarning}`);
         persistAndRender();
         return { status: SYNCED, ...reconciliation };
       } catch (error) {
+        setCanonicalHistoryStatus("error");
         if (gap) gap.cloud.lastError = error?.message || "Sync failed.";
         allLogs().filter(log => log.syncStatus !== SYNCED).forEach(log => setLogSyncState(log, ERROR));
         status(`Cloud sync failed: ${error?.message || "unknown error"}`);
@@ -1178,6 +1215,7 @@
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw error;
     session = data.session;
+    setCanonicalHistoryStatus("loading");
     status(`Signed in as ${data.user?.email || email}.`);
     await syncNow();
     return data;
@@ -1195,6 +1233,7 @@
     });
     if (error) throw error;
     session = data.session;
+    setCanonicalHistoryStatus(data.session?.user ? "loading" : "local");
     status(data.session ? `Account created for ${email}.` : "Confirmation email sent. Check your inbox.");
     if (data.session) await syncNow();
     return data;
@@ -1229,6 +1268,7 @@
     const { error } = await client.auth.signOut();
     if (error) throw error;
     session = null;
+    setCanonicalHistoryStatus("local");
     athleteTeamSessions = [];
     status("Signed out. Logs remain cached on this device.");
     persistAndRender();
@@ -1293,6 +1333,7 @@
   async function init() {
     if (initialized) return syncPromise || { status: "initialized" };
     if (!configured()) {
+      setCanonicalHistoryStatus("local");
       status(window.supabase?.createClient ? "Cloud sync needs Supabase public URL/key configuration." : "Cloud sync library is offline; local cache is active.");
       return { status: "not_ready" };
     }
@@ -1312,6 +1353,7 @@
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
       session = data?.session || null;
+      setCanonicalHistoryStatus(session?.user ? "loading" : "local");
       status(recoveryMode
         ? "You're resetting your password. Enter a new password below."
         : session?.user
@@ -1320,6 +1362,7 @@
 
       client.auth.onAuthStateChange((event, nextSession) => {
         session = nextSession;
+        setCanonicalHistoryStatus(session?.user ? "loading" : "local");
         if (event === "PASSWORD_RECOVERY") {
           setRecoveryMode(true, "You're resetting your password. Enter a new password below.");
         } else if (recoveryMode) {
@@ -1339,6 +1382,7 @@
       initialized = false;
       client = null;
       session = null;
+      setCanonicalHistoryStatus("error");
       status(`Cloud initialization failed: ${error?.message || "unknown error"}. Retrying when online.`);
       return { status: ERROR, error };
     }
@@ -1374,6 +1418,7 @@
     cancelPasswordRecovery,
     signOut,
     accountView,
+    historyReadiness,
     accessToken,
     get teamSessions() {
       return athleteTeamSessions.map(item => ({ ...item }));
@@ -1398,7 +1443,8 @@
       logIdentityKeys,
       rowIdentityKeys,
       reconcileLogTimeline,
-      mergeSyncedRows
+      mergeSyncedRows,
+      historyReadiness
     }
   };
 })();
