@@ -61,6 +61,35 @@ body.beta-mvp #training {
   line-height: 1.02;
 }
 
+.training-mode-bonk-risk {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  margin: 14px 0 2px;
+  padding: 14px;
+  border: 1px solid rgba(183, 59, 42, .28);
+  border-radius: 17px;
+  background: linear-gradient(145deg, #fff7f4, #fff);
+  color: #74291e;
+  box-shadow: 0 9px 22px rgba(124, 43, 29, .08);
+}
+
+.training-mode-bonk-risk > div {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px;
+  background: #b73b2a;
+  color: #fff;
+  font-weight: 950;
+}
+
+.training-mode-bonk-risk span { display: grid; gap: 2px; min-width: 0; }
+.training-mode-bonk-risk strong { font-size: .88rem; }
+.training-mode-bonk-risk small { color: #874b42; font-size: .72rem; line-height: 1.4; }
+
 .training-mode-hero.active h1 {
   color: #ffffff;
 }

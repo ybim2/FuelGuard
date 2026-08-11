@@ -1,6 +1,6 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v139-athlete-system";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v140-athlete-polish";
   const SERVICE_WORKER_SCOPE = buildInfo.serviceWorkerScope || "./";
   let registrationPromise = null;
   let refreshing = false;

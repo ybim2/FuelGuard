@@ -28,7 +28,7 @@ test("all Athlete-facing navigation and page terminology is Reflection", () => {
   assert.doesNotMatch(daily, /Later Energy Impact|Impact insights|Impact signals over time|Impact will explain/);
 });
 
-test("Reflection starts with everyday life and also offers optional sport outcomes", () => {
+test("Reflection starts with everyday life and offers optional 1–5 performance areas", () => {
   const js = read("athlete-impact.js");
   const life = js.indexOf('life: {');
   const sport = js.indexOf('sport: {');
@@ -42,15 +42,18 @@ test("Reflection starts with everyday life and also offers optional sport outcom
     "Better hydration",
     "Better mood or concentration",
     "Maintaining or changing body weight",
-    "Better training energy",
-    "Better recovery",
-    "Faster running or race times",
-    "Improved strength",
-    "Improved endurance",
-    "Improved fitness test performance"
+    "Improve my 5K",
+    "Build endurance",
+    "Improve strength",
+    "Improve swimming",
+    "Improve cycling",
+    "Improve recovery",
+    "Build training consistency",
+    "Improve match fitness"
   ]) assert.match(js, new RegExp(copy));
   assert.match(js, /Create a custom outcome/);
-  assert.match(js, /Set your target range/);
+  assert.match(js, /What matters to your performance\?/);
+  assert.doesNotMatch(js, /mandatory numerical|Set your target range/);
 });
 
 test("baseline and current comparisons render clear numeric and timed changes", () => {
@@ -76,8 +79,7 @@ test("normal Reflection view is a journey dashboard and editing stays in drill-d
   assert.match(mainRender, /editorMarkup\(\)/);
   for (const module of ["Your journey", "Your baseline", "Current check-in", "Performance", "Everyday life", "Fuelling behaviour", "Changes over time"]) assert.match(js, new RegExp(module));
   assert.match(js, /reflection-dashboard-rail/);
-  assert.match(js, /Where are you currently\?/);
-  assert.match(js, /How are things going now\?/);
+  assert.match(js, /How close do you feel to/);
   for (const action of ["Edit latest check-in", "Edit baseline", "Change metric", "Change dates", "Delete reflection"]) assert.match(js, new RegExp(action));
   assert.doesNotMatch(js, /function resultEntryMarkup|function presetSetupMarkup/);
 });
@@ -124,6 +126,15 @@ test("subjective Reflection values use ten accessible tap targets and normal ent
   assert.match(save, /domain\(\)\.dateKey\(new Date\(\)\)/);
 });
 
+test("new Performance Reflection presets use the Everyday-style five point scale", () => {
+  const api = reflectionApi();
+  const markup = api.ratingScaleMarkup({ name: "Build endurance", unit: "/ 5", measurement_type: "number" }, 3);
+  assert.equal((markup.match(/data-reflection-rating=/g) || []).length, 5);
+  assert.match(markup, /How close do you feel to Build endurance\?/);
+  assert.match(markup, /1 is not close yet; 5 is very close/);
+  assert.ok(api.OUTCOME_GROUPS.sport.outcomes.every(outcome => outcome.unit === "/ 5" && outcome.valueMin === 1 && outcome.valueMax === 5));
+});
+
 test("Fuel Guard behavioural evidence is separate and explicitly non-causal", () => {
   const js = read("athlete-impact.js");
   assert.match(js, /Entered by you/);
@@ -157,6 +168,6 @@ test("Reflection uses the continuous white Athlete surface and a versioned PWA s
   assert.match(css, /body\.beta-mvp #impact[\s\S]*background: #fff/);
   assert.match(css, /\.reflection-hero,[\s\S]*\.reflection-page-section[\s\S]*background: #fff/);
   assert.match(css, /@media \(max-width: 390px\)/);
-  assert.match(read("build-info.js"), /mobile-pwa-v139-athlete-system/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v139-athlete-system-/);
+  assert.match(read("build-info.js"), /mobile-pwa-v140-athlete-polish/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v140-athlete-polish-/);
 });

@@ -5,6 +5,7 @@
   const SESSION_COLUMNS = "id,user_id,title,session_type,status,started_at,ended_at,fuel_preset_id,hydration_preset_id,fuel_carbs_g,fuel_fluid_ml,fuel_sodium_mg,fuel_caffeine_mg,hydration_carbs_g,hydration_fluid_ml,hydration_sodium_mg,hydration_caffeine_mg,fuel_interval_minutes,hydration_interval_minutes,plan_source,estimated_duration_minutes,plan_carbs_g_per_hour,plan_fluid_ml_per_hour,plan_sodium_mg_per_hour,plan_caffeine_mg_per_hour,created_at,updated_at";
   const PRESET_COLUMNS = "id,user_id,event_type,name,carbs_g,fluid_ml,sodium_mg,caffeine_mg,intended_interval_minutes,is_default,updated_at";
   const FOREGROUND_SESSION_REFRESH_MS = 5000;
+  const BONK_RISK_MINUTES = 90;
   const QUANTITIES = [
     { field: "carbsG", label: "Carbohydrate", short: "Carbs", unit: "g" },
     { field: "fluidMl", label: "Fluid", short: "Fluid", unit: "ml" },
@@ -36,6 +37,7 @@
         },
         plan: { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 },
         estimatedDurationMinutes: 60,
+        bonkRisk: { sessionId: "", anchorAt: "", alertedForAnchor: "", active: false },
         activeSession: null,
         sessions: [],
         ownerUserId: "",
@@ -44,6 +46,9 @@
       };
     }
     if (!Array.isArray(gap.trainingMode.sessions)) gap.trainingMode.sessions = [];
+    if (!gap.trainingMode.bonkRisk || typeof gap.trainingMode.bonkRisk !== "object" || Array.isArray(gap.trainingMode.bonkRisk)) {
+      gap.trainingMode.bonkRisk = { sessionId: "", anchorAt: "", alertedForAnchor: "", active: false };
+    }
     if (typeof gap.trainingMode.ownerUserId !== "string") gap.trainingMode.ownerUserId = "";
     return gap.trainingMode;
   }
@@ -59,6 +64,7 @@
     };
     training.plan = { carbsG: 0, fluidMl: 0, sodiumMg: 0, caffeineMg: 0 };
     training.estimatedDurationMinutes = 60;
+    training.bonkRisk = { sessionId: "", anchorAt: "", alertedForAnchor: "", active: false };
     training.activeSession = null;
     training.sessions = [];
     training.lastSyncedAt = "";
@@ -149,6 +155,62 @@
     const eventTime = new Date(at);
     if (!active || Number.isNaN(eventTime.getTime()) || eventTime < new Date(active.startedAt)) return null;
     return domain()?.trainingEventContext?.(active, type) || null;
+  }
+
+  function bonkRiskModel({ session, logRows = [], now = new Date(), thresholdMinutes = BONK_RISK_MINUTES } = {}) {
+    const startedAt = domain()?.parseDate?.(session?.startedAt || session?.started_at);
+    const reference = domain()?.parseDate?.(now) || new Date();
+    if (!session?.id || !startedAt || reference < startedAt) return { active: false, sessionId: "", anchorAt: "", elapsedMinutes: 0 };
+    const latestFuel = (Array.isArray(logRows) ? logRows : [])
+      .map(log => ({ log, at: domain()?.logDate?.(log) }))
+      .filter(item => item.at && item.at >= startedAt && item.at <= reference)
+      .filter(item => domain()?.isFuelLog?.(item.log))
+      .filter(item => String(domain()?.trainingLogSessionId?.(item.log) || "") === String(session.id))
+      .sort((left, right) => left.at - right.at)
+      .at(-1);
+    const anchor = latestFuel?.at || startedAt;
+    const elapsedMilliseconds = Math.max(0, reference - anchor);
+    const elapsedMinutes = Math.floor(elapsedMilliseconds / 60000);
+    return {
+      active: elapsedMilliseconds > Number(thresholdMinutes) * 60000,
+      sessionId: String(session.id),
+      anchorAt: anchor.toISOString(),
+      elapsedMinutes,
+      hasFuelLog: Boolean(latestFuel)
+    };
+  }
+
+  function syncBonkRisk(session, now = new Date()) {
+    const training = state();
+    if (!training) return { active: false, changed: false, newlyTriggered: false };
+    const previous = { ...training.bonkRisk };
+    if (!session) {
+      training.bonkRisk = { sessionId: "", anchorAt: "", alertedForAnchor: "", active: false };
+    } else {
+      const model = bonkRiskModel({ session, logRows: logs(), now });
+      const sameSession = previous.sessionId === model.sessionId;
+      const sameAnchor = sameSession && previous.anchorAt === model.anchorAt;
+      const newlyTriggered = model.active && (!sameAnchor || previous.alertedForAnchor !== model.anchorAt);
+      training.bonkRisk = {
+        sessionId: model.sessionId,
+        anchorAt: model.anchorAt,
+        alertedForAnchor: newlyTriggered ? model.anchorAt : sameAnchor ? previous.alertedForAnchor : "",
+        active: model.active
+      };
+      const changed = JSON.stringify(previous) !== JSON.stringify(training.bonkRisk);
+      if (changed) persist();
+      return { ...model, changed, newlyTriggered };
+    }
+    const changed = JSON.stringify(previous) !== JSON.stringify(training.bonkRisk);
+    if (changed) persist();
+    return { active: false, changed, newlyTriggered: false };
+  }
+
+  function bonkRiskMarkup(risk) {
+    if (!risk?.active) return "";
+    return `<section class="training-mode-bonk-risk" role="${risk.newlyTriggered ? "alert" : "status"}" aria-live="${risk.newlyTriggered ? "assertive" : "off"}">
+      <div aria-hidden="true">!</div><span><strong>Bonk Risk</strong><small>You’ve been training for more than 90 minutes without logging fuel.</small></span>
+    </section>`;
   }
 
   function quantityInput(type, item, values = preset(type), label = item.short) {
@@ -445,7 +507,7 @@
     `;
   }
 
-  function activeMarkup(session) {
+  function activeMarkup(session, risk = syncBonkRisk(session)) {
     const summary = sessionSummary(session);
     return `
       <section class="training-mode-hero active" aria-live="polite">
@@ -454,6 +516,7 @@
         <span>${escape(String(session.sessionType || "training").replace(/_/g, " "))} · Training Mode active</span>
       </section>
       ${scheduledTeamSessionsMarkup()}
+      ${bonkRiskMarkup(risk)}
       ${eventTimeline(session, summary)}
       <section class="training-mode-live-actions" aria-label="Training quick actions">
         <button class="training-mode-action fuel" type="button" data-training-log="fuel"><strong>Fuel</strong><span>${presetSummary(session, "fuel")}</span></button>
@@ -540,15 +603,18 @@
     `;
   }
 
-  function render() {
+  function render({ bonkRisk = null } = {}) {
     const target = document.getElementById("trainingModeSurface");
     if (!target || !domain()) return;
     const active = activeSession();
-    target.innerHTML = active ? activeMarkup(active) : completionMoment ? trainingCompletionMarkup(completionMoment) : setupMarkup();
+    const risk = bonkRisk || syncBonkRisk(active);
+    target.innerHTML = active ? activeMarkup(active, risk) : completionMoment ? trainingCompletionMarkup(completionMoment) : setupMarkup();
     if (durationTimer) clearInterval(durationTimer);
     durationTimer = active ? setInterval(() => {
       const duration = document.querySelector("[data-training-duration]");
       if (duration) duration.textContent = durationText((Date.now() - new Date(active.startedAt)) / 1000);
+      const latestRisk = syncBonkRisk(active);
+      if (latestRisk.newlyTriggered || latestRisk.active !== risk.active || latestRisk.anchorAt !== risk.anchorAt) render({ bonkRisk: latestRisk });
     }, 1000) : 0;
   }
 
@@ -612,6 +678,7 @@
       dirty: true
     };
     training.activeSession = session;
+    training.bonkRisk = { sessionId: session.id, anchorAt: startedAt, alertedForAnchor: "", active: false };
     training.sessions = [session, ...training.sessions.filter(item => item.id !== session.id)];
     statusMessage = "Training Mode active.";
     persist();
@@ -630,6 +697,7 @@
     active.dirty = true;
     training.sessions = training.sessions.map(item => item.id === active.id ? { ...active } : item);
     training.activeSession = null;
+    training.bonkRisk = { sessionId: "", anchorAt: "", alertedForAnchor: "", active: false };
     statusMessage = "Training complete. Session summary saved.";
     showTrainingCompletion(active);
     persist();
@@ -990,6 +1058,6 @@
     refreshCanonicalSessions,
     contextForEvent,
     activeSession,
-    _test: { sessionFromRow, presetFromRow, durationText, estimatedDurationMinutes, reconcileCanonicalSessions, foregroundRefreshEligible, sessionFingerprint, statusMessage: () => statusMessage }
+    _test: { sessionFromRow, presetFromRow, durationText, estimatedDurationMinutes, reconcileCanonicalSessions, foregroundRefreshEligible, sessionFingerprint, bonkRiskModel, syncBonkRisk, statusMessage: () => statusMessage }
   };
 })();

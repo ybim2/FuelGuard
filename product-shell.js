@@ -2,36 +2,31 @@
 (() => {
   let accessRequest = 0;
   let currentAthleteShareName = "";
+  let resolvedIdentity = { userId: "", profile: null };
   function safeAthleteName(profile = {}) {
     const username = typeof profile.username === "string" ? profile.username.trim() : "";
-    const firstName = typeof profile.first_name === "string" ? profile.first_name.trim() : "";
-    return username || firstName || "";
+    return username;
   }
   function identityModel(account = {}, profile = {}) {
     const username = typeof profile.username === "string" ? profile.username.trim() : "";
-    const firstName = typeof profile.first_name === "string" ? profile.first_name.trim() : "";
     if (account.signedIn && username) {
       return {
         label: "Fuel Guard Athlete",
         value: username,
+        resolving: false,
         ariaLabel: `Athlete ${username}. Open account settings.`
-      };
-    }
-    if (account.signedIn && firstName) {
-      return {
-        label: "Fuel Guard Athlete",
-        value: firstName,
-        ariaLabel: `Athlete ${firstName}. Open account settings.`
       };
     }
     if (account.signedIn) return {
       label: "Fuel Guard Athlete",
-      value: "Athlete",
-      ariaLabel: "Athlete account. Open account settings."
+      value: "",
+      resolving: true,
+      ariaLabel: "Athlete username is loading. Open account settings."
     };
     return {
       label: "Not signed in",
       value: "Log in",
+      resolving: false,
       ariaLabel: "Log in to Fuel Guard"
     };
   }
@@ -43,6 +38,7 @@
     const label = document.getElementById("mainAccountIdentityLabel");
     const value = document.getElementById("mainAccountIdentityValue");
     if (control) control.setAttribute("aria-label", model.ariaLabel);
+    control?.classList?.toggle?.("resolving", model.resolving);
     if (label) label.textContent = model.label;
     if (value) value.textContent = model.value;
     return model;
@@ -78,15 +74,26 @@
     const request = ++accessRequest;
     const cloud = window.fuelGuardCloud;
     const account = cloud?.accountView?.() || {};
-    if (!account.signedIn || !cloud?.user?.id) return renderProductAccess();
+    if (!account.signedIn || !cloud?.user?.id) {
+      resolvedIdentity = { userId: "", profile: null };
+      renderMainAccountIdentity(account);
+      return renderProductAccess();
+    }
+    const userId = String(cloud.user.id);
+    renderMainAccountIdentity(account, resolvedIdentity.userId === userId ? resolvedIdentity.profile || {} : {});
     const result = await authorisedProducts(cloud.client, cloud.user);
     if (request !== accessRequest || cloud?.user?.id !== window.fuelGuardCloud?.user?.id) return result;
+    resolvedIdentity = { userId, profile: result.profile || {} };
     renderMainAccountIdentity(account, result.profile || {});
     return renderProductAccess(result);
   }
 
   function renderShell() {
-    renderMainAccountIdentity();
+    const cloud = window.fuelGuardCloud;
+    const account = cloud?.accountView?.() || {};
+    const userId = String(cloud?.user?.id || "");
+    const profile = account.signedIn && resolvedIdentity.userId === userId ? resolvedIdentity.profile || {} : {};
+    renderMainAccountIdentity(account, profile);
     resolveProductAccess();
   }
 

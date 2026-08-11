@@ -2420,6 +2420,7 @@
     if (payload.checkinType === SLEEPY_CHECKIN_TYPE) setQuickLogConfirmation(SLEEPY_CHECKIN_TYPE, loggedAt);
     save();
     renderAll();
+    if (payload.checkinType === SLEEPY_CHECKIN_TYPE) window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
     return persistQuickLog(log, payload.checkinType === SLEEPY_CHECKIN_TYPE ? SLEEPY_CHECKIN_TYPE : "checkin", loggedAt);
   }
 

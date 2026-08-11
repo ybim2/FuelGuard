@@ -7,8 +7,13 @@ const vm = require("node:vm");
 const root = path.join(__dirname, "..");
 
 function loadProductShell() {
+  const identityClasses = new Set();
   const elements = new Map([
-    ["mainAccountIdentity", { attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } }],
+    ["mainAccountIdentity", {
+      attributes: {},
+      classList: { toggle(name, enabled) { if (enabled) identityClasses.add(name); else identityClasses.delete(name); } },
+      setAttribute(name, value) { this.attributes[name] = value; }
+    }],
     ["mainAccountIdentityLabel", { textContent: "" }],
     ["mainAccountIdentityValue", { textContent: "" }],
     ["coachProductLink", { hidden: false }],
@@ -25,20 +30,20 @@ function loadProductShell() {
   };
   const context = { window, document, requestAnimationFrame() {} };
   vm.runInNewContext(fs.readFileSync(path.join(root, "product-shell.js"), "utf8"), context);
-  return { elements, listeners, window };
+  return { elements, identityClasses, listeners, window };
 }
 
-test("main identity prefers username then first name and never exposes account email", () => {
+test("main identity renders only a resolved canonical username and never exposes account email", () => {
   const { elements, window } = loadProductShell();
   const render = window.fuelGuardProductShell.renderMainAccountIdentity;
 
   render({ signedIn: true, email: "user-a@example.com" });
   assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Fuel Guard Athlete");
-  assert.equal(elements.get("mainAccountIdentityValue").textContent, "Athlete");
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "");
 
   render({ signedIn: true, email: "user-a@example.com" }, { first_name: "Alex" });
   assert.equal(elements.get("mainAccountIdentityLabel").textContent, "Fuel Guard Athlete");
-  assert.equal(elements.get("mainAccountIdentityValue").textContent, "Alex");
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "");
   assert.doesNotMatch(elements.get("mainAccountIdentity").attributes["aria-label"], /user-a@example\.com/);
 
   render({ signedIn: true, email: "user-a@example.com" }, { username: "alex_runs", first_name: "Alex" });
@@ -50,8 +55,52 @@ test("main identity prefers username then first name and never exposes account e
   assert.doesNotMatch(elements.get("mainAccountIdentity").attributes["aria-label"], /user-a/i);
 
   render({ signedIn: true, email: "user-b@example.com" });
-  assert.equal(elements.get("mainAccountIdentityValue").textContent, "Athlete");
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "");
   assert.doesNotMatch(elements.get("mainAccountIdentityValue").textContent, /user-a/i);
+});
+
+test("username resolution stays blank across account switches and stable across same-user refreshes", async () => {
+  const { elements, identityClasses, window } = loadProductShell();
+  const pending = new Map();
+  const profileResult = userId => new Promise(resolve => pending.set(userId, resolve));
+  let selectedUserId = "user-a";
+  const client = {
+    from() {
+      let userId = "";
+      return {
+        select() { return this; },
+        eq(_column, value) { userId = value; return this; },
+        maybeSingle() { return profileResult(userId); }
+      };
+    },
+    async rpc() { return { data: [], error: null }; }
+  };
+  window.fuelGuardCloud = {
+    accountView: () => ({ signedIn: true }),
+    client,
+    get user() { return { id: selectedUserId }; }
+  };
+
+  const firstResolution = window.fuelGuardProductShell.resolveProductAccess();
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "");
+  assert.equal(identityClasses.has("resolving"), true);
+  pending.get("user-a")({ data: { username: "runner_a", first_name: "Alex" }, error: null });
+  await firstResolution;
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "runner_a");
+
+  const backgroundResolution = window.fuelGuardProductShell.resolveProductAccess();
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "runner_a");
+  pending.get("user-a")({ data: { username: "runner_a", first_name: "Alex" }, error: null });
+  await backgroundResolution;
+
+  selectedUserId = "user-b";
+  const switchedResolution = window.fuelGuardProductShell.resolveProductAccess();
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "");
+  assert.equal(identityClasses.has("resolving"), true);
+  pending.get("user-b")({ data: { username: "runner_b", first_name: "Blair" }, error: null });
+  await switchedResolution;
+  assert.equal(elements.get("mainAccountIdentityValue").textContent, "runner_b");
+  assert.equal(identityClasses.has("resolving"), false);
 });
 
 test("main shell keeps Coach and Performance links hidden until server-authorised", () => {
@@ -61,7 +110,7 @@ test("main shell keeps Coach and Performance links hidden until server-authorise
   assert.match(html, /href="\/" aria-current="page">Athlete<\/a>/);
   assert.match(html, /id="coachProductLink" href="\/coach\/" hidden>Coach<\/a>/);
   assert.match(html, /id="performanceProductLink" href="\/performance\/" hidden>Performance<\/a>/);
-  assert.match(html, /product-shell\.js\?v=mobile-pwa-v139-athlete-system/);
+  assert.match(html, /product-shell\.js\?v=mobile-pwa-v140-athlete-polish/);
   assert.match(sw, /\.\/product-shell\.js/);
 });
 

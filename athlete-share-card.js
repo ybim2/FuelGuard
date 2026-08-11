@@ -703,11 +703,11 @@
       ctx.fillStyle = gradient;
       ctx.fill();
     });
-    ctx.fillStyle = "rgba(244,250,247,.5)";
-    ctx.font = "650 18px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillStyle = "rgba(244,250,247,.78)";
+    ctx.font = "750 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     [[0, "12 AM"], [6, "6 AM"], [12, "12 PM"], [18, "6 PM"], [23, "12 AM"]].forEach(([hour, label]) => {
       ctx.textAlign = hour === 23 ? "right" : "left";
-      ctx.fillText(label, chartX + hour / 23 * chartWidth, chartY + 42);
+      ctx.fillText(label, chartX + hour / 23 * chartWidth, chartY + 50);
     });
 
     ctx.textAlign = "left";

@@ -25,15 +25,17 @@
       ]
     },
     sport: {
-      label: "Sport & training",
-      description: "Choose a training or performance outcome only if it matters to you.",
+      label: "What matters to your performance?",
+      description: "Choose up to three areas. You do not need a PB, weight, pace or power number.",
       outcomes: [
-        { key: "sport_training_energy", name: "Training energy", prompt: "Better training energy", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
-        { key: "sport_recovery", name: "Recovery quality", prompt: "Better recovery", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
-        { key: "running_5k", name: "5K time", prompt: "Faster running or race times", unit: "time", measurementType: "duration_seconds", direction: "lower", sportType: "running" },
-        { key: "strength_max", name: "Maximum strength test", prompt: "Improved strength", unit: "kg", measurementType: "number", direction: "higher", sportType: "strength" },
-        { key: "sport_endurance", name: "Endurance", prompt: "Improved endurance", unit: "/ 10", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 10 },
-        { key: "football_yoyo", name: "Yo-Yo test", prompt: "Improved fitness test performance", unit: "level", measurementType: "number", direction: "higher", sportType: "football" }
+        { key: "performance_5k", name: "Improve my 5K", prompt: "Improve my 5K", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "running", valueMin: 1, valueMax: 5 },
+        { key: "performance_endurance", name: "Build endurance", prompt: "Build endurance", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "endurance", valueMin: 1, valueMax: 5 },
+        { key: "performance_strength", name: "Improve strength", prompt: "Improve strength", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "strength", valueMin: 1, valueMax: 5 },
+        { key: "performance_swim", name: "Improve swimming", prompt: "Improve swimming", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "swimming", valueMin: 1, valueMax: 5 },
+        { key: "performance_cycling", name: "Improve cycling", prompt: "Improve cycling", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "cycling", valueMin: 1, valueMax: 5 },
+        { key: "performance_recovery", name: "Improve recovery", prompt: "Improve recovery", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "recovery", valueMin: 1, valueMax: 5 },
+        { key: "performance_consistency", name: "Build training consistency", prompt: "Build training consistency", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "general", valueMin: 1, valueMax: 5 },
+        { key: "performance_match_fitness", name: "Improve match fitness", prompt: "Improve match fitness", unit: "/ 5", measurementType: "number", direction: "higher", sportType: "team_sport", valueMin: 1, valueMax: 5 }
       ]
     }
   };
@@ -326,13 +328,14 @@
   }
 
   function subjectiveMetric(metric) {
-    return metric?.measurement_type === "number" && metric?.unit === "/ 10";
+    return metric?.measurement_type === "number" && ["/ 5", "/ 10"].includes(metric?.unit);
   }
 
   function ratingReadout(metric, value) {
     if (!subjectiveMetric(metric) || !Number.isFinite(Number(value))) return formatMetricValue(metric, value);
-    const rating = Math.max(1, Math.min(10, Math.round(Number(value))));
-    return `<span class="reflection-rating-readout" aria-label="${rating} out of 10"><i aria-hidden="true">${"★".repeat(rating)}${"☆".repeat(10 - rating)}</i><b>${rating}/10</b></span>`;
+    const maximum = metric?.unit === "/ 5" ? 5 : 10;
+    const rating = Math.max(1, Math.min(maximum, Math.round(Number(value))));
+    return `<span class="reflection-rating-readout" aria-label="${rating} out of ${maximum}"><i aria-hidden="true">${"★".repeat(rating)}${"☆".repeat(maximum - rating)}</i><b>${rating}/${maximum}</b></span>`;
   }
 
   function comparisonCard(metric, { editorPreview = false, showManage = true } = {}) {
@@ -424,8 +427,8 @@
     return `
       <section class="reflection-empty-state" aria-labelledby="reflectionEmptyHeading">
         <span>Your starting point</span>
-        <h2 id="reflectionEmptyHeading">Start your Performance Reflection</h2>
-        <p>Choose an athletic outcome that matters to you, then record a performance-specific baseline.</p>
+        <h2 id="reflectionEmptyHeading">What matters to your performance?</h2>
+        <p>Choose an area that matters, then record how close you feel to it today on the same simple 1–5 scale as Everyday Reflection.</p>
         <button type="button" class="primary" data-reflection-open-chooser>Set performance baseline</button>
       </section>`;
   }
@@ -476,7 +479,7 @@
     const metrics = activeMetrics();
     const activeKeys = new Set(metrics.map(metric => metric.preset_key).filter(Boolean));
     return `
-      <div class="reflection-editor-intro"><span>Performance starting point</span><h2>Choose what matters</h2><p>Choose a sport or training outcome that is meaningful and repeatable for you. You can track up to three.</p></div>
+      <div class="reflection-editor-intro"><span>Performance starting point</span><h2>What matters to your performance?</h2><p>Choose a sport or training area that is meaningful to you. You can track up to three without entering a PB, weight, pace or power value.</p></div>
       ${Object.entries(OUTCOME_GROUPS).filter(([key]) => key === "sport").map(([key, group]) => `<section class="reflection-choice-group"><div><h3>${escape(group.label)}</h3><p>${escape(group.description)}</p></div><div>${group.outcomes.map(outcome => `<button type="button" data-reflection-outcome="${escape(outcome.key)}" data-reflection-group="${escape(key)}"${metrics.length >= 3 || activeKeys.has(outcome.key) ? " disabled" : ""}><strong>${escape(outcome.prompt)}</strong><span>${escape(outcome.name)} · ${escape(outcome.unit)}</span></button>`).join("")}</div></section>`).join("")}
       <button type="button" class="secondary reflection-custom-action" data-reflection-custom-outcome${metrics.length >= 3 ? " disabled" : ""}>Create a custom outcome</button>
       ${metrics.length >= 3 ? `<p class="reflection-editor-note">You already have three active reflections. Use a card’s menu to change or delete one.</p>` : ""}`;
@@ -484,23 +487,18 @@
 
   function customMetricMarkup() {
     const preset = outcomeByKey(impactState.editor?.presetKey);
-    const direction = preset?.direction || "higher";
     return `
-      <div class="reflection-editor-intro"><span>Your starting point</span><h2>${preset?.requiresTarget ? "Set your target range" : "Create your outcome"}</h2><p>${preset?.requiresTarget ? "Define the range that represents your own intention; Fuel Guard will not assume whether higher or lower is better." : "Use a measure that is meaningful and repeatable for you."}</p></div>
-      <div class="reflection-editor-form two-column">
-        <label>Outcome name<input id="reflectionCustomName" type="text" maxlength="100" value="${escape(preset?.name || "")}" placeholder="e.g. Body weight"></label>
-        <label>Unit<input id="reflectionCustomUnit" type="text" maxlength="24" value="${escape(preset?.unit || "")}" placeholder="e.g. kg, / 10, sec"></label>
-        <label>Result format<select id="reflectionCustomMeasurement"><option value="number"${preset?.measurementType === "duration_seconds" ? "" : " selected"}>Number</option><option value="duration_seconds"${preset?.measurementType === "duration_seconds" ? " selected" : ""}>Time (mm:ss or h:mm:ss)</option></select></label>
-        <label>Better means<select id="reflectionCustomDirection"><option value="higher"${direction === "higher" ? " selected" : ""}>Higher</option><option value="lower"${direction === "lower" ? " selected" : ""}>Lower</option><option value="target_range"${direction === "target_range" ? " selected" : ""}>Within a target range</option></select></label>
-        <label data-reflection-target${direction === "target_range" ? "" : " hidden"}>Target minimum<input id="reflectionCustomTargetMin" type="number" step="any" inputmode="decimal"></label>
-        <label data-reflection-target${direction === "target_range" ? "" : " hidden"}>Target maximum<input id="reflectionCustomTargetMax" type="number" step="any" inputmode="decimal"></label>
+      <div class="reflection-editor-intro"><span>Your starting point</span><h2>Create your performance area</h2><p>Name what matters. Fuel Guard will use the same 1–5 perceived-progress scale as the preset areas.</p></div>
+      <div class="reflection-editor-form">
+        <label>Performance area<input id="reflectionCustomName" type="text" maxlength="100" value="${escape(preset?.name || "")}" placeholder="e.g. Feel stronger late in races"></label>
       </div>
       <button type="button" class="primary" data-reflection-save-custom>Continue to baseline</button>`;
   }
 
   function ratingScaleMarkup(metric, value) {
     const selected = Number.isFinite(Number(value)) ? Math.round(Number(value)) : 0;
-    return `<fieldset class="reflection-rating-scale"><legend>${escape(metric.name)}</legend><input id="reflectionEditorValue" type="hidden" value="${selected || ""}"><div role="group" aria-label="Rate ${escape(metric.name)} from 1 to 10">${Array.from({ length: 10 }, (_, index) => index + 1).map(rating => `<button type="button" class="${rating <= selected ? "selected" : ""}" data-reflection-rating="${rating}" aria-label="${rating} out of 10" aria-pressed="${rating === selected ? "true" : "false"}"><span aria-hidden="true">★</span><small>${rating}</small></button>`).join("")}</div><p>Tap one position. 1 is lowest; 10 is highest.</p></fieldset>`;
+    const maximum = metric?.unit === "/ 5" ? 5 : 10;
+    return `<fieldset class="reflection-rating-scale"><legend>How close do you feel to ${escape(metric.name)}?</legend><input id="reflectionEditorValue" type="hidden" value="${selected || ""}"><div role="group" aria-label="Rate how close you feel from 1 to ${maximum}">${Array.from({ length: maximum }, (_, index) => index + 1).map(rating => `<button type="button" class="${rating <= selected ? "selected" : ""}" data-reflection-rating="${rating}" aria-label="${rating} out of ${maximum}" aria-pressed="${rating === selected ? "true" : "false"}"><span aria-hidden="true">★</span><small>${rating}</small></button>`).join("")}</div><p>${maximum === 5 ? "1 is not close yet; 5 is very close." : `Tap one position. 1 is lowest; ${maximum} is highest.`}</p></fieldset>`;
   }
 
   function editorValueMarkup(metric, role) {
@@ -510,7 +508,7 @@
     const isBaseline = role === "baseline";
     const value = existing ? (metric.measurement_type === "duration_seconds" ? durationValue(existing.value) : existing.value) : "";
     return `
-      <div class="reflection-editor-intro"><span>${isBaseline ? "Your starting point" : "Current check-in"}</span><h2>${isBaseline ? "Where are you currently?" : "How are things going now?"}</h2><p>${escape(metric.name)} · ${escape(metric.unit)} · recorded for today</p></div>
+      <div class="reflection-editor-intro"><span>${isBaseline ? "Your starting point" : "Current check-in"}</span><h2>${subjectiveMetric(metric) ? `How close do you feel to ${escape(metric.name)}?` : isBaseline ? "Where are you currently?" : "How are things going now?"}</h2><p>${escape(metric.name)} · ${escape(metric.unit)} · recorded for today</p></div>
       <div class="reflection-editor-form">
         ${subjectiveMetric(metric) ? ratingScaleMarkup(metric, value) : `<label>${isBaseline ? "Baseline" : "Current"} value<input id="reflectionEditorValue" type="text" inputmode="decimal" value="${escape(value)}" placeholder="${metric.measurement_type === "duration_seconds" ? "mm:ss" : `Value ${escape(metric.unit)}`}"></label>`}
       </div>
@@ -692,15 +690,17 @@
     const observedOn = domain().validDateKey(existing?.observed_on || domain().dateKey(new Date()));
     const value = parseMetricValue(metric, document.getElementById("reflectionEditorValue")?.value);
     if (!client?.from || !user?.id || !metric || !observedOn || value === null) {
-      impactState.message = metric?.measurement_type === "duration_seconds" ? "Enter a valid time such as 27:51." : subjectiveMetric(metric) ? "Choose a rating from 1 to 10." : "Enter a valid value.";
+      impactState.message = metric?.measurement_type === "duration_seconds" ? "Enter a valid time such as 27:51." : subjectiveMetric(metric) ? `Choose a rating from 1 to ${metric.unit === "/ 5" ? 5 : 10}.` : "Enter a valid value.";
       render();
       return;
     }
     const preset = outcomeByKey(metric.preset_key);
-    if ((Number.isFinite(preset?.valueMin) && value < preset.valueMin) || (Number.isFinite(preset?.valueMax) && value > preset.valueMax)) {
-      impactState.message = Number.isFinite(preset?.valueMax)
-        ? `Enter a value between ${preset.valueMin} and ${preset.valueMax}.`
-        : `Enter a value of ${preset.valueMin} or more.`;
+    const valueMin = Number.isFinite(preset?.valueMin) ? preset.valueMin : metric.unit === "/ 5" ? 1 : null;
+    const valueMax = Number.isFinite(preset?.valueMax) ? preset.valueMax : metric.unit === "/ 5" ? 5 : null;
+    if ((Number.isFinite(valueMin) && value < valueMin) || (Number.isFinite(valueMax) && value > valueMax)) {
+      impactState.message = Number.isFinite(valueMax)
+        ? `Enter a value between ${valueMin} and ${valueMax}.`
+        : `Enter a value of ${valueMin} or more.`;
       render();
       return;
     }
@@ -782,17 +782,14 @@
 
   function customOutcomeFromEditor() {
     const preset = outcomeByKey(impactState.editor?.presetKey);
-    const direction = document.getElementById("reflectionCustomDirection")?.value || "higher";
-    const targetMinText = String(document.getElementById("reflectionCustomTargetMin")?.value || "").trim();
-    const targetMaxText = String(document.getElementById("reflectionCustomTargetMax")?.value || "").trim();
     return {
       key: preset?.key || null,
       name: String(document.getElementById("reflectionCustomName")?.value || "").trim(),
-      unit: String(document.getElementById("reflectionCustomUnit")?.value || "").trim(),
-      measurementType: document.getElementById("reflectionCustomMeasurement")?.value || "number",
-      direction,
-      targetMin: targetMinText ? Number(targetMinText) : NaN,
-      targetMax: targetMaxText ? Number(targetMaxText) : NaN,
+      unit: "/ 5",
+      measurementType: "number",
+      direction: "higher",
+      valueMin: 1,
+      valueMax: 5,
       sportType: preset?.sportType || "custom"
     };
   }
@@ -849,8 +846,8 @@
     }
     if (event.target.closest("[data-reflection-save-custom]")) {
       const custom = customOutcomeFromEditor();
-      if (!custom.name || !custom.unit || (custom.direction === "target_range" && (!Number.isFinite(custom.targetMin) || !Number.isFinite(custom.targetMax) || custom.targetMin > custom.targetMax))) {
-        impactState.message = "Complete the outcome name, unit and any target range.";
+      if (!custom.name) {
+        impactState.message = "Name the performance area you want to reflect on.";
         render();
       } else saveMetric(custom);
       return;
