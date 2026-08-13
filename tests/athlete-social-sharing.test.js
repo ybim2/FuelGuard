@@ -15,10 +15,11 @@ function log(timestamp, type = "fuel", extra = {}) {
 
 function canvasFixture() {
   const text = [];
+  const images = [];
   const gradient = () => ({ addColorStop() {} });
   const context = {
     beginPath() {}, moveTo() {}, arcTo() {}, closePath() {}, fill() {}, stroke() {},
-    fillRect() {}, arc() {}, lineTo() {}, save() {}, restore() {},
+    fillRect() {}, arc() {}, lineTo() {}, save() {}, restore() {}, drawImage(value) { images.push(value); },
     createLinearGradient: gradient,
     createRadialGradient: gradient,
     measureText(value) { return { width: String(value).length * 16 }; },
@@ -26,7 +27,8 @@ function canvasFixture() {
   };
   return {
     canvas: { width: 0, height: 0, getContext: () => context },
-    text
+    text,
+    images
   };
 }
 
@@ -125,10 +127,11 @@ test("Daily Story renderer is an exact 9:16 export with concise Fuel Guard conte
   assert.ok(fixture.text.includes("FUEL GUARD"));
   assert.ok(fixture.text.includes("DAILY RHYTHM"));
   assert.ok(fixture.text.includes("FUELGUARDAPP.COM"));
+  assert.ok(fixture.text.includes("@fuelguardapp"));
   assert.ok(fixture.text.includes("DAY STREAK"));
   assert.ok(fixture.text.includes("FUEL STREAK"));
   assert.ok(fixture.text.includes("HYDRATION STREAK"));
-  assert.equal(fixture.text.some(value => /@|user[_ -]?id|organisation/i.test(value)), false);
+  assert.equal(fixture.text.some(value => /user[_ -]?id|organisation/i.test(value)), false);
 });
 
 test("Story renderer exposes a reusable template registry for Daily and four Settings cards", () => {
@@ -170,7 +173,8 @@ test("Analytics Story renders the accepted 1080 by 1920 card without account ide
   assert.equal(canvas.width / canvas.height, 9 / 16);
   assert.ok(fixture.text.includes("ATHLETE ANALYTICS"));
   assert.ok(fixture.text.includes("FUELGUARDAPP.COM"));
-  assert.equal(fixture.text.some(value => /@|user[_ -]?id|organisation|organization/i.test(value)), false);
+  assert.ok(fixture.text.includes("@fuelguardapp"));
+  assert.equal(fixture.text.some(value => /user[_ -]?id|organisation|organization/i.test(value)), false);
 });
 
 test("Settings share models use actual Daily, pre/post, during-workout and Sleepy records", () => {
@@ -198,7 +202,11 @@ test("Settings share models use actual Daily, pre/post, during-workout and Sleep
   ];
 
   const daily = shareCard.buildDailySummaryModel({ logs, now, domain });
+  assert.equal(daily.metrics.find(metric => metric.label === "First Fuel").value, domain.formatClock(new Date("2026-08-10T06:00:00Z")));
   assert.equal(daily.metrics.find(metric => metric.label === "Last Fuel").value, domain.formatClock(new Date("2026-08-10T09:30:00Z")));
+  assert.equal(daily.metrics.find(metric => metric.label === "Fuel logs").value, "4");
+  assert.equal(daily.metrics.find(metric => metric.label === "Avg. fuel gap").value, "1h 10m");
+  assert.equal(daily.metrics.find(metric => metric.label === "Hydration logs").value, "2");
   assert.equal(daily.metrics.find(metric => metric.label === "Last Hydration").value, domain.formatClock(new Date("2026-08-10T09:40:00Z")));
 
   const prePost = shareCard.buildPrePostWorkoutModel({ logs, sessions: [session], domain });
@@ -206,8 +214,11 @@ test("Settings share models use actual Daily, pre/post, during-workout and Sleep
   assert.deepEqual(prePost.metrics.map(metric => metric.value), ["30m before", "30m after"]);
 
   const during = shareCard.buildDuringWorkoutModel({ logs, sessions: [session], domain });
-  assert.deepEqual(during.metrics.map(metric => metric.value), ["30g", "250ml", "300mg", "40mg"]);
-  assert.match(during.note, /Actual 30g carbohydrate · Planned 60g/);
+  assert.deepEqual(during.metrics.map(metric => metric.value), ["30g", "300mg", "250ml", "40mg"]);
+  assert.ok(during.metrics.every(metric => metric.visualization === "relative-bar"));
+  assert.ok(during.metrics.every(metric => metric.barRatio > 0 && metric.barRatio < 1));
+  assert.match(during.note, /Recorded 30g carbohydrate · Planned 60g/);
+  assert.match(during.note, /not targets/);
 
   const sleepy = shareCard.buildSleepinessModel({ logs, now: new Date("2026-08-10T18:00:00Z"), domain });
   assert.equal(sleepy.headline, "2 SLEEPY EVENTS");
@@ -215,7 +226,7 @@ test("Settings share models use actual Daily, pre/post, during-workout and Sleep
   assert.match(sleepy.note, /not a causal or medical conclusion/);
 });
 
-test("all Settings share cards export at 9:16 without account or organisation identifiers", () => {
+test("all Settings share cards export at 9:16 with canonical brand and handle, without private identifiers", () => {
   for (const template of [
     shareCard.DAILY_SUMMARY_TEMPLATE,
     shareCard.PRE_POST_TEMPLATE,
@@ -224,10 +235,31 @@ test("all Settings share cards export at 9:16 without account or organisation id
   ]) {
     const fixture = canvasFixture();
     const model = shareCard.buildSummaryModel(template, { logs: [], sessions: [], now: new Date("2026-08-10T18:00:00Z"), domain });
-    const canvas = shareCard.renderTemplate(template, model, { canvasFactory: () => fixture.canvas });
+    const brandImage = { canonical: true };
+    const canvas = shareCard.renderTemplate(template, model, { canvasFactory: () => fixture.canvas, brandImage });
     assert.deepEqual([canvas.width, canvas.height], [1080, 1920]);
-    assert.equal(fixture.text.some(value => /@|user[_ -]?id|organisation|organization/i.test(value)), false);
+    assert.ok(fixture.text.includes("@fuelguardapp"));
+    assert.equal(fixture.images[0], brandImage);
+    assert.equal(fixture.text.some(value => /user[_ -]?id|organisation|organization/i.test(value)), false);
   }
+});
+
+test("Daily summary handles zero, one and multiple Fuel-event gap states without fabrication", () => {
+  const now = new Date("2026-08-10T18:00:00Z");
+  const empty = shareCard.buildDailySummaryModel({ logs: [], now, domain });
+  assert.deepEqual(empty.metrics.slice(0, 4).map(metric => metric.value), ["—", "—", "0", "—"]);
+
+  const one = shareCard.buildDailySummaryModel({ logs: [log("2026-08-10T07:42:00Z")], now, domain });
+  assert.equal(one.metrics.find(metric => metric.label === "First Fuel").value, domain.formatClock(new Date("2026-08-10T07:42:00Z")));
+  assert.equal(one.metrics.find(metric => metric.label === "Last Fuel").value, domain.formatClock(new Date("2026-08-10T07:42:00Z")));
+  assert.equal(one.metrics.find(metric => metric.label === "Avg. fuel gap").value, "—");
+
+  const multiple = shareCard.buildDailySummaryModel({ logs: [
+    log("2026-08-10T07:00:00Z"),
+    log("2026-08-10T09:00:00Z"),
+    log("2026-08-10T12:00:00Z")
+  ], now, domain });
+  assert.equal(multiple.metrics.find(metric => metric.label === "Avg. fuel gap").value, "2h 30m");
 });
 
 test("Settings exposes four intentional cards with native share and explicit save fallback", () => {
@@ -240,7 +272,12 @@ test("Settings exposes four intentional cards with native share and explicit sav
   assert.match(html, /Pre\/Post Workout Fuelling/);
   assert.match(html, /During-Workout Fuelling/);
   assert.match(html, /Sleepiness/);
+  assert.match(html, /role="dialog" aria-modal="true"/);
+  assert.match(html, /Share your Fuel Guard day and tag <strong>@fuelguardapp<\/strong>/);
+  assert.match(html, /This preview is the exact 1080 × 1920 image/);
   assert.match(controller, /shareSelectedStory/);
+  assert.match(controller, /openSettingsPreview\(model\.title\)/);
+  assert.match(controller, /event\.key === "Escape"/);
   assert.match(controller, /Native image sharing is unavailable, so the card was saved instead/);
   assert.match(controller, /Your account changed\. Choose a share card again/);
 });

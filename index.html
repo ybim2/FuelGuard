@@ -14,19 +14,19 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="work-mode.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="athlete-everyday-reflection.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="athlete-analytics.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="athlete-tools.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="athlete-share.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="brand/fuel-guard-brand.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="fuel-auth.css?v=mobile-pwa-v145-auth-onboarding" />
-  <link rel="stylesheet" href="garmin-onboarding.css?v=mobile-pwa-v145-auth-onboarding" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="work-mode.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="athlete-everyday-reflection.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="athlete-analytics.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="athlete-tools.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="athlete-share.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="brand/fuel-guard-brand.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="fuel-auth.css?v=mobile-pwa-v146-social-share-preview" />
+  <link rel="stylesheet" href="garmin-onboarding.css?v=mobile-pwa-v146-social-share-preview" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -347,18 +347,31 @@
           <div class="section-heading-row">
             <div><h2>Share Fuel Guard</h2><p class="muted">Create a designed story from your Athlete records. Fuel Guard never adds your email, account ID or organisation details.</p></div>
           </div>
+          <p class="athlete-share-invitation">Share your Fuel Guard day and tag <strong>@fuelguardapp</strong>.</p>
           <div class="athlete-share-option-grid" role="group" aria-label="Fuel Guard share cards">
-            <button type="button" data-athlete-share-template="daily-summary"><strong>Daily Fuel + Hydration</strong><span>Latest moments, elapsed time and current rhythm.</span></button>
-            <button type="button" data-athlete-share-template="pre-post-workout"><strong>Pre/Post Workout Fuelling</strong><span>Fuel timing around your latest completed session.</span></button>
-            <button type="button" data-athlete-share-template="during-workout"><strong>During-Workout Fuelling</strong><span>Recorded carbs, fluid, sodium and caffeine.</span></button>
-            <button type="button" data-athlete-share-template="sleepiness"><strong>Sleepiness</strong><span>Your recorded Sleepy pattern without invented conclusions.</span></button>
+            <button type="button" data-athlete-share-template="daily-summary"><span class="athlete-share-option-art" data-share-art="daily" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="athlete-share-option-copy"><strong>Daily Fuel + Hydration</strong><span>Share your fuelling rhythm for the day.</span></span><b aria-hidden="true">Preview ›</b></button>
+            <button type="button" data-athlete-share-template="pre-post-workout"><span class="athlete-share-option-art" data-share-art="timing" aria-hidden="true"><i></i><i></i><i></i></span><span class="athlete-share-option-copy"><strong>Pre/Post Workout Fuelling</strong><span>Share Fuel timing around your latest completed session.</span></span><b aria-hidden="true">Preview ›</b></button>
+            <button type="button" data-athlete-share-template="during-workout"><span class="athlete-share-option-art" data-share-art="workout" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="athlete-share-option-copy"><strong>During-Workout Fuelling</strong><span>Share how you fuelled your training session.</span></span><b aria-hidden="true">Preview ›</b></button>
+            <button type="button" data-athlete-share-template="sleepiness"><span class="athlete-share-option-art" data-share-art="sleepy" aria-hidden="true"><i></i><i></i><i></i></span><span class="athlete-share-option-copy"><strong>Sleepiness</strong><span>Share your recorded Sleepy pattern without invented conclusions.</span></span><b aria-hidden="true">Preview ›</b></button>
           </div>
-          <div id="athleteSharePreview" class="athlete-share-preview" hidden>
-            <canvas id="athleteSharePreviewCanvas" width="1080" height="1920" aria-label="Fuel Guard share-card preview"></canvas>
-            <div class="button-row beta-settings-actions">
-              <button id="athleteShareSelectedButton" class="primary" type="button">Share this card</button>
-              <button id="athleteShareDownloadButton" class="secondary" type="button">Save image</button>
-            </div>
+          <div id="athleteSharePreview" class="athlete-share-preview" role="dialog" aria-modal="true" aria-labelledby="athleteSharePreviewTitle" hidden>
+            <button id="athleteSharePreviewBackdrop" class="athlete-share-preview-backdrop" type="button" aria-label="Close share preview"></button>
+            <section class="athlete-share-preview-sheet">
+              <header class="athlete-share-preview-header">
+                <div><span>Your draft</span><h3 id="athleteSharePreviewTitle">Fuel Guard story</h3></div>
+                <button id="athleteSharePreviewClose" class="athlete-share-preview-close" type="button" aria-label="Close share preview">×</button>
+              </header>
+              <div class="athlete-share-preview-stage">
+                <canvas id="athleteSharePreviewCanvas" width="1080" height="1920" aria-label="Fuel Guard share-card preview"></canvas>
+              </div>
+              <p class="athlete-share-preview-note">This preview is the exact 1080 × 1920 image that will be shared or saved.</p>
+              <div class="button-row beta-settings-actions athlete-share-preview-actions">
+                <button id="athleteShareSelectedButton" class="primary" type="button">Share</button>
+                <button id="athleteShareDownloadButton" class="secondary" type="button">Save image</button>
+                <button id="athleteSharePreviewBack" class="secondary" type="button">Back</button>
+              </div>
+              <p id="athleteSharePreviewStatus" class="row-note" role="status" aria-live="polite"></p>
+            </section>
           </div>
           <p id="athleteShareSettingsStatus" class="row-note" role="status" aria-live="polite"></p>
         </article>
@@ -476,7 +489,7 @@
 
         <div class="beta-version-marker beta-settings-footer" data-settings-category="support" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v145-auth-onboarding</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v146-social-share-preview</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -525,34 +538,34 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v145-auth-onboarding"></script>
+  <script src="build-info.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v146-social-share-preview"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="app-state.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="fuel-auth.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="product-shell.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="garmin-onboarding.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="app-ui.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="logging-feedback.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="training-mode.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="work-mode.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-everyday-reflection.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-impact.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-analytics.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-tools.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-share-card.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-share.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="athlete-retention.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="settings-navigation.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v145-auth-onboarding"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v145-auth-onboarding"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="app-state.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="fuel-auth.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="product-shell.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="garmin-onboarding.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="app-ui.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="logging-feedback.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="training-mode.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="work-mode.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-everyday-reflection.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-impact.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-analytics.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-tools.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-share-card.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-share.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="athlete-retention.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="settings-navigation.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v146-social-share-preview"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v146-social-share-preview"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@
   let selectedTemplate = "";
   let selectedRendered = null;
   let selectedIdentity = "";
+  let previewReturnFocus = null;
 
   function cloudUserId() {
     return String(window.fuelGuardCloud?.user?.id || "");
@@ -90,6 +91,33 @@
   function settingsStatus(message = "") {
     const status = document.getElementById("athleteShareSettingsStatus");
     if (status) status.textContent = message;
+    const previewStatus = document.getElementById("athleteSharePreviewStatus");
+    if (previewStatus) previewStatus.textContent = message;
+  }
+
+  function previewIsOpen() {
+    const panel = document.getElementById("athleteSharePreview");
+    return Boolean(panel && !panel.hidden);
+  }
+
+  function openSettingsPreview(title = "Fuel Guard story") {
+    const panel = document.getElementById("athleteSharePreview");
+    if (!panel) return;
+    previewReturnFocus = document.activeElement;
+    const heading = document.getElementById("athleteSharePreviewTitle");
+    if (heading) heading.textContent = title;
+    panel.hidden = false;
+    document.body?.classList?.add("share-preview-open");
+    window.requestAnimationFrame?.(() => document.getElementById("athleteSharePreviewClose")?.focus());
+  }
+
+  function closeSettingsPreview({ restoreFocus = true } = {}) {
+    const panel = document.getElementById("athleteSharePreview");
+    if (!panel || panel.hidden) return;
+    panel.hidden = true;
+    document.body?.classList?.remove("share-preview-open");
+    if (restoreFocus && typeof previewReturnFocus?.focus === "function") previewReturnFocus.focus();
+    previewReturnFocus = null;
   }
 
   function summaryData(now = new Date()) {
@@ -122,7 +150,7 @@
       preview.height = canvas.height;
       preview.getContext("2d").drawImage(canvas, 0, 0);
     }
-    if (panel) panel.hidden = false;
+    openSettingsPreview(model.title);
     document.querySelectorAll("[data-athlete-share-template]").forEach(button => {
       button.classList.toggle("selected", button.dataset.athleteShareTemplate === template);
     });
@@ -286,6 +314,7 @@
     setStatus("");
     settingsStatus("");
     setAnalyticsStatus("");
+    closeSettingsPreview({ restoreFocus: false });
     const preview = document.getElementById("athleteSharePreview");
     if (preview) preview.hidden = true;
   }
@@ -302,6 +331,12 @@
     }));
     document.getElementById("athleteShareSelectedButton")?.addEventListener("click", () => shareSelectedStory());
     document.getElementById("athleteShareDownloadButton")?.addEventListener("click", () => shareSelectedStory({ downloadOnly: true }));
+    ["athleteSharePreviewClose", "athleteSharePreviewBack", "athleteSharePreviewBackdrop"].forEach(id => {
+      document.getElementById(id)?.addEventListener("click", () => closeSettingsPreview());
+    });
+    document.addEventListener?.("keydown", event => {
+      if (event.key === "Escape" && previewIsOpen()) closeSettingsPreview();
+    });
     window.addEventListener("fuelguard:cloud-status", resetForCurrentIdentity);
     window.addEventListener("pageshow", resetForCurrentIdentity);
   }
@@ -312,7 +347,7 @@
     renderSettingsStory,
     shareSelectedStory,
     shareAnalyticsStory,
-    _test: Object.freeze({ dailyModel, summaryData, summaryFilename, storyBlob, dataUrlToBlob, resetForCurrentIdentity })
+    _test: Object.freeze({ dailyModel, summaryData, summaryFilename, storyBlob, dataUrlToBlob, resetForCurrentIdentity, openSettingsPreview, closeSettingsPreview, previewIsOpen })
   });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });

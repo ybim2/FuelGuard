@@ -63,7 +63,18 @@ body.beta-mvp .athlete-daily-share-status {
 }
 
 body.beta-mvp .athlete-social-settings {
-  overflow: hidden;
+  overflow: visible;
+}
+
+body.beta-mvp .athlete-share-invitation {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+body.beta-mvp .athlete-share-invitation strong {
+  color: var(--text);
 }
 
 body.beta-mvp .athlete-share-option-grid {
@@ -73,55 +84,256 @@ body.beta-mvp .athlete-share-option-grid {
 }
 
 body.beta-mvp .athlete-share-option-grid button {
+  position: relative;
   display: grid;
-  align-content: start;
-  gap: 6px;
+  grid-template-columns: 66px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
   min-width: 0;
-  min-height: 104px;
-  padding: 14px;
+  min-height: 126px;
+  padding: 13px;
   border: 1px solid rgba(var(--fg-brand-dark-rgb), 0.13);
   border-radius: 16px;
   background: rgba(246, 249, 244, 0.9);
   color: var(--text);
   text-align: left;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+body.beta-mvp .athlete-share-option-grid button:hover,
+body.beta-mvp .athlete-share-option-grid button:focus-visible {
+  border-color: rgba(var(--fg-fuel-rgb), 0.5);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(var(--fg-brand-dark-rgb), 0.08);
+  transform: translateY(-2px);
+}
+
+body.beta-mvp .athlete-share-option-grid button:active {
+  transform: scale(0.985);
 }
 
 body.beta-mvp .athlete-share-option-grid button.selected {
   border-color: rgba(var(--fg-fuel-rgb), 0.55);
-  box-shadow: inset 0 0 0 2px rgba(var(--fg-fuel-rgb), 0.13);
+  box-shadow: inset 0 0 0 2px rgba(var(--fg-fuel-rgb), 0.13), 0 10px 24px rgba(var(--fg-brand-dark-rgb), 0.08);
 }
 
-body.beta-mvp .athlete-share-option-grid strong {
+body.beta-mvp .athlete-share-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+body.beta-mvp .athlete-share-option-copy strong {
   font-size: 0.84rem;
   line-height: 1.25;
 }
 
-body.beta-mvp .athlete-share-option-grid span {
+body.beta-mvp .athlete-share-option-copy > span {
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.4;
 }
 
+body.beta-mvp .athlete-share-option-grid button > b {
+  position: absolute;
+  right: 13px;
+  bottom: 10px;
+  color: rgba(var(--fg-brand-dark-rgb), 0.58);
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+
+body.beta-mvp .athlete-share-option-art {
+  position: relative;
+  width: 66px;
+  height: 94px;
+  overflow: hidden;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #07130f, #163f32);
+  box-shadow: 0 8px 18px rgba(var(--fg-brand-dark-rgb), 0.18);
+}
+
+body.beta-mvp .athlete-share-option-art::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #050505 url("brand/fuel-guard-mark-64.png") center / contain no-repeat;
+}
+
+body.beta-mvp .athlete-share-option-art i {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  height: 6px;
+  border-radius: 999px;
+  background: #b9ff66;
+}
+
+body.beta-mvp .athlete-share-option-art i:nth-child(1) { top: 38px; right: 18px; }
+body.beta-mvp .athlete-share-option-art i:nth-child(2) { top: 50px; right: 28px; background: #65c8ff; }
+body.beta-mvp .athlete-share-option-art i:nth-child(3) { top: 62px; right: 14px; background: rgba(255,255,255,.68); }
+body.beta-mvp .athlete-share-option-art i:nth-child(4) { top: 74px; right: 34px; background: #c2baff; }
+
+body.beta-mvp .athlete-share-option-art[data-share-art="timing"] i {
+  left: 29px;
+  right: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+body.beta-mvp .athlete-share-option-art[data-share-art="timing"]::after {
+  content: "";
+  position: absolute;
+  top: 38px;
+  bottom: 18px;
+  left: 32px;
+  width: 2px;
+  background: rgba(255,255,255,.3);
+}
+
+body.beta-mvp .athlete-share-option-art[data-share-art="sleepy"] i {
+  left: auto;
+  right: 12px;
+  width: 23px;
+  height: 23px;
+  border: 3px solid #c2baff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  background: transparent;
+}
+
 body.beta-mvp .athlete-share-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 980;
   display: grid;
-  justify-items: center;
-  gap: 12px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(var(--fg-brand-dark-rgb), 0.1);
+  align-items: end;
+  justify-items: stretch;
+  padding: 0;
 }
 
 body.beta-mvp .athlete-share-preview[hidden] {
   display: none !important;
 }
 
+body.beta-mvp .athlete-share-preview-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(2, 8, 5, 0.68);
+  backdrop-filter: blur(5px);
+}
+
+body.beta-mvp .athlete-share-preview-sheet {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: 10px;
+  width: min(100%, 560px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 8px);
+  margin: 0 auto;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overflow: hidden;
+  border-radius: 24px 24px 0 0;
+  background: #f8faf7;
+  box-shadow: 0 -24px 64px rgba(0, 0, 0, 0.36);
+}
+
+body.beta-mvp .athlete-share-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.beta-mvp .athlete-share-preview-header span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.beta-mvp .athlete-share-preview-header h3 {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+body.beta-mvp .athlete-share-preview-close {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  padding: 0;
+  border: 1px solid rgba(var(--fg-brand-dark-rgb), 0.12);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+body.beta-mvp .athlete-share-preview-stage {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #07130f;
+}
+
 body.beta-mvp .athlete-share-preview canvas {
   display: block;
-  width: min(100%, 240px);
+  width: auto;
+  max-width: 100%;
+  max-height: min(61dvh, 670px);
   height: auto;
   aspect-ratio: 9 / 16;
-  border-radius: 18px;
-  box-shadow: 0 16px 32px rgba(var(--fg-brand-dark-rgb), 0.2);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+
+body.beta-mvp .athlete-share-preview-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+body.beta-mvp .athlete-share-preview-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr auto;
+  gap: 8px;
+}
+
+body.beta-mvp .athlete-share-preview-actions button {
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding-inline: 12px;
+}
+
+body.beta-mvp .athlete-share-preview #athleteSharePreviewStatus {
+  min-height: 1em;
+  margin: 0;
+  text-align: center;
+}
+
+body.beta-mvp.share-preview-open {
+  overflow: hidden;
 }
 
 @media (max-width: 390px) {
@@ -131,5 +343,33 @@ body.beta-mvp .athlete-share-preview canvas {
 
   body.beta-mvp .athlete-share-option-grid {
     grid-template-columns: 1fr;
+  }
+
+  body.beta-mvp .athlete-share-preview-sheet {
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  body.beta-mvp .athlete-share-preview canvas {
+    max-height: 58dvh;
+  }
+
+  body.beta-mvp .athlete-share-preview-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  body.beta-mvp .athlete-share-preview-actions #athleteSharePreviewBack {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 700px) {
+  body.beta-mvp .athlete-share-preview {
+    align-items: center;
+    padding: 24px;
+  }
+
+  body.beta-mvp .athlete-share-preview-sheet {
+    border-radius: 24px;
   }
 }
