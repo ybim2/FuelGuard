@@ -205,6 +205,7 @@
   function friendlyError(error) {
     const message = String(error?.message || error || "Something went wrong.");
     if (/invalid login credentials/i.test(message)) return "Those login details did not work. Check the email and password, then try again.";
+    if (/provider.*not enabled|unsupported provider/i.test(message)) return "Google sign-in is not available yet. Use email or contact Fuel Guard support.";
     if (/email not confirmed|confirm/i.test(message)) return "Please confirm your email address before logging in.";
     if (/already registered|already exists|user already/i.test(message)) return "This coach account may already exist. Try logging in, or wait before requesting another email.";
     if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
@@ -2848,6 +2849,17 @@
     });
   }
 
+  async function signInWithGoogle() {
+    await withBusy($("coachGoogleButton"), async () => {
+      setStatus("Opening Google sign-in...");
+      const { error } = await state.client.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/coach/` }
+      });
+      if (error) throw error;
+    });
+  }
+
   async function signUp() {
     await withBusy($("coachSignUpButton"), async () => {
       const email = $("coachEmail")?.value?.trim();
@@ -3907,6 +3919,7 @@
       state.coachLoading = false;
       setStatus("Coach Beta needs Supabase public URL/key configuration.");
       renderAuth();
+      if ($("coachGoogleButton")) $("coachGoogleButton").disabled = true;
       return;
     }
 
@@ -4277,6 +4290,7 @@
   });
 
   $("coachSignInButton")?.addEventListener("click", signIn);
+  $("coachGoogleButton")?.addEventListener("click", signInWithGoogle);
   $("coachSignUpButton")?.addEventListener("click", signUp);
   $("coachForgotPasswordButton")?.addEventListener("click", forgotPassword);
   $("coachAccessSignOutButton")?.addEventListener("click", signOut);

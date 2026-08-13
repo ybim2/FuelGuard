@@ -57,8 +57,11 @@ test("Athlete feedback distinguishes micro action, training completion and miles
   const athlete = read("fuel-beta.js");
   const training = read("training-mode.js");
   const css = read("fuel-beta.css");
+  const feedback = read("logging-feedback.js");
   assert.match(html, /id="athleteActionFeedback"/);
-  assert.match(athlete, /showAthleteActionFeedback\(acknowledgement, normalizedType\)/);
+  assert.match(athlete, /FuelGuardLoggingFeedback\?\.confirm/);
+  assert.match(feedback, /persistenceSucceeded/);
+  assert.match(feedback, /Sleepy logged/);
   assert.match(athlete, /loggingAcknowledgement/);
   assert.doesNotMatch(athlete, /\+1 Fuel Momentum/);
   assert.match(css, /prefers-reduced-motion/);
@@ -98,7 +101,7 @@ test("Garmin success feedback requires acknowledgement and Training completion i
 });
 
 test("PWA app shell is versioned for the feedback release", () => {
-  assert.match(read("build-info.js"), /mobile-pwa-v144-canonical-logo/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v144-canonical-logo-20260813T212639Z/);
-  assert.match(read("index.html"), /Canonical app: mobile-pwa-v144-canonical-logo/);
+  assert.match(read("build-info.js"), /mobile-pwa-v145-auth-onboarding/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v145-auth-onboarding-20260813T215519Z/);
+  assert.match(read("index.html"), /Canonical app: mobile-pwa-v145-auth-onboarding/);
 });

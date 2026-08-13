@@ -1086,9 +1086,12 @@
     const timestamp = parseDate(loggedAt) || new Date();
     const normalizedType = String(type || "fuel");
     const before = logsWithDates(logsBefore).filter(log => log.date <= timestamp);
+    const isSleepy = normalizedType === "sleepy";
     const includesFuel = normalizedType === "fuel" || normalizedType === "fuel_hydration";
     const includesHydration = normalizedType === "hydration" || normalizedType === "fuel_hydration";
-    const headline = normalizedType === "fuel_hydration"
+    const headline = isSleepy
+      ? "Sleepy logged"
+      : normalizedType === "fuel_hydration"
       ? "Fuel + hydration logged"
       : includesHydration
         ? "Hydration logged"

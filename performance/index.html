@@ -8,7 +8,8 @@
   <title>Fuel Guard Performance</title>
   <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
   <link rel="stylesheet" href="performance.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v144-canonical-logo" />
+  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v145-auth-onboarding" />
+  <link rel="stylesheet" href="../fuel-auth.css?v=mobile-pwa-v145-auth-onboarding" />
 </head>
 <body>
   <header class="performance-topbar">
@@ -41,6 +42,8 @@
       <img class="brand-mark fuel-guard-mark" src="/brand/fuel-guard-mark-192.png" alt="" aria-hidden="true" />
       <h1>Fuel Guard Performance</h1>
       <p>Use your existing Fuel Guard account to continue. Athlete, Coach and Performance all use the same account.</p>
+      <button id="googleSignInButton" class="fuel-auth-google" type="button">Continue with Google</button>
+      <div class="fuel-auth-divider" aria-hidden="true">or</div>
       <div class="form-grid compact-form">
         <label>Email<input id="emailInput" type="email" autocomplete="email" placeholder="you@example.com" /></label>
         <label>Password<input id="passwordInput" type="password" autocomplete="current-password" placeholder="Password" /></label>

@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v144-canonical-logo";
-const BUILD_VERSION = "2026-08-13T21:26:39Z";
+const APP_VERSION = "mobile-pwa-v145-auth-onboarding";
+const BUILD_VERSION = "2026-08-13T21:55:19Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v144-canonical-logo-20260813T212639Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v145-auth-onboarding-20260813T215519Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -30,6 +30,8 @@ const APP_SHELL = [
   "./mobile-pwa.css",
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
+  "./fuel-auth.css",
+  "./garmin-onboarding.css",
   "./training-mode.css",
   "./work-mode.css",
   "./athlete-impact.css",
@@ -46,12 +48,15 @@ const APP_SHELL = [
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
+  "./fuel-auth.js",
   "./product-shell.js",
   "./organisation-sharing.js",
   "./garmin-connected-devices.js",
+  "./garmin-onboarding.js",
   "./app-ui.js",
   "./app-pwa.js",
   "./fuel-beta.js",
+  "./logging-feedback.js",
   "./training-mode.js",
   "./work-mode.js",
   "./athlete-impact.js",

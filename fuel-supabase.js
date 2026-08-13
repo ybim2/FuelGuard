@@ -9,6 +9,7 @@
   const TARGET_SELECT_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,maximum_fuel_gap_minutes,updated_at,created_at";
   const TARGET_SELECT_LEGACY_COLUMNS = "user_id,daily_fuel_logs,daily_hydration_logs,weekly_fuel_logs,weekly_hydration_logs,updated_at,created_at";
   const STATUS_EVENT = "fuelguard:cloud-status";
+  const AUTH_EVENT = "fuelguard:auth-state";
   const SYNCED = "synced";
   const PENDING = "pending";
   const ERROR = "error";
@@ -48,6 +49,22 @@
     window.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail: { message } }));
   }
 
+  function emitAuthState() {
+    window.dispatchEvent(new CustomEvent(AUTH_EVENT, {
+      detail: {
+        resolved: true,
+        configured: configured(),
+        signedIn: Boolean(user()),
+        recovering: recoveryMode || urlRequestsRecovery(),
+        user: user() ? { id: String(user().id || "") } : null
+      }
+    }));
+  }
+
+  function privateAppCanRender() {
+    return Boolean(user()) && document.body?.classList.contains("auth-authenticated");
+  }
+
   function setCanonicalHistoryStatus(next, userId = user()?.id || "") {
     canonicalHistoryStatus = next;
     canonicalHistoryUserId = next === "ready" ? String(userId || "") : "";
@@ -82,7 +99,8 @@
     recoveryMode = Boolean(active);
     if (message) status(message);
     window.dispatchEvent(new CustomEvent("fuelguard:password-recovery", { detail: { active: recoveryMode } }));
-    if (typeof renderAll === "function") renderAll();
+    emitAuthState();
+    if (privateAppCanRender() && typeof renderAll === "function") renderAll();
   }
 
   function gapState() {
@@ -107,7 +125,7 @@
 
   function persistAndRender() {
     if (typeof save === "function") save();
-    if (typeof renderAll === "function") renderAll();
+    if (privateAppCanRender() && typeof renderAll === "function") renderAll();
   }
 
   function isOnline() {
@@ -1218,6 +1236,19 @@
     setCanonicalHistoryStatus("loading");
     status(`Signed in as ${data.user?.email || email}.`);
     await syncNow();
+    emitAuthState();
+    return data;
+  }
+
+  async function signInWithGoogle({ redirectTo } = {}) {
+    if (!client) throw new Error("Supabase is not configured.");
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectTo || window.location.origin
+      }
+    });
+    if (error) throw error;
     return data;
   }
 
@@ -1236,6 +1267,7 @@
     setCanonicalHistoryStatus(data.session?.user ? "loading" : "local");
     status(data.session ? `Account created for ${email}.` : "Confirmation email sent. Check your inbox.");
     if (data.session) await syncNow();
+    emitAuthState();
     return data;
   }
 
@@ -1271,6 +1303,7 @@
     setCanonicalHistoryStatus("local");
     athleteTeamSessions = [];
     status("Signed out. Logs remain cached on this device.");
+    emitAuthState();
     persistAndRender();
   }
 
@@ -1335,6 +1368,7 @@
     if (!configured()) {
       setCanonicalHistoryStatus("local");
       status(window.supabase?.createClient ? "Cloud sync needs Supabase public URL/key configuration." : "Cloud sync library is offline; local cache is active.");
+      emitAuthState();
       return { status: "not_ready" };
     }
 
@@ -1359,6 +1393,7 @@
         : session?.user
           ? `Signed in as ${session.user.email}.`
           : "Not signed in. Logs are cached on this device.");
+      emitAuthState();
 
       client.auth.onAuthStateChange((event, nextSession) => {
         session = nextSession;
@@ -1372,7 +1407,8 @@
           athleteTeamSessions = [];
           status("Signed out. Logs are cached on this device.");
         }
-        if (typeof renderAll === "function") renderAll();
+        emitAuthState();
+        if (privateAppCanRender() && typeof renderAll === "function") renderAll();
       });
 
       if (recoveryMode) setRecoveryMode(true);
@@ -1384,6 +1420,7 @@
       session = null;
       setCanonicalHistoryStatus("error");
       status(`Cloud initialization failed: ${error?.message || "unknown error"}. Retrying when online.`);
+      emitAuthState();
       return { status: ERROR, error };
     }
   }
@@ -1398,9 +1435,6 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) resumeCloudSync();
   });
-  document.addEventListener("DOMContentLoaded", () => init());
-  requestAnimationFrame(() => init());
-
   window.fuelGuardCloud = {
     init,
     saveLog,
@@ -1412,6 +1446,7 @@
     clearCloudLogs,
     saveTargets,
     signIn,
+    signInWithGoogle,
     signUp,
     sendPasswordReset,
     updatePassword,

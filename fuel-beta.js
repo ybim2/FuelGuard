@@ -190,7 +190,6 @@
   let selectedTodayTimelineLogId = "";
   let quickLogConfirmation = "";
   let quickLogConfirmationTimer = 0;
-  let actionFeedbackTimer = 0;
   let demandPlannerStatus = "";
   let garminPatternsState = {
     loaded: false,
@@ -2067,27 +2066,6 @@
     };
   };
 
-  function showAthleteActionFeedback(acknowledgement, type = "fuel") {
-    const target = document.getElementById("athleteActionFeedback");
-    if (!target || !acknowledgement?.headline) return;
-    if (actionFeedbackTimer && typeof clearTimeout === "function") clearTimeout(actionFeedbackTimer);
-    const icon = acknowledgement.level === "milestone" ? "✦" : "✓";
-    target.className = `beta-action-feedback ${acknowledgement.level === "milestone" ? "milestone" : "micro"} ${safeText(type)}`;
-    target.innerHTML = `<b aria-hidden="true">${icon}</b><span><strong>${safeText(acknowledgement.headline)}</strong>${acknowledgement.context ? `<small>${safeText(acknowledgement.context)}</small>` : ""}</span>`;
-    target.hidden = false;
-    document.querySelectorAll(type === "hydration" ? "#graphLogHydrationButton, [data-training-log=\"hydration\"]" : "#graphLogFoodButton, [data-training-log=\"fuel\"]").forEach(button => {
-      button.classList.remove("is-acknowledged");
-      void button.offsetWidth;
-      button.classList.add("is-acknowledged");
-    });
-    actionFeedbackTimer = typeof setTimeout === "function" ? setTimeout(() => {
-      target.hidden = true;
-      target.innerHTML = "";
-      document.querySelectorAll(".is-acknowledged").forEach(button => button.classList.remove("is-acknowledged"));
-      actionFeedbackTimer = 0;
-    }, acknowledgement.level === "milestone" ? 2200 : 1100) : 0;
-  }
-
   function setQuickLogConfirmation(type = "fuel", date = new Date(), syncResult = null, acknowledgement = null) {
     const label = type === "hydration"
       ? "Hydration logged"
@@ -2122,6 +2100,12 @@
     }
     return Promise.resolve(cloud.saveLog(log)).then(result => {
       setQuickLogConfirmation(type, loggedAt, result || { status: "error" }, acknowledgement);
+      window.FuelGuardLoggingFeedback?.confirm?.({
+        type,
+        result,
+        acknowledgement,
+        logId: log?.id || log?.localId || ""
+      });
       renderFuelGap();
       return result;
     }).catch(error => {
@@ -2197,8 +2181,6 @@
     } else if (typeof addActivityEntry === "function") {
       addActivityEntry(normalizedType === "hydration" ? "hydrationLogged" : "fuelLogged", normalizedType === "hydration" ? "Hydration logged. Rhythm graph updated." : "Fuel logged. Gap tracker updated.", { dedupeDaily: false });
     }
-    setQuickLogConfirmation(normalizedType, loggedAt, null, acknowledgement);
-    showAthleteActionFeedback(acknowledgement, normalizedType);
     save();
     renderAll();
     window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
@@ -2417,11 +2399,20 @@
     if (typeof addActivityEntry === "function") {
       addActivityEntry("checkinLogged", `${checkinTypeLabel(payload)} saved.`, { dedupeDaily: false });
     }
-    if (payload.checkinType === SLEEPY_CHECKIN_TYPE) setQuickLogConfirmation(SLEEPY_CHECKIN_TYPE, loggedAt);
+    const acknowledgement = payload.checkinType === SLEEPY_CHECKIN_TYPE
+      ? window.FuelGuardDomain?.loggingAcknowledgement?.({
+          type: SLEEPY_CHECKIN_TYPE,
+          logsBefore: betaState().logs.filter(item => item !== log),
+          loggedAt,
+          targets: betaState().targets || {},
+          activeSession: betaState().trainingMode?.activeSession,
+          completedSessions: betaState().trainingMode?.sessions || []
+        }) || { headline: "Sleepy logged", context: "", level: "micro" }
+      : null;
     save();
     renderAll();
     if (payload.checkinType === SLEEPY_CHECKIN_TYPE) window.FuelGuardMilestones?.evaluate?.({ allowToast: true });
-    return persistQuickLog(log, payload.checkinType === SLEEPY_CHECKIN_TYPE ? SLEEPY_CHECKIN_TYPE : "checkin", loggedAt);
+    return persistQuickLog(log, payload.checkinType === SLEEPY_CHECKIN_TYPE ? SLEEPY_CHECKIN_TYPE : "checkin", loggedAt, acknowledgement);
   }
 
   window.recordCheckinEvent = recordCheckinEvent;
@@ -10899,35 +10890,21 @@
     }, delay);
   }
 
-  const fuelGuardLoadingHooks = Object.freeze([
-    "Fuel Guard makes sure your ambition isn’t running on an empty tank.",
-    "Fuel Guard — when someone asks, “When did you last eat?” you know Fuel Guard has your back.",
-    "Fuel Guard — because four hours without fuel shouldn’t sneak up on you."
-  ]);
-  let fuelGuardLoadingHookTimer = 0;
-
-  function startFuelGuardLoadingHooks() {
-    const target = document.getElementById("appBootHook");
-    if (!target) return;
-    let index = 0;
-    try {
-      index = Number(window.sessionStorage.getItem("fuelGuardLoadingHookIndex") || 0) % fuelGuardLoadingHooks.length;
-    } catch (_error) {
-      index = 0;
-    }
-    const showNext = () => {
-      target.textContent = fuelGuardLoadingHooks[index];
-      index = (index + 1) % fuelGuardLoadingHooks.length;
-      try { window.sessionStorage.setItem("fuelGuardLoadingHookIndex", String(index)); } catch (_error) {}
-    };
-    showNext();
-    fuelGuardLoadingHookTimer = window.setInterval(showNext, 2200);
-  }
-
   function markFuelGuardAppReady() {
-    if (fuelGuardLoadingHookTimer) window.clearInterval(fuelGuardLoadingHookTimer);
     document.body?.classList.remove("app-booting");
     document.body?.classList.add("app-ready");
+  }
+
+  let fuelGuardPrivateAppStarted = false;
+  function startFuelGuardPrivateApp() {
+    if (!window.fuelGuardCloud?.user) return;
+    lastAutoFuelWindowDateKey = dateKey();
+    renderAll();
+    requestAnimationFrame(markFuelGuardAppReady);
+    if (!fuelGuardPrivateAppStarted) {
+      fuelGuardPrivateAppStarted = true;
+      scheduleFuelGuardTick();
+    }
   }
 
   const halTributeButton = document.getElementById("halTributeButton");
@@ -10938,9 +10915,8 @@
     halTributeButton.setAttribute("aria-expanded", String(reveal));
   });
 
-  startFuelGuardLoadingHooks();
-  lastAutoFuelWindowDateKey = dateKey();
-  renderAll();
-  requestAnimationFrame(markFuelGuardAppReady);
-  scheduleFuelGuardTick();
+  window.addEventListener("fuelguard:private-app-ready", startFuelGuardPrivateApp);
+  if (window.fuelGuardCloud?.user && document.body?.classList.contains("auth-authenticated")) {
+    startFuelGuardPrivateApp();
+  }
 })();
