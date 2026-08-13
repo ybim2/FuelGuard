@@ -1,5 +1,9 @@
 # Fuel Guard Brand System
 
+## Canonical mark
+
+Fuel Guard uses one logo everywhere: the approved white FG monogram on black from `brand/fuel-guard-mark.png`. Product surfaces, browser/PWA icons, exports and Fuel Guard-owned Garmin artwork must use deterministic derivatives of that file. Do not redraw the monogram as text, recolour it green, or substitute a shield/wordmark. Black and white carry identity; green remains an energy, status and action colour.
+
 Fuel Guard uses a compact semantic colour system so the app feels like one product rather than a collection of generic cards.
 
 ## Core Tokens

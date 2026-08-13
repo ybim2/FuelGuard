@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v143-final-reflection";
-const BUILD_VERSION = "2026-08-11T21:48:54Z";
+const APP_VERSION = "mobile-pwa-v144-canonical-logo";
+const BUILD_VERSION = "2026-08-13T21:26:39Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v143-final-reflection-20260811T214854Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v144-canonical-logo-20260813T212639Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -37,6 +37,12 @@ const APP_SHELL = [
   "./athlete-analytics.css",
   "./athlete-tools.css",
   "./athlete-share.css",
+  "./brand/fuel-guard-brand.css",
+  "./brand/fuel-guard-mark-192.png",
+  "./brand/fuel-guard-mark-512.png",
+  "./brand/fuel-guard-mark-64.png",
+  "./brand/apple-touch-icon.png",
+  "./brand/favicon-32.png",
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
@@ -60,8 +66,7 @@ const APP_SHELL = [
   "./settings-navigation.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
-  "./manifest.webmanifest",
-  "./icons/icon.svg"
+  "./manifest.webmanifest"
 ];
 
 function appShellRequests() {

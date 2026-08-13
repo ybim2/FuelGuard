@@ -219,7 +219,7 @@
     const target = document.getElementById("athleteMilestoneToast");
     if (!target || !achievement || !domain()) return;
     const label = domain().milestoneLabel(achievement.category, achievement.threshold);
-    const icon = { streak: "D", fuel: "F", hydration: "H", sleepy: "S", ready: "R", training: "T", work: "W" }[achievement.category] || "FG";
+    const icon = { streak: "D", fuel: "F", hydration: "H", sleepy: "S", ready: "R", training: "T", work: "W" }[achievement.category] || "•";
     target.innerHTML = `<b aria-hidden="true">${icon}</b><span><strong>${domain().escapeHtml(label)}</strong><small>Milestone reached</small></span>`;
     target.hidden = false;
     acknowledgeLocal(achievement.key);

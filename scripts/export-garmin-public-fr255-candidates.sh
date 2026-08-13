@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${GARMIN_PUBLIC_VERSION:-0.5.4}"
+VERSION="${GARMIN_PUBLIC_VERSION:-0.5.5}"
 RELEASE_ROOT="${FUELGUARD_PUBLIC_RELEASE_ROOT:-$HOME/Documents/Codex/FuelGuard/releases/garmin-public}"
 RELEASE_DIR="$RELEASE_ROOT/$VERSION"
 FR255_PART_NUMBER="006-B3992-00"

@@ -9137,15 +9137,9 @@
   }
 
   function drawTrendLogo(ctx) {
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.arc(92, 92, 44, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#07130f";
-    ctx.font = "900 31px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("FG", 92, 94);
+    const mark = document.getElementById("fuelGuardBrandAsset");
+    if (!mark || !mark.complete || !mark.naturalWidth) throw new Error("Fuel Guard brand asset is still loading.");
+    ctx.drawImage(mark, 48, 48, 88, 88);
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillStyle = "#ffffff";

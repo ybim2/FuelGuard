@@ -399,14 +399,17 @@
     return floor;
   }
 
-  function drawBrand(ctx, subtitle = "DAILY RHYTHM") {
+  function canonicalBrandImage(provided) {
+    if (provided) return provided;
+    if (typeof document === "undefined") return null;
+    return document.getElementById("fuelGuardBrandAsset");
+  }
+
+  function drawBrand(ctx, subtitle = "DAILY RHYTHM", brandImage = null) {
     ctx.save();
-    fillPill(ctx, 72, 78, 118, 72, "#b9ff66");
-    ctx.fillStyle = "#08120e";
-    ctx.font = "900 36px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("FG", 131, 115);
+    const mark = canonicalBrandImage(brandImage);
+    if (mark && typeof ctx.drawImage === "function") ctx.drawImage(mark, 72, 78, 72, 72);
+    else if (typeof document !== "undefined") throw new Error("Fuel Guard brand asset is still loading.");
     ctx.fillStyle = "rgba(244,250,247,0.92)";
     ctx.font = "750 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "left";
@@ -515,7 +518,7 @@
     });
   }
 
-  function renderDailyStory(model, { canvasFactory } = {}) {
+  function renderDailyStory(model, { canvasFactory, brandImage } = {}) {
     const makeCanvas = canvasFactory || (() => {
       if (typeof document === "undefined") throw new Error("A canvas factory is required outside the browser.");
       return document.createElement("canvas");
@@ -527,7 +530,7 @@
     if (!ctx) throw new Error("Story image export is not supported in this browser.");
 
     drawBackground(ctx, STORY_WIDTH, STORY_HEIGHT);
-    drawBrand(ctx);
+    drawBrand(ctx, "DAILY RHYTHM", brandImage);
     ctx.fillStyle = "rgba(244,250,247,0.62)";
     ctx.font = "650 27px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "left";
@@ -598,7 +601,7 @@
     return Math.min(lines.length, maximumLines);
   }
 
-  function renderSummaryStory(model, { canvasFactory } = {}) {
+  function renderSummaryStory(model, { canvasFactory, brandImage } = {}) {
     const makeCanvas = canvasFactory || (() => {
       if (typeof document === "undefined") throw new Error("A canvas factory is required outside the browser.");
       return document.createElement("canvas");
@@ -609,7 +612,7 @@
     const ctx = canvas.getContext?.("2d");
     if (!ctx) throw new Error("Story image export is not supported in this browser.");
     drawBackground(ctx, STORY_WIDTH, STORY_HEIGHT);
-    drawBrand(ctx, "ATHLETE STORY");
+    drawBrand(ctx, "ATHLETE STORY", brandImage);
 
     ctx.textAlign = "left";
     ctx.fillStyle = "rgba(244,250,247,0.5)";
@@ -661,7 +664,7 @@
     return canvas;
   }
 
-  function renderAnalyticsStory(model, { canvasFactory } = {}) {
+  function renderAnalyticsStory(model, { canvasFactory, brandImage } = {}) {
     const makeCanvas = canvasFactory || (() => {
       if (typeof document === "undefined") throw new Error("A canvas factory is required outside the browser.");
       return document.createElement("canvas");
@@ -672,7 +675,7 @@
     const ctx = canvas.getContext?.("2d");
     if (!ctx) throw new Error("Story image export is not supported in this browser.");
     drawBackground(ctx, STORY_WIDTH, STORY_HEIGHT);
-    drawBrand(ctx, "ATHLETE ANALYTICS");
+    drawBrand(ctx, "ATHLETE ANALYTICS", brandImage);
 
     ctx.textAlign = "left";
     ctx.fillStyle = "#b9ff66";
