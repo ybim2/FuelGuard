@@ -206,6 +206,26 @@
     return Number.isFinite(amount) ? `${Math.round(amount * 10) / 10}${unit}` : "Not recorded";
   }
 
+  function durationMinutes(value) {
+    const minutes = Math.max(0, Math.round(Number(value) || 0));
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    if (!hours) return `${remainder}m`;
+    return `${hours}h${remainder ? ` ${String(remainder).padStart(2, "0")}m` : ""}`;
+  }
+
+  function averageConsecutiveGap(logs = []) {
+    if (!Array.isArray(logs) || logs.length < 2) return null;
+    const gaps = logs.slice(1).map((log, index) => Math.max(0, (log.date - logs[index].date) / 60000));
+    return gaps.length ? gaps.reduce((total, gap) => total + gap, 0) / gaps.length : null;
+  }
+
+  function neutralBarRatio(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    return clamp(0.28 + Math.log10(amount + 1) * 0.18, 0.28, 0.86);
+  }
+
   function baseSummaryModel(template, title, { kicker = "FUEL GUARD ATHLETE", headline = "", detail = "", metrics = [], note = "", date = new Date() } = {}) {
     return Object.freeze({
       template,
@@ -225,21 +245,23 @@
     const today = normalizedLogs(logs, domain).filter(log => (domain?.dateKey ? domain.dateKey(log.date) : localDateKey(log.date)) === key);
     const fuel = today.filter(log => domain?.isFuelLog ? domain.isFuelLog(log) : isFuel(log));
     const hydration = today.filter(log => domain?.isHydrationLog ? domain.isHydrationLog(log) : isHydration(log));
+    const firstFuel = fuel[0]?.date || null;
     const lastFuel = fuel.at(-1)?.date || null;
     const lastHydration = hydration.at(-1)?.date || null;
-    const fuelMinutes = lastFuel ? Math.max(0, (current - lastFuel) / 60000) : null;
-    const hydrationMinutes = lastHydration ? Math.max(0, (current - lastHydration) / 60000) : null;
+    const averageFuelGap = averageConsecutiveGap(fuel);
     const status = dailyStatus(lastFuel, current, maximumGapMinutes);
     return baseSummaryModel(DAILY_SUMMARY_TEMPLATE, "Daily Fuel + Hydration", {
       headline: status.label,
       detail: status.detail,
       metrics: [
-        { label: "Last Fuel", value: clock(lastFuel, domain), accent: "fuel" },
-        { label: "Since Fuel", value: Number.isFinite(fuelMinutes) ? formatRelativeMinutes(fuelMinutes) : "No Fuel yet", accent: "fuel" },
-        { label: "Last Hydration", value: clock(lastHydration, domain), accent: "hydration" },
-        { label: "Since Hydration", value: Number.isFinite(hydrationMinutes) ? formatRelativeMinutes(hydrationMinutes) : "No Hydration yet", accent: "hydration" }
+        { label: "First Fuel", value: firstFuel ? clock(firstFuel, domain) : "—", accent: "fuel" },
+        { label: "Last Fuel", value: lastFuel ? clock(lastFuel, domain) : "—", accent: "fuel" },
+        { label: "Fuel logs", value: String(fuel.length), accent: "fuel" },
+        { label: "Avg. fuel gap", value: Number.isFinite(averageFuelGap) ? durationMinutes(averageFuelGap) : "—", accent: "fuel" },
+        { label: "Hydration logs", value: String(hydration.length), accent: "hydration" },
+        { label: "Last Hydration", value: lastHydration ? clock(lastHydration, domain) : "—", accent: "hydration" }
       ],
-      note: `${fuel.length} Fuel · ${hydration.length} Hydration recorded today`,
+      note: "Today’s recorded Fuel and Hydration rhythm.",
       date: current
     });
   }
@@ -282,16 +304,19 @@
     });
     const summary = domain.trainingCompletionSummary({ session, logs: normalizedLogs(logs, domain), now: new Date() });
     const plannedCarbs = summary.planned?.totals?.carbsG;
+    const recorded = summary.totals || {};
     return baseSummaryModel(DURING_WORKOUT_TEMPLATE, "During-Workout Fuelling", {
       headline: String(summary.title || "Training session").toUpperCase(),
       detail: `${clock(summary.startedAt, domain)}–${clock(summary.endedAt, domain)} · ${summary.fuelEventCount} Fuel · ${summary.hydrationEventCount} Hydration`,
       metrics: [
-        { label: "Carbohydrate", value: measurement(summary.totals.carbsG, "g"), accent: "fuel" },
-        { label: "Fluid", value: measurement(summary.totals.fluidMl, "ml"), accent: "hydration" },
-        { label: "Sodium", value: measurement(summary.totals.sodiumMg, "mg"), accent: "hydration" },
-        { label: "Caffeine", value: measurement(summary.totals.caffeineMg, "mg"), accent: "neutral" }
+        { label: "Carbohydrate", value: measurement(recorded.carbsG, "g"), accent: "fuel", visualization: "relative-bar", barRatio: neutralBarRatio(recorded.carbsG) },
+        { label: "Sodium", value: measurement(recorded.sodiumMg, "mg"), accent: "neutral", visualization: "relative-bar", barRatio: neutralBarRatio(recorded.sodiumMg) },
+        { label: "Fluids", value: measurement(recorded.fluidMl, "ml"), accent: "hydration", visualization: "relative-bar", barRatio: neutralBarRatio(recorded.fluidMl) },
+        { label: "Caffeine", value: measurement(recorded.caffeineMg, "mg"), accent: "neutral", visualization: "relative-bar", barRatio: neutralBarRatio(recorded.caffeineMg) }
       ],
-      note: Number.isFinite(plannedCarbs) ? `Actual ${measurement(summary.totals.carbsG, "g")} carbohydrate · Planned ${measurement(plannedCarbs, "g")}` : summary.coverageMessage,
+      note: Number.isFinite(plannedCarbs)
+        ? `Recorded ${measurement(recorded.carbsG, "g")} carbohydrate · Planned ${measurement(plannedCarbs, "g")} · Bars show recorded amounts, not targets.`
+        : `${summary.coverageMessage || "Recorded session amounts."} Bars show recorded amounts, not targets.`,
       date: summary.endedAt
     });
   }
@@ -420,6 +445,28 @@
     ctx.restore();
   }
 
+  function drawShareFooter(ctx, { primary = "", dateLabel = "" } = {}) {
+    ctx.save();
+    ctx.textAlign = "left";
+    if (primary) {
+      ctx.fillStyle = "rgba(244,250,247,0.84)";
+      ctx.font = "760 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(String(primary), 72, 1638);
+    } else if (dateLabel) {
+      ctx.fillStyle = "rgba(244,250,247,0.4)";
+      ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(String(dateLabel).toUpperCase(), 72, 1638);
+    }
+    ctx.fillStyle = "rgba(244,250,247,0.46)";
+    ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("FUELGUARDAPP.COM", 72, 1685);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(244,250,247,0.72)";
+    ctx.font = "760 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("@fuelguardapp", 1008, 1685);
+    ctx.restore();
+  }
+
   function drawBackground(ctx, width, height) {
     ctx.fillStyle = "#06100c";
     ctx.fillRect(0, 0, width, height);
@@ -495,8 +542,8 @@
   }
 
   function drawStreaks(ctx, model) {
-    const y = 1368;
-    fillPill(ctx, 72, y, 936, 270, "rgba(236,250,242,0.075)", "rgba(236,250,242,0.14)");
+    const y = 1330;
+    fillPill(ctx, 72, y, 936, 250, "rgba(236,250,242,0.075)", "rgba(236,250,242,0.14)");
     ctx.fillStyle = "rgba(240,250,245,0.48)";
     ctx.font = "700 21px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     ctx.textAlign = "left";
@@ -511,10 +558,10 @@
       const columnX = 112 + index * 296;
       ctx.fillStyle = color;
       ctx.font = "850 72px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillText(String(value), columnX, y + 158);
+      ctx.fillText(String(value), columnX, y + 150);
       ctx.fillStyle = "rgba(240,250,245,0.58)";
       ctx.font = "700 21px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.fillText(`${label} STREAK`, columnX, y + 206);
+      ctx.fillText(`${label} STREAK`, columnX, y + 198);
     });
   }
 
@@ -574,13 +621,7 @@
     drawRhythm(ctx, model);
     drawStreaks(ctx, model);
 
-    ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(244,250,247,0.86)";
-    ctx.font = "760 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("FUEL THE WORK. PROTECT THE RHYTHM.", 72, 1764);
-    ctx.fillStyle = "rgba(244,250,247,0.42)";
-    ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("FUELGUARDAPP.COM", 72, 1812);
+    drawShareFooter(ctx, { primary: "FUEL THE WORK. PROTECT THE RHYTHM." });
     return canvas;
   }
 
@@ -651,16 +692,29 @@
       ctx.fillText(String(metric.label || "VALUE").toUpperCase(), x + 34, y + 54);
       ctx.fillStyle = accent;
       fitFont(ctx, metric.value, { maximum: 48, minimum: 28, width: width - 68, weight: 850 });
-      wrappedText(ctx, metric.value, x + 34, y + 126, width - 68, 48, 2);
+      wrappedText(ctx, metric.value, x + 34, y + 122, width - 68, 48, 2);
+      if (metric.visualization === "relative-bar") {
+        const trackX = x + 34;
+        const trackY = y + 146;
+        const trackWidth = width - 68;
+        const ratio = clamp(metric.barRatio, 0, 1);
+        roundedRect(ctx, trackX, trackY, trackWidth, 16, 8);
+        ctx.fillStyle = "rgba(244,250,247,0.12)";
+        ctx.fill();
+        if (ratio > 0) {
+          roundedRect(ctx, trackX, trackY, Math.max(16, trackWidth * ratio), 16, 8);
+          ctx.fillStyle = accent;
+          ctx.globalAlpha = 0.74;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
     });
 
     ctx.fillStyle = "rgba(244,250,247,0.66)";
     ctx.font = "560 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    wrappedText(ctx, model.note, 72, 1628, 920, 38, 3);
-    ctx.fillStyle = "rgba(244,250,247,0.4)";
-    ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText(String(model.dateLabel || "").toUpperCase(), 72, 1770);
-    ctx.fillText("FUELGUARDAPP.COM", 72, 1815);
+    wrappedText(ctx, model.note, 72, 1510, 920, 38, 3);
+    drawShareFooter(ctx, { dateLabel: model.dateLabel });
     return canvas;
   }
 
@@ -746,12 +800,7 @@
     ctx.font = "760 37px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     wrappedText(ctx, model.insight, 112, 1460, 840, 49, 3);
 
-    ctx.fillStyle = "rgba(244,250,247,.82)";
-    ctx.font = "760 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("MY BEHAVIOUR. MY FUEL RHYTHM.", 72, 1764);
-    ctx.fillStyle = "rgba(244,250,247,.42)";
-    ctx.font = "650 20px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("FUELGUARDAPP.COM", 72, 1812);
+    drawShareFooter(ctx, { primary: "MY BEHAVIOUR. MY FUEL RHYTHM." });
     return canvas;
   }
 
@@ -798,6 +847,6 @@
     buildAnalyticsStoryModel,
     buildSummaryModel,
     dailyStoryFilename: model => `fuel-guard-daily-${model?.dateKey || localDateKey()}.png`,
-    _test: Object.freeze({ dailyStatus, formatRelativeMinutes, validActivityLog, localDateKey })
+    _test: Object.freeze({ dailyStatus, formatRelativeMinutes, validActivityLog, localDateKey, averageConsecutiveGap, neutralBarRatio })
   });
 });

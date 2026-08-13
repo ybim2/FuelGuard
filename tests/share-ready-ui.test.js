@@ -226,7 +226,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v145-auth-onboarding";
+  const version = "mobile-pwa-v146-social-share-preview";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -236,7 +236,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260813T215519Z/);
+  assert.match(sw, /20260813T221612Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);
