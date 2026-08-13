@@ -39,6 +39,34 @@ test("Athlete root starts behind a neutral auth boundary with no private navigat
   assert.doesNotMatch(athlete.slice(-700), /\n  renderAll\(\);\n/);
 });
 
+test("transient authenticated feedback retains managed visibility instead of becoming persistent bars", () => {
+  const html = read("index.html");
+  const auth = read("fuel-auth.js");
+  const feedback = read("logging-feedback.js");
+  const milestones = read("athlete-milestones.js");
+  for (const id of ["athleteMilestoneToast", "athleteActionFeedback"]) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*data-private-ui[^>]*data-managed-visibility[^>]*hidden[^>]*inert`));
+  }
+  assert.match(auth, /\[data-private-ui\]:not\(\[data-managed-visibility\]\)/);
+  assert.match(auth, /\[data-private-ui\]\[data-managed-visibility\]/);
+  for (const source of [feedback, milestones]) {
+    assert.match(source, /removeAttribute\("inert"\)/);
+    assert.match(source, /setAttribute\("inert", ""\)/);
+  }
+});
+
+test("authentication loading keeps the new logo and rotates concise fuelling messages only while loading", () => {
+  const html = read("index.html");
+  const auth = require(path.join(root, "fuel-auth.js"));
+  const authSource = read("fuel-auth.js");
+  assert.match(html, /id="fuelGuardAuthLoading"[\s\S]*fuel-guard-mark-192\.png[\s\S]*id="fuelGuardAuthLoadingQuote"/);
+  assert.equal(auth._test.loadingQuotes.length, 7);
+  assert.equal(auth._test.loadingQuotes[0], "Fuel the work before the work asks for it.");
+  assert.match(authSource, /fuelGuardLoadingHookIndex/);
+  assert.match(authSource, /setInterval\(showNext, 2200\)/);
+  assert.match(authSource, /if \(name === "loading"\) startLoadingQuotes\(\);\s*else stopLoadingQuotes\(\);/);
+});
+
 test("Supabase Google OAuth uses the existing auth client and email auth remains available", () => {
   const cloud = read("fuel-supabase.js");
   const coach = read("coach/coach-beta.js");
@@ -88,5 +116,5 @@ test("new authentication assets are versioned in the offline app shell", () => {
   for (const asset of ["fuel-auth.css", "fuel-auth.js", "garmin-onboarding.css", "garmin-onboarding.js", "logging-feedback.js"]) {
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
-  assert.match(read("build-info.js"), /mobile-pwa-v146-social-share-preview/);
+  assert.match(read("build-info.js"), /mobile-pwa-v147-front-page-ui-fix/);
 });

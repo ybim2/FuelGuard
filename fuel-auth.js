@@ -7,10 +7,20 @@
 
   const SETUP_GUIDE_URL = "https://app.notion.com/p/Fuel-Guard-Setup-HQ-3b7ab7791e2081c0bf99dc4c34cb7501";
   const SAFE_DESTINATIONS = new Set(["/", "/coach/", "/performance/"]);
+  const LOADING_QUOTES = Object.freeze([
+    "Fuel the work before the work asks for it.",
+    "Don't wait for empty.",
+    "Consistency starts with the next fuel.",
+    "Your body can't use fuel you forgot to give it.",
+    "Stay ahead of the gap.",
+    "Fuel now. Perform later.",
+    "Small fuel decisions compound."
+  ]);
   let initialized = false;
   let busy = false;
   let currentPanel = "loading";
   let activeUserId = "";
+  let loadingQuoteTimer = 0;
 
   function documentRef() {
     return root?.document || null;
@@ -61,12 +71,48 @@
     return Array.from(documentRef()?.querySelectorAll?.("[data-private-ui]:not([data-managed-visibility])") || []);
   }
 
+  function managedPrivateSurfaces() {
+    return Array.from(documentRef()?.querySelectorAll?.("[data-private-ui][data-managed-visibility]") || []);
+  }
+
+  function hideManagedPrivateSurfaces() {
+    managedPrivateSurfaces().forEach(surface => {
+      surface.hidden = true;
+      surface.setAttribute("inert", "");
+    });
+  }
+
   function setPrivateVisibility(visible) {
     privateSurfaces().forEach(surface => {
       surface.hidden = !visible;
       if (visible) surface.removeAttribute("inert");
       else surface.setAttribute("inert", "");
     });
+    if (!visible) hideManagedPrivateSurfaces();
+  }
+
+  function stopLoadingQuotes() {
+    if (loadingQuoteTimer && typeof root?.clearInterval === "function") root.clearInterval(loadingQuoteTimer);
+    loadingQuoteTimer = 0;
+  }
+
+  function startLoadingQuotes() {
+    const target = element("fuelGuardAuthLoadingQuote");
+    stopLoadingQuotes();
+    if (!target || !LOADING_QUOTES.length) return;
+    let index = 0;
+    try {
+      index = Number(root.sessionStorage?.getItem?.("fuelGuardLoadingHookIndex") || 0) % LOADING_QUOTES.length;
+    } catch (_error) {
+      index = 0;
+    }
+    const showNext = () => {
+      target.textContent = LOADING_QUOTES[index];
+      index = (index + 1) % LOADING_QUOTES.length;
+      try { root.sessionStorage?.setItem?.("fuelGuardLoadingHookIndex", String(index)); } catch (_error) {}
+    };
+    showNext();
+    if (typeof root?.setInterval === "function") loadingQuoteTimer = root.setInterval(showNext, 2200);
   }
 
   function panel(name) {
@@ -79,6 +125,8 @@
     if (loading) loading.hidden = name !== "loading";
     if (login) login.hidden = name !== "login";
     if (recovery) recovery.hidden = name !== "recovery";
+    if (name === "loading") startLoadingQuotes();
+    else stopLoadingQuotes();
     setPrivateVisibility(name === "app");
     documentRef()?.body?.classList.toggle("auth-pending", name === "loading");
     documentRef()?.body?.classList.toggle("auth-logged-out", name === "login" || name === "recovery");
@@ -253,6 +301,6 @@
     applyState,
     oauthRedirectUrl,
     setupGuideUrl: SETUP_GUIDE_URL,
-    _test: Object.freeze({ safeNextPath, friendlyError })
+    _test: Object.freeze({ safeNextPath, friendlyError, loadingQuotes: LOADING_QUOTES })
   });
 });

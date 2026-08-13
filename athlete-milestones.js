@@ -221,12 +221,16 @@
     const label = domain().milestoneLabel(achievement.category, achievement.threshold);
     const icon = { streak: "D", fuel: "F", hydration: "H", sleepy: "S", ready: "R", training: "T", work: "W" }[achievement.category] || "•";
     target.innerHTML = `<b aria-hidden="true">${icon}</b><span><strong>${domain().escapeHtml(label)}</strong><small>Milestone reached</small></span>`;
+    target.removeAttribute("inert");
     target.hidden = false;
     acknowledgeLocal(achievement.key);
     const updated = milestoneState()?.achievements.find(item => item.key === achievement.key);
     acknowledgeCloud(updated).catch(() => {});
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { target.hidden = true; }, 5000);
+    toastTimer = setTimeout(() => {
+      target.hidden = true;
+      target.setAttribute("inert", "");
+    }, 5000);
   }
 
   function evaluate({ allowToast = true } = {}) {

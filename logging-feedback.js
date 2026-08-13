@@ -75,6 +75,7 @@
       copy.append(context);
     }
     target.append(iconElement, copy);
+    target.removeAttribute("inert");
     target.hidden = false;
 
     document.querySelectorAll(controlsFor(normalized)).forEach(button => {
@@ -86,6 +87,7 @@
     if (typeof root?.setTimeout === "function") {
       timer = root.setTimeout(() => {
         target.hidden = true;
+        target.setAttribute("inert", "");
         target.replaceChildren();
         document.querySelectorAll(".is-acknowledged").forEach(button => button.classList.remove("is-acknowledged"));
         timer = 0;
