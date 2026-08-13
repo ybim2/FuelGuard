@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v143-final-reflection";
-const BUILD_VERSION = "2026-08-11T21:48:54Z";
+const APP_VERSION = "mobile-pwa-v145-auth-onboarding";
+const BUILD_VERSION = "2026-08-13T21:55:19Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v143-final-reflection-20260811T214854Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v145-auth-onboarding-20260813T215519Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -30,6 +30,8 @@ const APP_SHELL = [
   "./mobile-pwa.css",
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
+  "./fuel-auth.css",
+  "./garmin-onboarding.css",
   "./training-mode.css",
   "./work-mode.css",
   "./athlete-impact.css",
@@ -37,15 +39,24 @@ const APP_SHELL = [
   "./athlete-analytics.css",
   "./athlete-tools.css",
   "./athlete-share.css",
+  "./brand/fuel-guard-brand.css",
+  "./brand/fuel-guard-mark-192.png",
+  "./brand/fuel-guard-mark-512.png",
+  "./brand/fuel-guard-mark-64.png",
+  "./brand/apple-touch-icon.png",
+  "./brand/favicon-32.png",
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
+  "./fuel-auth.js",
   "./product-shell.js",
   "./organisation-sharing.js",
   "./garmin-connected-devices.js",
+  "./garmin-onboarding.js",
   "./app-ui.js",
   "./app-pwa.js",
   "./fuel-beta.js",
+  "./logging-feedback.js",
   "./training-mode.js",
   "./work-mode.js",
   "./athlete-impact.js",
@@ -60,8 +71,7 @@ const APP_SHELL = [
   "./settings-navigation.js",
   "./fuel-beta-ui-polish.js",
   "./day-type-overrides.js",
-  "./manifest.webmanifest",
-  "./icons/icon.svg"
+  "./manifest.webmanifest"
 ];
 
 function appShellRequests() {

@@ -96,6 +96,20 @@
     return appDevices(appId).filter(device => !device.revoked_at);
   }
 
+  function publishConnectionState(status) {
+    if (typeof window.dispatchEvent !== "function") return;
+    const currentUser = cloud()?.user;
+    const detail = {
+      status,
+      userId: String(currentUser?.id || ""),
+      quickLogConnected: status === "ready" && activeDevices("quick_log").length > 0
+    };
+    const EventConstructor = window.CustomEvent || globalThis.CustomEvent;
+    window.dispatchEvent(typeof EventConstructor === "function"
+      ? new EventConstructor("fuelguard:garmin-devices", { detail })
+      : { type: "fuelguard:garmin-devices", detail });
+  }
+
   function connectedMarkup(appId, details, active) {
     const connectionRows = active.map((device, index) => `
       <div class="beta-garmin-connection-row">
@@ -282,9 +296,13 @@
     if (!card || loading || actionInFlight) return false;
     const account = cloud()?.accountView?.() || {};
     card.hidden = !account.signedIn;
-    if (!account.signedIn) return false;
+    if (!account.signedIn) {
+      publishConnectionState("signed_out");
+      return false;
+    }
     if (!token()) {
       if (list) list.innerHTML = '<p class="row-note">Sign in again to manage Garmin connections.</p>';
+      publishConnectionState("error");
       return false;
     }
     try {
@@ -295,6 +313,7 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load Garmin apps.");
       renderRows(data.devices || []);
+      publishConnectionState("ready");
       const reconnected = dialogState?.type === "guide"
         && activeDevices(dialogState.appId).length > 0
         && showReconnectSuccess(dialogState.appId);
@@ -302,6 +321,7 @@
       return true;
     } catch (error) {
       setStatus(error?.message || "Could not load Garmin apps.");
+      publishConnectionState("error");
       return false;
     } finally {
       loading = false;

@@ -205,6 +205,7 @@
   function friendlyError(error) {
     const message = String(error?.message || error || "Something went wrong.");
     if (/invalid login credentials/i.test(message)) return "Those login details did not work. Check the email and password, then try again.";
+    if (/provider.*not enabled|unsupported provider/i.test(message)) return "Google sign-in is not available yet. Use email or contact Fuel Guard support.";
     if (/email not confirmed|confirm/i.test(message)) return "Please confirm your email address before logging in.";
     if (/already registered|already exists|user already/i.test(message)) return "This coach account may already exist. Try logging in, or wait before requesting another email.";
     if (/rate limit|email rate|over_email_send_rate_limit|exceeded/i.test(message)) return "Too many auth emails were requested while testing. Please wait around an hour before trying again.";
@@ -2848,6 +2849,17 @@
     });
   }
 
+  async function signInWithGoogle() {
+    await withBusy($("coachGoogleButton"), async () => {
+      setStatus("Opening Google sign-in...");
+      const { error } = await state.client.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/coach/` }
+      });
+      if (error) throw error;
+    });
+  }
+
   async function signUp() {
     await withBusy($("coachSignUpButton"), async () => {
       const email = $("coachEmail")?.value?.trim();
@@ -3846,7 +3858,7 @@
           h1 { font-size: 28px; }
           h2 { margin-top: 26px; font-size: 18px; border-bottom: 1px solid #d8d0c2; padding-bottom: 6px; }
           p, li, td, th { font-size: 12px; line-height: 1.45; }
-          .brand { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #d99024; color: #07130f; font-weight: 900; margin-bottom: 16px; }
+          .brand { display: block; width: 42px; height: 42px; object-fit: contain; border-radius: 12px; background: #000; margin-bottom: 16px; }
           .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; margin: 12px 0 18px; }
           table { width: 100%; border-collapse: collapse; margin-top: 8px; }
           th, td { text-align: left; border-bottom: 1px solid #e4ded1; padding: 7px 4px; }
@@ -3856,7 +3868,7 @@
         </style>
       </head>
       <body>
-        <div class="brand">FG</div>
+        <img class="brand" src="${safe(new URL("/brand/fuel-guard-mark-64.png", window.location.href).href)}" alt="Fuel Guard">
         <h1>${safe(report.title)}</h1>
         <p>${safe(report.period.display)}</p>
         <div class="meta">
@@ -3907,6 +3919,7 @@
       state.coachLoading = false;
       setStatus("Coach Beta needs Supabase public URL/key configuration.");
       renderAuth();
+      if ($("coachGoogleButton")) $("coachGoogleButton").disabled = true;
       return;
     }
 
@@ -4277,6 +4290,7 @@
   });
 
   $("coachSignInButton")?.addEventListener("click", signIn);
+  $("coachGoogleButton")?.addEventListener("click", signInWithGoogle);
   $("coachSignUpButton")?.addEventListener("click", signUp);
   $("coachForgotPasswordButton")?.addEventListener("click", forgotPassword);
   $("coachAccessSignOutButton")?.addEventListener("click", signOut);

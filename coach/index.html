@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ffffff" />
   <meta name="description" content="Fuel Guard Coach Beta helps coaches notice athlete fuelling rhythm signals." />
   <title>Fuel Guard Coach Beta</title>
-  <link rel="icon" type="image/svg+xml" href="../icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v137-accepted-integration" />
   <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v137-accepted-integration" />
@@ -17,10 +17,12 @@
   <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v137-accepted-integration" />
   <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v137-accepted-integration" />
   <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v137-accepted-integration" />
+  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v145-auth-onboarding" />
+  <link rel="stylesheet" href="../fuel-auth.css?v=mobile-pwa-v145-auth-onboarding" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
-    <a class="coach-logo" href="../" aria-label="Open Fuel Guard athlete app">FG</a>
+    <a href="../" aria-label="Open Fuel Guard athlete app"><img class="coach-logo fuel-guard-mark" src="/brand/fuel-guard-mark-192.png" alt="" aria-hidden="true" /></a>
     <div>
       <strong>Fuel Guard Coach</strong>
       <span id="coachHeaderIdentity">Coach workspace</span>
@@ -30,7 +32,7 @@
   <main class="coach-shell">
     <section id="coachLoadingPanel" class="coach-card coach-auth-card" role="status" aria-live="polite">
       <div class="coach-card-heading">
-        <span class="coach-icon">FG</span>
+        <img class="coach-icon fuel-guard-mark" src="/brand/fuel-guard-mark-192.png" alt="" aria-hidden="true" />
         <div>
           <h1>Fuel Guard Coach</h1>
           <p>Loading Coach Beta...</p>
@@ -40,12 +42,14 @@
 
     <section id="coachAuthPanel" class="coach-card coach-auth-card" hidden>
       <div class="coach-card-heading">
-        <span class="coach-icon">FG</span>
+        <img class="coach-icon fuel-guard-mark" src="/brand/fuel-guard-mark-192.png" alt="" aria-hidden="true" />
         <div>
           <h1>Fuel Guard Coach</h1>
           <p>Sign in with Supabase to review athletes who have explicitly shared Fuel Guard timing data with you.</p>
         </div>
       </div>
+      <button id="coachGoogleButton" class="fuel-auth-google" type="button">Continue with Google</button>
+      <div class="fuel-auth-divider" aria-hidden="true">or</div>
       <div class="coach-form-grid">
         <label>Email<input id="coachEmail" type="email" autocomplete="email" placeholder="coach@example.com"></label>
         <label>Password<input id="coachPassword" type="password" autocomplete="current-password" placeholder="Password"></label>
@@ -60,7 +64,7 @@
 
     <section id="coachAccessPanel" class="coach-card coach-auth-card" hidden>
       <div class="coach-card-heading">
-        <span class="coach-icon">FG</span>
+        <img class="coach-icon fuel-guard-mark" src="/brand/fuel-guard-mark-192.png" alt="" aria-hidden="true" />
         <div>
           <h1>Coach access unavailable</h1>
           <p>This signed-in account is not enabled for Coach Beta.</p>

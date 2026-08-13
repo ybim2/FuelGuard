@@ -113,30 +113,24 @@ test("service-worker acquisition never reloads the visible app until Settings ex
   assert.equal(reloads, 1);
 });
 
-test("the global loader is boot-only and never re-added after Daily is visible", () => {
+test("the authentication boundary owns startup and private Daily starts once authorised", () => {
   const html = read("index.html");
   const beta = read("fuel-beta.js");
-  assert.equal((html.match(/class="beta-mvp app-booting"/g) || []).length, 1);
-  assert.equal((beta.match(/classList\.remove\("app-booting"\)/g) || []).length, 1);
+  assert.equal((html.match(/class="beta-mvp auth-pending"/g) || []).length, 1);
+  assert.match(html, /id="fuelGuardPrivateApp"[^>]*hidden inert/);
+  assert.equal((beta.match(/fuelguard:private-app-ready/g) || []).length, 1);
   assert.equal((beta.match(/classList\.add\("app-booting"\)/g) || []).length, 0);
   const worker = read("sw.js");
   const installHandler = worker.slice(worker.indexOf('addEventListener("install"'), worker.indexOf('addEventListener("message"'));
   assert.doesNotMatch(installHandler, /skipWaiting\(\)/);
 });
 
-test("loading rotates exactly three approved hooks while the explanatory sentence remains permanent", () => {
+test("authentication screen keeps one concise permanent product explanation", () => {
   const html = read("index.html");
   const beta = read("fuel-beta.js");
-  const hooks = [
-    "Fuel Guard makes sure your ambition isn’t running on an empty tank.",
-    "Fuel Guard — when someone asks, “When did you last eat?” you know Fuel Guard has your back.",
-    "Fuel Guard — because four hours without fuel shouldn’t sneak up on you."
-  ];
-  const hookSource = beta.slice(beta.indexOf("const fuelGuardLoadingHooks"), beta.indexOf("let fuelGuardLoadingHookTimer"));
-  hooks.forEach(copy => assert.match(hookSource, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
-  assert.equal((hookSource.match(/^\s+"Fuel Guard/gm) || []).length, 3);
-  assert.match(html, /<p class="app-boot-explainer">Simple fuelling awareness for athletes, work and everyday life\.<\/p>/);
-  assert.doesNotMatch(hookSource, /Simple fuelling awareness/);
+  assert.match(html, /Fuel Guard helps athletes stay aware of fuelling, hydration and sleepy moments throughout the day/);
+  assert.equal((html.match(/Fuel Guard helps athletes stay aware of fuelling, hydration and sleepy moments throughout the day/g) || []).length, 1);
+  assert.doesNotMatch(beta, /fuelGuardLoadingHooks/);
 });
 
 test("Training Mode uses behaviour language and Settings contains the subtle Hal tribute", () => {
@@ -299,7 +293,7 @@ test("the PWA cache advances once and includes every new Work Mode asset", () =>
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v143-final-reflection/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v145-auth-onboarding/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));

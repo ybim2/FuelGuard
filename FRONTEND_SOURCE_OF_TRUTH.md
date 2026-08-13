@@ -71,7 +71,8 @@ Do not reintroduce them unless the user explicitly asks for them.
 - `sw.js`: service worker and app shell cache
 - `app-pwa.js`: service worker registration/update handling
 - `vercel.json`: Vercel cache headers for the app shell, manifest, service worker, and build marker
-- `icons/icon.svg`: PWA icon
+- `brand/fuel-guard-mark.png`: approved high-resolution Fuel Guard mark
+- `brand/fuel-guard-mark-192.png` and `brand/fuel-guard-mark-512.png`: PWA icons
 - `FUEL_GUARD_BRAND_SYSTEM.md`: reusable Fuel Guard colour roles and visual identity rules
 
 ## Visual Identity

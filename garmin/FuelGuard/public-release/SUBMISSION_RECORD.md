@@ -1,5 +1,13 @@
 # Connect IQ public-beta submission record
 
+## Canonical Fuel Guard mark 0.5.5 — physical hardware spot-check pending
+
+- **Version:** 0.5.5
+- **Scope:** branding assets only; the accepted 0.5.4 shared START/ENTER connect path and all logging, Training Mode, queue and Activity Logger behaviour are unchanged.
+- **Identity:** both launcher icons and both Store icons are deterministic derivatives of `brand/fuel-guard-mark.png`.
+- **Compatibility requirement:** both apps retain the 31-product manifest matrix; the user's FR255 remains an additional hardware spot check.
+- **Package status:** hashes are recorded after the brand-standardisation source is accepted and packaged.
+
 ## Shared connect-input compatibility fix 0.5.4 — physical hardware spot-check pending
 
 - **Version:** 0.5.4

@@ -1,6 +1,6 @@
 # Garmin public-beta supported devices
 
-Candidate version: **0.5.4**
+Candidate version: **0.5.5**
 Primary physical reference: **Forerunner 255**
 
 The production manifests for Quick Log and Activity Logger contain the same 31 Connect IQ product IDs below. Their locally installed device definitions support both Watch Apps and Data Fields, both apps compiled for every target, and the automated simulator tests passed for every target.

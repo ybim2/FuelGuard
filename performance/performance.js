@@ -93,6 +93,7 @@
   function friendlyError(error) {
     const message = String(error?.message || error || "The request could not be completed.");
     if (/invalid login credentials/i.test(message)) return "Those login details did not work.";
+    if (/provider.*not enabled|unsupported provider/i.test(message)) return "Google sign-in is not available yet. Use email or contact Fuel Guard support.";
     if (/no fuel guard account matches|email address|organisation name/i.test(message)) return message;
     if (/failed to fetch|network|load failed/i.test(message)) return "Fuel Guard could not reach Supabase. Check your connection and try again.";
     if (/access denied|permission|row-level|42501/i.test(message)) return "Your current scope or capability does not allow that action.";
@@ -538,6 +539,17 @@
     if (error) $("authStatus").textContent = friendlyError(error);
   }
 
+  async function signInWithGoogle() {
+    $("googleSignInButton").disabled = true;
+    $("authStatus").textContent = "Opening Google sign-in…";
+    const { error } = await state.client.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/performance/` }
+    });
+    $("googleSignInButton").disabled = false;
+    if (error) $("authStatus").textContent = friendlyError(error);
+  }
+
   async function createAccount() {
     const email = $("emailInput").value.trim();
     const password = $("passwordInput").value;
@@ -807,6 +819,7 @@
 
   function bind() {
     $("signInButton").addEventListener("click", signIn);
+    $("googleSignInButton").addEventListener("click", signInWithGoogle);
     $("createAccountButton").addEventListener("click", createAccount);
     $("forgotPasswordButton").addEventListener("click", forgotPassword);
     $("updatePasswordButton").addEventListener("click", updatePassword);
@@ -864,6 +877,7 @@
       setPanelVisibility("auth");
       $("authStatus").textContent = "Performance needs the public Supabase URL and publishable key configuration.";
       $("signInButton").disabled = true;
+      $("googleSignInButton").disabled = true;
       return;
     }
     state.client = window.supabase.createClient(config.url, config.anonKey, {

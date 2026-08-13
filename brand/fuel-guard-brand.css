@@ -1,0 +1,52 @@
+:root {
+  --fuel-guard-mark-src: url("/brand/fuel-guard-mark-192.png");
+}
+
+img.fuel-guard-mark {
+  display: block;
+  flex: 0 0 auto;
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  object-position: center;
+  border: 0;
+  border-radius: 12px;
+  background: #000 !important;
+  color: transparent !important;
+  box-shadow: none !important;
+}
+
+.fuel-guard-preload {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.beta-mvp .beta-coach-nudge-heading > .fuel-guard-mark {
+  width: 36px;
+  height: 36px;
+}
+
+.fuel-kit-card > header > .fuel-guard-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+}
+
+.coach-logo.fuel-guard-mark,
+.coach-icon.fuel-guard-mark,
+.performance-brand > .fuel-guard-mark,
+.brand-mark.fuel-guard-mark {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+}
+
+.fg-connect-mark.fuel-guard-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+}

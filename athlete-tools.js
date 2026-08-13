@@ -134,7 +134,7 @@
     target.innerHTML = `
       <header class="fuel-tools-header"><span>Prepare before you need it</span><h1>Tools</h1><p>Remembering to fuel helps. Being ready to fuel gives you the edge.</p></header>
       <section class="fuel-kit-card ${isReady ? "ready" : ""}" aria-labelledby="fuelKitHeading">
-        <header><div><span>FUEL KIT</span><h2 id="fuelKitHeading">Ready for the day?</h2></div><b aria-hidden="true">FG</b></header>
+        <header><div><span>FUEL KIT</span><h2 id="fuelKitHeading">Ready for the day?</h2></div><img class="fuel-guard-mark" src="/brand/fuel-guard-mark-192.png" alt="" aria-hidden="true" /></header>
         <p class="fuel-kit-intro">A quick logistics check — no calories, recipes or food inventory.</p>
         ${recommendation ? `<aside class="fuel-kit-rhythm-note"><strong>You normally fuel around ${recommendation} time${recommendation === 1 ? "" : "s"} during a logged day.</strong><span>${recommendation} options + 1 reserve is a useful starting buffer based on your own rhythm.</span></aside>` : ""}
         <div class="fuel-kit-count-row">

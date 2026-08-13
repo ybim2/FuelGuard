@@ -46,16 +46,13 @@ test("Daily keeps Maximum Fuel Gap immediately under Day type and nowhere in Set
   assert.doesNotMatch(settings, /id="maximumFuelGapPreset"|id="maximumFuelGapCustom"/);
 });
 
-test("Athlete loading state uses the approved rotating hooks and permanent purpose copy", () => {
+test("Athlete loading state is neutral until authentication resolves", () => {
   const html = read("index.html");
   const beta = read("fuel-beta.js");
-  for (const copy of [
-    "Fuel Guard makes sure your ambition isn’t running on an empty tank.",
-    "Fuel Guard — when someone asks, “When did you last eat?” you know Fuel Guard has your back.",
-    "Fuel Guard — because four hours without fuel shouldn’t sneak up on you."
-  ]) assert.ok(beta.includes(copy));
-  assert.match(html, /Simple fuelling awareness for athletes, work and everyday life\./);
-  assert.doesNotMatch(html, />Notice the rhythm\.</);
+  assert.match(html, /id="fuelGuardAuthLoading"[\s\S]*Opening Fuel Guard…/);
+  assert.match(html, /id="fuelGuardPrivateApp"[^>]*data-private-ui hidden inert/);
+  assert.match(beta, /fuelguard:private-app-ready/);
+  assert.doesNotMatch(beta, /fuelGuardLoadingHooks|startFuelGuardLoadingHooks/);
 });
 
 test("short active sessions suppress extrapolated pace and projection", () => {
@@ -212,9 +209,10 @@ test("all requested Settings categories and existing controls remain reachable",
   }
   assert.doesNotMatch(html, /data-settings-category="(?:fuelling|training)"/);
   assert.doesNotMatch(read("settings-navigation.js"), /fuelling: "Fuelling"|training: "Training"/);
-  for (const id of ["accountSignInButton", "athleteProfileSaveButton", "coachSharingCard", "athleteNudgePreferences", "garminDevicesList", "fuelCsvImportButton", "checkAppUpdateButton"]) {
+  for (const id of ["accountSignOutButton", "athleteProfileSaveButton", "coachSharingCard", "athleteNudgePreferences", "garminDevicesList", "fuelCsvImportButton", "checkAppUpdateButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
+  assert.match(html, /id="fuelGuardEmailSignIn"/);
   assert.match(html, /data-settings-category-back/);
 });
 

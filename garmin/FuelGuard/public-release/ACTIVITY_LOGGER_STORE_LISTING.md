@@ -3,7 +3,7 @@
 ## Listing fields
 
 - **App name:** Fuel Guard Activity Logger
-- **Version:** 0.5.4
+- **Version:** 0.5.5
 - **App type:** Data Field
 - **Category:** Health & Fitness
 - **Language:** English
