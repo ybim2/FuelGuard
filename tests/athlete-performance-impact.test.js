@@ -315,10 +315,10 @@ test("PWA shell versions and caches the new Impact assets", () => {
   const html = read("index.html");
   const sw = read("sw.js");
   const build = read("build-info.js");
-  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v146-social-share-preview/);
+  for (const source of [html, sw, build]) assert.match(source, /mobile-pwa-v147-front-page-ui-fix/);
   assert.match(sw, /athlete-impact\.css/);
   assert.match(sw, /athlete-impact\.js/);
-  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v146-social-share-preview/);
+  assert.match(html, /athlete-impact\.js\?v=mobile-pwa-v147-front-page-ui-fix/);
 });
 
 test("methodology records baseline, sample thresholds and Garmin Phase 2 boundary", () => {

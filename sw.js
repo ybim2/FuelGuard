@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v146-social-share-preview";
-const BUILD_VERSION = "2026-08-13T22:16:12Z";
+const APP_VERSION = "mobile-pwa-v147-front-page-ui-fix";
+const BUILD_VERSION = "2026-08-13T22:49:07Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v146-social-share-preview-20260813T221612Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v147-front-page-ui-fix-20260813T224907Z";
 const APP_SHELL = [
   "./",
   "./index.html",

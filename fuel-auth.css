@@ -42,10 +42,21 @@ body.beta-mvp .mobile-bottom-nav[data-private-ui][hidden] {
   border: 1px solid #292929;
 }
 
-.fuel-auth-loading p {
+.fuel-auth-loading-quote {
   margin: 0;
-  color: #b9b9b9;
+  max-width: 25rem;
+  color: #f4f4f4;
   font-weight: 700;
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.fuel-auth-loading-status {
+  color: #8f8f8f;
+  font-size: .8rem;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
 .fuel-auth-card {
