@@ -226,6 +226,7 @@ body.coach-beta {
 }
 
 .coach-code-grid {
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
 }
 
@@ -235,8 +236,13 @@ body.coach-beta {
 }
 
 .coach-code-action button {
-  width: 100%;
+  width: auto;
   min-height: 44px;
+  white-space: nowrap;
+}
+
+.coach-code-grid > .coach-field-help {
+  grid-column: 1 / -1;
 }
 
 .coach-field-help {
@@ -1379,7 +1385,7 @@ body.coach-beta {
   }
 
   .coach-code-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .coach-report-meta {
@@ -1851,6 +1857,10 @@ body.coach-beta time {
   body.coach-beta .coach-action-grid,
   body.coach-beta .coach-comparison-grid {
     grid-template-columns: 1fr;
+  }
+
+  body.coach-beta .coach-form-grid.coach-code-grid {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   body.coach-beta .coach-report-row,

@@ -153,7 +153,12 @@ test("Coach Settings and Add Athlete controls keep visible accessible labels on 
   assert.match(html, /The athlete can find their athlete code in Settings → Coach &amp; Sharing\./);
   assert.match(html, /aria-describedby="coachAthleteCodeHelp"/);
   assert.match(html, /placeholder="FG-7K42P9"/);
+  assert.match(html, /id="coachAthleteCodeInput"[\s\S]*class="coach-code-action"[\s\S]*id="coachFindAthleteButton"[\s\S]*id="coachAthleteCodeHelp"/);
   assert.match(js, /Enter an Athlete Code like FG-7K42P9\./);
+  assert.match(js, /const disabled = state\.busy \|\| !ATHLETE_CODE_RE\.test\(code\);[\s\S]*button\.disabled = disabled;/);
+  assert.match(css, /\.coach-code-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto;/);
+  assert.match(css, /\.coach-code-action button \{[\s\S]*width: auto;[\s\S]*white-space: nowrap;/);
+  assert.match(css, /body\.coach-beta \.coach-form-grid\.coach-code-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(css, /body\.coach-beta button\.secondary \{[\s\S]*background: var\(--coach-surface\);[\s\S]*color: var\(--coach-text\);/);
   assert.match(css, /body\.coach-beta button:focus-visible[\s\S]*outline: 3px solid #d99024/);
 
