@@ -991,7 +991,6 @@
   async function uploadLogs(logs) {
     const currentUser = user();
     if (!client || !currentUser || !logs.length) return [];
-    for (const log of logs) await window.FuelGuardWorkMode?.ensureSessionSyncedForLog?.(log);
     const rows = logs
       .map(log => ({ log, row: rowForLog(log, currentUser) }))
       .filter(item => item.row);
@@ -1262,27 +1261,6 @@
     return data;
   }
 
-  async function sendEmailOtp(email) {
-    if (!client) throw new Error("Supabase is not configured.");
-    const { data, error } = await client.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true }
-    });
-    if (error) throw error;
-    return data;
-  }
-
-  async function verifyEmailOtp(email, token) {
-    if (!client) throw new Error("Supabase is not configured.");
-    const { data, error } = await client.auth.verifyOtp({ email, token, type: "email" });
-    if (error) throw error;
-    session = data.session;
-    setCanonicalHistoryStatus("loading");
-    if (session) await syncNow();
-    emitAuthState();
-    return data;
-  }
-
   async function userIdentities() {
     if (!client || !user()) return [];
     const { data, error } = await client.auth.getUserIdentities();
@@ -1534,8 +1512,6 @@
     signIn,
     signInWithGoogle,
     signInWithApple,
-    sendEmailOtp,
-    verifyEmailOtp,
     userIdentities,
     linkIdentity,
     unlinkIdentity,

@@ -24,6 +24,27 @@ function loadState(saved) {
   return { sandbox, storage };
 }
 
+function loadWorkContext() {
+  const sandbox = {
+    console,
+    Date,
+    Intl,
+    Number,
+    String,
+    Boolean,
+    Array,
+    Object,
+    Math,
+    document: { hidden: false, addEventListener() {}, getElementById() { return null; } },
+    addEventListener() {},
+    fuelGuardCloud: {}
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(read("work-mode.js"), sandbox, { filename: "work-mode.js" });
+  return sandbox.FuelGuardWorkContext._test;
+}
+
 function loadMilestoneTests() {
   const target = { innerHTML: "" };
   const sandbox = {
@@ -216,7 +237,7 @@ test("Work Mode comparisons require three completed historical periods", () => {
   assert.equal(result.comparison.hydrationDifference, 0);
 });
 
-test("Work and Training contexts can coexist and survive local refresh without changing normal logs", () => {
+test("legacy Work session identifiers remain readable while new Work context stays inference-only", () => {
   const normalized = domain.normalizeLog({
     type: "fuel",
     logged_at: "2026-08-10T10:00:00Z",
@@ -226,33 +247,47 @@ test("Work and Training contexts can coexist and survive local refresh without c
   assert.equal(normalized.trainingModeSessionId, "training-a");
   assert.equal(normalized.workModeSessionId, "work-a");
 
-  const first = loadState();
-  first.sandbox.fuelGapState().workMode = {
-    ownerUserId: "athlete-a",
-    activeSession: { id: "work-a", status: "active", startedAt: "2026-08-10T08:00:00Z" },
-    sessions: [{ id: "work-a", status: "active", startedAt: "2026-08-10T08:00:00Z" }],
-    lastSyncedAt: "",
-    lastError: ""
-  };
-  first.sandbox.save();
-  const refreshed = loadState(JSON.parse(first.storage.get("fuelGuardStateV20")));
-  assert.equal(refreshed.sandbox.fuelGapState().workMode.activeSession.id, "work-a");
-  assert.equal(refreshed.sandbox.fuelGapState().workMode.ownerUserId, "athlete-a");
   const workMode = read("work-mode.js");
-  assert.match(workMode, /if \(!userId && state\(\)\?\.ownerUserId\) resetForIdentity\(""\)/);
-  assert.match(workMode, /previousOwner && previousOwner !== String\(userId \|\| ""\)[\s\S]*log\.workModeSessionId = ""/);
+  assert.match(workMode, /function contextForEvent\(\)[\s\S]*return \{\};/);
+  assert.match(workMode, /async function ensureSessionSyncedForLog\(\) \{ return null; \}/);
+  assert.match(workMode, /function activeSession\(\) \{ return null; \}/);
+  assert.doesNotMatch(workMode, /\.from\("fuel_work_mode_sessions"\)|data-work-mode-start|data-work-mode-end/);
+  const html = read("index.html");
+  assert.doesNotMatch(html, /athleteWorkMode|athletePrimaryContext|Start Work Mode|End Work Mode/);
+  assert.match(html, /data-settings-category-open="work"/);
 });
 
-test("Work Mode migration enforces one active owner-scoped session and composite log ownership", () => {
-  const migration = read("supabase/migrations/20260810223802_work_mode_sessions.sql");
-  const rls = read("supabase/tests/work_mode_sessions_rls_test.sql");
-  assert.match(migration, /unique index fuel_work_mode_sessions_one_active_idx[\s\S]*where status = 'active'/);
-  assert.match(migration, /foreign key \(work_mode_session_id, user_id\)[\s\S]*on delete restrict/);
+test("automatic Work context supports normal, overnight and off-day schedules with owner-only RLS", () => {
+  const workMode = read("work-mode.js");
+  const helpers = loadWorkContext();
+  const migration = read("supabase/migrations/20260814130000_automatic_work_context_supplement_catalogue.sql");
+  const retirement = read("supabase/migrations/20260814131000_retire_manual_work_mode_writes.sql");
+  const rls = read("supabase/tests/automatic_work_context_supplement_catalogue_rls_test.sql");
+  const rows = [
+    { day_of_week: 1, is_work_day: true, start_time: "09:00", end_time: "17:00" },
+    { day_of_week: 5, is_work_day: true, start_time: "22:00", end_time: "06:00" },
+    { day_of_week: 6, is_work_day: false, start_time: null, end_time: null }
+  ];
+  assert.equal(helpers.isDuringPattern("2026-08-10T10:00:00Z", rows, "UTC"), true);
+  assert.equal(helpers.isDuringPattern("2026-08-10T18:00:00Z", rows, "UTC"), false);
+  assert.equal(helpers.isDuringPattern("2026-08-14T23:30:00Z", rows, "UTC"), true);
+  assert.equal(helpers.isDuringPattern("2026-08-15T05:30:00Z", rows, "UTC"), true);
+  assert.equal(helpers.isDuringPattern("2026-08-15T07:00:00Z", rows, "UTC"), false);
+  assert.match(workMode, /previousDayOfWeek/);
+  assert.match(workMode, /start < end/);
+  assert.match(workMode, /classifyEvent[\s\S]*training[\s\S]*isDuringWork/);
+  assert.match(migration, /create table public\.fuel_work_patterns/);
+  assert.match(migration, /create table public\.fuel_work_pattern_days/);
+  assert.match(migration, /start_time <> end_time/);
   assert.match(migration, /enable row level security/);
   assert.match(migration, /with check \(\(select auth\.uid\(\)\) = user_id\)/);
-  assert.doesNotMatch(migration, /grant delete/i);
-  assert.match(rls, /Cross-athlete Work Mode direct-ID reads are blocked/);
-  assert.match(rls, /Composite ownership prevents linking a log to another athlete/);
+  assert.doesNotMatch(migration, /grant select, insert, update, delete/);
+  assert.match(retirement, /revoke insert, update on table public\.fuel_work_mode_sessions/);
+  assert.match(retirement, /fuel_logs_reject_new_manual_work_context/);
+  assert.match(retirement, /new\.work_mode_session_id is not null/);
+  assert.match(rls, /Cross-athlete direct-ID pattern reads are blocked/);
+  assert.match(rls, /Work pattern owner cannot be repointed/);
+  assert.match(workMode, /Average fuel gap|Longest fuel gap|Fuel event frequency|Typical first work fuel|Typical last work fuel/);
 });
 
 test("Training completion has one transient summary and remains represented once in history", () => {
@@ -293,7 +328,7 @@ test("the PWA cache advances once and includes every new Work Mode asset", () =>
   const html = read("index.html");
   const worker = read("sw.js");
   const build = read("build-info.js");
-  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v149-consolidated-release/));
+  [html, worker, build].forEach(source => assert.match(source, /mobile-pwa-v150-auto-work-supplementation/));
   assert.doesNotMatch(html + worker + build, /mobile-pwa-v132-athlete-ux-impact-fix/);
   for (const file of ["work-mode.css", "work-mode.js"]) {
     assert.match(html, new RegExp(file.replace(".", "\\.")));

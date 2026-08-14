@@ -14,20 +14,20 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="work-mode.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="athlete-everyday-reflection.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="athlete-analytics.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="athlete-tools.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="athlete-share.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="brand/fuel-guard-brand.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="fuel-auth.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="supplement-rhythm.css?v=mobile-pwa-v149-consolidated-release" />
-  <link rel="stylesheet" href="garmin-onboarding.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="mobile-pwa.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="mobile-ux-overrides.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="fuel-beta.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="training-mode.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="work-mode.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="athlete-impact.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="athlete-everyday-reflection.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="athlete-analytics.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="athlete-tools.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="athlete-share.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="brand/fuel-guard-brand.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="fuel-auth.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="supplement-rhythm.css?v=mobile-pwa-v150-auto-work-supplementation" />
+  <link rel="stylesheet" href="garmin-onboarding.css?v=mobile-pwa-v150-auto-work-supplementation" />
   <style>
     body.beta-mvp {
       max-width: 100vw;
@@ -103,7 +103,7 @@
 
     @media (max-width: 560px) {
       body.beta-mvp .beta-log-actions {
-        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         width: 100%;
         max-width: 100%;
       }
@@ -132,16 +132,10 @@
       <div class="fuel-auth-divider" aria-hidden="true">or</div>
       <div class="fuel-auth-fields">
         <label>Email<input id="fuelGuardAuthEmail" type="email" autocomplete="email" inputmode="email" /></label>
-        <label id="fuelGuardAuthOtpField" hidden>Six-digit code<input id="fuelGuardAuthOtp" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" /></label>
-        <details class="fuel-auth-password-disclosure"><summary>Use password instead</summary><label>Password<input id="fuelGuardAuthPassword" type="password" autocomplete="current-password" /></label></details>
+        <label>Password<input id="fuelGuardAuthPassword" type="password" autocomplete="current-password" /></label>
       </div>
-      <div class="fuel-auth-email-stack">
-        <button id="fuelGuardSendOtp" class="fuel-auth-email-action" type="button" data-fuel-auth-action>Email me a code</button>
-        <button id="fuelGuardVerifyOtp" class="fuel-auth-email-action" type="button" data-fuel-auth-action>Continue with code</button>
-      </div>
+      <button id="fuelGuardEmailSignIn" class="fuel-auth-email-action" type="button" data-fuel-auth-action>Sign in</button>
       <div class="fuel-auth-secondary-row">
-        <span>Password access</span>
-        <button id="fuelGuardEmailSignIn" class="fuel-auth-secondary-action" type="button" data-fuel-auth-action>Sign in</button>
         <button id="fuelGuardEmailSignUp" class="fuel-auth-secondary-action" type="button" data-fuel-auth-action>Create account</button>
         <button id="fuelGuardForgotPassword" class="fuel-auth-secondary-action" type="button" data-fuel-auth-action>Forgot password?</button>
       </div>
@@ -218,13 +212,10 @@
           <section id="fuelTodayStatus"></section>
           <section id="athleteTeamSessionContext" aria-live="polite"></section>
           <div id="athleteContextualNudge" class="beta-contextual-nudge" hidden aria-live="polite"></div>
-          <section id="athleteWorkMode" class="work-mode-surface" aria-live="polite"></section>
-          <section id="athletePrimaryContext" class="athlete-primary-context" aria-label="Fuel Guard context"></section>
           <section id="athleteRecoveryFocus" class="athlete-recovery-focus" aria-live="polite"></section>
           <div class="beta-day-type-storage" hidden aria-hidden="true">
             <label>Day type<select id="fuelDayType" tabindex="-1">
               <option value="">Normal</option>
-              <option value="work">Working</option>
               <option value="holiday">Holiday</option>
               <option value="competition">Competition</option>
             </select></label>
@@ -235,23 +226,22 @@
             <div class="section-heading-row beta-quick-actions-heading">
               <div>
                 <h3>Quick actions</h3>
-                <p class="muted">Tap when fuel, hydration, or sleepiness happens.</p>
+                <p class="muted">Tap when fuel, hydration, supplementation, or sleepiness happens.</p>
               </div>
             </div>
-            <div class="beta-status-log-actions beta-log-actions beta-timeline-log-actions" aria-label="Log fuel, hydration, or sleepy">
+            <div class="beta-status-log-actions beta-log-actions beta-timeline-log-actions" aria-label="Log fuel, hydration, supplementation, or sleepy">
               <button id="graphLogFoodButton" class="primary beta-fuelled-button" type="button" data-fuel-action="log-fuel"><span>Fuel</span></button>
-              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Hydrate</span></button>
+              <button id="graphLogHydrationButton" class="secondary beta-hydration-button" type="button"><span>Hydration</span></button>
+              <button id="graphLogSupplementButton" class="secondary beta-supplement-button" type="button"><span>Supplementation</span></button>
               <button id="graphLogSleepyButton" class="secondary beta-sleepy-button" type="button"><span>Sleepy</span></button>
             </div>
             <div id="foodLogCooldownMessage" class="fuel-cooldown-message" role="status" aria-live="polite"></div>
           </section>
 
-          <section id="athleteSupplementRhythm" class="beta-rhythm-section-card supplement-rhythm-daily" aria-label="Supplement Rhythm"></section>
           <section id="supplementQuickLogSheet" class="supplement-quick-sheet" data-private-ui data-managed-visibility hidden inert aria-modal="true" role="dialog" aria-labelledby="supplementQuickLogTitle">
             <button type="button" class="supplement-quick-backdrop" data-supplement-cancel aria-label="Close supplement quick log"></button>
-            <article><span>Supplement Rhythm</span><h3 id="supplementQuickLogTitle">Record supplement</h3><p id="supplementQuickLogContext" class="muted"></p>
-              <label class="supplement-check"><input id="supplementQuickWithFood" type="checkbox"><span>I took this with food</span></label>
-              <label id="supplementQuickFuelAssociation" class="supplement-check" hidden><input id="supplementQuickLinkFuel" type="checkbox"><span id="supplementQuickFuelLabel">Link nearby Fuel event</span></label>
+            <article><span>Supplementation</span><h3 id="supplementQuickLogTitle">Record supplements</h3><p id="supplementQuickLogContext" class="muted"></p>
+              <div id="supplementQuickChoices" class="supplement-quick-choices" role="group" aria-label="Supplements taken"></div>
               <label class="supplement-quick-time">Time taken<input id="supplementQuickTakenAt" type="datetime-local"></label>
               <div class="button-row"><button id="supplementQuickConfirm" class="primary" type="button">Record</button><button class="secondary" type="button" data-supplement-cancel>Cancel</button></div>
               <p id="supplementQuickStatus" class="row-note" role="status" aria-live="polite"></p>
@@ -276,7 +266,7 @@
             <div class="section-heading-row">
               <div>
                 <h3 id="athleteDailyStreaksHeading">Your milestones</h3>
-                <p class="muted">Cumulative Fuel, Hydration, Sleepy, Ready, Training and Work moments from your history.</p>
+                <p class="muted">Cumulative Fuel, Hydration, Sleepy, Ready and Training moments from your history.</p>
               </div>
             </div>
             <div id="athleteMilestones"></div>
@@ -309,6 +299,7 @@
 
       <section id="analytics" class="screen" aria-label="Fuel Guard Analytics">
         <div id="athleteAnalyticsSurface" class="athlete-analytics-surface"></div>
+        <div id="athleteWorkContextAnalytics" class="work-context-analytics" aria-live="polite"></div>
       </section>
 
       <section id="tools" class="screen" aria-label="Fuel Guard Tools">
@@ -325,7 +316,8 @@
           <button type="button" data-settings-category-open="account"><span>Account &amp; Profile</span><small>Identity, sign-in, sync, profile and points</small><b aria-hidden="true">›</b></button>
           <button type="button" data-settings-category-open="garmin"><span>Garmin &amp; Devices</span><small>Connected Fuel Guard watch apps</small><b aria-hidden="true">›</b></button>
           <button type="button" data-settings-category-open="notifications"><span>Notifications</span><small>Contextual reminder preferences</small><b aria-hidden="true">›</b></button>
-          <button type="button" data-settings-category-open="supplements"><span>Supplement Rhythm</span><small>Private plans, schedule and history</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="work"><span>Working pattern</span><small>Weekly hours for automatic context</small><b aria-hidden="true">›</b></button>
+          <button type="button" data-settings-category-open="supplements"><span>Supplementation</span><small>Private selection, timing and history</small><b aria-hidden="true">›</b></button>
           <button type="button" data-settings-category-open="social"><span>Social Media</span><small>Create private, branded Athlete story cards</small><b aria-hidden="true">›</b></button>
           <button type="button" data-settings-category-open="sharing"><span>Coach &amp; Sharing</span><small>Coach and organisation access</small><b aria-hidden="true">›</b></button>
           <button type="button" data-settings-category-open="support"><span>App &amp; Support</span><small>Data, privacy and app updates</small><b aria-hidden="true">›</b></button>
@@ -457,6 +449,10 @@
           <div id="athleteSupplementManagement"></div>
         </article>
 
+        <article id="athleteWorkPatternSettings" class="card work-pattern-settings" data-settings-category="work">
+          <div id="athleteWorkPatternManagement"></div>
+        </article>
+
         <article id="organisationSharingCard" class="card beta-coach-sharing-card" data-settings-category="sharing" hidden>
           <h2>Organisation Sharing</h2>
           <p class="muted">An organisation cannot use your Fuel Guard data until you approve its invitation. You can stop sharing at any time without deleting your account or personal history.</p>
@@ -535,7 +531,7 @@
 
         <div class="beta-version-marker beta-settings-footer" data-settings-category="support" aria-label="Canonical app version">
           <strong>Fuel Guard Mobile PWA</strong>
-          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v149-consolidated-release</span>
+          <span id="canonicalAppVersion">Canonical app: mobile-pwa-v150-auto-work-supplementation</span>
           <span id="buildVersionMarker">Build version: loading...</span>
           <a href="/privacy/">Privacy policy</a>
         </div>
@@ -584,37 +580,37 @@
     </button>
   </nav>
 
-  <script src="build-info.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="api/supabase-config.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="build-info.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="api/supabase-config.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="fuel-guard-domain.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="app-state.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="fuel-supabase.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="fuel-auth.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="account-identities.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="product-shell.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="organisation-sharing.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="garmin-connected-devices.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="garmin-onboarding.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="app-ui.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="app-pwa.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="transactional-email-client.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="logging-feedback.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="fuel-beta.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="training-mode.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="work-mode.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-context-layer.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="supplement-rhythm.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-everyday-reflection.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-impact.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-analytics.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-tools.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-milestones.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-share-card.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-share.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="athlete-retention.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="settings-navigation.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v149-consolidated-release"></script>
-  <script src="day-type-overrides.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="fuel-guard-domain.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="app-state.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="fuel-supabase.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="fuel-auth.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="account-identities.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="product-shell.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="organisation-sharing.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="garmin-connected-devices.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="garmin-onboarding.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="app-ui.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="app-pwa.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="transactional-email-client.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="logging-feedback.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="fuel-beta.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="training-mode.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="work-mode.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-context-layer.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="supplement-rhythm.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-everyday-reflection.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-impact.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-analytics.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-tools.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-milestones.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-share-card.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-share.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="athlete-retention.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="settings-navigation.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="fuel-beta-ui-polish.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
+  <script src="day-type-overrides.js?v=mobile-pwa-v150-auto-work-supplementation"></script>
 </body>
 </html>

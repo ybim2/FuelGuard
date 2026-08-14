@@ -17,17 +17,24 @@ function loadSupplement({ logs = [] } = {}) {
   return window.FuelGuardSupplementRhythm._test;
 }
 
-test("authentication exposes Apple, Google and six-digit email OTP through one Supabase client", () => {
+test("authentication exposes Apple, Google and immediate email/password sign-in without an email code path", () => {
   const html = read("index.html");
   const cloud = read("fuel-supabase.js");
+  const auth = read("fuel-auth.js");
   assert.match(html, /Continue with Apple/);
   assert.match(html, /Continue with Google/);
-  assert.match(html, /id="fuelGuardAuthOtp"[^>]*inputmode="numeric"[^>]*maxlength="6"/);
+  assert.match(html, /id="fuelGuardAuthEmail"/);
+  assert.match(html, /id="fuelGuardAuthPassword"/);
+  assert.match(html, /id="fuelGuardEmailSignIn"[^>]*>Sign in</);
+  assert.doesNotMatch(html, /Use password|fuelGuardAuthOtp|Email me a code|Continue with code/);
   assert.match(cloud, /provider: "apple"/);
   assert.match(cloud, /provider: "google"/);
-  assert.match(cloud, /signInWithOtp\(\{/);
-  assert.match(cloud, /verifyOtp\(\{ email, token, type: "email" \}\)/);
+  assert.match(cloud, /signInWithPassword/);
+  assert.doesNotMatch(cloud + auth, /signInWithOtp|verifyOtp|sendEmailOtp|verifyEmailOtp/);
   assert.match(cloud, /flowType: "pkce"/);
+  assert.match(cloud, /resetPasswordForEmail/);
+  assert.match(auth, /minimumLoadingMs: MIN_LOADING_MS/);
+  assert.equal(require("../fuel-auth.js")._test.minimumLoadingMs, 1500);
 });
 
 test("OAuth uses one PKCE callback and rejects external next destinations", () => {
@@ -62,11 +69,15 @@ test("login methods use real Supabase identities and protect the only usable met
 
 test("Supplement Rhythm schema is additive, private and deliberately outside fuel logs", () => {
   const sql = read("supabase/migrations/20260814120000_supplement_rhythm_recovery_layer.sql");
+  const extension = read("supabase/migrations/20260814130000_automatic_work_context_supplement_catalogue.sql");
   for (const table of ["fuel_supplement_plans", "fuel_supplement_schedule_slots", "fuel_supplement_events", "fuel_recovery_focus_sessions"]) {
     assert.match(sql, new RegExp(`create table public\\.${table}`));
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`));
   }
   assert.match(sql, /supplement_type in \('iron', 'creatine', 'vitamin_c', 'custom'\)/);
+  for (const type of ["vitamin_d", "vitamin_b12", "multivitamin", "magnesium", "calcium", "zinc", "electrolytes", "omega_3", "protein_supplement"]) assert.match(extension, new RegExp(`'${type}'`));
+  assert.match(extension, /add column event_local_date date/);
+  assert.match(extension, /add column timezone_name text/);
   assert.match(sql, /routine_source.*self_selected.*clinician.*dietitian.*coach.*prefer_not_to_say/s);
   assert.match(sql, /context_mode in \('everyday', 'work', 'training'\)/);
   assert.match(sql, /source in \('manual', 'reminder', 'watch', 'import'\)/);
@@ -104,31 +115,28 @@ test("local planned times remain local across timezone and daylight-saving const
   assert.equal(helpers.localDateKey(new Date(2026, 7, 14, 23, 30)), "2026-08-14");
 });
 
-test("supplement UI supports as-needed, selected days, multiple times, food association, edit and undo", () => {
+test("Supplementation is a first-class 2x2 Daily action with multi-select quick logging and no amount field", () => {
   const source = read("supplement-rhythm.js");
   const html = read("index.html");
-  assert.match(source, /supplementPlanAsNeeded/);
-  assert.match(source, /data-supplement-day/);
+  assert.match(html, /id="graphLogSupplementButton"[\s\S]*<span>Supplementation<\/span>/);
+  assert.match(html, /id="supplementQuickChoices"/);
+  assert.match(source, /data-supplement-quick-plan/);
+  assert.match(source, /planIds\.map\(planFor\)/);
   assert.match(source, /data-supplement-add-slot/);
-  assert.match(html, /supplementQuickWithFood/);
-  assert.match(html, /supplementQuickLinkFuel/);
   assert.match(html, /supplementQuickTakenAt/);
-  assert.match(source, /linked_fuel_event_id/);
-  assert.match(source, /data-supplement-skip/);
   assert.match(source, /data-supplement-edit-slot/);
   assert.match(source, /data-supplement-toggle-reminder/);
-  assert.match(source, /Log another/);
-  assert.match(source, /data-supplement-edit/);
   assert.match(source, /data-supplement-undo/);
+  assert.doesNotMatch(html + source, /supplementQuickWithFood|supplementQuickLinkFuel|name="(?:dose|dosage|quantity)"/i);
+  assert.match(read("fuel-beta.css"), /beta-quick-actions-card \.beta-log-actions \{[\s\S]*grid-template-columns: repeat\(2/);
 });
 
-test("Supplement Rhythm parses local schedule days and only suggests recent Fuel", () => {
+test("Supplementation parses local schedule days and keeps contextual reminders private", () => {
   const helpers = loadSupplement();
   assert.deepEqual(Array.from(helpers.parseDays("Mon, Wednesday, fri, Mon")), [1, 3, 5]);
   const source = read("supplement-rhythm.js");
-  assert.match(source, /now - item\.at <= 2 \* 60 \* 60 \* 1000/);
-  assert.match(source, /A scheduled Fuel Guard routine is due\./);
-  assert.match(read("athlete-retention.js"), /data-open-supplement-settings>Open Supplement Rhythm/);
+  assert.match(source, /reminderPrompt/);
+  assert.match(source, /Only you can access these records/);
 });
 
 test("supplement events do not enter points, milestones, Coach or sharing paths", () => {
@@ -141,12 +149,13 @@ test("supplement events do not enter points, milestones, Coach or sharing paths"
 test("Everyday, Work and Training remain primary while Recovery is a secondary explicit layer", () => {
   const context = read("athlete-context-layer.js");
   const work = read("work-mode.js");
-  assert.match(context, /return training\(\)\?\.activeSession\?\.\(\) \? "training" : work\(\)\?\.activeSession\?\.\(\) \? "work" : "everyday"/);
+  assert.match(context, /training\(\)\?\.activeSession\?\.\(\) \? "training" : work\(\)\?\.isDuringWork\?\.\(at\) \? "work" : "everyday"/);
   assert.match(context, /fuelguard:training-session-ended/);
   assert.match(context, /data-recovery-start/);
   assert.match(context, /fuelguard:training-session-started/);
-  assert.match(context, /fuelguard:work-session-state/);
-  assert.match(work, /fuelguard:work-session-state/);
+  assert.match(context, /fuelguard:work-pattern-updated/);
+  assert.match(work, /function isDuringWork/);
+  assert.doesNotMatch(context, /data-primary-context|work\(\)\?\.start|work\(\)\?\.end/);
   assert.match(context, /end\("new_training"\)/);
   assert.match(context, /planned supplement moments logged/);
   assert.equal((context.match(/24 \* 60 \* 60 \* 1000/g) || []).length, 1);
@@ -157,7 +166,7 @@ test("PWA shell versions every new private surface and preserves callback naviga
   const html = read("index.html");
   const sw = read("sw.js");
   for (const asset of ["account-identities.js", "athlete-context-layer.js", "supplement-rhythm.js", "supplement-rhythm.css"]) {
-    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v149-consolidated-release"));
+    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v150-auto-work-supplementation"));
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
   assert.match(sw, /requestUrl\.pathname\.startsWith\("\/auth\/callback"\)/);

@@ -173,10 +173,6 @@ body.beta-mvp .mobile-bottom-nav[data-private-ui][hidden] {
   font: inherit;
 }
 
-.fuel-auth-password-disclosure { margin-top: 2px; color: #aaa; }
-.fuel-auth-password-disclosure summary { cursor: pointer; font-size: .82rem; font-weight: 800; }
-.fuel-auth-password-disclosure label { margin-top: 10px; }
-
 .fuel-auth-name-onboarding {
   position: fixed;
   inset: 0;

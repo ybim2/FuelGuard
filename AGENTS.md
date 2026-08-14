@@ -41,6 +41,20 @@ Mobile PWA update rules
 - The installed PWA may need the Settings update action after deploys to check for a waiting service worker and refresh safely.
 - Future Codex chats must inspect PWA cache/update behavior before assuming a visible Vercel update has reached installed iOS PWAs.
 
+Preview-first development and release workflow
+----------------------------------------------
+
+- Never merge directly to `main` merely so an update can be reviewed.
+- Implement every feature, bug fix, or UX change on a separate feature branch.
+- Push the reviewable branch and provide a working Vercel Preview deployment that can be opened on desktop and mobile before requesting Production approval.
+- Keep requested review fixes on that same branch and update its Preview deployment.
+- Successful tests and builds mean the branch is ready for review; they are not permission to merge or deploy Production.
+- Merge to `main` and allow the normal Production deployment only after the user explicitly approves the exact Preview state.
+- Once the exact Preview is approved, proceed with the normal merge without restarting redundant verification unless a new blocker or material risk appears.
+- Keep Preview database changes isolated from Production wherever practical. Clearly identify any migration that will be required only at the approved Production release step.
+- If authentication or another external integration cannot function on a Preview domain, report the exact callback or configuration limitation instead of merging to Production to test it.
+- Completion reports for reviewable work must include the branch, Preview URL, validation results, and `Production status: Not merged. Awaiting preview approval.`
+
 Canonical files
 ---------------
 
