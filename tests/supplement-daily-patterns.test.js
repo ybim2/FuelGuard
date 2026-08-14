@@ -291,6 +291,10 @@ test("Daily records every saved supplement in one tap and groups the moment for 
   assert.match(view.management(), /Save supplement selection/);
   assert.doesNotMatch(view.management(), /Saving…/);
   assert.doesNotMatch(view.management(), /input[^>]+value="creatine"[^>]+disabled/, "Daily logging must release Supplement Settings after the save finishes");
+
+  view.setUser({ id: "athlete-2" });
+  await view.api.load();
+  assert.equal(view.elements.get("supplementLogStatus").textContent, "", "supplement confirmation must not persist into another account");
 });
 
 test("an unconfigured Daily action stays in Daily and offers explicit Supplement Settings navigation", async () => {

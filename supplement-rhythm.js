@@ -185,9 +185,9 @@
 
   async function load() {
     const userId = String(cloud()?.user?.id || "");
-    if (!userId || !cloud()?.client) { owner = ""; plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; render(); emitEventsChanged(); return; }
+    if (!userId || !cloud()?.client) { owner = ""; plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; setDailyLogStatus(""); render(); emitEventsChanged(); return; }
     const preserveDraft = owner === userId && selectionDirty;
-    if (owner && owner !== userId) { plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; }
+    if (owner && owner !== userId) { plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; setDailyLogStatus(""); }
     owner = userId;
     const [planResult, slotResult, eventResult] = await Promise.all([
       cloud().client.from(PLANS).select("*").eq("user_id", userId).order("created_at"),
