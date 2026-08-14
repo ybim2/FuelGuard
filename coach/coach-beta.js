@@ -149,6 +149,15 @@
     return match ? `FG-${match[1]}` : compact;
   }
 
+  function syncAddAthleteButtonState() {
+    const button = $("coachFindAthleteButton");
+    if (!button) return;
+    const code = normalizeAthleteCode($("coachAthleteCodeInput")?.value || state.athleteCodeQuery);
+    const disabled = state.busy || !ATHLETE_CODE_RE.test(code);
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+
   function profileSelect() {
     return "user_id,role,coach_enabled,display_name,first_name,last_name,avatar_url,job_title,athlete_code,created_at,updated_at";
   }
@@ -475,6 +484,7 @@
   function renderAthleteCodeResult() {
     const target = $("coachAthleteCodeResult");
     if (!target) return;
+    syncAddAthleteButtonState();
     const result = state.athleteCodeResult;
     if (state.athleteCodeStatus && !result) {
       target.innerHTML = `
@@ -486,7 +496,7 @@
       return;
     }
     if (!result) {
-      target.innerHTML = `<p class="coach-note">Ask an athlete for their Fuel Guard Athlete Code to connect.</p>`;
+      target.innerHTML = `<p class="coach-note">The athlete can find their athlete code in Settings → Coach &amp; Sharing.</p>`;
       return;
     }
     const status = result.relationship_status || "not_connected";
@@ -509,7 +519,7 @@
           ? `<button type="button" data-open-athlete="${safe(result.athlete_id)}">View</button>`
           : pending
             ? `<button type="button" disabled>Invitation pending</button>`
-            : `<button type="button" data-send-code-request>Send Connection Request</button>`}
+            : `<span class="coach-status-chip">Ready to add</span>`}
       </article>
       ${state.athleteCodeStatus ? `<p class="coach-note">${safe(state.athleteCodeStatus)}</p>` : ""}
     `;
@@ -2815,20 +2825,34 @@
     if (state.busy) return;
     state.busy = true;
     const originalText = button?.textContent || "";
-    if (button) button.disabled = true;
+    if (button) {
+      button.disabled = true;
+      button.setAttribute("aria-disabled", "true");
+      button.setAttribute("aria-busy", "true");
+    }
     if (button?.id === "coachSignInButton") button.textContent = "Signing in...";
     if (button?.id === "coachSignUpButton") button.textContent = "Sending...";
     if (button?.id === "coachForgotPasswordButton") button.textContent = "Sending...";
-    if (button?.id === "coachFindAthleteButton") button.textContent = "Finding...";
-    if (button?.dataset?.sendCodeRequest !== undefined) button.textContent = "Sending...";
+    if (button?.dataset?.busyLabel) button.textContent = button.dataset.busyLabel;
+    else if (button?.id === "coachFindAthleteButton") button.textContent = "Adding…";
     try {
-      await callback();
+      return await callback();
     } catch (error) {
       setStatus(friendlyError(error));
+      if (button?.id === "coachFindAthleteButton") {
+        state.athleteCodeStatus = "Athlete could not be added.";
+        state.athleteCodeStatusDetail = friendlyError(error);
+        renderAthleteCodeResult();
+      }
     } finally {
       state.busy = false;
-      if (button) button.disabled = false;
-      if (button && originalText) button.textContent = originalText;
+      if (button) {
+        button.removeAttribute("aria-busy");
+        if (originalText) button.textContent = originalText;
+        button.disabled = false;
+        button.setAttribute("aria-disabled", "false");
+      }
+      syncAddAthleteButtonState();
     }
   }
 
@@ -3186,98 +3210,103 @@
     });
   }
 
-  async function findAthleteByCode() {
-    await withBusy($("coachFindAthleteButton"), async () => {
-      const code = normalizeAthleteCode($("coachAthleteCodeInput")?.value || state.athleteCodeQuery);
-      state.athleteCodeQuery = code;
-      state.athleteCodeResult = null;
-      state.athleteCodeStatus = "";
-      state.athleteCodeStatusDetail = "";
-      if (!ATHLETE_CODE_RE.test(code)) {
-        state.athleteCodeStatus = "Enter an Athlete Code like FG-7K42P.";
-        renderAthleteCodeResult();
-        return;
-      }
-      const { data, error } = await state.client.rpc("fuel_coach_find_athlete_by_code", {
-        search_code: code
-      });
-      if (error) throw error;
-      const result = Array.isArray(data) ? data[0] : data;
-      if (!result?.athlete_id) {
-        state.athleteCodeStatus = "Athlete code not found";
-        state.athleteCodeStatusDetail = "Check the code and try again.";
-        renderAthleteCodeResult();
-        return;
-      }
-      if (result.relationship_status === "self" || result.athlete_id === coachUser()?.id) {
-        state.athleteCodeStatus = "This is your Athlete Code";
-        state.athleteCodeStatusDetail = "You can't add your own athlete account as a coached athlete.";
-        renderAthleteCodeResult();
-        return;
-      }
-      state.athleteCodeResult = result;
-      state.athleteCodeStatus = result.relationship_status === "active"
-        ? "This athlete is already connected."
-        : result.relationship_status === "pending"
-          ? "A connection request is already waiting for athlete approval."
-          : result.relationship_status === "declined"
-            ? "The previous request was declined. You can send a new request if the athlete asked you to."
-            : "Athlete found. Send a connection request when you are ready.";
+  async function lookupAthleteByCode() {
+    const code = normalizeAthleteCode($("coachAthleteCodeInput")?.value || state.athleteCodeQuery);
+    state.athleteCodeQuery = code;
+    state.athleteCodeResult = null;
+    state.athleteCodeStatus = "";
+    state.athleteCodeStatusDetail = "";
+    if (!ATHLETE_CODE_RE.test(code)) {
+      state.athleteCodeStatus = "Enter an Athlete Code like FG-7K42P9.";
       renderAthleteCodeResult();
+      return null;
+    }
+    const { data, error } = await state.client.rpc("fuel_coach_find_athlete_by_code", {
+      search_code: code
     });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result?.athlete_id) {
+      state.athleteCodeStatus = "Athlete code not found";
+      state.athleteCodeStatusDetail = "Check the code and try again.";
+      renderAthleteCodeResult();
+      return null;
+    }
+    if (result.relationship_status === "self" || result.athlete_id === coachUser()?.id) {
+      state.athleteCodeStatus = "This is your Athlete Code";
+      state.athleteCodeStatusDetail = "You can't add your own athlete account as a coached athlete.";
+      renderAthleteCodeResult();
+      return null;
+    }
+    state.athleteCodeResult = result;
+    state.athleteCodeStatus = result.relationship_status === "active"
+      ? "This athlete is already connected."
+      : result.relationship_status === "pending"
+        ? "A connection request is already waiting for athlete approval."
+        : result.relationship_status === "declined"
+          ? "The previous request was declined. You can send a new request if the athlete asked you to."
+          : "Athlete found.";
+    renderAthleteCodeResult();
+    return result;
   }
 
-  async function requestSharing(button = document.querySelector("[data-send-code-request]")) {
-    await withBusy(button, async () => {
-      const user = coachUser();
-      if (!user) throw new Error("Sign in first.");
-      const result = state.athleteCodeResult;
-      const athleteId = String(result?.athlete_id || "");
-      if (!athleteId) throw new Error("Find an athlete by Athlete Code before requesting access.");
-      if (athleteId === user.id || result?.relationship_status === "self") {
-        throw new Error("You can't add your own athlete account as a coached athlete.");
-      }
-      const mutableRelationship = {
-        status: "pending",
-        athlete_label: result?.display_name || null,
-        coach_label: state.profile?.display_name || user.email || "Fuel Guard Coach",
-        accepted_at: null,
-        revoked_at: null,
-        updated_at: new Date().toISOString()
-      };
-      const existingResult = await state.client
-        .from(TABLES.relationships)
-        .select("id,status")
-        .eq("coach_id", user.id)
-        .eq("athlete_id", athleteId)
-        .maybeSingle();
-      if (existingResult.error) throw existingResult.error;
-      const write = existingResult.data
-        ? state.client.from(TABLES.relationships).update(mutableRelationship).eq("id", existingResult.data.id)
-        : state.client.from(TABLES.relationships).insert({
-          coach_id: user.id,
-          athlete_id: athleteId,
-          ...mutableRelationship
-        });
-      const { data: savedRelationship, error } = await write.select("id").single();
-      if (error) throw error;
-      state.athleteCodeResult = { ...result, relationship_status: "pending" };
-      try {
-        await window.FuelGuardTransactionalEmail.sendInvitation({
-          accessToken: state.session?.access_token,
-          kind: "coach_athlete",
-          entityId: savedRelationship.id
-        });
-        state.athleteCodeStatus = "Connection request sent and email delivered. Athlete data stays private until they approve.";
-        state.athleteCodeStatusDetail = "";
-      } catch (emailError) {
-        console.error("Coach connection email delivery failed", { relationshipId: savedRelationship.id, error: String(emailError?.message || emailError) });
-        state.athleteCodeStatus = "Connection request saved. Athlete data stays private until they approve.";
-        state.athleteCodeStatusDetail = "The email could not be delivered, but the request remains available in Fuel Guard.";
-      }
-      setStatus(state.athleteCodeStatus);
-      await loadCoachData({ reason: "sharing-requested" });
-      renderAthleteCodeResult();
+  async function saveSharingRequest(result = state.athleteCodeResult) {
+    const user = coachUser();
+    if (!user) throw new Error("Sign in first.");
+    const athleteId = String(result?.athlete_id || "");
+    if (!athleteId) throw new Error("Enter a valid Athlete Code before adding an athlete.");
+    if (athleteId === user.id || result?.relationship_status === "self") {
+      throw new Error("You can't add your own athlete account as a coached athlete.");
+    }
+    const mutableRelationship = {
+      status: "pending",
+      athlete_label: result?.display_name || null,
+      coach_label: state.profile?.display_name || user.email || "Fuel Guard Coach",
+      accepted_at: null,
+      revoked_at: null,
+      updated_at: new Date().toISOString()
+    };
+    const existingResult = await state.client
+      .from(TABLES.relationships)
+      .select("id,status")
+      .eq("coach_id", user.id)
+      .eq("athlete_id", athleteId)
+      .maybeSingle();
+    if (existingResult.error) throw existingResult.error;
+    const write = existingResult.data
+      ? state.client.from(TABLES.relationships).update(mutableRelationship).eq("id", existingResult.data.id)
+      : state.client.from(TABLES.relationships).insert({
+        coach_id: user.id,
+        athlete_id: athleteId,
+        ...mutableRelationship
+      });
+    const { data: savedRelationship, error } = await write.select("id").single();
+    if (error) throw error;
+    state.athleteCodeResult = { ...result, relationship_status: "pending" };
+    try {
+      await window.FuelGuardTransactionalEmail.sendInvitation({
+        accessToken: state.session?.access_token,
+        kind: "coach_athlete",
+        entityId: savedRelationship.id
+      });
+      state.athleteCodeStatus = "Connection request sent and email delivered. Athlete data stays private until they approve.";
+      state.athleteCodeStatusDetail = "";
+    } catch (emailError) {
+      console.error("Coach connection email delivery failed", { relationshipId: savedRelationship.id, error: String(emailError?.message || emailError) });
+      state.athleteCodeStatus = "Connection request saved. Athlete data stays private until they approve.";
+      state.athleteCodeStatusDetail = "The email could not be delivered, but the request remains available in Fuel Guard.";
+    }
+    setStatus(state.athleteCodeStatus);
+    await loadCoachData({ reason: "sharing-requested" });
+    renderAthleteCodeResult();
+  }
+
+  async function addAthleteByCode() {
+    const button = $("coachFindAthleteButton");
+    return withBusy(button, async () => {
+      const result = await lookupAthleteByCode();
+      if (!result || result.relationship_status === "active" || result.relationship_status === "pending") return;
+      await saveSharingRequest(result);
     });
   }
 
@@ -4093,12 +4122,6 @@
       return;
     }
 
-    const codeRequest = event.target.closest("[data-send-code-request]");
-    if (codeRequest) {
-      requestSharing(codeRequest);
-      return;
-    }
-
     const scheduledReview = event.target.closest("[data-open-scheduled-review]");
     if (scheduledReview) {
       openScheduledReview(scheduledReview.dataset.openScheduledReview, scheduledReview);
@@ -4296,7 +4319,7 @@
   $("coachAccessSignOutButton")?.addEventListener("click", signOut);
   $("coachSignOutButton")?.addEventListener("click", signOut);
   $("coachSaveProfileButton")?.addEventListener("click", saveProfile);
-  $("coachFindAthleteButton")?.addEventListener("click", findAthleteByCode);
+  $("coachFindAthleteButton")?.addEventListener("click", addAthleteByCode);
   $("coachGenerateReviewButton")?.addEventListener("click", generateReport);
   $("coachSaveReviewButton")?.addEventListener("click", saveReport);
   $("coachCompleteReviewButton")?.addEventListener("click", completeWeeklyReview);
@@ -4352,11 +4375,12 @@
     state.athleteCodeStatus = "";
     state.athleteCodeStatusDetail = "";
     renderAthleteCodeResult();
+    syncAddAthleteButtonState();
   });
   $("coachAthleteCodeInput")?.addEventListener("keydown", event => {
     if (event.key === "Enter") {
       event.preventDefault();
-      findAthleteByCode();
+      if (ATHLETE_CODE_RE.test(normalizeAthleteCode(event.target.value))) addAthleteByCode();
     }
   });
 

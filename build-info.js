@@ -1,8 +1,8 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v148-apple-supplement-recovery",
-  buildVersion: "2026-08-14T12:00:00Z",
-  sourceCheckpoint: "v148-apple-supplement-recovery",
-  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v148-apple-supplement-recovery",
+  canonicalApp: "mobile-pwa-v149-consolidated-release",
+  buildVersion: "2026-08-14T00:41:05Z",
+  sourceCheckpoint: "v149-consolidated-release",
+  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v149-consolidated-release",
   serviceWorkerScope: "/",
-  cacheName: "fuel-guard-mobile-pwa-v148-apple-supplement-recovery-20260814T120000Z"
+  cacheName: "fuel-guard-mobile-pwa-v149-consolidated-release-20260814T004105Z"
 });

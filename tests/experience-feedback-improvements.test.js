@@ -101,7 +101,7 @@ test("Garmin success feedback requires acknowledgement and Training completion i
 });
 
 test("PWA app shell is versioned for the feedback release", () => {
-  assert.match(read("build-info.js"), /mobile-pwa-v148-apple-supplement-recovery/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v148-apple-supplement-recovery-20260814T120000Z/);
-  assert.match(read("index.html"), /Canonical app: mobile-pwa-v148-apple-supplement-recovery/);
+  assert.match(read("build-info.js"), /mobile-pwa-v149-consolidated-release/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v149-consolidated-release-20260814T004105Z/);
+  assert.match(read("index.html"), /Canonical app: mobile-pwa-v149-consolidated-release/);
 });

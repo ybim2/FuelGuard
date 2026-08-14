@@ -76,8 +76,9 @@ test("Coach Beta is a separate route and athlete Daily navigation remains simple
   assert.match(coachJs, /Check the code and try again/);
   assert.match(coachJs, /This is your Athlete Code/);
   assert.match(coachJs, /You can't add your own athlete account as a coached athlete/);
-  assert.match(coachJs, /function findAthleteByCode/);
-  assert.match(coachJs, /function requestSharing/);
+  assert.match(coachJs, /function lookupAthleteByCode/);
+  assert.match(coachJs, /function saveSharingRequest/);
+  assert.match(coachJs, /function addAthleteByCode/);
   assert.match(coachJs, /status:\s*"pending"/);
   assert.doesNotMatch(coachHtml, /Supabase user UUID|Name, label, or user ID|Athlete user ID/);
   assert.doesNotMatch(coachJs, /ATHLETE_ID_PATTERN|function exactAthleteRequestRow|data-request-athlete|coachInviteAthleteId|coachAthleteSearch/);
@@ -229,15 +230,16 @@ test("Coach athlete linking uses Athlete Codes instead of raw UUID search", () =
 
   assert.match(coachHtml, /Enter the Athlete Code/);
   assert.match(coachHtml, /id="coachAthleteCodeInput"/);
-  assert.match(coachHtml, /Find Athlete/);
-  assert.match(coachJs, /Send Connection Request/);
+  assert.match(coachHtml, />Add athlete<\/button>/);
+  assert.match(coachJs, /function addAthleteByCode/);
   assert.match(coachJs, /function relationshipRows/);
   assert.match(coachJs, /const fullName = \[profile\?\.first_name, profile\?\.last_name\]/);
   assert.match(coachJs, /return fullName \|\| relation\?\.athlete_label \|\| profile\?\.display_name/);
   assert.match(coachJs, /function normalizeAthleteCode/);
-  assert.match(coachJs, /function findAthleteByCode/);
+  assert.match(coachJs, /function lookupAthleteByCode/);
+  assert.match(coachJs, /function addAthleteByCode/);
   assert.match(coachJs, /fuel_coach_find_athlete_by_code/);
-  assert.match(coachJs, /data-send-code-request/);
+  assert.doesNotMatch(coachJs, /data-send-code-request/);
   assert.match(coachJs, /status:\s*"pending"/);
   assert.match(coachJs, /athlete_label:\s*result\?\.display_name/);
   assert.match(coachJs, /coach_label:\s*state\.profile\?\.display_name/);
