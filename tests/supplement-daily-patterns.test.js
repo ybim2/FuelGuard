@@ -43,12 +43,9 @@ function fixture({ plans = [], events = [] } = {}) {
   element("supplementQuickChoices");
   element("supplementQuickLogTitle");
   element("supplementQuickLogContext");
-  element("supplementQuickTakenAt");
-  element("supplementQuickStatus");
-  element("supplementQuickConfirm");
   element("graphLogSupplementButton");
+  element("supplementLogStatus");
   element("foodLogCooldownMessage");
-  const quickTime = { hidden: false };
   const body = { classList: { add() {}, remove() {} } };
 
   function clientBuilder(table) {
@@ -102,14 +99,10 @@ function fixture({ plans = [], events = [] } = {}) {
     addEventListener(type, listener) { listeners.set(type, listener); },
     getElementById(id) { return elements.get(id) || null; },
     querySelector(selector) {
-      if (selector === ".supplement-quick-time") return quickTime;
       if (selector === '[data-open-screen="checklist"]') return { click() { settingsClicks += 1; } };
       return null;
     },
-    querySelectorAll(selector) {
-      if (selector === "[data-supplement-quick-plan]:checked") return this.checkedPlans;
-      return [];
-    }
+    querySelectorAll() { return []; }
   };
   class CustomEvent {
     constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
@@ -244,9 +237,13 @@ test("removing a saved preference deactivates it without deleting supplement his
   await saveSelection(view);
   assert.equal(view.rowsByTable.fuel_supplement_plans.find(plan => plan.id === "plan-2").active, false);
   assert.equal(view.rowsByTable.fuel_supplement_events.length, 1);
-  await view.api.openQuickLog();
-  assert.match(view.elements.get("supplementQuickChoices").innerHTML, /Creatine/);
-  assert.doesNotMatch(view.elements.get("supplementQuickChoices").innerHTML, /Iron/);
+  const historicalTimeline = view.api.timelineEventsForDay(events[0].event_local_date);
+  assert.equal(historicalTimeline.length, 1);
+  assert.deepEqual([...historicalTimeline[0].supplementLabels], ["Iron"]);
+
+  await view.listeners.get("click")({ target: clickTarget("#graphLogSupplementButton") });
+  assert.equal(view.rowsByTable.fuel_supplement_events.length, 2);
+  assert.equal(view.rowsByTable.fuel_supplement_events[1].supplement_plan_id, "plan-1", "future Daily logs use only the current active selection");
 });
 
 test("save failure preserves checked choices and a retry converges without duplicates", async () => {
@@ -265,24 +262,17 @@ test("save failure preserves checked choices and a retry converges without dupli
   assert.match(view.management(), /Supplement selection saved/);
 });
 
-test("Daily opens saved preferences and logging creates only timestamped supplement events", async () => {
+test("Daily records every saved supplement in one tap and groups the moment for Today’s timeline", async () => {
   const started = Date.now();
   const view = fixture({ plans: [
     { id: "plan-1", user_id: "athlete-1", supplement_type: "creatine", custom_name: null, label: "Creatine", active: true },
     { id: "plan-2", user_id: "athlete-1", supplement_type: "vitamin_d", custom_name: null, label: "Vitamin D", active: true }
   ] });
   await view.api.load();
-  await view.api.openQuickLog();
-  const choices = view.elements.get("supplementQuickChoices").innerHTML;
-  assert.match(choices, /Creatine/);
-  assert.match(choices, /Vitamin D/);
-  assert.doesNotMatch(choices, / checked/);
+  await view.listeners.get("click")({ target: clickTarget("#graphLogSupplementButton") });
   assert.equal(view.settingsClicks(), 0);
-
-  view.document.checkedPlans = [{ value: "plan-1" }];
-  await view.listeners.get("click")({ target: clickTarget("#supplementQuickConfirm") });
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(view.rowsByTable.fuel_supplement_events.length, 1);
+  assert.equal(view.elements.get("supplementQuickLogSheet").hidden, true, "configured athletes must not see a second picker or confirmation sheet");
+  assert.equal(view.rowsByTable.fuel_supplement_events.length, 2);
   const event = view.rowsByTable.fuel_supplement_events[0];
   assert.equal(event.user_id, "athlete-1");
   assert.equal(event.supplement_plan_id, "plan-1");
@@ -291,17 +281,31 @@ test("Daily opens saved preferences and logging creates only timestamped supplem
   assert.ok(new Date(event.taken_at).getTime() >= started - 1000, "the default quick-log time should be the current second");
   assert.equal("dosage" in event, false);
   assert.equal("quantity" in event, false);
-  assert.equal(view.api.eventsForDay(event.event_local_date)[0].supplementLabel, "Creatine");
+  assert.equal(view.rowsByTable.fuel_supplement_events[1].supplement_plan_id, "plan-2");
+  assert.equal(view.rowsByTable.fuel_supplement_events[1].taken_at, event.taken_at, "one tap must produce one grouped logging moment");
+  const timeline = view.api.timelineEventsForDay(event.event_local_date);
+  assert.equal(timeline.length, 1);
+  assert.deepEqual([...timeline[0].supplementLabels], ["Creatine", "Vitamin D"]);
+  assert.equal(view.elements.get("supplementLogStatus").textContent, "Supplements logged");
   assert.ok(view.emitted.some(item => item.type === "fuelguard:supplement-events-changed"));
+  assert.match(view.management(), /Save supplement selection/);
+  assert.doesNotMatch(view.management(), /Saving…/);
+  assert.doesNotMatch(view.management(), /input[^>]+value="creatine"[^>]+disabled/, "Daily logging must release Supplement Settings after the save finishes");
+
+  view.setUser({ id: "athlete-2" });
+  await view.api.load();
+  assert.equal(view.elements.get("supplementLogStatus").textContent, "", "supplement confirmation must not persist into another account");
 });
 
 test("an unconfigured Daily action stays in Daily and offers explicit Supplement Settings navigation", async () => {
   const view = fixture();
   await view.api.load();
-  await view.api.openQuickLog();
+  await view.listeners.get("click")({ target: clickTarget("#graphLogSupplementButton") });
   assert.equal(view.settingsClicks(), 0);
+  assert.equal(view.rowsByTable.fuel_supplement_events.length, 0);
   assert.equal(view.elements.get("supplementQuickLogSheet").hidden, false);
-  assert.match(view.elements.get("supplementQuickChoices").innerHTML, /Set up your supplements before logging them/);
+  assert.equal(view.elements.get("supplementQuickLogTitle").textContent, "Choose your supplements first");
+  assert.equal(view.elements.get("supplementQuickLogContext").textContent, "Select the supplements you want the Daily Mode button to record.");
 
   await view.listeners.get("click")({ target: clickTarget("[data-open-supplement-settings]") });
   assert.equal(view.settingsClicks(), 1);

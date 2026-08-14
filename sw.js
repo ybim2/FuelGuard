@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v152-supplement-setup-save";
+const APP_VERSION = "mobile-pwa-v153-supplement-one-tap-timeline";
 const BUILD_VERSION = "2026-08-14T12:21:17Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v152-supplement-setup-save-20260814T122117Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v153-supplement-one-tap-timeline-20260814T154015Z";
 const APP_SHELL = [
   "./",
   "./index.html",

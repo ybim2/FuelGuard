@@ -2815,7 +2815,7 @@
   } = {}) {
     const normalizedLogs = (Array.isArray(logs) ? logs : [])
       .map(log => ({ ...log, date: logDate(log) }))
-      .filter(log => log.date && (["fuel", "hydration", "fuel_hydration"].includes(logType(log)) || isSleepyLog(log)))
+      .filter(log => log.date && (log.timelineType === "supplement" || ["fuel", "hydration", "fuel_hydration"].includes(logType(log)) || isSleepyLog(log)))
       .sort((a, b) => a.date - b.date);
     if (!normalizedLogs.length) {
       return `<p class="muted fuel-daily-empty">${safeText(emptyCopy)}</p>`;
@@ -2823,20 +2823,23 @@
     return `
       <div class="beta-event-timeline" role="list">
         ${normalizedLogs.map(log => {
+          const isSupplement = log.timelineType === "supplement";
           const type = logType(log);
-          const displayType = isSleepyLog(log) ? "sleepy" : type;
-          const id = String(log?.id || log?.localId || log?.cloudId || "");
+          const displayType = isSupplement ? "supplement" : isSleepyLog(log) ? "sleepy" : type;
+          const id = isSupplement ? "" : String(log?.id || log?.localId || log?.cloudId || "");
           const selected = allowEditing && id && selectedId === id;
-          const iconType = isSleepyLog(log) ? "sleepy" : type === "hydration" ? "hydration" : "fuel";
+          const iconType = isSupplement ? "supplement" : isSleepyLog(log) ? "sleepy" : type === "hydration" ? "hydration" : "fuel";
           const canEdit = allowEditing && ["fuel", "hydration", "fuel_hydration"].includes(type);
+          const title = isSupplement ? "Supplements" : logTypeLabel(log);
+          const detail = isSupplement ? (log.supplementLabels || []).join(", ") : showSource ? timelineSourceLabel(log) : "";
           return `
             <article class="beta-event-timeline-item ${safeText(displayType)} ${selected ? "selected" : ""}" role="listitem">
               <button class="beta-event-timeline-main" type="button" data-toggle-log-actions="${safeText(id)}" aria-expanded="${selected ? "true" : "false"}">
                 <time>${safeText(formatClock(log.date))}</time>
                 <span class="beta-event-timeline-dot ${safeText(displayType)}" aria-hidden="true">${dailyIcon(iconType)}</span>
                 <span class="beta-event-timeline-copy">
-                  <strong>${safeText(logTypeLabel(log))}</strong>
-                  <small>${showSource ? safeText(timelineSourceLabel(log)) : ""}</small>
+                  <strong>${safeText(title)}</strong>
+                  <small>${safeText(detail)}</small>
                 </span>
               </button>
               ${id && canEdit ? `<div class="beta-log-event-actions beta-event-timeline-actions" ${selected ? "" : "hidden"}><button class="secondary" type="button" data-edit-log="${safeText(id)}">Edit</button><button class="secondary danger-secondary" type="button" data-delete-log="${safeText(id)}">Delete</button></div>` : ""}
@@ -2856,12 +2859,14 @@
     const logs = logsForDay(key)
       .filter(log => ["fuel", "hydration", "fuel_hydration"].includes(logType(log)) || isSleepyLog(log))
       .sort((a, b) => (logDate(b) || 0) - (logDate(a) || 0));
-    const latest = logs[0] || null;
-    if (dateEl) dateEl.textContent = logs.length ? `${logs.length} log${logs.length === 1 ? "" : "s"} on ${formatDateKey(key)}` : `No logs on ${formatDateKey(key)}`;
-    if (latestEl) latestEl.textContent = latest ? `${logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "No logs yet";
+    const supplements = window.FuelGuardSupplementRhythm?.timelineEventsForDay?.(key) || [];
+    const timelineEntries = [...logs, ...supplements].sort((a, b) => (logDate(b) || 0) - (logDate(a) || 0));
+    const latest = timelineEntries[0] || null;
+    if (dateEl) dateEl.textContent = timelineEntries.length ? `${timelineEntries.length} event${timelineEntries.length === 1 ? "" : "s"} on ${formatDateKey(key)}` : `No events on ${formatDateKey(key)}`;
+    if (latestEl) latestEl.textContent = latest ? `${latest.timelineType === "supplement" ? "Supplements" : logTypeLabel(latest)} · ${formatClock(logDate(latest))}` : "No events yet";
     target.hidden = false;
-    target.innerHTML = renderEventTimeline(logs, {
-      emptyCopy: "No fuel, hydration, or sleepy logs yet today. Your first log will appear here.",
+    target.innerHTML = renderEventTimeline(timelineEntries, {
+      emptyCopy: "No fuel, hydration, supplement, or sleepy events yet today. Your first log will appear here.",
       allowEditing: false,
       selectedId: selectedTodayTimelineLogId
     });
@@ -2920,6 +2925,7 @@
       warning: '<path d="m12 3 9 16H3L12 3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
       energy: '<path d="m13 2-8 12h6l-1 8 8-12h-6l1-8z"/>',
       sleepy: '<path d="M18 4a7.5 7.5 0 1 0 2 14.5A8.5 8.5 0 0 1 18 4z"/>',
+      supplement: '<path d="M8.5 5.5a4.24 4.24 0 0 1 6 0l4 4a4.24 4.24 0 0 1-6 6l-4-4a4.24 4.24 0 0 1 0-6z"/><path d="m10 13 5-5"/>',
       heart: '<path d="M5 6a5 5 0 0 1 7 0 5 5 0 0 1 7 0c2 2 2 5 0 7l-7 7-7-7c-2-2-2-5 0-7z"/>',
       score: '<path d="M4 14a8 8 0 0 1 16 0"/><path d="m12 14 4-5"/><path d="M6.5 18h11"/>',
       shield: '<path d="M12 3 5 6v5c0 4.4 2.8 8.4 7 10 4.2-1.6 7-5.6 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/>',
@@ -10278,6 +10284,7 @@
   window.addEventListener("fuelguard:supplement-events-changed", () => {
     const target = document.getElementById("fuelLogPatterns");
     if (target) target.innerHTML = renderFuellingPatternGraphs(todayViewKey());
+    renderDailyLog();
   });
   document.addEventListener("click", event => {
     const logPatternType = event.target.closest("[data-log-pattern-type]");

@@ -89,6 +89,7 @@
       id: event?.id || "",
       date,
       takenAt: date,
+      takenAtIso: event?.taken_at || date.toISOString(),
       supplementPlanId: event?.supplement_plan_id || "",
       supplementLabel: plan?.label || typeLabel(plan) || "Supplement"
     };
@@ -99,6 +100,21 @@
       .map(patternEvent)
       .filter(event => !Number.isNaN(event.date.getTime()))
       .sort((left, right) => left.date - right.date);
+  }
+  function timelineEventsForDay(key = localDateKey()) {
+    const groups = new Map();
+    eventsForDay(key).forEach(event => {
+      const groupKey = event.takenAtIso || event.date.toISOString();
+      const group = groups.get(groupKey) || {
+        id: `supplements:${groupKey}`,
+        date: event.date,
+        timelineType: "supplement",
+        supplementLabels: []
+      };
+      if (!group.supplementLabels.includes(event.supplementLabel)) group.supplementLabels.push(event.supplementLabel);
+      groups.set(groupKey, group);
+    });
+    return [...groups.values()].sort((left, right) => left.date - right.date);
   }
   function emitEventsChanged() {
     window.dispatchEvent?.(new CustomEvent("fuelguard:supplement-events-changed", {
@@ -169,9 +185,9 @@
 
   async function load() {
     const userId = String(cloud()?.user?.id || "");
-    if (!userId || !cloud()?.client) { owner = ""; plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; render(); emitEventsChanged(); return; }
+    if (!userId || !cloud()?.client) { owner = ""; plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; setDailyLogStatus(""); render(); emitEventsChanged(); return; }
     const preserveDraft = owner === userId && selectionDirty;
-    if (owner && owner !== userId) { plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; }
+    if (owner && owner !== userId) { plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; setDailyLogStatus(""); }
     owner = userId;
     const [planResult, slotResult, eventResult] = await Promise.all([
       cloud().client.from(PLANS).select("*").eq("user_id", userId).order("created_at"),
@@ -237,33 +253,54 @@
     sheet.removeAttribute("inert");
     document.body.classList.add("supplement-sheet-open");
   }
-  function setQuickLogControlsVisible(visible) {
-    const time = document.querySelector(".supplement-quick-time");
-    const confirm = document.getElementById("supplementQuickConfirm");
-    if (time) time.hidden = !visible;
-    if (confirm) confirm.hidden = !visible;
+  function showSetupPrompt() {
+    const title = document.getElementById("supplementQuickLogTitle");
+    const contextCopy = document.getElementById("supplementQuickLogContext");
+    if (title) title.textContent = "Choose your supplements first";
+    if (contextCopy) contextCopy.textContent = "Select the supplements you want the Daily Mode button to record.";
+    showQuickLogSheet();
+  }
+  function setDailyLogStatus(value = "") {
+    const status = document.getElementById("supplementLogStatus");
+    if (status) status.textContent = value;
+  }
+  function setDailyLogButtonBusy(value) {
+    const button = document.getElementById("graphLogSupplementButton");
+    if (!button) return;
+    button.disabled = Boolean(value);
+    button.setAttribute("aria-busy", value ? "true" : "false");
+    button.innerHTML = `<span>${value ? "Recording…" : "Supplementation"}</span>`;
   }
   async function openQuickLog(planId = "", slotId = "") {
     if (owner !== String(cloud()?.user?.id || "")) await load();
     const available = activePlans();
     if (!available.length) {
       pendingSlotId = "";
-      document.getElementById("supplementQuickChoices").innerHTML = `<div class="supplement-quick-empty"><strong>Set up your supplements before logging them.</strong><p>Select the supplements you use in Settings, then return to Daily to record when you take them.</p><button class="secondary" type="button" data-open-supplement-settings>Set up supplements</button></div>`;
-      document.getElementById("supplementQuickLogTitle").textContent = "Record supplements";
-      document.getElementById("supplementQuickLogContext").textContent = "Supplement Settings is for configuration; Daily is where you record each moment.";
-      document.getElementById("supplementQuickStatus").textContent = "";
-      setQuickLogControlsVisible(false);
-      showQuickLogSheet();
-      return;
+      showSetupPrompt();
+      return 0;
     }
+    if (busy) return 0;
+    const selectedIds = planId && planFor(planId)?.active ? [planId] : available.map(plan => plan.id);
+    busy = true;
     pendingSlotId = slotId;
-    document.getElementById("supplementQuickChoices").innerHTML = available.map(plan => `<label class="supplement-check"><input type="checkbox" data-supplement-quick-plan value="${escape(plan.id)}" ${plan.id === planId ? "checked" : ""}><span>${escape(plan.label)}</span></label>`).join("");
-    document.getElementById("supplementQuickLogTitle").textContent = planId ? `Record ${planFor(planId)?.label || "supplement"}` : "Record supplements";
-    document.getElementById("supplementQuickLogContext").textContent = "Select everything you took at this time. No amounts are requested.";
-    document.getElementById("supplementQuickTakenAt").value = dateTimeLocal();
-    document.getElementById("supplementQuickStatus").textContent = "";
-    setQuickLogControlsVisible(true);
-    showQuickLogSheet();
+    setDailyLogButtonBusy(true);
+    setDailyLogStatus("Recording supplements…");
+    try {
+      const count = await persistEvents(selectedIds, new Date(), pendingSlotId, { confirmTimingConflict: false });
+      if (!count) return 0;
+      setDailyLogStatus(`${count === 1 ? "Supplement" : "Supplements"} logged`);
+      render();
+      window.FuelGuardLoggingFeedback?.celebrate?.({ type: "supplement", message: message });
+      return count;
+    } catch (error) {
+      setDailyLogStatus(`Could not record supplements: ${error.message || "Try again."}`);
+      return 0;
+    } finally {
+      busy = false;
+      pendingSlotId = "";
+      setDailyLogButtonBusy(false);
+      renderManagement();
+    }
   }
   function closeQuickLog() {
     const sheet = document.getElementById("supplementQuickLogSheet");
@@ -272,13 +309,13 @@
     document.body.classList.remove("supplement-sheet-open");
     pendingSlotId = "";
   }
-  async function persistEvents(planIds, takenAt, slotId = "") {
+  async function persistEvents(planIds, takenAt, slotId = "", { confirmTimingConflict = true } = {}) {
     const requestOwner = String(owner || "");
     if (!requestOwner || requestOwner !== String(cloud()?.user?.id || "")) throw new Error("Your account changed. Try the supplement log again.");
     const selectedPlans = planIds.map(planFor).filter(Boolean);
     if (!selectedPlans.length) throw new Error("Select at least one supplement.");
     if (Number.isNaN(takenAt.getTime()) || takenAt > new Date(Date.now() + 5 * 60000)) throw new Error("Choose a valid time that is not in the future.");
-    if (selectedPlans.some(plan => ironWindowConflict(plan, takenAt)) && !window.confirm("This time overlaps the personal caffeine timing window you set. Record it anyway?")) return 0;
+    if (confirmTimingConflict && selectedPlans.some(plan => ironWindowConflict(plan, takenAt)) && !window.confirm("This time overlaps the personal caffeine timing window you set. Record it anyway?")) return 0;
     const atIso = takenAt.toISOString();
     const snapshot = context(takenAt);
     const rows = selectedPlans.map(plan => ({
@@ -305,26 +342,6 @@
     message = `${rows.length} supplement${rows.length === 1 ? "" : "s"} recorded.`;
     emitEventsChanged();
     return rows.length;
-  }
-  async function recordSelected() {
-    if (busy) return;
-    const planIds = [...document.querySelectorAll("[data-supplement-quick-plan]:checked")].map(input => input.value);
-    const takenAt = new Date(document.getElementById("supplementQuickTakenAt")?.value || Date.now());
-    const status = document.getElementById("supplementQuickStatus");
-    busy = true;
-    status.textContent = "Recording…";
-    try {
-      const count = await persistEvents(planIds, takenAt, pendingSlotId);
-      if (!count) { status.textContent = "Recording cancelled."; return; }
-    } catch (error) {
-      status.textContent = `Could not record: ${error.message}`;
-      return;
-    } finally {
-      busy = false;
-    }
-    closeQuickLog();
-    render();
-    window.FuelGuardLoggingFeedback?.celebrate?.({ type: "supplement", message: message });
   }
   async function undo(eventId) {
     if (!owner || !isUuid(eventId)) return;
@@ -414,7 +431,6 @@
     if (event.target.closest("[data-open-supplement-settings]")) { closeQuickLog(); document.querySelector('[data-open-screen="checklist"]')?.click(); window.FuelGuardSettingsNavigation?.showCategory?.("supplements"); if (!selectionDirty) await load(); return; }
     const log = event.target.closest("[data-supplement-log]"); if (log) { openQuickLog(log.dataset.supplementLog, log.dataset.supplementSlot || ""); return; }
     if (event.target.closest("[data-supplement-cancel]")) { closeQuickLog(); return; }
-    if (event.target.closest("#supplementQuickConfirm")) { recordSelected(); return; }
     const undoButton = event.target.closest("[data-supplement-undo]"); if (undoButton) { undo(undoButton.dataset.supplementUndo); return; }
     const add = event.target.closest("[data-supplement-add-slot]"); if (add) { addSlot(add.dataset.supplementAddSlot); return; }
     const edit = event.target.closest("[data-supplement-edit-slot]"); if (edit) { editSlot(edit.dataset.supplementEditSlot); return; }
@@ -437,6 +453,7 @@
     render,
     openQuickLog,
     eventsForDay,
+    timelineEventsForDay,
     reminderPrompt,
     recoveryActionSummary,
     _test: Object.freeze({ INSIGHT_MIN_EVENTS, catalogue: CATALOGUE, ironWindowConflict, localDateKey, slotIsToday, typeLabel, plannedFor, isUuid, parseDays, patternEvent })
