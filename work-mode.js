@@ -109,6 +109,9 @@
   function activeSession() {
     return state()?.activeSession || null;
   }
+  function emitState() {
+    window.dispatchEvent(new CustomEvent("fuelguard:work-session-state", { detail: { session: activeSession() ? { ...activeSession() } : null } }));
+  }
 
   function activeSessionConflict(error) {
     return String(error?.code || "") === "23505"
@@ -234,6 +237,7 @@
     statusMessage = navigator.onLine === false ? "Work Mode started here. Cloud sync will follow when online." : "Work Mode started.";
     persist();
     render();
+    emitState();
     try {
       await syncSession(session);
       statusMessage = "Work Mode active and synced.";
@@ -265,6 +269,7 @@
       statusMessage = "Work period ended here; cloud sync needs attention.";
     }
     window.dispatchEvent(new CustomEvent("fuelguard:work-session-ended", { detail: { session: active } }));
+    emitState();
     render();
   }
 
@@ -306,6 +311,7 @@
     } finally {
       syncing = false;
       render();
+      emitState();
     }
   }
 

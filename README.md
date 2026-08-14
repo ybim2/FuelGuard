@@ -25,6 +25,8 @@ For Vercel, set only public client values:
 
 The runtime config endpoint also accepts the older `FUEL_GUARD_SUPABASE_*`, `SUPABASE_*`, and `NEXT_PUBLIC_SUPABASE_*` names for deployment compatibility.
 
+Fuel Guard supports Google, Sign in with Apple and six-digit email OTP through the same Supabase Auth account. Add `/auth/callback/` to the Supabase redirect allow list. Configure the Apple web Services ID, signing key and rotating client secret in Supabase—not in this repository or Vercel browser variables. The Supabase email template must expose `{{ .Token }}` for the six-digit OTP. Manual `linkIdentity()` controls are available only when both the Supabase manual-linking setting and `FUEL_GUARD_MANUAL_IDENTITY_LINKING_ENABLED=true` are enabled. See `docs/runbooks/apple-auth-rotation.md`; the active Apple secret must be rotated before its six-month expiry.
+
 Do not set or expose a service role key in the PWA.
 
 For Garmin beta logging and account pairing, set these Vercel server-side variables only:

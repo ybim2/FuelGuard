@@ -16,7 +16,7 @@ test("privacy page exists with required public-policy facts", () => {
 
   assert.match(html, /<title>Fuel Guard Privacy Policy<\/title>/);
   assert.match(html, /Effective date:\s*6 August 2026/);
-  assert.match(html, /Last updated:\s*6 August 2026/);
+  assert.match(html, /Last updated:\s*14 August 2026/);
   assert.match(html, /Supabase/);
   assert.match(html, /Vercel/);
   assert.match(html, /Garmin \/ Connect IQ/);

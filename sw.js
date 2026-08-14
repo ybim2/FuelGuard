@@ -1,10 +1,12 @@
-const APP_VERSION = "mobile-pwa-v147-front-page-ui-fix";
-const BUILD_VERSION = "2026-08-13T22:49:07Z";
+const APP_VERSION = "mobile-pwa-v148-apple-supplement-recovery";
+const BUILD_VERSION = "2026-08-14T12:00:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v147-front-page-ui-fix-20260813T224907Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v148-apple-supplement-recovery-20260814T120000Z";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./auth/callback/index.html",
+  "./auth/callback/auth-callback.js",
   "./coach/index.html",
   "./coach/coach-beta.css",
   "./coach/coach-beta.js",
@@ -31,6 +33,7 @@ const APP_SHELL = [
   "./mobile-ux-overrides.css",
   "./fuel-beta.css",
   "./fuel-auth.css",
+  "./supplement-rhythm.css",
   "./garmin-onboarding.css",
   "./training-mode.css",
   "./work-mode.css",
@@ -49,6 +52,7 @@ const APP_SHELL = [
   "./app-state.js",
   "./fuel-supabase.js",
   "./fuel-auth.js",
+  "./account-identities.js",
   "./product-shell.js",
   "./organisation-sharing.js",
   "./garmin-connected-devices.js",
@@ -59,6 +63,8 @@ const APP_SHELL = [
   "./logging-feedback.js",
   "./training-mode.js",
   "./work-mode.js",
+  "./athlete-context-layer.js",
+  "./supplement-rhythm.js",
   "./athlete-impact.js",
   "./athlete-everyday-reflection.js",
   "./athlete-analytics.js",
@@ -125,7 +131,9 @@ self.addEventListener("fetch", event => {
   if (requestUrl.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    const shell = requestUrl.pathname.startsWith("/coach")
+    const shell = requestUrl.pathname.startsWith("/auth/callback")
+      ? "./auth/callback/index.html"
+      : requestUrl.pathname.startsWith("/coach")
       ? "./coach/index.html"
       : requestUrl.pathname.startsWith("/performance")
         ? "./performance/index.html"
