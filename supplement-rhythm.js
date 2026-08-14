@@ -299,6 +299,7 @@
       busy = false;
       pendingSlotId = "";
       setDailyLogButtonBusy(false);
+      renderManagement();
     }
   }
   function closeQuickLog() {

@@ -288,6 +288,9 @@ test("Daily records every saved supplement in one tap and groups the moment for 
   assert.deepEqual([...timeline[0].supplementLabels], ["Creatine", "Vitamin D"]);
   assert.equal(view.elements.get("supplementLogStatus").textContent, "Supplements logged");
   assert.ok(view.emitted.some(item => item.type === "fuelguard:supplement-events-changed"));
+  assert.match(view.management(), /Save supplement selection/);
+  assert.doesNotMatch(view.management(), /Saving…/);
+  assert.doesNotMatch(view.management(), /input[^>]+value="creatine"[^>]+disabled/, "Daily logging must release Supplement Settings after the save finishes");
 });
 
 test("an unconfigured Daily action stays in Daily and offers explicit Supplement Settings navigation", async () => {
