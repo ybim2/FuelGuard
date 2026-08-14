@@ -8593,6 +8593,10 @@ body.beta-mvp .beta-fuelling-pattern-chart.sleepy .bar {
   fill: rgba(177, 135, 54, .76);
 }
 
+body.beta-mvp .beta-fuelling-pattern-chart.supplements .bar {
+  fill: rgba(77, 112, 41, .76);
+}
+
 body.beta-mvp .beta-fuelling-pattern-chart .x-label,
 body.beta-mvp .beta-fuelling-pattern-chart .y-label {
   fill: var(--fg-text-strong);
@@ -9546,6 +9550,7 @@ body.beta-mvp .beta-training-pattern-legend span { display: flex; align-items: c
 body.beta-mvp .beta-training-pattern-legend i { width: 9px; height: 9px; border-radius: 50%; }
 body.beta-mvp .beta-training-pattern-empty { padding: 14px 0; color: #65736d; }
 body.beta-mvp .beta-log-pattern-tabs [data-log-pattern-type="training"] { grid-column: 2; }
+body.beta-mvp .beta-log-pattern-tabs [data-log-pattern-type="supplements"] { grid-column: 3; }
 
 body.beta-mvp .beta-today-insights-grid {
   display: grid;

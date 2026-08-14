@@ -189,6 +189,6 @@ test("Reflection uses the continuous white Athlete surface and a versioned PWA s
   assert.match(css, /\.reflection-performance-shell[\s\S]*border-radius: 26px[\s\S]*background: #fff/);
   assert.match(css, /\.reflection-rating-scale > div[\s\S]*repeat\(5/);
   assert.match(css, /@media \(max-width: 390px\)/);
-  assert.match(read("build-info.js"), /mobile-pwa-v150-auto-work-supplementation/);
-  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v150-auto-work-supplementation-/);
+  assert.match(read("build-info.js"), /mobile-pwa-v151-supplement-daily-patterns/);
+  assert.match(read("sw.js"), /fuel-guard-mobile-pwa-v151-supplement-daily-patterns-/);
 });

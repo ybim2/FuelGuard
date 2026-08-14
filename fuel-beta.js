@@ -9455,6 +9455,15 @@
       nounPlural: "training events",
       empty: "No Training Mode sessions today",
       question: "Where did today’s Training sessions and intake events happen?"
+    },
+    {
+      id: "supplements",
+      label: "Supplements",
+      icon: "chart",
+      noun: "supplement log",
+      nounPlural: "supplement logs",
+      empty: "No supplements logged today",
+      question: "When have I taken supplements today?"
     }
   ];
 
@@ -9476,6 +9485,12 @@
 
   function fuellingPatternLogs(key = todayViewKey(), type = selectedLogPatternType) {
     const patternType = normalizeLogPatternType(type);
+    if (patternType === "supplements") {
+      return (window.FuelGuardSupplementRhythm?.eventsForDay?.(key) || [])
+        .map(event => ({ ...event, date: logDate(event.date || event.takenAt), minute: minutesIntoDay(logDate(event.date || event.takenAt)) }))
+        .filter(event => event.date && Number.isFinite(event.minute) && event.minute >= 0 && event.minute < 1440)
+        .sort((left, right) => left.minute - right.minute);
+    }
     return logsForDay(key)
       .filter(log => logMatchesPattern(log, patternType))
       .map(log => ({ ...log, minute: minutesIntoDay(log.date) }))
@@ -9491,7 +9506,7 @@
       return {
         ...bucket,
         count: bucketLogs.length,
-        times: bucketLogs.map(log => formatClock(log.date))
+        times: bucketLogs.map(log => `${log.supplementLabel ? `${log.supplementLabel} · ` : ""}${formatClock(log.date)}`)
       };
     });
   }
@@ -10259,6 +10274,10 @@
       saveGarminDailyCheckin();
       return;
     }
+  });
+  window.addEventListener("fuelguard:supplement-events-changed", () => {
+    const target = document.getElementById("fuelLogPatterns");
+    if (target) target.innerHTML = renderFuellingPatternGraphs(todayViewKey());
   });
   document.addEventListener("click", event => {
     const logPatternType = event.target.closest("[data-log-pattern-type]");
