@@ -12,12 +12,11 @@
   function escape(value) { return window.FuelGuardDomain?.escapeHtml?.(value) || String(value ?? ""); }
   function uuid() { return globalThis.crypto?.randomUUID?.() || `recovery-${Date.now()}`; }
   function active(now = new Date()) { return rows.find(row => row.status === "active" && new Date(row.expires_at) > now) || null; }
-  function primaryContext() { return training()?.activeSession?.() ? "training" : work()?.activeSession?.() ? "work" : "everyday"; }
-  function contextSnapshot() {
+  function primaryContext(at = new Date()) { return training()?.activeSession?.() ? "training" : work()?.isDuringWork?.(at) ? "work" : "everyday"; }
+  function contextSnapshot(at = new Date()) {
     const trainingSession = training()?.activeSession?.();
-    const workSession = work()?.activeSession?.();
     const recovery = active();
-    return { primary: primaryContext(), trainingSessionId: trainingSession?.id || null, workSessionId: workSession?.id || null, recoveryFocusId: recovery?.id || null, capturedAt: new Date().toISOString() };
+    return { primary: primaryContext(at), trainingSessionId: trainingSession?.id || null, workInferred: !trainingSession && Boolean(work()?.isDuringWork?.(at)), recoveryFocusId: recovery?.id || null, capturedAt: new Date().toISOString() };
   }
   function recoverySummary(recovery = active()) {
     const trainingState = typeof fuelGapState === "function" ? fuelGapState()?.trainingMode : null;
@@ -27,12 +26,6 @@
     const ended = new Date(source.endedAt); const logs = typeof fuelGapState === "function" ? fuelGapState()?.logs || [] : [];
     const after = logs.filter(log => (window.FuelGuardDomain?.logDate?.(log) || new Date(log.timestamp || log.logged_at || "")) >= ended);
     return { source, ended, minutes: Math.max(0,Math.floor((Date.now()-ended)/60000)), fuel: after.some(log=>window.FuelGuardDomain?.isFuelLog?.(log)), hydration: after.some(log=>window.FuelGuardDomain?.isHydrationLog?.(log)) };
-  }
-  function renderPrimary() {
-    const target = document.getElementById("athletePrimaryContext");
-    if (!target) return;
-    const current = primaryContext();
-    target.innerHTML = `<span>Current context</span><div role="group" aria-label="Primary Fuel Guard context">${["everyday","work","training"].map(value => `<button type="button" data-primary-context="${value}" aria-pressed="${current === value}">${value[0].toUpperCase()}${value.slice(1)}</button>`).join("")}</div>`;
   }
   function renderRecovery() {
     const target = document.getElementById("athleteRecoveryFocus");
@@ -46,7 +39,7 @@
       target.innerHTML = `<article class="recovery-focus-card offer"><span>Training complete</span><h3>Keep recovery visible?</h3><p>Recovery Focus is optional and starts only if you choose it.</p><div class="button-row"><button class="secondary" type="button" data-recovery-start>Start Recovery Focus</button><button class="secondary" type="button" data-recovery-dismiss>Not now</button></div></article>`;
     } else { const summary=recoverySummary(); target.innerHTML=summary&&summary.minutes<=1440?`<article class="recovery-layer-strip"><span>Recovery layer</span><b>${summary.minutes}m since training</b><b>${summary.fuel?"Post-training fuel logged":"Post-training fuel not logged"}</b><b>${summary.hydration?"Fluids logged":"Fluids not logged"}</b>${supplement.dueLabel?`<b>${escape(supplement.dueLabel)} due</b>`:""}</article>`:""; }
   }
-  function render() { renderPrimary(); renderRecovery(); }
+  function render() { renderRecovery(); }
   async function load() {
     const userId = String(cloud()?.user?.id || "");
     if (!userId || !cloud()?.client) { owner = ""; rows = []; offeredTrainingSession = null; render(); return; }
@@ -77,18 +70,13 @@
     message = error ? "Recovery Focus could not sync." : "Recovery Focus ended."; render();
   }
   document.addEventListener("click", event => {
-    const context = event.target.closest("[data-primary-context]")?.dataset.primaryContext;
-    if (context === "work" && !work()?.activeSession?.()) work()?.start?.();
-    if (context === "everyday" && work()?.activeSession?.()) work()?.end?.();
-    if (context === "training") document.querySelector('[data-mobile-screen="training"]')?.click();
     if (event.target.closest("[data-recovery-start]")) start();
     if (event.target.closest("[data-recovery-end]")) end("manual");
     if (event.target.closest("[data-recovery-dismiss]")) { offeredTrainingSession = null; render(); }
   });
   window.addEventListener("fuelguard:training-session-ended", event => { offeredTrainingSession = event.detail?.session || null; render(); });
   window.addEventListener("fuelguard:training-session-started", () => { if (active()) end("new_training"); offeredTrainingSession = null; render(); });
-  window.addEventListener("fuelguard:work-session-state", render);
-  window.addEventListener("fuelguard:work-session-ended", render);
+  window.addEventListener("fuelguard:work-pattern-updated", render);
   window.addEventListener("fuelguard:cloud-status", render);
   window.addEventListener("fuelguard:auth-state", () => load());
   document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });

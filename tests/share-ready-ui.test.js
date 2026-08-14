@@ -67,6 +67,7 @@ test("Daily is a status-first beta instrument panel", () => {
   const dailyLog = indexOfRequired(dashboard, 'id="fuelDailyLog"');
   const logFuel = indexOfRequired(dashboard, 'id="graphLogFoodButton"');
   const logHydration = indexOfRequired(dashboard, 'id="graphLogHydrationButton"');
+  const logSupplement = indexOfRequired(dashboard, 'id="graphLogSupplementButton"');
   const logSleepy = indexOfRequired(dashboard, 'id="graphLogSleepyButton"');
   const undo = indexOfRequired(dashboard, 'id="undoLatestFoodLog"');
   const sleepyRecorder = functionBody(js, "recordSleepy", "logById");
@@ -84,14 +85,15 @@ test("Daily is a status-first beta instrument panel", () => {
   assert.ok(actions < timeline, "Quick actions should sit directly after status");
   assert.ok(timeline < dailyLog, "Timeline entries should appear inside the Today’s Timeline card");
   assert.ok(logFuel < logHydration, "Hydrate should sit beside Fuel");
-  assert.ok(logHydration < logSleepy, "Sleepy should replace the old combined quick action as the third option");
+  assert.ok(logHydration < logSupplement && logSupplement < logSleepy, "Supplementation should be the third action in the 2x2 grid");
   assert.ok(dailyLog < undo, "Undo should sit inside the Today’s Timeline card");
   assert.ok(timeline < patterns, "Today’s Patterns should sit below Today’s Timeline");
   assert.match(dashboard, />Fuel<\/span>/);
-  assert.match(dashboard, />Hydrate<\/span>/);
+  assert.match(dashboard, />Hydration<\/span>/);
+  assert.match(dashboard, />Supplementation<\/span>/);
   assert.match(dashboard, />Sleepy<\/span>/);
   assert.doesNotMatch(dashboard, /Zz|ZZ|Zzz|beta-log-button-icon/);
-  assert.match(dashboard, /aria-label="Log fuel, hydration, or sleepy"/);
+  assert.match(dashboard, /aria-label="Log fuel, hydration, supplementation, or sleepy"/);
   assert.match(dashboard, /id="fuelDayType"/);
   assert.match(dashboard, /id="fuelDayTypeSaved"/);
   assert.match(dayTypeControls, /Saved:/);
@@ -226,7 +228,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v149-consolidated-release";
+  const version = "mobile-pwa-v150-auto-work-supplementation";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -236,7 +238,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260814T004105Z/);
+  assert.match(sw, /20260814T085756Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

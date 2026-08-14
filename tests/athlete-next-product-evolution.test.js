@@ -185,8 +185,8 @@ test("new Athlete assets are included in the versioned offline app shell", () =>
   const html = read("index.html");
   const sw = read("sw.js");
   for (const asset of ["athlete-everyday-reflection", "athlete-analytics", "athlete-tools"]) {
-    assert.match(html, new RegExp(`${asset}\\.css\\?v=mobile-pwa-v149-consolidated-release`));
-    assert.match(html, new RegExp(`${asset}\\.js\\?v=mobile-pwa-v149-consolidated-release`));
+    assert.match(html, new RegExp(`${asset}\\.css\\?v=mobile-pwa-v150-auto-work-supplementation`));
+    assert.match(html, new RegExp(`${asset}\\.js\\?v=mobile-pwa-v150-auto-work-supplementation`));
     assert.match(sw, new RegExp(`${asset}\\.css`));
     assert.match(sw, new RegExp(`${asset}\\.js`));
   }

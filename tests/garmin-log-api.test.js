@@ -3,6 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
+// Garmin tests retain deliberate Training context while Work remains schedule-inferred.
+
 const auth = require("../lib/garmin-auth.js");
 const garminLogHandler = require("../api/garmin/log.js");
 const { garminTrainingHandler } = garminLogHandler;
@@ -368,7 +370,7 @@ test("Garmin Fuel uses the active Training Mode Fuel preset only inside the sess
   );
 }));
 
-test("Garmin events inherit the same athlete's Work Mode context without replacing Training context", async () => withFake(async (fake) => {
+test("Garmin events keep Training context while Work is inferred later from the event timestamp", async () => withFake(async (fake) => {
   const paired = await pairDevice(fake, { userToken: "user-token-a" });
   fake.workModeSessions.push({
     id: "work-a",
@@ -392,7 +394,7 @@ test("Garmin events inherit the same athlete's Work Mode context without replaci
   });
   const res = await call(auth.garminLogHandler, { token: paired.deviceToken, body: VALID_EVENT });
   assert.equal(res.statusCode, 201);
-  assert.equal(fake.logs[0].work_mode_session_id, "work-a");
+  assert.equal(fake.logs[0].work_mode_session_id, undefined);
   assert.equal(fake.logs[0].training_mode_session_id, "training-a");
   assert.equal(fake.logs[0].carbs_g, 30);
 }));

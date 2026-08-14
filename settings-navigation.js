@@ -4,7 +4,8 @@
     account: "Account & Profile",
     garmin: "Garmin & Devices",
     notifications: "Notifications",
-    supplements: "Supplement Rhythm",
+    work: "Working pattern",
+    supplements: "Supplementation",
     social: "Social Media",
     sharing: "Coach & Sharing",
     support: "App & Support"

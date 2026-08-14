@@ -27,7 +27,7 @@ The missing dates are a release-operations item, not a placeholder credential. F
 2. Choose **Continue with Apple** and complete Apple authentication.
 3. Confirm the Supabase callback returns to `/auth/callback/`, exchanges the PKCE code, and redirects only to an allowlisted Fuel Guard route.
 4. Confirm an existing Apple user reaches the same account and a new user without a preferred name sees **What should Fuel Guard call you?**.
-5. Confirm Google and six-digit email login still work.
+5. Confirm Google and email/password login still work, including email confirmation and password recovery.
 6. Review Supabase Auth logs for a successful Apple provider exchange and no invalid-client-secret errors. Do not record tokens or relay addresses in the runbook.
 
 ## Compromised key procedure

@@ -23,7 +23,7 @@ Connect the production Supabase project to Resend using the Supabase/Resend inte
 
 Auth templates must keep Supabase's generated confirmation/recovery links intact. Do not replace signup or recovery with the invitation endpoint.
 
-Fuel Guard email OTP uses the same authenticated Supabase/Resend SMTP path. Configure the login template to present the six-digit `{{ .Token }}` clearly, without exposing whether an address already has an account. OTP resend throttles and the beta email rate limit still apply.
+Fuel Guard uses Supabase Auth SMTP for account confirmation and password recovery. Email OTP and magic-code login are not exposed by the application. Keep confirmation and recovery templates configured without exposing whether an address already has an account; the beta Auth email rate limit still applies.
 
 ## Acceptance checklist
 

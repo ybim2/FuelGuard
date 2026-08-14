@@ -22,7 +22,6 @@
   ];
   const FUEL_CSV_FUTURE_LIMIT_MS = 5 * 60 * 1000;
   const DAY_TYPE_OPTIONS = [
-    { value: "work", label: "Working Day" },
     { value: "holiday", label: "Holiday" },
     { value: "competition", label: "Competition Day" }
   ];
@@ -2156,7 +2155,6 @@
       if (!context?.trainingModeSessionId) return Promise.resolve({ status: "error", persisted: false, reason: "training_mode_inactive" });
       Object.assign(log, context);
     }
-    Object.assign(log, window.FuelGuardWorkMode?.contextForEvent?.(loggedAt) || {});
     const trainingMode = betaState().trainingMode || {};
     const acknowledgement = window.FuelGuardDomain?.loggingAcknowledgement?.({
       type: normalizedType,
@@ -2319,8 +2317,6 @@
       updatedAt: new Date().toISOString(),
       syncStatus: "pending"
     });
-    const workContext = window.FuelGuardWorkMode?.contextForEvent?.(eventDate) || {};
-    log.workModeSessionId = workContext.workModeSessionId || "";
     if (!existing) betaState().logs.push(log);
     if (type === "fuel") applyOpportunityMatchesForDay(key);
     refreshLogDatesAfterChange(oldDate, eventDate);
@@ -2392,7 +2388,6 @@
       updatedAt: new Date().toISOString(),
       syncStatus: "pending"
     };
-    Object.assign(log, window.FuelGuardWorkMode?.contextForEvent?.(loggedAt) || {});
     betaState().logs.push(log);
     storeArchive(key);
     state.completed.liveFuelStatus = true;
@@ -4743,7 +4738,6 @@
     const maxGapPreset = maximumFuelGapPresetValue(maxGapMinutes);
     const dayTypeChoices = [
       ["", "Normal"],
-      ["work", "Working"],
       ["holiday", "Holiday"],
       ["competition", "Competition"]
     ];

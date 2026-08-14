@@ -7,6 +7,7 @@
 
   const SETUP_GUIDE_URL = "https://app.notion.com/p/Fuel-Guard-Setup-HQ-3b7ab7791e2081c0bf99dc4c34cb7501";
   const SAFE_DESTINATIONS = new Set(["/", "/coach/", "/performance/"]);
+  const MIN_LOADING_MS = 1500;
   const LOADING_QUOTES = Object.freeze([
     "Fuel the work before the work asks for it.",
     "Don't wait for empty.",
@@ -21,6 +22,9 @@
   let currentPanel = "loading";
   let activeUserId = "";
   let loadingQuoteTimer = 0;
+  let loadingTransitionTimer = 0;
+  let loadingStartedAt = Date.now();
+  let transitionRevision = 0;
   let onboardingUserId = "";
 
   function documentRef() {
@@ -56,10 +60,6 @@
       target.textContent = message;
       target.dataset.tone = tone;
     });
-  }
-
-  function otpCode() {
-    return String(element("fuelGuardAuthOtp")?.value || "").replace(/\D/g, "").slice(0, 6);
   }
 
   function setBusy(active, message = "") {
@@ -120,6 +120,7 @@
   }
 
   function panel(name) {
+    if (name === "loading" && currentPanel !== "loading") loadingStartedAt = Date.now();
     currentPanel = name;
     const boundary = element("fuelGuardAuthBoundary");
     const loading = element("fuelGuardAuthLoading");
@@ -137,45 +138,63 @@
     documentRef()?.body?.classList.toggle("auth-authenticated", name === "app");
   }
 
+  function afterMinimumLoading(callback) {
+    const revision = ++transitionRevision;
+    if (loadingTransitionTimer && typeof root?.clearTimeout === "function") root.clearTimeout(loadingTransitionTimer);
+    loadingTransitionTimer = 0;
+    const complete = () => {
+      if (revision !== transitionRevision) return;
+      loadingTransitionTimer = 0;
+      callback();
+    };
+    const remaining = currentPanel === "loading" ? Math.max(0, MIN_LOADING_MS - (Date.now() - loadingStartedAt)) : 0;
+    if (remaining > 0 && typeof root?.setTimeout === "function") loadingTransitionTimer = root.setTimeout(complete, remaining);
+    else complete();
+  }
+
   function showLogin(message = "") {
-    activeUserId = "";
-    panel("login");
-    const cloud = root.fuelGuardCloud;
-    const configured = Boolean(cloud?.configured);
-    const appleButton = element("fuelGuardAppleButton");
-    if (appleButton) appleButton.hidden = root.FUEL_GUARD_SUPABASE_CONFIG?.appleAuthEnabled === false;
-    documentRef()?.querySelectorAll?.("[data-fuel-auth-action]").forEach(control => {
-      control.disabled = !configured;
+    afterMinimumLoading(() => {
+      activeUserId = "";
+      panel("login");
+      const cloud = root.fuelGuardCloud;
+      const configured = Boolean(cloud?.configured);
+      const appleButton = element("fuelGuardAppleButton");
+      if (appleButton) appleButton.hidden = root.FUEL_GUARD_SUPABASE_CONFIG?.appleAuthEnabled === false;
+      documentRef()?.querySelectorAll?.("[data-fuel-auth-action]").forEach(control => {
+        control.disabled = !configured;
+      });
+      status(message || (configured ? "" : "Fuel Guard authentication is not configured in this environment."), configured ? "" : "error");
+      root.requestAnimationFrame?.(() => element("fuelGuardAuthEmail")?.focus?.());
     });
-    status(message || (configured ? "" : "Fuel Guard authentication is not configured in this environment."), configured ? "" : "error");
-    root.requestAnimationFrame?.(() => element("fuelGuardGoogleButton")?.focus?.());
   }
 
   function showRecovery(message = "") {
-    activeUserId = "";
-    panel("recovery");
-    status(message || "Choose a new password for your Fuel Guard account.");
-    root.requestAnimationFrame?.(() => element("fuelGuardNewPassword")?.focus?.());
+    afterMinimumLoading(() => {
+      activeUserId = "";
+      panel("recovery");
+      status(message || "Choose a new password for your Fuel Guard account.");
+      root.requestAnimationFrame?.(() => element("fuelGuardNewPassword")?.focus?.());
+    });
   }
 
   function showApp(user) {
-    const userId = String(user?.id || "");
-    const newlyReady = currentPanel !== "app" || activeUserId !== userId;
-    activeUserId = userId;
-    panel("app");
-    status("");
-    if (newlyReady && typeof root.dispatchEvent === "function") {
-      const detail = { userId };
-      const EventConstructor = root.CustomEvent || globalThis.CustomEvent;
-      root.dispatchEvent(typeof EventConstructor === "function"
-        ? new EventConstructor("fuelguard:private-app-ready", { detail })
-        : { type: "fuelguard:private-app-ready", detail });
-    }
-    const destination = requestedDestination();
-    if (destination !== "/" && root.location.pathname !== destination) {
-      root.location.replace(destination);
-    }
-    ensurePreferredName(user);
+    afterMinimumLoading(() => {
+      const userId = String(user?.id || "");
+      const newlyReady = currentPanel !== "app" || activeUserId !== userId;
+      activeUserId = userId;
+      panel("app");
+      status("");
+      if (newlyReady && typeof root.dispatchEvent === "function") {
+        const detail = { userId };
+        const EventConstructor = root.CustomEvent || globalThis.CustomEvent;
+        root.dispatchEvent(typeof EventConstructor === "function"
+          ? new EventConstructor("fuelguard:private-app-ready", { detail })
+          : { type: "fuelguard:private-app-ready", detail });
+      }
+      const destination = requestedDestination();
+      if (destination !== "/" && root.location.pathname !== destination) root.location.replace(destination);
+      ensurePreferredName(user);
+    });
   }
 
   async function ensurePreferredName(user) {
@@ -220,8 +239,6 @@
   function friendlyError(error, fallback) {
     const message = String(error?.message || error || "");
     if (/invalid login credentials/i.test(message)) return "Those login details did not work.";
-    if (/token.*expired|otp.*expired|expired.*token/i.test(message)) return "That code has expired. Request a new six-digit code.";
-    if (/token.*invalid|invalid.*otp|should be exactly 6|invalid token/i.test(message)) return "That six-digit code is not valid. Check it or request a new one.";
     if (/provider.*not enabled|unsupported provider/i.test(message)) return "That sign-in method is not available yet. Use another method or contact Fuel Guard support.";
     if (/rate limit|too many requests|over_email_send_rate_limit/i.test(message)) return "Please wait before requesting another authentication email.";
     if (/failed to fetch|network|load failed/i.test(message)) return "Fuel Guard could not reach authentication. Check your connection and try again.";
@@ -249,30 +266,6 @@
   async function apple() {
     await withBusy("Opening Apple sign-in…", async () => {
       await root.fuelGuardCloud?.signInWithApple?.({ redirectTo: oauthRedirectUrl() });
-    });
-  }
-
-  async function sendOtp() {
-    await withBusy("Sending your six-digit code…", async () => {
-      const { email } = credentials();
-      if (!email) throw new Error("Enter your email address first.");
-      await root.fuelGuardCloud?.sendEmailOtp?.(email);
-      const field = element("fuelGuardAuthOtpField");
-      if (field) field.hidden = false;
-      status("Check your email for a six-digit code. The same form signs in or creates your account.", "success");
-      const button = element("fuelGuardSendOtp");
-      if (button) button.textContent = "Resend code";
-      root.requestAnimationFrame?.(() => element("fuelGuardAuthOtp")?.focus?.());
-    });
-  }
-
-  async function verifyOtp() {
-    await withBusy("Checking your code…", async () => {
-      const { email } = credentials();
-      const token = otpCode();
-      if (!email || token.length !== 6) throw new Error("Enter your email and the six-digit code.");
-      await root.fuelGuardCloud?.verifyEmailOtp?.(email, token);
-      applyState();
     });
   }
 
@@ -329,8 +322,6 @@
   function bind() {
     element("fuelGuardAppleButton")?.addEventListener("click", apple);
     element("fuelGuardGoogleButton")?.addEventListener("click", google);
-    element("fuelGuardSendOtp")?.addEventListener("click", sendOtp);
-    element("fuelGuardVerifyOtp")?.addEventListener("click", verifyOtp);
     element("fuelGuardSavePreferredName")?.addEventListener("click", savePreferredName);
     element("fuelGuardEmailSignIn")?.addEventListener("click", signIn);
     element("fuelGuardEmailSignUp")?.addEventListener("click", signUp);
@@ -342,9 +333,6 @@
     });
     element("fuelGuardAuthPassword")?.addEventListener("keydown", event => {
       if (event.key === "Enter") signIn();
-    });
-    element("fuelGuardAuthOtp")?.addEventListener("keydown", event => {
-      if (event.key === "Enter") verifyOtp();
     });
   }
 
@@ -375,6 +363,6 @@
     applyState,
     oauthRedirectUrl,
     setupGuideUrl: SETUP_GUIDE_URL,
-    _test: Object.freeze({ safeNextPath, friendlyError, loadingQuotes: LOADING_QUOTES, otpCode })
+    _test: Object.freeze({ safeNextPath, friendlyError, loadingQuotes: LOADING_QUOTES, minimumLoadingMs: MIN_LOADING_MS })
   });
 });
