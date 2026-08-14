@@ -130,7 +130,7 @@ test("Daily is a status-first beta instrument panel", () => {
   assert.match(js, /return persistQuickLog\(log, normalizedType, loggedAt, acknowledgement\)/);
 });
 
-test("Today’s Patterns switches between fuel, hydration and sleepy event counts", () => {
+test("Today’s Patterns switches between fuel, hydration, sleepy and supplement event counts", () => {
   const js = read("fuel-beta.js");
   const selectedDayRender = functionBody(js, "renderSelectedDayCard", "renderLogEvent");
   const logsSource = functionBody(js, "fuellingPatternLogs", "fuellingPatternBucketCounts");
@@ -155,9 +155,16 @@ test("Today’s Patterns switches between fuel, hydration and sleepy event count
   assert.match(patternTypes, /label:\s*"Fuel"/);
   assert.match(patternTypes, /label:\s*"Hydration"/);
   assert.match(patternTypes, /label:\s*"Sleepy"/);
+  assert.match(patternTypes, /label:\s*"Training"[\s\S]*label:\s*"Supplements"/);
+  assert.match(logsSource, /FuelGuardSupplementRhythm\?\.eventsForDay\?\.\(key\)/);
+  assert.match(js, /fuelguard:supplement-events-changed/);
+  assert.match(read("fuel-beta.css"), /data-log-pattern-type="training"[^}]*grid-column:\s*2/);
+  assert.match(read("fuel-beta.css"), /data-log-pattern-type="supplements"[^}]*grid-column:\s*3/);
   assert.match(js, /No fuel logged today/);
   assert.match(js, /No hydration logged today/);
   assert.match(js, /No sleepy events logged today/);
+  assert.match(js, /No supplements logged today/);
+  assert.match(read("fuel-beta.css"), /beta-fuelling-pattern-chart\.supplements \.bar/);
 });
 
 test("Daily owns the maximum fuel-gap control while Settings preserves internal defaults", () => {
@@ -228,7 +235,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v150-auto-work-supplementation";
+  const version = "mobile-pwa-v152-supplement-setup-save";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -238,7 +245,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260814T085756Z/);
+  assert.match(sw, /20260814T122117Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

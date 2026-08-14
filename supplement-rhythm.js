@@ -6,18 +6,26 @@
   const EVENTS = "fuel_supplement_events";
   const INSIGHT_MIN_EVENTS = 6;
   const CATALOGUE = Object.freeze([
-    ["creatine", "Creatine"],
-    ["iron", "Iron"],
-    ["vitamin_c", "Vitamin C"],
-    ["vitamin_d", "Vitamin D"],
-    ["vitamin_b12", "Vitamin B12"],
-    ["multivitamin", "Multivitamin"],
-    ["magnesium", "Magnesium"],
-    ["calcium", "Calcium"],
-    ["zinc", "Zinc"],
-    ["electrolytes", "Electrolytes"],
-    ["omega_3", "Omega-3"],
-    ["protein_supplement", "Protein supplement"]
+    { key: "creatine", label: "Creatine" },
+    { key: "protein_supplement", label: "Protein powder" },
+    { key: "iron", label: "Iron" },
+    { key: "vitamin_d", label: "Vitamin D" },
+    { key: "vitamin_c", label: "Vitamin C" },
+    { key: "vitamin_b12", label: "Vitamin B12" },
+    { key: "multivitamin", label: "Multivitamin" },
+    { key: "magnesium", label: "Magnesium" },
+    { key: "zinc", label: "Zinc" },
+    { key: "calcium", label: "Calcium" },
+    { key: "omega_3", label: "Omega-3 / Fish oil" },
+    { key: "electrolytes", label: "Electrolytes" },
+    { key: "caffeine", label: "Caffeine", dbType: "custom" },
+    { key: "collagen", label: "Collagen", dbType: "custom" },
+    { key: "folic_acid", label: "Folic acid", dbType: "custom" },
+    { key: "probiotics", label: "Probiotics", dbType: "custom" },
+    { key: "beta_alanine", label: "Beta-alanine", dbType: "custom" },
+    { key: "nitrate_beetroot", label: "Nitrate / Beetroot", dbType: "custom" },
+    { key: "carbohydrate_supplement", label: "Carbohydrate supplement", dbType: "custom" },
+    { key: "recovery_drink", label: "Recovery drink", dbType: "custom" }
   ]);
   let owner = "";
   let plans = [];
@@ -26,6 +34,8 @@
   let message = "";
   let busy = false;
   let pendingSlotId = "";
+  let selectionDraft = null;
+  let selectionDirty = false;
 
   function cloud() { return window.fuelGuardCloud; }
   function domain() { return window.FuelGuardDomain; }
@@ -37,16 +47,72 @@
   function dayEnd(value = new Date()) { const date = dayStart(value); date.setDate(date.getDate() + 1); return date; }
   function activePlans() { return plans.filter(plan => plan.active); }
   function planFor(id) { return plans.find(plan => plan.id === id); }
+  function normalizedName(value) { return String(value || "").trim().toLowerCase(); }
+  function catalogueEntry(key) { return CATALOGUE.find(item => item.key === key); }
+  function catalogueKeyForPlan(plan) {
+    if (!plan) return "";
+    if (plan.supplement_type !== "custom") return catalogueEntry(plan.supplement_type)?.key || `plan:${plan.id}`;
+    const name = normalizedName(plan.custom_name || plan.label);
+    return CATALOGUE.find(item => item.dbType === "custom" && normalizedName(item.label) === name)?.key || `plan:${plan.id}`;
+  }
+  function persistedSelectionKeys() { return new Set(activePlans().map(catalogueKeyForPlan).filter(Boolean)); }
+  function sameSelection(left, right) { return left.size === right.size && [...left].every(value => right.has(value)); }
+  function syncSelectionDraft({ force = false } = {}) {
+    if (force || !(selectionDraft instanceof Set)) selectionDraft = persistedSelectionKeys();
+    selectionDirty = !sameSelection(selectionDraft, persistedSelectionKeys());
+  }
+  function selectionRows() {
+    const curated = CATALOGUE.map(item => ({ key: item.key, label: item.label }));
+    const legacy = plans
+      .filter(plan => catalogueKeyForPlan(plan).startsWith("plan:"))
+      .map(plan => ({ key: `plan:${plan.id}`, label: plan.label || typeLabel(plan) }));
+    return [...curated, ...legacy];
+  }
+  function rowForCatalogueEntry(entry) {
+    const dbType = entry.dbType || entry.key;
+    return {
+      id: uuid(),
+      user_id: owner,
+      supplement_type: dbType,
+      custom_name: dbType === "custom" ? entry.label : null,
+      label: entry.label,
+      active: true,
+      track_caffeine_separation: false
+    };
+  }
   function scheduleFor(planId) { return slots.filter(slot => slot.supplement_plan_id === planId && slot.active); }
   function todayEvents(now = new Date()) { const start = dayStart(now); const end = dayEnd(now); return events.filter(event => new Date(event.taken_at) >= start && new Date(event.taken_at) < end); }
+  function patternEvent(event) {
+    const date = new Date(event?.taken_at || "");
+    const plan = planFor(event?.supplement_plan_id);
+    return {
+      id: event?.id || "",
+      date,
+      takenAt: date,
+      supplementPlanId: event?.supplement_plan_id || "",
+      supplementLabel: plan?.label || typeLabel(plan) || "Supplement"
+    };
+  }
+  function eventsForDay(key = localDateKey()) {
+    return events
+      .filter(event => event.event_status === "taken" && (event.event_local_date || localDateKey(event.taken_at)) === key)
+      .map(patternEvent)
+      .filter(event => !Number.isNaN(event.date.getTime()))
+      .sort((left, right) => left.date - right.date);
+  }
+  function emitEventsChanged() {
+    window.dispatchEvent?.(new CustomEvent("fuelguard:supplement-events-changed", {
+      detail: { dateKey: localDateKey(), count: eventsForDay().length }
+    }));
+  }
   function typeLabel(planOrType) {
     const type = typeof planOrType === "string" ? planOrType : planOrType?.supplement_type;
     if (type === "custom") return planOrType?.custom_name || planOrType?.label || "Custom supplement";
-    return CATALOGUE.find(item => item[0] === type)?.[1] || planOrType?.label || "Supplement";
+    return CATALOGUE.find(item => item.key === type)?.label || planOrType?.label || "Supplement";
   }
   function slotIsToday(slot, now = new Date()) { return !slot || (slot.days_of_week || []).includes(now.getDay()); }
   function timeLabel(value) { const [hour, minute] = String(value || "08:00").split(":"); const date = new Date(); date.setHours(Number(hour), Number(minute), 0, 0); return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
-  function dateTimeLocal(value = new Date()) { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+  function dateTimeLocal(value = new Date()) { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 19); }
   function daysLabel(days = []) { return days.length === 7 ? "Daily" : days.map(day => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", "); }
   function parseDays(value) { const lookup = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2, wed: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6 }; return [...new Set(String(value || "").split(",").map(item => lookup[item.trim().toLowerCase()]).filter(Number.isInteger))].sort(); }
   function plannedFor(slot, now = new Date()) { if (!slot?.local_time) return null; const [hour, minute] = slot.local_time.split(":").map(Number); const date = new Date(now); date.setHours(hour, minute, 0, 0); return date.toISOString(); }
@@ -89,18 +155,23 @@
   function renderManagement() {
     const target = document.getElementById("athleteSupplementManagement");
     if (!target) return;
-    const selectedTypes = new Set(plans.filter(plan => plan.supplement_type !== "custom").map(plan => plan.supplement_type));
-    target.innerHTML = `<div class="section-heading-row"><div><h2>Supplementation</h2><p class="muted">Choose supplements that are already part of your routine, then record when you take them. This is private timing support, not a recommendation or medical advice.</p></div></div><form id="supplementCatalogueForm" class="supplement-catalogue-form"><fieldset><legend>Your supplements</legend><div class="supplement-catalogue">${CATALOGUE.map(([type, label]) => `<label><input type="checkbox" name="supplementCatalogue" value="${type}" ${selectedTypes.has(type) ? "checked disabled" : ""}><span>${label}</span></label>`).join("")}</div></fieldset><label>Another supplement (optional)<input id="supplementCustomName" maxlength="80" placeholder="Add a name"></label><button class="primary" type="submit" ${busy ? "disabled" : ""}>Add selected supplements</button></form><div class="supplement-plan-list">${plans.length ? plans.map(plan => {
+    syncSelectionDraft();
+    const trackedPlans = activePlans();
+    target.innerHTML = `<div class="section-heading-row"><div><h2>Supplementation</h2><p class="muted">Choose supplements that are already part of your routine, then record when you take them from Daily. This is private timing support, not a recommendation or medical advice.</p></div></div><form id="supplementCatalogueForm" class="supplement-catalogue-form" aria-busy="${busy ? "true" : "false"}"><fieldset><legend>Supplements available in Daily</legend><p class="muted">Select the supplements you want ready for quick logging.</p><div class="supplement-catalogue" role="group" aria-label="Supplement selection">${selectionRows().map(row => {
+      const selected = selectionDraft.has(row.key);
+      return `<label class="${selected ? "selected" : ""}" data-supplement-selection-row><input type="checkbox" name="supplementSelection" value="${escape(row.key)}" ${selected ? "checked" : ""} ${busy ? "disabled" : ""}><span>${escape(row.label)}</span></label>`;
+    }).join("")}</div></fieldset><button id="supplementSelectionSave" class="primary" type="submit" ${!selectionDirty || busy || !owner ? "disabled" : ""}>${busy ? "Saving…" : "Save supplement selection"}</button><p id="supplementSelectionStatus" class="row-note" role="status">${escape(message || (selectionDirty ? "Unsaved changes" : ""))}</p></form><div class="supplement-plan-list">${trackedPlans.length ? trackedPlans.map(plan => {
       const planSlots = scheduleFor(plan.id);
-      return `<article><div><span>${plan.active ? "Selected" : "Paused"}</span><strong>${escape(plan.label)}</strong><small>${planSlots.length ? planSlots.map(slot => `${timeLabel(slot.local_time)} · ${daysLabel(slot.days_of_week)}`).join(" · ") : "No schedule set"}${planSlots.some(slot => slot.reminder_enabled) ? " · reminder on" : ""}</small>${consistencyMarkup(plan)}</div>${planSlots.length ? `<div class="supplement-slot-actions">${planSlots.map(slot => `<button class="secondary" type="button" data-supplement-edit-slot="${escape(slot.id)}">Edit ${escape(timeLabel(slot.local_time))}</button><button class="secondary" type="button" data-supplement-remove-slot="${escape(slot.id)}">Remove time</button>`).join("")}</div>` : ""}<div class="button-row"><button class="secondary" type="button" data-supplement-add-slot="${escape(plan.id)}">Add time</button>${planSlots.length ? `<button class="secondary" type="button" data-supplement-toggle-reminder="${escape(plan.id)}">${planSlots.some(slot => slot.reminder_enabled) ? "Reminders off" : "Reminders on"}</button>` : ""}<button class="secondary" type="button" data-supplement-toggle="${escape(plan.id)}">${plan.active ? "Pause" : "Resume"}</button><button class="secondary danger-secondary" type="button" data-supplement-delete-plan="${escape(plan.id)}">Delete</button></div></article>`;
-    }).join("") : `<p class="muted">No supplements selected yet.</p>`}</div><section class="supplement-history"><h3>Private history</h3>${events.length ? historyMarkup(events.slice(0, 30)) : `<p class="muted">Nothing recorded yet.</p>`}</section>${insightMarkup()}<details class="supplement-data-actions"><summary>Supplement data and privacy</summary><p>Only you can access these records through the Athlete app. They are excluded from Coach access, organisations, points and sharing.</p><div class="button-row"><button class="secondary" type="button" data-supplement-export>Export JSON</button><button class="secondary danger-secondary" type="button" data-supplement-delete-all>Delete supplement data</button></div></details>${message ? `<p class="row-note" role="status">${escape(message)}</p>` : ""}`;
+      return `<article><div><span>Selected</span><strong>${escape(typeLabel(plan))}</strong><small>${planSlots.length ? planSlots.map(slot => `${timeLabel(slot.local_time)} · ${daysLabel(slot.days_of_week)}`).join(" · ") : "No schedule set"}${planSlots.some(slot => slot.reminder_enabled) ? " · reminder on" : ""}</small>${consistencyMarkup(plan)}</div>${planSlots.length ? `<div class="supplement-slot-actions">${planSlots.map(slot => `<button class="secondary" type="button" data-supplement-edit-slot="${escape(slot.id)}">Edit ${escape(timeLabel(slot.local_time))}</button><button class="secondary" type="button" data-supplement-remove-slot="${escape(slot.id)}">Remove time</button>`).join("")}</div>` : ""}<div class="button-row"><button class="secondary" type="button" data-supplement-add-slot="${escape(plan.id)}">Add time</button>${planSlots.length ? `<button class="secondary" type="button" data-supplement-toggle-reminder="${escape(plan.id)}">${planSlots.some(slot => slot.reminder_enabled) ? "Reminders off" : "Reminders on"}</button>` : ""}</div></article>`;
+    }).join("") : `<p class="muted">No supplements selected yet.</p>`}</div><section class="supplement-history"><h3>Private history</h3>${events.length ? historyMarkup(events.slice(0, 30)) : `<p class="muted">Nothing recorded yet.</p>`}</section>${insightMarkup()}<details class="supplement-data-actions"><summary>Supplement data and privacy</summary><p>Only you can access these records through the Athlete app. They are excluded from Coach access, organisations, points and sharing.</p><div class="button-row"><button class="secondary" type="button" data-supplement-export>Export JSON</button><button class="secondary danger-secondary" type="button" data-supplement-delete-all>Delete supplement data</button></div></details>`;
   }
   function render() { renderManagement(); window.FuelGuardContextLayer?.refresh?.(); window.FuelGuardAthleteRetention?.render?.(); }
 
   async function load() {
     const userId = String(cloud()?.user?.id || "");
-    if (!userId || !cloud()?.client) { owner = ""; plans = []; slots = []; events = []; render(); return; }
-    if (owner && owner !== userId) { plans = []; slots = []; events = []; }
+    if (!userId || !cloud()?.client) { owner = ""; plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; render(); emitEventsChanged(); return; }
+    const preserveDraft = owner === userId && selectionDirty;
+    if (owner && owner !== userId) { plans = []; slots = []; events = []; selectionDraft = null; selectionDirty = false; }
     owner = userId;
     const [planResult, slotResult, eventResult] = await Promise.all([
       cloud().client.from(PLANS).select("*").eq("user_id", userId).order("created_at"),
@@ -114,37 +185,85 @@
     slots = slotResult.data || [];
     events = eventResult.data || [];
     message = "";
+    syncSelectionDraft({ force: !preserveDraft });
     render();
+    emitEventsChanged();
   }
-  async function addSelected() {
-    const types = [...document.querySelectorAll('input[name="supplementCatalogue"]:checked:not(:disabled)')].map(input => input.value);
-    const custom = String(document.getElementById("supplementCustomName")?.value || "").trim();
-    if (!types.length && !custom) throw new Error("Select at least one supplement or add a name.");
-    const rows = types.map(type => ({ id: uuid(), user_id: owner, supplement_type: type, custom_name: null, label: typeLabel(type), active: true, track_caffeine_separation: false }))
-      .concat(custom ? [{ id: uuid(), user_id: owner, supplement_type: "custom", custom_name: custom, label: custom, active: true, track_caffeine_separation: false }] : []);
-    const { data, error } = await cloud().client.from(PLANS).insert(rows).select();
-    if (error) throw error;
-    plans.push(...(data || []));
-    message = `${rows.length} supplement${rows.length === 1 ? "" : "s"} added.`;
+  async function reloadPlansPreservingDraft(userId) {
+    const result = await cloud().client.from(PLANS).select("*").eq("user_id", userId).order("created_at");
+    if (!result.error && String(cloud()?.user?.id || "") === userId) plans = result.data || [];
   }
-  function openQuickLog(planId = "", slotId = "") {
-    if (!activePlans().length) {
-      document.querySelector('[data-open-screen="checklist"]')?.click();
-      window.FuelGuardSettingsNavigation?.showCategory?.("supplements");
-      message = "Choose your supplements before logging.";
-      render();
+  async function saveSelection() {
+    if (busy || !selectionDirty) return;
+    const requestOwner = String(owner || "");
+    const desired = new Set(selectionDraft || []);
+    if (!requestOwner || requestOwner !== String(cloud()?.user?.id || "")) throw new Error("Your account changed. Reopen Supplement Settings and try again.");
+    busy = true;
+    message = "";
+    renderManagement();
+    try {
+      for (const plan of [...plans]) {
+        const shouldBeActive = desired.has(catalogueKeyForPlan(plan));
+        if (Boolean(plan.active) === shouldBeActive) continue;
+        const { data, error } = await cloud().client.from(PLANS).update({ active: shouldBeActive }).eq("id", plan.id).eq("user_id", requestOwner).select().single();
+        if (error) throw error;
+        if (data) plans = plans.map(item => item.id === plan.id ? data : item);
+      }
+      for (const key of desired) {
+        if (plans.some(plan => catalogueKeyForPlan(plan) === key)) continue;
+        const entry = catalogueEntry(key);
+        if (!entry) continue;
+        const { data, error } = await cloud().client.from(PLANS).insert(rowForCatalogueEntry(entry)).select().single();
+        if (error) throw error;
+        if (data) plans.push(data);
+      }
+      if (requestOwner !== String(cloud()?.user?.id || "")) throw new Error("Your account changed before the supplement selection finished saving.");
+      syncSelectionDraft({ force: true });
+      message = "Supplement selection saved";
+    } catch (error) {
+      await reloadPlansPreservingDraft(requestOwner);
+      selectionDraft = desired;
+      syncSelectionDraft();
+      message = `Could not save the supplement selection. Your choices are still here. ${error.message || "Try again."}`;
+    } finally {
+      busy = false;
+      renderManagement();
+    }
+  }
+  function showQuickLogSheet() {
+    const sheet = document.getElementById("supplementQuickLogSheet");
+    if (!sheet) return;
+    sheet.hidden = false;
+    sheet.removeAttribute("inert");
+    document.body.classList.add("supplement-sheet-open");
+  }
+  function setQuickLogControlsVisible(visible) {
+    const time = document.querySelector(".supplement-quick-time");
+    const confirm = document.getElementById("supplementQuickConfirm");
+    if (time) time.hidden = !visible;
+    if (confirm) confirm.hidden = !visible;
+  }
+  async function openQuickLog(planId = "", slotId = "") {
+    if (owner !== String(cloud()?.user?.id || "")) await load();
+    const available = activePlans();
+    if (!available.length) {
+      pendingSlotId = "";
+      document.getElementById("supplementQuickChoices").innerHTML = `<div class="supplement-quick-empty"><strong>Set up your supplements before logging them.</strong><p>Select the supplements you use in Settings, then return to Daily to record when you take them.</p><button class="secondary" type="button" data-open-supplement-settings>Set up supplements</button></div>`;
+      document.getElementById("supplementQuickLogTitle").textContent = "Record supplements";
+      document.getElementById("supplementQuickLogContext").textContent = "Supplement Settings is for configuration; Daily is where you record each moment.";
+      document.getElementById("supplementQuickStatus").textContent = "";
+      setQuickLogControlsVisible(false);
+      showQuickLogSheet();
       return;
     }
     pendingSlotId = slotId;
-    const sheet = document.getElementById("supplementQuickLogSheet");
-    document.getElementById("supplementQuickChoices").innerHTML = activePlans().map(plan => `<label class="supplement-check"><input type="checkbox" data-supplement-quick-plan value="${escape(plan.id)}" ${!planId || plan.id === planId ? "checked" : ""}><span>${escape(plan.label)}</span></label>`).join("");
+    document.getElementById("supplementQuickChoices").innerHTML = available.map(plan => `<label class="supplement-check"><input type="checkbox" data-supplement-quick-plan value="${escape(plan.id)}" ${plan.id === planId ? "checked" : ""}><span>${escape(plan.label)}</span></label>`).join("");
     document.getElementById("supplementQuickLogTitle").textContent = planId ? `Record ${planFor(planId)?.label || "supplement"}` : "Record supplements";
     document.getElementById("supplementQuickLogContext").textContent = "Select everything you took at this time. No amounts are requested.";
     document.getElementById("supplementQuickTakenAt").value = dateTimeLocal();
     document.getElementById("supplementQuickStatus").textContent = "";
-    sheet.hidden = false;
-    sheet.removeAttribute("inert");
-    document.body.classList.add("supplement-sheet-open");
+    setQuickLogControlsVisible(true);
+    showQuickLogSheet();
   }
   function closeQuickLog() {
     const sheet = document.getElementById("supplementQuickLogSheet");
@@ -153,27 +272,23 @@
     document.body.classList.remove("supplement-sheet-open");
     pendingSlotId = "";
   }
-  async function recordSelected() {
-    if (busy) return;
-    const planIds = [...document.querySelectorAll("[data-supplement-quick-plan]:checked")].map(input => input.value);
-    const takenAt = new Date(document.getElementById("supplementQuickTakenAt")?.value || Date.now());
-    const status = document.getElementById("supplementQuickStatus");
-    if (!planIds.length) { status.textContent = "Select at least one supplement."; return; }
-    if (Number.isNaN(takenAt.getTime()) || takenAt > new Date(Date.now() + 5 * 60000)) { status.textContent = "Choose a valid time that is not in the future."; return; }
+  async function persistEvents(planIds, takenAt, slotId = "") {
+    const requestOwner = String(owner || "");
+    if (!requestOwner || requestOwner !== String(cloud()?.user?.id || "")) throw new Error("Your account changed. Try the supplement log again.");
     const selectedPlans = planIds.map(planFor).filter(Boolean);
-    if (selectedPlans.some(plan => ironWindowConflict(plan, takenAt)) && !window.confirm("This time overlaps the personal caffeine timing window you set. Record it anyway?")) return;
-    busy = true;
-    status.textContent = "Recording…";
+    if (!selectedPlans.length) throw new Error("Select at least one supplement.");
+    if (Number.isNaN(takenAt.getTime()) || takenAt > new Date(Date.now() + 5 * 60000)) throw new Error("Choose a valid time that is not in the future.");
+    if (selectedPlans.some(plan => ironWindowConflict(plan, takenAt)) && !window.confirm("This time overlaps the personal caffeine timing window you set. Record it anyway?")) return 0;
     const atIso = takenAt.toISOString();
     const snapshot = context(takenAt);
     const rows = selectedPlans.map(plan => ({
       id: uuid(),
-      user_id: owner,
+      user_id: requestOwner,
       supplement_plan_id: plan.id,
-      schedule_slot_id: planIds.length === 1 && pendingSlotId ? pendingSlotId : null,
+      schedule_slot_id: planIds.length === 1 && slotId ? slotId : null,
       event_status: "taken",
       taken_at: atIso,
-      planned_for: planIds.length === 1 && pendingSlotId ? plannedFor(slots.find(slot => slot.id === pendingSlotId), takenAt) : null,
+      planned_for: planIds.length === 1 && slotId ? plannedFor(slots.find(slot => slot.id === slotId), takenAt) : null,
       source: "manual",
       idempotency_key: `manual:${plan.id}:${atIso}`,
       event_local_date: localDateKey(takenAt),
@@ -181,10 +296,32 @@
       ...snapshot
     }));
     const { data, error } = await cloud().client.from(EVENTS).insert(rows).select();
-    busy = false;
-    if (error) { status.textContent = `Could not record: ${error.message}`; return; }
+    if (error) throw error;
+    if (requestOwner !== String(cloud()?.user?.id || "")) {
+      await load();
+      throw new Error("Your account changed before the supplement log completed.");
+    }
     events.unshift(...(data || []));
     message = `${rows.length} supplement${rows.length === 1 ? "" : "s"} recorded.`;
+    emitEventsChanged();
+    return rows.length;
+  }
+  async function recordSelected() {
+    if (busy) return;
+    const planIds = [...document.querySelectorAll("[data-supplement-quick-plan]:checked")].map(input => input.value);
+    const takenAt = new Date(document.getElementById("supplementQuickTakenAt")?.value || Date.now());
+    const status = document.getElementById("supplementQuickStatus");
+    busy = true;
+    status.textContent = "Recording…";
+    try {
+      const count = await persistEvents(planIds, takenAt, pendingSlotId);
+      if (!count) { status.textContent = "Recording cancelled."; return; }
+    } catch (error) {
+      status.textContent = `Could not record: ${error.message}`;
+      return;
+    } finally {
+      busy = false;
+    }
     closeQuickLog();
     render();
     window.FuelGuardLoggingFeedback?.celebrate?.({ type: "supplement", message: message });
@@ -195,6 +332,7 @@
     if (error) { message = `Could not undo: ${error.message}`; render(); return; }
     events = events.filter(event => event.id !== eventId);
     message = "Supplement record removed.";
+    emitEventsChanged();
     render();
   }
   async function addSlot(planId) {
@@ -232,7 +370,7 @@
     if (slotResult.error) { message = slotResult.error.message; render(); return; }
     const planResult = await cloud().client.from(PLANS).delete().eq("user_id", owner);
     if (planResult.error) { message = planResult.error.message; render(); return; }
-    plans = []; slots = []; events = []; message = "Supplement data deleted."; render();
+    plans = []; slots = []; events = []; message = "Supplement data deleted."; emitEventsChanged(); render();
   }
   function exportData() {
     const payload = JSON.stringify({ exportedAt: new Date().toISOString(), plans, scheduleSlots: slots, events }, null, 2);
@@ -253,14 +391,27 @@
   document.addEventListener("submit", async event => {
     if (event.target.id !== "supplementCatalogueForm") return;
     event.preventDefault();
-    if (busy) return;
-    busy = true; message = ""; render();
-    try { await addSelected(); } catch (error) { message = error.message || "Supplements could not be added."; }
-    busy = false; render();
+    if (busy || !selectionDirty) return;
+    try { await saveSelection(); } catch (error) { message = error.message || "The supplement selection could not be saved."; renderManagement(); }
+  });
+  document.addEventListener("change", event => {
+    const input = event.target.closest?.('input[name="supplementSelection"]');
+    if (!input || busy) return;
+    syncSelectionDraft();
+    if (input.checked) selectionDraft.add(input.value);
+    else selectionDraft.delete(input.value);
+    selectionDirty = !sameSelection(selectionDraft, persistedSelectionKeys());
+    message = "";
+    input.closest("[data-supplement-selection-row]")?.classList.toggle("selected", input.checked);
+    const button = document.getElementById("supplementSelectionSave");
+    if (button) button.disabled = !selectionDirty;
+    const status = document.getElementById("supplementSelectionStatus");
+    if (status) status.textContent = selectionDirty ? "Unsaved changes" : "";
   });
   document.addEventListener("click", async event => {
-    if (event.target.closest("#graphLogSupplementButton")) { openQuickLog(); return; }
-    if (event.target.closest("[data-open-supplement-settings]")) { document.querySelector('[data-open-screen="checklist"]')?.click(); window.FuelGuardSettingsNavigation?.showCategory?.("supplements"); return; }
+    if (event.target.closest('[data-settings-category-open="supplements"]') && !selectionDirty) void load();
+    if (event.target.closest("#graphLogSupplementButton")) { await openQuickLog(); return; }
+    if (event.target.closest("[data-open-supplement-settings]")) { closeQuickLog(); document.querySelector('[data-open-screen="checklist"]')?.click(); window.FuelGuardSettingsNavigation?.showCategory?.("supplements"); if (!selectionDirty) await load(); return; }
     const log = event.target.closest("[data-supplement-log]"); if (log) { openQuickLog(log.dataset.supplementLog, log.dataset.supplementSlot || ""); return; }
     if (event.target.closest("[data-supplement-cancel]")) { closeQuickLog(); return; }
     if (event.target.closest("#supplementQuickConfirm")) { recordSelected(); return; }
@@ -270,13 +421,14 @@
     const remove = event.target.closest("[data-supplement-remove-slot]"); if (remove) { const result = await cloud().client.from(SLOTS).delete().eq("id", remove.dataset.supplementRemoveSlot).eq("user_id", owner); if (!result.error) slots = slots.filter(slot => slot.id !== remove.dataset.supplementRemoveSlot); message = result.error?.message || "Supplement timing removed."; render(); return; }
     const reminder = event.target.closest("[data-supplement-toggle-reminder]"); if (reminder) { const planSlots = scheduleFor(reminder.dataset.supplementToggleReminder); const enabled = !planSlots.some(slot => slot.reminder_enabled); const result = await cloud().client.from(SLOTS).update({ reminder_enabled: enabled }).eq("supplement_plan_id", reminder.dataset.supplementToggleReminder).eq("user_id", owner).select(); if (!result.error) slots = slots.map(slot => slot.supplement_plan_id === reminder.dataset.supplementToggleReminder ? { ...slot, reminder_enabled: enabled } : slot); message = result.error?.message || `Reminders ${enabled ? "enabled" : "disabled"}.`; render(); return; }
     const toggle = event.target.closest("[data-supplement-toggle]"); if (toggle) { const plan = planFor(toggle.dataset.supplementToggle); const result = await cloud().client.from(PLANS).update({ active: !plan.active }).eq("id", plan.id).eq("user_id", owner).select().single(); if (!result.error && result.data) plans = plans.map(item => item.id === plan.id ? result.data : item); message = result.error?.message || `${plan.label} ${plan.active ? "paused" : "resumed"}.`; render(); return; }
-    const removePlan = event.target.closest("[data-supplement-delete-plan]"); if (removePlan && window.confirm("Delete this supplement selection and its private history?")) { const planId = removePlan.dataset.supplementDeletePlan; const eventResult = await cloud().client.from(EVENTS).delete().eq("supplement_plan_id", planId).eq("user_id", owner); const result = eventResult.error ? eventResult : await cloud().client.from(PLANS).delete().eq("id", planId).eq("user_id", owner); if (!result.error) { plans = plans.filter(plan => plan.id !== planId); slots = slots.filter(slot => slot.supplement_plan_id !== planId); events = events.filter(item => item.supplement_plan_id !== planId); } message = result.error?.message || "Supplement selection deleted."; render(); return; }
+    const removePlan = event.target.closest("[data-supplement-delete-plan]"); if (removePlan && window.confirm("Delete this supplement selection and its private history?")) { const planId = removePlan.dataset.supplementDeletePlan; const eventResult = await cloud().client.from(EVENTS).delete().eq("supplement_plan_id", planId).eq("user_id", owner); const result = eventResult.error ? eventResult : await cloud().client.from(PLANS).delete().eq("id", planId).eq("user_id", owner); if (!result.error) { plans = plans.filter(plan => plan.id !== planId); slots = slots.filter(slot => slot.supplement_plan_id !== planId); events = events.filter(item => item.supplement_plan_id !== planId); emitEventsChanged(); } message = result.error?.message || "Supplement selection deleted."; render(); return; }
     if (event.target.closest("[data-supplement-export]")) exportData();
     if (event.target.closest("[data-supplement-delete-all]")) deleteAll();
   });
   window.addEventListener("fuelguard:auth-state", load);
   window.addEventListener("fuelguard:private-app-ready", load);
   window.addEventListener("fuelguard:cloud-status", render);
+  window.addEventListener("beforeunload", event => { if (selectionDirty) { event.preventDefault(); event.returnValue = ""; } });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
   document.addEventListener("DOMContentLoaded", load);
 
@@ -284,8 +436,9 @@
     load,
     render,
     openQuickLog,
+    eventsForDay,
     reminderPrompt,
     recoveryActionSummary,
-    _test: Object.freeze({ INSIGHT_MIN_EVENTS, catalogue: CATALOGUE, ironWindowConflict, localDateKey, slotIsToday, typeLabel, plannedFor, isUuid, parseDays })
+    _test: Object.freeze({ INSIGHT_MIN_EVENTS, catalogue: CATALOGUE, ironWindowConflict, localDateKey, slotIsToday, typeLabel, plannedFor, isUuid, parseDays, patternEvent })
   });
 })();

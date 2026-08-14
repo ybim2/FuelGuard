@@ -115,13 +115,23 @@ test("local planned times remain local across timezone and daylight-saving const
   assert.equal(helpers.localDateKey(new Date(2026, 7, 14, 23, 30)), "2026-08-14");
 });
 
-test("Supplementation is a first-class 2x2 Daily action with multi-select quick logging and no amount field", () => {
+test("Supplementation is a first-class 2x2 Daily action backed by saved preferences", () => {
   const source = read("supplement-rhythm.js");
   const html = read("index.html");
+  const quickLog = source.slice(source.indexOf("async function openQuickLog"), source.indexOf("function closeQuickLog"));
   assert.match(html, /id="graphLogSupplementButton"[\s\S]*<span>Supplementation<\/span>/);
   assert.match(html, /id="supplementQuickChoices"/);
+  assert.match(source, /Save supplement selection/);
+  assert.match(source, /selectionDirty/);
+  assert.match(source, /update\(\{ active: shouldBeActive \}\)/);
+  assert.match(source, /Supplement selection saved/);
+  assert.doesNotMatch(source, /supplementCustomName|Another supplement \(optional\)|Add selected supplements/);
+  assert.match(quickLog, /Set up your supplements before logging them/);
+  assert.doesNotMatch(quickLog, /data-open-screen="checklist"|showCategory/);
   assert.match(source, /data-supplement-quick-plan/);
   assert.match(source, /planIds\.map\(planFor\)/);
+  assert.doesNotMatch(quickLog, /recordNow/);
+  assert.match(source, /fuelguard:supplement-events-changed/);
   assert.match(source, /data-supplement-add-slot/);
   assert.match(html, /supplementQuickTakenAt/);
   assert.match(source, /data-supplement-edit-slot/);
@@ -166,7 +176,7 @@ test("PWA shell versions every new private surface and preserves callback naviga
   const html = read("index.html");
   const sw = read("sw.js");
   for (const asset of ["account-identities.js", "athlete-context-layer.js", "supplement-rhythm.js", "supplement-rhythm.css"]) {
-    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v150-auto-work-supplementation"));
+    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v152-supplement-setup-save"));
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
   assert.match(sw, /requestUrl\.pathname\.startsWith\("\/auth\/callback"\)/);
