@@ -241,7 +241,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v147-front-page-ui-fix">
+  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v149-consolidated-release">
 </head>
 <body>
   <div class="policy-shell">
@@ -263,7 +263,7 @@
         <p>Fuel Guard helps you notice fuelling and hydration rhythm. This notice explains what the private beta web app and Garmin apps process, how that information is used, and how to ask for access, correction or deletion.</p>
         <div class="dates" aria-label="Policy dates">
           <span class="date-pill">Effective date: 6 August 2026</span>
-          <span class="date-pill">Last updated: 6 August 2026</span>
+          <span class="date-pill">Last updated: 14 August 2026</span>
         </div>
       </article>
 
@@ -293,9 +293,12 @@
             <li>Fuel, hydration and fuel-plus-hydration log events, including timestamp, type, source, day type, training session and notes or check-in markers used by the app.</li>
             <li>Preferences such as fuelling and hydration thresholds, daily targets and fuelling-window settings.</li>
             <li>Planning data you choose to enter, such as demand blocks, work breaks, training sessions and related notes.</li>
+            <li>Private Supplement Rhythm plans, local schedule times, reminders, supplement timestamps, optional food associations, and Work or Training context captured when you record them.</li>
+            <li>Optional Recovery Focus sessions linked to your own completed Training Mode records.</li>
             <li>Local cache data stored in the browser so the app can keep working while signed out, offline or waiting to sync.</li>
           </ul>
           <p>Fuel Guard does not add calories, food weights, macros, body weight or food-quality judgements to the log model unless you type that information into an optional note yourself.</p>
+          <p>Supplement Rhythm records are private to the Athlete account. Fuel Guard does not expose supplement names, plans or events to Coaches, organisations, team reports, leaderboards or social share cards in this version, and does not use them to diagnose a condition, recommend a dose or calculate biological recovery.</p>
         </section>
 
         <section aria-labelledby="garmin-info">
@@ -334,7 +337,7 @@
 
         <section aria-labelledby="auth-security">
           <h2 id="auth-security">Authentication and security credentials</h2>
-          <p>Web account sign-up, login, password reset and session handling are managed through Supabase Auth. Fuel Guard's browser code uses the public Supabase anon or publishable key, not a Supabase service-role key.</p>
+          <p>Web account sign-up, Apple and Google OAuth, six-digit email login, password reset and session handling are managed through Supabase Auth. Fuel Guard's browser code uses the public Supabase anon or publishable key, not a Supabase service-role key.</p>
           <p>The Garmin beta uses short-lived pairing plus revocable device tokens. Server-side credentials such as the Supabase secret key are used only by the backend endpoint and must not be placed in browser code, Garmin code or public files.</p>
         </section>
 
@@ -372,7 +375,7 @@
 
         <section aria-labelledby="retention">
           <h2 id="retention">Data retention</h2>
-          <p>Fuel Guard keeps account-backed logs, targets, planning data and optional Garmin health-pattern samples while your account is active or until you delete entries, clear supported local data, disable/clear supported watch sharing, or ask for account and associated-data deletion. Local browser cache may remain on a device until you clear app data, browser storage or the app's local data controls.</p>
+          <p>Fuel Guard keeps account-backed logs, targets, planning data, private supplement routines and Recovery Focus sessions, and optional Garmin health-pattern samples while your account is active or until you delete entries, clear supported local data, disable/clear supported watch sharing, or ask for account and associated-data deletion. Local browser cache may remain on a device until you clear app data, browser storage or the app's local data controls.</p>
         </section>
 
         <section aria-labelledby="security">
@@ -387,6 +390,8 @@
           <p>Use the contact method above for account-level privacy requests. To help verify the account, contact Fuel Guard from the email address used for your Fuel Guard account where possible. Do not send passwords, access tokens or detailed health information in your request.</p>
           <h3>How to delete individual fuel logs</h3>
           <p>Where the app shows delete or undo controls for a log, you can remove individual entries from the app. If you are signed in and online, cloud deletion is sent to Supabase. If you are offline, deletion can be queued locally and synced later.</p>
+          <h3>Supplement and Recovery Focus controls</h3>
+          <p>Supplement Rhythm Settings lets you edit or undo events, pause or delete plans, export supplement and Recovery Focus records, and delete Supplement Rhythm data. Deleting the Fuel Guard account removes supplement and Recovery Focus rows through account-owned database relationships.</p>
           <h3>How to request account and associated-data deletion</h3>
           <p>Use the contact method above to request deletion of your Fuel Guard account and associated cloud data. The request may require account verification before account-backed data is removed.</p>
         </section>
@@ -404,7 +409,7 @@
     </main>
 
     <footer>
-      Fuel Guard Privacy Policy - effective 6 August 2026.
+      Fuel Guard Privacy Policy - updated 14 August 2026.
     </footer>
   </div>
 </body>

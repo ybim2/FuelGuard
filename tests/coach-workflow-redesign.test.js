@@ -142,6 +142,30 @@ test("Coach settings uses category drill-downs without weakening athlete prefere
   assert.doesNotMatch(js, /update\(\{[^}]*maximum_gap_enabled|update\(\{[^}]*post_training_enabled/);
 });
 
+test("Coach Settings and Add Athlete controls keep visible accessible labels on light surfaces", () => {
+  const html = read("coach/index.html");
+  const js = read("coach/coach-beta.js");
+  const css = read("coach/coach-beta.css");
+
+  assert.match(html, /data-coach-settings-back>← Settings<\/button>/);
+  assert.match(html, /id="coachFindAthleteButton"[^>]*data-busy-label="Adding…"[^>]*disabled[^>]*>Add athlete<\/button>/);
+  assert.equal((html.match(/>Add athlete<\/button>/g) || []).length, 1);
+  assert.match(html, /The athlete can find their athlete code in Settings → Coach &amp; Sharing\./);
+  assert.match(html, /aria-describedby="coachAthleteCodeHelp"/);
+  assert.match(html, /placeholder="FG-7K42P9"/);
+  assert.match(js, /Enter an Athlete Code like FG-7K42P9\./);
+  assert.match(css, /body\.coach-beta button\.secondary \{[\s\S]*background: var\(--coach-surface\);[\s\S]*color: var\(--coach-text\);/);
+  assert.match(css, /body\.coach-beta button:focus-visible[\s\S]*outline: 3px solid #d99024/);
+
+  assert.match(js, /function syncAddAthleteButtonState/);
+  assert.match(js, /const disabled = state\.busy \|\| !ATHLETE_CODE_RE\.test\(code\)/);
+  assert.match(js, /function addAthleteByCode\(\)[\s\S]*lookupAthleteByCode\(\)[\s\S]*saveSharingRequest\(result\)/);
+  assert.match(js, /button\.setAttribute\("aria-busy", "true"\)/);
+  assert.match(js, /Athlete could not be added\./);
+  assert.match(js, /Connection request (sent|saved)/);
+  assert.match(js, /loadCoachData\(\{ reason: "sharing-requested" \}\)/);
+});
+
 test("Coach visual system is light, card-based and mobile-safe at the required widths", () => {
   const css = read("coach/coach-beta.css");
   assert.match(css, /v133 Coach workflow redesign:[\s\S]*background: var\(--coach-bg\)/);

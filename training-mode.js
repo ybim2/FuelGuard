@@ -683,6 +683,7 @@
     statusMessage = "Training Mode active.";
     persist();
     render();
+    window.dispatchEvent(new CustomEvent("fuelguard:training-session-started", { detail: { session: { ...session } } }));
     await syncCloud();
   }
 
@@ -849,6 +850,7 @@
     if (!previousActive && training.activeSession) {
       transition = "started";
       if (announceExternal) statusMessage = "Training Mode started from Garmin.";
+      if (announceExternal) window.dispatchEvent(new CustomEvent("fuelguard:training-session-started", { detail: { session: { ...training.activeSession }, source: "garmin" } }));
     } else if (previousActive && (!training.activeSession || training.activeSession.id !== previousActive.id)) {
       transition = "ended";
       const completed = training.sessions.find(item => item.id === previousActive.id && item.status === "completed") || { ...previousActive, status: "completed" };

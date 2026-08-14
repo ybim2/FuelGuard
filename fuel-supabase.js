@@ -1252,6 +1252,91 @@
     return data;
   }
 
+  async function signInWithApple({ redirectTo } = {}) {
+    if (!client) throw new Error("Supabase is not configured.");
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: "apple",
+      options: { redirectTo: redirectTo || window.location.origin }
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function sendEmailOtp(email) {
+    if (!client) throw new Error("Supabase is not configured.");
+    const { data, error } = await client.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true }
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function verifyEmailOtp(email, token) {
+    if (!client) throw new Error("Supabase is not configured.");
+    const { data, error } = await client.auth.verifyOtp({ email, token, type: "email" });
+    if (error) throw error;
+    session = data.session;
+    setCanonicalHistoryStatus("loading");
+    if (session) await syncNow();
+    emitAuthState();
+    return data;
+  }
+
+  async function userIdentities() {
+    if (!client || !user()) return [];
+    const { data, error } = await client.auth.getUserIdentities();
+    if (error) throw error;
+    return Array.isArray(data?.identities) ? data.identities : [];
+  }
+
+  async function linkIdentity(provider) {
+    if (!client || !user()) throw new Error("Sign in before linking another login method.");
+    if (!config().manualIdentityLinkingEnabled) throw new Error("Manual login-method linking is not enabled.");
+    if (!new Set(["apple", "google"]).has(provider)) throw new Error("Unsupported login method.");
+    const { data, error } = await client.auth.linkIdentity({
+      provider,
+      options: { redirectTo: `${window.location.origin}/auth/callback/?next=/` }
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function unlinkIdentity(identity) {
+    if (!client || !user()) throw new Error("Sign in before changing login methods.");
+    const identities = await userIdentities();
+    if (identities.length <= 1) throw new Error("Keep at least one login method on your account.");
+    const selected = identities.find(item => item.id === identity?.id);
+    if (!selected) throw new Error("Login method not found.");
+    const { data, error } = await client.auth.unlinkIdentity(selected);
+    if (error) throw error;
+    return data;
+  }
+
+  async function authProfile() {
+    if (!client || !user()) return null;
+    const { data, error } = await client.from("fuel_user_profiles")
+      .select("user_id,display_name,first_name,last_name,username")
+      .eq("user_id", user().id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  async function savePreferredName(name) {
+    if (!client || !user()) throw new Error("Sign in before saving your name.");
+    const preferredName = String(name || "").trim().slice(0, 80);
+    if (!preferredName) throw new Error("Enter the name Fuel Guard should use.");
+    const { data, error } = await client.from("fuel_user_profiles").upsert({
+      user_id: user().id,
+      display_name: preferredName,
+      first_name: preferredName,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" }).select("user_id,display_name,first_name,last_name,username").single();
+    if (error) throw error;
+    return data;
+  }
+
   async function signUp(email, password) {
     if (!client) throw new Error("Supabase is not configured.");
     const redirectUrl = window.location.origin;
@@ -1380,7 +1465,8 @@
         auth: {
           autoRefreshToken: true,
           persistSession: true,
-          detectSessionInUrl: true
+          detectSessionInUrl: true,
+          flowType: "pkce"
         }
       });
 
@@ -1447,6 +1533,14 @@
     saveTargets,
     signIn,
     signInWithGoogle,
+    signInWithApple,
+    sendEmailOtp,
+    verifyEmailOtp,
+    userIdentities,
+    linkIdentity,
+    unlinkIdentity,
+    authProfile,
+    savePreferredName,
     signUp,
     sendPasswordReset,
     updatePassword,

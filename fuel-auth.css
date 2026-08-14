@@ -97,6 +97,7 @@ body.beta-mvp .mobile-bottom-nav[data-private-ui][hidden] {
 }
 
 .fuel-auth-google,
+.fuel-auth-apple,
 .fuel-auth-email-action,
 .fuel-auth-secondary-action {
   width: 100%;
@@ -107,13 +108,20 @@ body.beta-mvp .mobile-bottom-nav[data-private-ui][hidden] {
   cursor: pointer;
 }
 
-.fuel-auth-google {
+.fuel-auth-provider-stack,
+.fuel-auth-email-stack { display: grid; gap: 10px; }
+
+.fuel-auth-google,
+.fuel-auth-apple {
   border: 1px solid #fff;
   background: #fff;
   color: #050505;
 }
 
+.fuel-auth-apple { background: #050505; color: #fff; }
+
 .fuel-auth-google:focus-visible,
+.fuel-auth-apple:focus-visible,
 .fuel-auth-email-action:focus-visible,
 .fuel-auth-secondary-action:focus-visible,
 .fuel-auth-card input:focus-visible,
@@ -164,6 +172,26 @@ body.beta-mvp .mobile-bottom-nav[data-private-ui][hidden] {
   color: #fff;
   font: inherit;
 }
+
+.fuel-auth-password-disclosure { margin-top: 2px; color: #aaa; }
+.fuel-auth-password-disclosure summary { cursor: pointer; font-size: .82rem; font-weight: 800; }
+.fuel-auth-password-disclosure label { margin-top: 10px; }
+
+.fuel-auth-name-onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(5,5,5,.82);
+}
+.fuel-auth-name-card { width: min(100%, 390px); padding: 28px; border-radius: 24px; background: #fff; color: #050505; box-shadow: 0 28px 80px rgba(0,0,0,.42); }
+.fuel-auth-name-card .fuel-guard-mark { width: 54px; height: 54px; }
+.fuel-auth-name-card h2 { margin: 18px 0 8px; font-size: 1.65rem; letter-spacing: -.03em; }
+.fuel-auth-name-card p { color: #555; line-height: 1.5; }
+.fuel-auth-name-card label { display: grid; gap: 7px; font-weight: 800; }
+.fuel-auth-name-card input { min-height: 50px; padding: 0 14px; border: 1px solid #bbb; border-radius: 13px; font: inherit; }
 
 .fuel-auth-email-action {
   margin-top: 16px;

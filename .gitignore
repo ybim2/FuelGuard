@@ -1,5 +1,6 @@
 build/
 .vercel
 .env*
+!.env.example
 .DS_Store
 supabase/.temp/

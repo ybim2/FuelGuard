@@ -8,17 +8,17 @@
   <title>Fuel Guard Coach Beta</title>
   <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v137-accepted-integration" />
-  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v147-front-page-ui-fix" />
-  <link rel="stylesheet" href="../fuel-auth.css?v=mobile-pwa-v147-front-page-ui-fix" />
+  <link rel="stylesheet" href="../fuel-beta.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-beta.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-platform.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-attention.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-intervention-workflow.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-team-intelligence.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-review-scheduling.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-team-structure.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="coach-training-schedule.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v149-consolidated-release" />
+  <link rel="stylesheet" href="../fuel-auth.css?v=mobile-pwa-v149-consolidated-release" />
 </head>
 <body class="coach-beta">
   <header class="coach-topbar" aria-label="Fuel Guard Coach Beta">
@@ -102,9 +102,9 @@
             </div>
           </div>
           <div class="coach-form-grid coach-code-grid">
-            <label>Athlete Code<input id="coachAthleteCodeInput" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FG-7K42P"></label>
+            <label>Athlete Code<input id="coachAthleteCodeInput" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FG-7K42P9" aria-describedby="coachAthleteCodeHelp"><small id="coachAthleteCodeHelp" class="coach-field-help">The athlete can find their athlete code in Settings → Coach &amp; Sharing.</small></label>
             <div class="coach-code-action">
-              <button id="coachFindAthleteButton" class="secondary" type="button">Find Athlete</button>
+              <button id="coachFindAthleteButton" class="secondary" type="button" data-busy-label="Adding…" disabled aria-disabled="true">Add athlete</button>
             </div>
           </div>
           <div id="coachAthleteCodeResult" class="coach-code-result"></div>
@@ -319,19 +319,19 @@
 
   <aside id="coachCompletionMoment" class="coach-completion-moment" role="status" aria-live="assertive" hidden></aside>
 
-  <script src="../build-info.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="../api/supabase-config.js?v=mobile-pwa-v137-accepted-integration"></script>
+  <script src="../build-info.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v149-consolidated-release"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="../app-pwa.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="../transactional-email-client.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-platform.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-beta.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-attention.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-intervention-workflow.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-team-intelligence.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-review-scheduling.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-team-structure.js?v=mobile-pwa-v137-accepted-integration"></script>
-  <script src="coach-training-schedule.js?v=mobile-pwa-v137-accepted-integration"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="../app-pwa.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="../transactional-email-client.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-platform.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-beta.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-attention.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-intervention-workflow.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-team-intelligence.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-review-scheduling.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-team-structure.js?v=mobile-pwa-v149-consolidated-release"></script>
+  <script src="coach-training-schedule.js?v=mobile-pwa-v149-consolidated-release"></script>
 </body>
 </html>

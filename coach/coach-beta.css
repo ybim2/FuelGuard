@@ -236,6 +236,15 @@ body.coach-beta {
 
 .coach-code-action button {
   width: 100%;
+  min-height: 44px;
+}
+
+.coach-field-help {
+  color: var(--coach-muted);
+  font-size: .76rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-transform: none;
 }
 
 .coach-code-result {
@@ -2069,6 +2078,36 @@ body.coach-beta,
 .coach-settings-category-header div { display: grid; gap: 2px; }
 .coach-settings-category-header span { color: var(--coach-muted); font-size: .7rem; font-weight: 850; text-transform: uppercase; }
 .coach-settings-category-header h2 { margin: 0; }
+
+/* Coach owns a light button surface. Override the legacy global dark-theme
+   secondary foreground once so shared Settings and form controls stay visible. */
+body.coach-beta button.secondary {
+  border-color: var(--coach-line);
+  background: var(--coach-surface);
+  color: var(--coach-text);
+}
+
+body.coach-beta button.secondary:hover:not(:disabled) {
+  border-color: #9aaba2;
+  background: #f7faf8;
+}
+
+body.coach-beta button.secondary:active:not(:disabled) {
+  background: var(--coach-brand-soft);
+  transform: translateY(1px);
+}
+
+body.coach-beta button:focus-visible,
+body.coach-beta input:focus-visible,
+body.coach-beta select:focus-visible,
+body.coach-beta textarea:focus-visible {
+  outline: 3px solid #d99024;
+  outline-offset: 2px;
+}
+
+body.coach-beta button:disabled {
+  cursor: not-allowed;
+}
 
 .coach-roster-row .coach-status-chip { max-width: 11rem; white-space: normal; text-align: center; line-height: 1.2; }
 

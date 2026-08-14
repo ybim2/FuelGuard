@@ -116,5 +116,5 @@ test("new authentication assets are versioned in the offline app shell", () => {
   for (const asset of ["fuel-auth.css", "fuel-auth.js", "garmin-onboarding.css", "garmin-onboarding.js", "logging-feedback.js"]) {
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
-  assert.match(read("build-info.js"), /mobile-pwa-v147-front-page-ui-fix/);
+  assert.match(read("build-info.js"), /mobile-pwa-v149-consolidated-release/);
 });

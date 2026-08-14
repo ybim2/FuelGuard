@@ -24,7 +24,9 @@
         env.SUPABASE_PUBLISHABLE_KEY ||
         env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
         env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-        ""
+        "",
+      appleAuthEnabled: String(env.FUEL_GUARD_APPLE_AUTH_ENABLED || "true").toLowerCase() !== "false",
+      manualIdentityLinkingEnabled: String(env.FUEL_GUARD_MANUAL_IDENTITY_LINKING_ENABLED || "false").toLowerCase() === "true"
     };
   }
 
