@@ -7,14 +7,21 @@ const domain = require("../fuel-guard-domain.js");
 
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "supplement-rhythm.js"), "utf8");
+const styles = fs.readFileSync(path.join(root, "supplement-rhythm.css"), "utf8");
 
 function fixture({ plans = [], events = [] } = {}) {
-  const inserted = [];
   const emitted = [];
   const listeners = new Map();
+  const windowListeners = new Map();
+  const elements = new Map();
   let settingsClicks = 0;
   let shownCategory = "";
-  const elements = new Map();
+  let failNextMutation = false;
+  const rowsByTable = {
+    fuel_supplement_plans: plans.map(row => ({ ...row })),
+    fuel_supplement_schedule_slots: [],
+    fuel_supplement_events: events.map(row => ({ ...row }))
+  };
   const element = (id, initial = {}) => {
     const value = {
       id,
@@ -31,6 +38,7 @@ function fixture({ plans = [], events = [] } = {}) {
     elements.set(id, value);
     return value;
   };
+  element("athleteSupplementManagement");
   element("supplementQuickLogSheet", { hidden: true });
   element("supplementQuickChoices");
   element("supplementQuickLogTitle");
@@ -42,32 +50,51 @@ function fixture({ plans = [], events = [] } = {}) {
   element("foodLogCooldownMessage");
   const quickTime = { hidden: false };
   const body = { classList: { add() {}, remove() {} } };
-  const rowsByTable = {
-    fuel_supplement_plans: plans,
-    fuel_supplement_schedule_slots: [],
-    fuel_supplement_events: events
-  };
-  const client = {
-    from(table) {
-      let operation = "select";
-      let payload = null;
-      const builder = {
-        select() { return builder; },
-        eq() { return builder; },
-        order() { return builder; },
-        limit() { return builder; },
-        insert(rows) { operation = "insert"; payload = Array.isArray(rows) ? rows : [rows]; return builder; },
-        then(resolve, reject) {
-          const result = operation === "insert"
-            ? { data: payload.map(row => ({ ...row, created_at: row.taken_at })), error: null }
-            : { data: rowsByTable[table] || [], error: null };
-          if (operation === "insert") inserted.push(...result.data);
-          return Promise.resolve(result).then(resolve, reject);
-        }
-      };
-      return builder;
-    }
-  };
+
+  function clientBuilder(table) {
+    let operation = "select";
+    let payload = null;
+    let maximum = Infinity;
+    const filters = [];
+    const matchingRows = () => (rowsByTable[table] || []).filter(row => filters.every(([column, value]) => row[column] === value));
+    const execute = async single => {
+      if (operation !== "select" && failNextMutation) {
+        failNextMutation = false;
+        return { data: null, error: { message: "temporary save failure" } };
+      }
+      let data;
+      if (operation === "insert") {
+        const inserted = payload.map(row => ({ ...row, created_at: row.created_at || new Date().toISOString(), updated_at: new Date().toISOString() }));
+        rowsByTable[table].push(...inserted);
+        data = inserted;
+      } else if (operation === "update") {
+        const updated = [];
+        rowsByTable[table] = rowsByTable[table].map(row => {
+          if (!filters.every(([column, value]) => row[column] === value)) return row;
+          const next = { ...row, ...payload, updated_at: new Date().toISOString() };
+          updated.push(next);
+          return next;
+        });
+        data = updated;
+      } else {
+        data = matchingRows().slice(0, maximum).map(row => ({ ...row }));
+      }
+      return { data: single ? (data[0] || null) : data, error: null };
+    };
+    const builder = {
+      select() { return builder; },
+      eq(column, value) { filters.push([column, value]); return builder; },
+      order() { return builder; },
+      limit(value) { maximum = value; return builder; },
+      insert(rows) { operation = "insert"; payload = Array.isArray(rows) ? rows : [rows]; return builder; },
+      update(values) { operation = "update"; payload = values; return builder; },
+      single() { return execute(true); },
+      then(resolve, reject) { return execute(false).then(resolve, reject); }
+    };
+    return builder;
+  }
+
+  const client = { from: clientBuilder };
   const document = {
     hidden: false,
     body,
@@ -93,7 +120,7 @@ function fixture({ plans = [], events = [] } = {}) {
     FuelGuardSettingsNavigation: { showCategory(value) { shownCategory = value; } },
     FuelGuardLoggingFeedback: { celebrate() {} },
     fuelGuardCloud: { user: { id: "athlete-1" }, client },
-    addEventListener() {},
+    addEventListener(type, listener) { windowListeners.set(type, listener); },
     dispatchEvent(event) { emitted.push(event); },
     confirm() { return true; }
   };
@@ -112,7 +139,7 @@ function fixture({ plans = [], events = [] } = {}) {
     Object,
     Blob,
     URL,
-    crypto: { randomUUID: () => `a1600000-0000-4000-8000-${String(inserted.length + 1).padStart(12, "0")}` },
+    crypto: { randomUUID: () => `a1600000-0000-4000-8000-${String(rowsByTable.fuel_supplement_plans.length + rowsByTable.fuel_supplement_events.length + 1).padStart(12, "0")}` },
     globalThis: {}
   };
   context.globalThis.crypto = context.crypto;
@@ -122,37 +149,127 @@ function fixture({ plans = [], events = [] } = {}) {
     document,
     elements,
     emitted,
-    inserted,
     listeners,
+    rowsByTable,
+    failNextSave() { failNextMutation = true; },
+    setUser(user) { window.fuelGuardCloud.user = user; },
     settingsClicks: () => settingsClicks,
-    shownCategory: () => shownCategory
+    shownCategory: () => shownCategory,
+    management: () => elements.get("athleteSupplementManagement").innerHTML
   };
 }
 
-function clickTarget(selector) {
-  return { closest(candidate) { return candidate === selector ? { dataset: {} } : null; } };
+function clickTarget(selector, dataset = {}) {
+  return { closest(candidate) { return candidate === selector ? { dataset } : null; } };
 }
 
-test("one configured supplement logs immediately with the current timestamp", async () => {
-  const started = Date.now();
-  const view = fixture({ plans: [{ id: "plan-1", user_id: "athlete-1", supplement_type: "creatine", label: "Creatine", active: true }] });
+function selectionTarget(value, checked) {
+  const row = { classList: { toggle() {} } };
+  const input = {
+    value,
+    checked,
+    closest(selector) {
+      if (selector === 'input[name="supplementSelection"]') return input;
+      if (selector === "[data-supplement-selection-row]") return row;
+      return null;
+    }
+  };
+  return input;
+}
+
+async function changeSelection(view, value, checked) {
+  await view.listeners.get("change")({ target: selectionTarget(value, checked) });
+}
+
+async function saveSelection(view) {
+  await view.listeners.get("submit")({ target: { id: "supplementCatalogueForm" }, preventDefault() {} });
+}
+
+test("Supplement Settings is a compact curated selector with an explicit save action", async () => {
+  const view = fixture();
   await view.api.load();
-  await view.api.openQuickLog();
-  assert.equal(view.inserted.length, 1);
-  assert.equal(view.inserted[0].user_id, "athlete-1");
-  assert.equal(view.inserted[0].supplement_plan_id, "plan-1");
-  assert.equal(view.inserted[0].event_status, "taken");
-  assert.equal(view.inserted[0].source, "manual");
-  assert.ok(new Date(view.inserted[0].taken_at).getTime() >= started);
-  assert.equal(view.settingsClicks(), 0);
-  assert.equal(view.api.eventsForDay(view.inserted[0].event_local_date)[0].supplementLabel, "Creatine");
-  assert.ok(view.emitted.some(event => event.type === "fuelguard:supplement-events-changed"));
+  const markup = view.management();
+  for (const label of ["Creatine", "Protein powder", "Iron", "Vitamin D", "Vitamin C", "Vitamin B12", "Multivitamin", "Magnesium", "Zinc", "Calcium", "Omega-3 / Fish oil", "Electrolytes", "Caffeine", "Collagen", "Folic acid", "Probiotics", "Beta-alanine", "Nitrate / Beetroot", "Carbohydrate supplement", "Recovery drink"]) {
+    assert.match(markup, new RegExp(label.replace(/[/-]/g, "\\$&")));
+  }
+  assert.match(markup, /Save supplement selection/);
+  assert.match(markup, /id="supplementSelectionSave"[^>]*disabled/);
+  assert.doesNotMatch(markup, /Another supplement|Add a name|Add selected supplements/);
+  assert.match(styles, /max-height:\s*min\(46vh,360px\)/);
+  assert.match(styles, /min-height:\s*48px/);
+  assert.match(styles, /overflow-y:\s*auto/);
 });
 
-test("multiple supplements open an unselected lightweight picker and persist selected moments", async () => {
+test("one or many supplement preferences persist explicitly and survive reload and account re-entry", async () => {
+  const view = fixture();
+  await view.api.load();
+  await changeSelection(view, "creatine", true);
+  await changeSelection(view, "iron", true);
+  await changeSelection(view, "vitamin_d", true);
+  view.api.render();
+  assert.match(view.management(), /value="creatine" checked/, "in-app navigation/rendering must preserve unsaved checks");
+  assert.equal(view.rowsByTable.fuel_supplement_plans.length, 0, "checking boxes must not create supplement events or preferences until Save");
+  await saveSelection(view);
+  assert.equal(view.rowsByTable.fuel_supplement_plans.length, 3);
+  assert.ok(view.rowsByTable.fuel_supplement_plans.every(plan => plan.active));
+  assert.equal(view.rowsByTable.fuel_supplement_events.length, 0, "saving preferences must not create supplement events");
+  assert.match(view.management(), /Supplement selection saved/);
+
+  await view.api.load();
+  assert.match(view.management(), /value="creatine" checked/);
+  assert.match(view.management(), /value="iron" checked/);
+  assert.match(view.management(), /value="vitamin_d" checked/);
+
+  view.setUser(null);
+  await view.api.load();
+  view.setUser({ id: "athlete-1" });
+  await view.api.load();
+  assert.match(view.management(), /value="creatine" checked/);
+
+  const secondDevice = fixture({ plans: view.rowsByTable.fuel_supplement_plans });
+  await secondDevice.api.load();
+  assert.match(secondDevice.management(), /value="iron" checked/);
+  assert.match(secondDevice.management(), /value="vitamin_d" checked/);
+});
+
+test("removing a saved preference deactivates it without deleting supplement history", async () => {
+  const plans = [
+    { id: "plan-1", user_id: "athlete-1", supplement_type: "creatine", custom_name: null, label: "Creatine", active: true },
+    { id: "plan-2", user_id: "athlete-1", supplement_type: "iron", custom_name: null, label: "Iron", active: true }
+  ];
+  const events = [{ id: "event-1", user_id: "athlete-1", supplement_plan_id: "plan-2", event_status: "taken", taken_at: new Date().toISOString(), event_local_date: new Date().toISOString().slice(0, 10) }];
+  const view = fixture({ plans, events });
+  await view.api.load();
+  await changeSelection(view, "iron", false);
+  await saveSelection(view);
+  assert.equal(view.rowsByTable.fuel_supplement_plans.find(plan => plan.id === "plan-2").active, false);
+  assert.equal(view.rowsByTable.fuel_supplement_events.length, 1);
+  await view.api.openQuickLog();
+  assert.match(view.elements.get("supplementQuickChoices").innerHTML, /Creatine/);
+  assert.doesNotMatch(view.elements.get("supplementQuickChoices").innerHTML, /Iron/);
+});
+
+test("save failure preserves checked choices and a retry converges without duplicates", async () => {
+  const view = fixture();
+  await view.api.load();
+  await changeSelection(view, "caffeine", true);
+  view.failNextSave();
+  await saveSelection(view);
+  assert.equal(view.rowsByTable.fuel_supplement_plans.length, 0);
+  assert.match(view.management(), /value="caffeine" checked/);
+  assert.match(view.management(), /choices are still here/);
+  await saveSelection(view);
+  assert.equal(view.rowsByTable.fuel_supplement_plans.length, 1);
+  assert.equal(view.rowsByTable.fuel_supplement_plans[0].supplement_type, "custom");
+  assert.equal(view.rowsByTable.fuel_supplement_plans[0].custom_name, "Caffeine");
+  assert.match(view.management(), /Supplement selection saved/);
+});
+
+test("Daily opens saved preferences and logging creates only timestamped supplement events", async () => {
+  const started = Date.now();
   const view = fixture({ plans: [
-    { id: "plan-1", user_id: "athlete-1", supplement_type: "creatine", label: "Creatine", active: true },
-    { id: "plan-2", user_id: "athlete-1", supplement_type: "vitamin_d", label: "Vitamin D", active: true }
+    { id: "plan-1", user_id: "athlete-1", supplement_type: "creatine", custom_name: null, label: "Creatine", active: true },
+    { id: "plan-2", user_id: "athlete-1", supplement_type: "vitamin_d", custom_name: null, label: "Vitamin D", active: true }
   ] });
   await view.api.load();
   await view.api.openQuickLog();
@@ -160,23 +277,31 @@ test("multiple supplements open an unselected lightweight picker and persist sel
   assert.match(choices, /Creatine/);
   assert.match(choices, /Vitamin D/);
   assert.doesNotMatch(choices, / checked/);
-  assert.equal(view.elements.get("supplementQuickLogSheet").hidden, false);
-  assert.equal(view.inserted.length, 0);
+  assert.equal(view.settingsClicks(), 0);
 
-  view.document.checkedPlans = [{ value: "plan-1" }, { value: "plan-2" }];
+  view.document.checkedPlans = [{ value: "plan-1" }];
   await view.listeners.get("click")({ target: clickTarget("#supplementQuickConfirm") });
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(view.inserted.length, 2);
-  assert.equal(view.elements.get("supplementQuickLogSheet").hidden, true);
+  assert.equal(view.rowsByTable.fuel_supplement_events.length, 1);
+  const event = view.rowsByTable.fuel_supplement_events[0];
+  assert.equal(event.user_id, "athlete-1");
+  assert.equal(event.supplement_plan_id, "plan-1");
+  assert.equal(event.event_status, "taken");
+  assert.equal(event.source, "manual");
+  assert.ok(new Date(event.taken_at).getTime() >= started - 1000, "the default quick-log time should be the current second");
+  assert.equal("dosage" in event, false);
+  assert.equal("quantity" in event, false);
+  assert.equal(view.api.eventsForDay(event.event_local_date)[0].supplementLabel, "Creatine");
+  assert.ok(view.emitted.some(item => item.type === "fuelguard:supplement-events-changed"));
 });
 
-test("an unconfigured Daily action explains setup without automatically opening Settings", async () => {
+test("an unconfigured Daily action stays in Daily and offers explicit Supplement Settings navigation", async () => {
   const view = fixture();
   await view.api.load();
   await view.api.openQuickLog();
   assert.equal(view.settingsClicks(), 0);
   assert.equal(view.elements.get("supplementQuickLogSheet").hidden, false);
-  assert.match(view.elements.get("supplementQuickChoices").innerHTML, /No supplements configured yet/);
+  assert.match(view.elements.get("supplementQuickChoices").innerHTML, /Set up your supplements before logging them/);
 
   await view.listeners.get("click")({ target: clickTarget("[data-open-supplement-settings]") });
   assert.equal(view.settingsClicks(), 1);
