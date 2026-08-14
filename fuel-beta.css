@@ -5179,6 +5179,11 @@ body.beta-mvp .beta-event-timeline-dot.sleepy {
   background: rgba(255, 220, 135, .32);
 }
 
+body.beta-mvp .beta-event-timeline-dot.supplement {
+  color: #5f3d93;
+  background: rgba(123, 83, 178, .13);
+}
+
 body.beta-mvp .beta-event-timeline-dot svg {
   width: 17px;
   height: 17px;

@@ -120,20 +120,26 @@ test("Supplementation is a first-class 2x2 Daily action backed by saved preferen
   const html = read("index.html");
   const quickLog = source.slice(source.indexOf("async function openQuickLog"), source.indexOf("function closeQuickLog"));
   assert.match(html, /id="graphLogSupplementButton"[\s\S]*<span>Supplementation<\/span>/);
-  assert.match(html, /id="supplementQuickChoices"/);
+  assert.match(html, /Choose your supplements first/);
+  assert.match(html, /Select the supplements you want the Daily Mode button to record\./);
+  assert.match(html, /data-open-supplement-settings>Set up supplements/);
   assert.match(source, /Save supplement selection/);
   assert.match(source, /selectionDirty/);
   assert.match(source, /update\(\{ active: shouldBeActive \}\)/);
   assert.match(source, /Supplement selection saved/);
   assert.doesNotMatch(source, /supplementCustomName|Another supplement \(optional\)|Add selected supplements/);
-  assert.match(quickLog, /Set up your supplements before logging them/);
+  assert.match(quickLog, /showSetupPrompt/);
   assert.doesNotMatch(quickLog, /data-open-screen="checklist"|showCategory/);
-  assert.match(source, /data-supplement-quick-plan/);
+  assert.doesNotMatch(html + source, /data-supplement-quick-plan|supplementQuickConfirm|supplementQuickTakenAt/);
+  assert.match(quickLog, /available\.map\(plan => plan\.id\)/);
   assert.match(source, /planIds\.map\(planFor\)/);
-  assert.doesNotMatch(quickLog, /recordNow/);
+  assert.match(quickLog, /confirmTimingConflict: false/);
   assert.match(source, /fuelguard:supplement-events-changed/);
+  assert.match(source, /timelineEventsForDay/);
+  assert.match(read("fuel-beta.js"), /FuelGuardSupplementRhythm\?\.timelineEventsForDay\?\.\(key\)/);
+  assert.match(read("fuel-beta.js"), /supplementLabels \|\| \[\]\)\.join\(", "\)/);
+  assert.match(read("fuel-beta.js"), /renderDailyLog\(\);/);
   assert.match(source, /data-supplement-add-slot/);
-  assert.match(html, /supplementQuickTakenAt/);
   assert.match(source, /data-supplement-edit-slot/);
   assert.match(source, /data-supplement-toggle-reminder/);
   assert.match(source, /data-supplement-undo/);
@@ -176,7 +182,7 @@ test("PWA shell versions every new private surface and preserves callback naviga
   const html = read("index.html");
   const sw = read("sw.js");
   for (const asset of ["account-identities.js", "athlete-context-layer.js", "supplement-rhythm.js", "supplement-rhythm.css"]) {
-    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v152-supplement-setup-save"));
+    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v153-supplement-one-tap-timeline"));
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
   assert.match(sw, /requestUrl\.pathname\.startsWith\("\/auth\/callback"\)/);
