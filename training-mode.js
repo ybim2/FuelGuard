@@ -684,7 +684,14 @@
     persist();
     render();
     window.dispatchEvent(new CustomEvent("fuelguard:training-session-started", { detail: { session: { ...session } } }));
-    await syncCloud();
+    const syncResult = await syncCloud();
+    if (syncResult?.status === "synced") {
+      window.dispatchEvent(new CustomEvent("fuelguard:training-session-synced", {
+        detail: { sessionId: session.id, phase: "started", source: "athlete" }
+      }));
+    } else if (syncResult?.status === "error") {
+      void window.FuelGuardProductAnalytics?.trackFailure?.("training_start", syncResult.error);
+    }
   }
 
   async function endSession() {
@@ -703,7 +710,14 @@
     showTrainingCompletion(active);
     persist();
     render();
-    await syncCloud();
+    const syncResult = await syncCloud();
+    if (syncResult?.status === "synced") {
+      window.dispatchEvent(new CustomEvent("fuelguard:training-session-synced", {
+        detail: { sessionId: active.id, phase: "completed", source: "athlete" }
+      }));
+    } else if (syncResult?.status === "error") {
+      void window.FuelGuardProductAnalytics?.trackFailure?.("training_complete", syncResult.error);
+    }
     window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...active }, deferNavigation: true } }));
   }
 
@@ -850,7 +864,12 @@
     if (!previousActive && training.activeSession) {
       transition = "started";
       if (announceExternal) statusMessage = "Training Mode started from Garmin.";
-      if (announceExternal) window.dispatchEvent(new CustomEvent("fuelguard:training-session-started", { detail: { session: { ...training.activeSession }, source: "garmin" } }));
+      if (announceExternal) {
+        window.dispatchEvent(new CustomEvent("fuelguard:training-session-started", { detail: { session: { ...training.activeSession }, source: "garmin" } }));
+        window.dispatchEvent(new CustomEvent("fuelguard:training-session-synced", {
+          detail: { sessionId: training.activeSession.id, phase: "started", source: "garmin" }
+        }));
+      }
     } else if (previousActive && (!training.activeSession || training.activeSession.id !== previousActive.id)) {
       transition = "ended";
       const completed = training.sessions.find(item => item.id === previousActive.id && item.status === "completed") || { ...previousActive, status: "completed" };
@@ -858,6 +877,9 @@
       if (announceExternal && lastExternalEndNotification !== previousActive.id) {
         lastExternalEndNotification = previousActive.id;
         showTrainingCompletion(completed, { source: "garmin" });
+        window.dispatchEvent(new CustomEvent("fuelguard:training-session-synced", {
+          detail: { sessionId: completed.id, phase: "completed", source: "garmin" }
+        }));
         window.dispatchEvent(new CustomEvent("fuelguard:training-session-ended", { detail: { session: { ...completed }, deferNavigation: true } }));
       }
     }
@@ -879,11 +901,11 @@
   }
 
   async function syncCloud({ refreshLogs = false } = {}) {
-    if (cloudBusy) return;
+    if (cloudBusy) return { status: "busy" };
     const cloud = window.fuelGuardCloud;
     const currentUser = cloud?.user;
     const client = cloud?.client;
-    if (!currentUser?.id || !client?.from) return;
+    if (!currentUser?.id || !client?.from) return { status: "pending" };
     const identityClaim = claimTrainingIdentity(currentUser.id);
     cloudBusy = true;
     try {
@@ -892,7 +914,7 @@
         client.from(PRESETS_TABLE).select(PRESET_COLUMNS).eq("user_id", currentUser.id).eq("is_default", true),
         client.from(SESSIONS_TABLE).select(SESSION_COLUMNS).eq("user_id", currentUser.id).order("started_at", { ascending: false }).limit(20)
       ]);
-      if (!cloudIdentityMatches(currentUser.id, client)) return;
+      if (!cloudIdentityMatches(currentUser.id, client)) return { status: "stale" };
       if (presetResult.error) throw presetResult.error;
       if (sessionResult.error) throw sessionResult.error;
       (presetResult.data || []).forEach(row => {
@@ -914,7 +936,7 @@
         presetRow("fuel", currentUser),
         presetRow("hydration", currentUser)
       ], { onConflict: "id" });
-      if (!cloudIdentityMatches(currentUser.id, client)) return;
+      if (!cloudIdentityMatches(currentUser.id, client)) return { status: "stale" };
       if (presetUpsert.error) throw presetUpsert.error;
       training.presets.fuel.dirty = false;
       training.presets.hydration.dirty = false;
@@ -930,14 +952,14 @@
       const localRows = dirtySessions.map(item => sessionRow(item, currentUser));
       if (localRows.length) {
         const sessionUpsert = await client.from(SESSIONS_TABLE).upsert(localRows, { onConflict: "id" });
-        if (!cloudIdentityMatches(currentUser.id, client)) return;
+        if (!cloudIdentityMatches(currentUser.id, client)) return { status: "stale" };
         if (sessionUpsert.error) throw sessionUpsert.error;
         const persistedIds = new Set(dirtySessions.map(item => item.id));
         training.sessions.forEach(item => { if (persistedIds.has(item.id)) item.dirty = false; });
         if (training.activeSession && persistedIds.has(training.activeSession.id)) training.activeSession.dirty = false;
       }
       const refreshed = await client.from(SESSIONS_TABLE).select(SESSION_COLUMNS).eq("user_id", currentUser.id).order("started_at", { ascending: false }).limit(20);
-      if (!cloudIdentityMatches(currentUser.id, client)) return;
+      if (!cloudIdentityMatches(currentUser.id, client)) return { status: "stale" };
       if (refreshed.error) throw refreshed.error;
       const cloudSessions = (refreshed.data || []).map(sessionFromRow);
       const finalReconciliation = reconcileCanonicalSessions(training.sessions, cloudSessions);
@@ -948,17 +970,18 @@
       statusMessage = "Training Mode synced.";
       persist();
       if (refreshLogs) await window.fuelGuardCloud?.syncNow?.();
+      return { status: "synced" };
     } catch (error) {
       if (identityClaim === "claimed" && /row-level security policy/i.test(error?.message || "")) {
         resetTrainingIdentity(currentUser.id);
         cloudBusy = false;
-        await syncCloud({ refreshLogs });
-        return;
+        return await syncCloud({ refreshLogs });
       }
       const training = state();
       training.lastError = error?.message || "Training Mode sync failed.";
       statusMessage = `Saved on this device. ${training.lastError}`;
       persist();
+      return { status: "error", error };
     } finally {
       cloudBusy = false;
       render();

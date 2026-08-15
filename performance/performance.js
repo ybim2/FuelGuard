@@ -77,7 +77,7 @@
     $("recoveryPanel").hidden = name !== "recovery";
     $("accessPanel").hidden = name !== "access";
     $("appShell").hidden = name !== "app";
-    $("organisationPickerLabel").hidden = name !== "app";
+    $("organisationPickerLabel").hidden = name !== "app" || !state.contexts.length;
     $("refreshButton").hidden = name !== "app";
     $("platformAdminBanner").hidden = name !== "app" || !state.platformAdmin.isPlatformAdmin;
   }
@@ -117,16 +117,26 @@
   }
 
   function renderOrganisationPicker() {
+    const context = currentContext();
+    if (!context) {
+      $("organisationPicker").innerHTML = "";
+      $("sidebarOrganisation").textContent = state.platformAdmin.isPlatformAdmin ? "Founder analytics" : "Fuel Guard";
+      $("unitManager").hidden = true;
+      $("accessManager").hidden = true;
+      $("platformAdminOrganisation").textContent = "Fuel Guard";
+      $("platformAdminBanner").hidden = !state.platformAdmin.isPlatformAdmin;
+      return;
+    }
     $("organisationPicker").innerHTML = state.contexts.map(context =>
       `<option value="${safe(context.organisation_id)}">${safe(context.organisation_name)}</option>`
     ).join("");
     $("organisationPicker").value = state.organisationId;
-    $("sidebarOrganisation").textContent = currentContext()?.organisation_name || "Organisation";
-    $("reportingMinimumInput").value = currentContext()?.minimum_reporting_cohort ?? 5;
-    $("saveReportingMinimumButton").disabled = !currentContext()?.can_manage_reports;
-    $("unitManager").hidden = !currentContext()?.can_manage_structure;
-    $("accessManager").hidden = !currentContext()?.can_manage_access;
-    $("platformAdminOrganisation").textContent = currentContext()?.organisation_name || "organisation";
+    $("sidebarOrganisation").textContent = context.organisation_name || "Organisation";
+    $("reportingMinimumInput").value = context.minimum_reporting_cohort ?? 5;
+    $("saveReportingMinimumButton").disabled = !context.can_manage_reports;
+    $("unitManager").hidden = !context.can_manage_structure;
+    $("accessManager").hidden = !context.can_manage_access;
+    $("platformAdminOrganisation").textContent = context.organisation_name || "organisation";
     $("platformAdminBanner").hidden = !state.platformAdmin.isPlatformAdmin;
   }
 
@@ -508,7 +518,23 @@
       ]);
       state.contexts = contexts;
       state.platformAdmin = platformAdmin || { isPlatformAdmin: false, organisations: [] };
+      const isPlatformAdmin = Boolean(state.platformAdmin.isPlatformAdmin);
+      $("productAnalyticsNavButton").hidden = !isPlatformAdmin;
+      window.FuelGuardProductAnalyticsAdmin?.configure({
+        client: state.client,
+        session: state.session,
+        authorised: isPlatformAdmin
+      });
       if (!Array.isArray(state.contexts) || !state.contexts.length) {
+        if (isPlatformAdmin) {
+          state.contexts = [];
+          state.organisationId = "";
+          setPanelVisibility("app");
+          renderOrganisationPicker();
+          showTab("productAnalytics");
+          await window.FuelGuardProductAnalyticsAdmin?.load();
+          return;
+        }
         $("accessIdentity").textContent = state.session?.user?.email || "your Fuel Guard account";
         setPanelVisibility("access");
         return;
@@ -641,6 +667,8 @@
     state.organisationId = "";
     state.staffAccounts = {};
     state.platformAdmin = { isPlatformAdmin: false, organisations: [] };
+    $("productAnalyticsNavButton").hidden = true;
+    window.FuelGuardProductAnalyticsAdmin?.configure({ client: null, session: null, authorised: false });
     state.recovering = false;
     state.tab = "overview";
     showTab("overview");
@@ -804,9 +832,11 @@
   }
 
   function showTab(tab) {
+    if (tab === "productAnalytics" && !state.platformAdmin.isPlatformAdmin) return;
     state.tab = tab;
     document.querySelectorAll("[data-performance-tab]").forEach(button => button.classList.toggle("active", button.dataset.performanceTab === tab));
     document.querySelectorAll(".performance-panel").forEach(panel => panel.classList.toggle("active", panel.id === `${tab}Panel`));
+    if (tab === "productAnalytics") void window.FuelGuardProductAnalyticsAdmin?.load();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -832,7 +862,9 @@
     $("signOutButton").addEventListener("click", signOut);
     $("retryAccessButton").addEventListener("click", resolveAccess);
     $("createOrganisationButton").addEventListener("click", createOrganisation);
-    $("refreshButton").addEventListener("click", () => loadOrganisation());
+    $("refreshButton").addEventListener("click", () => state.tab === "productAnalytics"
+      ? window.FuelGuardProductAnalyticsAdmin?.load({ force: true })
+      : loadOrganisation());
     $("organisationPicker").addEventListener("change", async event => {
       resetOrganisationData();
       state.organisationId = event.target.value;

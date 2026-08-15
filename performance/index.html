@@ -7,9 +7,9 @@
   <meta name="description" content="Fuel Guard Performance provides permissioned organisational fuelling oversight." />
   <title>Fuel Guard Performance</title>
   <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
-  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v153-supplement-one-tap-timeline" />
-  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v153-supplement-one-tap-timeline" />
-  <link rel="stylesheet" href="../fuel-auth.css?v=mobile-pwa-v153-supplement-one-tap-timeline" />
+  <link rel="stylesheet" href="performance.css?v=mobile-pwa-v154-product-analytics" />
+  <link rel="stylesheet" href="/brand/fuel-guard-brand.css?v=mobile-pwa-v154-product-analytics" />
+  <link rel="stylesheet" href="../fuel-auth.css?v=mobile-pwa-v154-product-analytics" />
 </head>
 <body>
   <header class="performance-topbar">
@@ -101,6 +101,7 @@
           <button type="button" data-performance-tab="pathway"><span aria-hidden="true">⌘</span>Pathway</button>
           <button type="button" data-performance-tab="staff"><span aria-hidden="true">♙</span>Staff &amp; Access</button>
           <button type="button" data-performance-tab="reports"><span aria-hidden="true">▥</span>Reports</button>
+          <button id="productAnalyticsNavButton" type="button" data-performance-tab="productAnalytics" hidden><span aria-hidden="true">↗</span>Product Analytics</button>
           <button type="button" data-performance-tab="settings"><span aria-hidden="true">⚙</span>Settings</button>
         </nav>
         <p class="sidebar-privacy">Metrics are calculated on the server from actively shared athletes in your permitted scope.</p>
@@ -194,6 +195,16 @@
           <div id="reportsContent"></div>
         </section>
 
+        <section id="productAnalyticsPanel" class="performance-panel" aria-labelledby="productAnalyticsTitle">
+          <div class="page-heading product-analytics-heading">
+            <div><p class="eyebrow">Founder-only product evidence</p><h1 id="productAnalyticsTitle">Usage &amp; Retention</h1></div>
+            <label class="checkbox-label"><input id="productAnalyticsIncludeExcluded" type="checkbox" /> Include test accounts</label>
+          </div>
+          <p class="product-analytics-source-note">Meaningful actions and historical activation are derived from canonical Fuel Guard records. App opens, page views, onboarding and failures are explicit events recorded only after this release.</p>
+          <div id="productAnalyticsContent" aria-live="polite"></div>
+          <section id="productAnalyticsUserDetail" class="performance-card product-analytics-user-detail" hidden aria-live="polite"></section>
+        </section>
+
         <section id="settingsPanel" class="performance-panel" aria-labelledby="settingsTitle">
           <div class="page-heading"><div><p class="eyebrow">Organisation controls</p><h1 id="settingsTitle">Settings</h1></div></div>
           <section class="performance-card settings-card">
@@ -231,12 +242,13 @@
 
   <p id="globalStatus" class="global-status" aria-live="polite"></p>
 
-  <script src="../build-info.js?v=mobile-pwa-v153-supplement-one-tap-timeline"></script>
-  <script src="../api/supabase-config.js?v=mobile-pwa-v153-supplement-one-tap-timeline"></script>
+  <script src="../build-info.js?v=mobile-pwa-v154-product-analytics"></script>
+  <script src="../api/supabase-config.js?v=mobile-pwa-v154-product-analytics"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/dist/umd/supabase.min.js"></script>
-  <script src="../app-pwa.js?v=mobile-pwa-v153-supplement-one-tap-timeline"></script>
-  <script src="../fuel-guard-domain.js?v=mobile-pwa-v153-supplement-one-tap-timeline"></script>
-  <script src="../transactional-email-client.js?v=mobile-pwa-v153-supplement-one-tap-timeline"></script>
-  <script src="performance.js?v=mobile-pwa-v153-supplement-one-tap-timeline"></script>
+  <script src="../app-pwa.js?v=mobile-pwa-v154-product-analytics"></script>
+  <script src="../fuel-guard-domain.js?v=mobile-pwa-v154-product-analytics"></script>
+  <script src="../transactional-email-client.js?v=mobile-pwa-v154-product-analytics"></script>
+  <script src="product-analytics.js?v=mobile-pwa-v154-product-analytics"></script>
+  <script src="performance.js?v=mobile-pwa-v154-product-analytics"></script>
 </body>
 </html>

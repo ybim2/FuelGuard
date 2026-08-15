@@ -2105,10 +2105,22 @@
         acknowledgement,
         logId: log?.id || log?.localId || ""
       });
+      if (result?.status === "error") {
+        void window.FuelGuardProductAnalytics?.trackFailure?.(
+          type === SLEEPY_CHECKIN_TYPE ? "sleepy" : type,
+          result.error || new Error("Fuel Guard log sync failed"),
+          { dedupeKey: `fuel_logs:${log?.id || log?.localId || "unknown"}:failed` }
+        );
+      }
       renderFuelGap();
       return result;
     }).catch(error => {
       setQuickLogConfirmation(type, loggedAt, { status: "error", error }, acknowledgement);
+      void window.FuelGuardProductAnalytics?.trackFailure?.(
+        type === SLEEPY_CHECKIN_TYPE ? "sleepy" : type,
+        error,
+        { dedupeKey: `fuel_logs:${log?.id || log?.localId || "unknown"}:failed` }
+      );
       renderFuelGap();
       return { status: "error", persisted: false, error };
     });
@@ -10087,6 +10099,7 @@
     if (target === "impact") window.AthleteImpact?.render?.();
     if (target === "analytics") window.FuelGuardAthleteAnalytics?.render?.();
     if (target === "tools") window.FuelGuardAthleteTools?.render?.();
+    window.dispatchEvent?.(new CustomEvent("fuelguard:screen-viewed", { detail: { screen: target } }));
   };
 
   async function clearBetaData() {
