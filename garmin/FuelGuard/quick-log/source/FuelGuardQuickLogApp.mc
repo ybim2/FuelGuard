@@ -9,7 +9,7 @@ class FuelGuardQuickLogApp extends Application.AppBase {
     }
 
     public function onStart(state as Dictionary?) as Void {
-
+        FuelGuardDiagnostics.beginLaunch();
     }
 
     public function onAuthenticationRequest() as Void {

@@ -8,7 +8,12 @@ class FuelGuardHealthApiCallback {
     }
 
     public function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
-        FuelGuardHealthApi.onResponse(responseCode, data, context);
+        try {
+            FuelGuardHealthApi.onResponse(responseCode, data, context);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-API-03", "health response callback", e);
+            FuelGuardDiagnostics.requestUpdate();
+        }
     }
 }
 

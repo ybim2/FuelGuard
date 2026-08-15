@@ -9,7 +9,12 @@ class FuelGuardTrainingStatusCallback {
     }
 
     public function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
-        FuelGuardTraining.onStatusResponse(responseCode, data, context);
+        try {
+            FuelGuardTraining.onStatusResponse(responseCode, data, context);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-API-02", "training response callback", e);
+            FuelGuardDiagnostics.requestUpdate();
+        }
     }
 }
 
@@ -51,20 +56,39 @@ module FuelGuardTraining {
 
     function sessionId() as String {
         var value = Storage.getValue(SESSION_KEY);
-        return value instanceof String ? value as String : "";
+        if (!(value instanceof String)) {
+            return "";
+        }
+        var text = value as String;
+        return text.length() <= 160 ? text : "";
     }
 
     function statusText() as String {
         var value = Storage.getValue(STATUS_KEY);
         if (value instanceof String && (value as String).length() > 0) {
-            return value as String;
+            var text = value as String;
+            return text.length() <= 80 ? text : text.substring(0, 80);
         }
         return active() ? "Training Mode active" : "Training Mode ready";
     }
 
     function pendingAction() as String {
         var value = Storage.getValue(PENDING_ACTION_KEY);
-        return value instanceof String ? value as String : "";
+        if (!(value instanceof String)) {
+            return "";
+        }
+        var action = value as String;
+        if (action.equals("start") || action.equals("end")) {
+            return action;
+        }
+        FuelGuardDiagnostics.report("QL-STATE-04", "malformed training action", null);
+        try {
+            Storage.deleteValue(PENDING_ACTION_KEY);
+            Storage.deleteValue(PENDING_FAILED_KEY);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-STATE-03", "repair training action", e);
+        }
+        return "";
     }
 
     function transitionPending() as Boolean {
@@ -78,12 +102,16 @@ module FuelGuardTraining {
 
     function completionActive() as Boolean {
         var value = Storage.getValue(COMPLETED_AT_KEY);
-        return value instanceof Number && Time.now().value() - (value as Number) < 5;
+        if (!(value instanceof Number)) {
+            return false;
+        }
+        var age = Time.now().value() - (value as Number);
+        return age >= 0 && age < 5;
     }
 
     function completionDurationText() as String {
         var value = Storage.getValue(COMPLETED_DURATION_KEY);
-        if (!(value instanceof Number) || (value as Number) < 60) {
+        if (!(value instanceof Number) || (value as Number) < 60 || (value as Number) > 7 * 24 * 60 * 60) {
             return "";
         }
         var minutes = (value as Number) / 60;
@@ -113,6 +141,16 @@ module FuelGuardTraining {
             Storage.deleteValue(STARTED_AT_KEY);
             FuelGuardFeedback.vibrateSuccess();
         }
+    }
+
+    function validateStoredState() as Void {
+        active();
+        sessionId();
+        statusText();
+        pendingAction();
+        transitionFailed();
+        completionActive();
+        completionDurationText();
     }
 
     function setTransition(action as String, failed as Boolean, status as String) as Void {

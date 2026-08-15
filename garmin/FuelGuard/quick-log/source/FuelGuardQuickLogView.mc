@@ -24,13 +24,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     public function onShow() as Void {
-        FuelGuardConnection.configure(FuelGuardConnection.APP_QUICK_LOG);
-        FuelGuardConnection.registerForOAuthMessages();
-        if (FuelGuardConnection.connected()) {
-            FuelGuardApi.trySync(true);
-            FuelGuardTraining.refresh(true);
-            FuelGuardHealth.maybeCollectAndSync("open");
-        }
+        recoverRuntime();
     }
 
     public function onHide() as Void {
@@ -39,40 +33,85 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     public function move(delta as Number) as Void {
-        if (confirming() || !FuelGuardConnection.connected()) {
-            return;
+        try {
+            if (FuelGuardDiagnostics.hasError() || confirming() || !FuelGuardConnection.connected()) {
+                return;
+            }
+            _selection = (_selection + delta + ACTION_COUNT) % ACTION_COUNT;
+            WatchUi.requestUpdate();
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-STATE-07", "change selection", e);
         }
-        _selection = (_selection + delta + ACTION_COUNT) % ACTION_COUNT;
-        WatchUi.requestUpdate();
     }
 
     public function beginConnection() as Void {
-        FuelGuardConnection.beginAuth();
+        try {
+            FuelGuardConnection.beginAuth();
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-CONNECT-04", "begin connection", e);
+        }
     }
 
     public function logSelection() as Void {
-        if (confirming() || pendingInputLocked()) {
+        if (FuelGuardDiagnostics.hasError()) {
+            recoverRuntime();
             return;
         }
-        if (!FuelGuardConnection.connected()) {
-            beginConnection();
-            return;
-        }
-        if (_selection == ACTION_TRAINING) {
-            FuelGuardTraining.toggle();
+        try {
+            if (confirming() || pendingInputLocked()) {
+                return;
+            }
+            if (!FuelGuardConnection.connected()) {
+                beginConnection();
+                return;
+            }
+            if (_selection == ACTION_TRAINING) {
+                FuelGuardTraining.toggle();
+                WatchUi.requestUpdate();
+                return;
+            }
+            var eventType = typeForSelection(_selection);
+            var event = FuelGuardEvents.create(eventType);
+            var eventId = FuelGuardQueue.externalEventId(event);
+            FuelGuardQueue.enqueue(event);
+            _confirmType = eventType;
+            _pendingEventId = eventId != null ? eventId as String : null;
+            _pendingStartedAt = Time.now().value();
+            FuelGuardApi.trySync(true);
+            FuelGuardHealth.maybeCollectAndSync("fuel_log");
+            updateAcknowledgedConfirmation();
             WatchUi.requestUpdate();
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-STATE-08", "log selection", e);
+        }
+    }
+
+    private function recoverRuntime() as Void {
+        FuelGuardDiagnostics.clearCurrent();
+        try {
+            FuelGuardConnection.configure(FuelGuardConnection.APP_QUICK_LOG);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-START-01", "configure Quick Logger", e);
             return;
         }
-        var eventType = typeForSelection(_selection);
-        var event = FuelGuardEvents.create(eventType);
-        var eventId = FuelGuardQueue.externalEventId(event);
-        FuelGuardQueue.enqueue(event);
-        _confirmType = eventType;
-        _pendingEventId = eventId != null ? eventId as String : null;
-        _pendingStartedAt = Time.now().value();
-        FuelGuardApi.trySync(true);
-        FuelGuardHealth.maybeCollectAndSync("fuel_log");
-        updateAcknowledgedConfirmation();
+        if (FuelGuardDiagnostics.hasError()) {
+            return;
+        }
+        if (!FuelGuardConnection.registerForOAuthMessages()) {
+            return;
+        }
+        try {
+            FuelGuardQueue.pendingCount();
+            FuelGuardTraining.validateStoredState();
+            FuelGuardHealthSettings.validateStoredState();
+            if (FuelGuardConnection.connected()) {
+                FuelGuardApi.trySync(true);
+                FuelGuardTraining.refresh(true);
+                FuelGuardHealth.maybeCollectAndSync("open");
+            }
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-START-02", "restore Quick Logger state", e);
+        }
         WatchUi.requestUpdate();
     }
 
@@ -266,13 +305,47 @@ class FuelGuardQuickLogView extends WatchUi.View {
         return FuelGuardEvents.TYPE_FUEL;
     }
 
-    public function onUpdate(dc as Graphics.Dc) as Void {
-        if (FuelGuardConnection.connected()) {
-            FuelGuardApi.trySync(false);
-            FuelGuardTraining.refresh(false);
-            FuelGuardHealth.maybeCollectAndSync("refresh");
+    private function drawErrorState(dc as Graphics.Dc) as Void {
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        dc.clear();
+        var height = dc.getHeight();
+        drawCenter(dc, 26, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
+        drawCenter(dc, height / 2 - 42, Graphics.FONT_XTINY, FuelGuardDiagnostics.title(), Graphics.COLOR_WHITE);
+        drawCenter(dc, height / 2 - 10, Graphics.FONT_XTINY, FuelGuardDiagnostics.message(), Graphics.COLOR_LT_GRAY);
+        drawCenter(dc, height / 2 + 24, Graphics.FONT_XTINY, "Error: " + FuelGuardDiagnostics.code(), Graphics.COLOR_LT_GRAY);
+        drawCenter(dc, height - 28, Graphics.FONT_XTINY, "Press START to retry", Graphics.COLOR_GREEN);
+    }
+
+    private function refreshRuntime() as Void {
+        try {
+            if (FuelGuardConnection.connected()) {
+                FuelGuardApi.trySync(false);
+                FuelGuardTraining.refresh(false);
+                FuelGuardHealth.maybeCollectAndSync("refresh");
+            }
+            updateAcknowledgedConfirmation();
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-API-04", "refresh connected view", e);
         }
-        updateAcknowledgedConfirmation();
+    }
+
+    public function onUpdate(dc as Graphics.Dc) as Void {
+        if (!FuelGuardDiagnostics.hasError()) {
+            refreshRuntime();
+        }
+        if (FuelGuardDiagnostics.hasError()) {
+            drawErrorState(dc);
+            return;
+        }
+        try {
+            drawNormal(dc);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-START-03", "render Quick Logger", e);
+            drawErrorState(dc);
+        }
+    }
+
+    private function drawNormal(dc as Graphics.Dc) as Void {
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();

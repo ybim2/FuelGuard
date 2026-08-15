@@ -3,6 +3,7 @@ import Toybox.Lang;
 
 module FuelGuardQueue {
     const QUEUE_KEY = "fg_pending_events";
+    const MAX_QUEUE_SIZE = 25;
 
     function externalEventId(event as Object) as String? {
         if (event instanceof Dictionary) {
@@ -11,19 +12,32 @@ module FuelGuardQueue {
                 eventId = (event as Dictionary)["external_event_id"];
             }
             if (eventId instanceof String) {
-                return eventId as String;
+                var text = eventId as String;
+                if (text.length() > 0 && text.length() <= 160) {
+                    return text;
+                }
             }
         }
         return null;
     }
 
     function queue() as Array<Dictionary> {
-        var value = Storage.getValue(QUEUE_KEY);
+        var value = null;
+        try {
+            value = Storage.getValue(QUEUE_KEY);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-QUEUE-01", "read pending events", e);
+            return [];
+        }
         if (value instanceof Array) {
             var items = value as Array;
             var clean = [];
             var changed = false;
-            for (var i = 0; i < items.size(); i++) {
+            var start = items.size() > MAX_QUEUE_SIZE ? items.size() - MAX_QUEUE_SIZE : 0;
+            if (start > 0) {
+                changed = true;
+            }
+            for (var i = start; i < items.size(); i++) {
                 var item = items[i];
                 if (item instanceof Dictionary && externalEventId(item) != null) {
                     clean.add(item as Dictionary);
@@ -32,15 +46,24 @@ module FuelGuardQueue {
                 }
             }
             if (changed) {
+                FuelGuardDiagnostics.report("QL-QUEUE-02", "repair pending events", null);
                 saveQueue(clean);
             }
             return clean;
+        }
+        if (value != null) {
+            FuelGuardDiagnostics.report("QL-QUEUE-02", "reset malformed pending events", null);
+            saveQueue([]);
         }
         return [];
     }
 
     function saveQueue(items as Array<Dictionary>) as Void {
-        Storage.setValue(QUEUE_KEY, items);
+        try {
+            Storage.setValue(QUEUE_KEY, items);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-QUEUE-03", "write pending events", e);
+        }
     }
 
     function enqueue(event as Dictionary) as Void {

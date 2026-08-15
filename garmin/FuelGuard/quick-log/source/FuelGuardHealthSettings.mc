@@ -9,10 +9,14 @@ module FuelGuardHealthSettings {
     const LAST_COLLECTION_KEY = "fg_health_last_collection";
     const COLLECTION_COOLDOWN_SECONDS = 45 * 60;
 
+    function normalizedBoolean(value as Object?) as Boolean {
+        return value instanceof Boolean ? value as Boolean : false;
+    }
+
     function booleanProperty(key as String) as Boolean {
         try {
             var value = Properties.getValue(key);
-            return value instanceof Boolean ? value as Boolean : false;
+            return normalizedBoolean(value);
         } catch (e) {
             return false;
         }
@@ -43,7 +47,12 @@ module FuelGuardHealthSettings {
 
     function lastCollectionSeconds() as Number {
         var value = Storage.getValue(LAST_COLLECTION_KEY);
-        return value instanceof Number ? value as Number : 0;
+        if (!(value instanceof Number)) {
+            return 0;
+        }
+        var seconds = value as Number;
+        var now = Time.now().value();
+        return seconds > 0 && seconds <= now ? seconds : 0;
     }
 
     function collectionStale() as Boolean {
@@ -56,5 +65,16 @@ module FuelGuardHealthSettings {
 
     function markCollected() as Void {
         Storage.setValue(LAST_COLLECTION_KEY, Time.now().value());
+    }
+
+    function validateStoredState() as Void {
+        sharingEnabled();
+        clearRequested();
+        lastCollectionSeconds();
+    }
+
+    (:debug)
+    function normalizedBooleanForTest(value as Object?) as Boolean {
+        return normalizedBoolean(value);
     }
 }

@@ -31,7 +31,14 @@ module FuelGuardGlanceState {
 
     function lastFuelSeconds() as Number? {
         var value = Storage.getValue(LAST_FUEL_KEY);
-        return value instanceof Number ? value as Number : null;
+        if (!(value instanceof Number)) {
+            return null;
+        }
+        var seconds = value as Number;
+        if (seconds <= 0 || seconds > nowSeconds() + (24 * 60 * 60)) {
+            return null;
+        }
+        return seconds;
     }
 
     function todayFuelCount() as Number {
@@ -43,7 +50,11 @@ module FuelGuardGlanceState {
             return 0;
         }
         var count = Storage.getValue(TODAY_FUEL_COUNT_KEY);
-        return count instanceof Number ? count as Number : 0;
+        if (!(count instanceof Number)) {
+            return 0;
+        }
+        var safeCount = count as Number;
+        return safeCount >= 0 && safeCount <= 10000 ? safeCount : 0;
     }
 
     function recordFuel(timestamp as Number) as Void {
