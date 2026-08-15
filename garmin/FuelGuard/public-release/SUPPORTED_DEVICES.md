@@ -1,6 +1,6 @@
 # Garmin public-beta supported devices
 
-Candidate version: **0.5.5**
+Candidate versions: **Quick Log 0.5.6** · **Activity Logger 0.5.5**
 Primary physical reference: **Forerunner 255**
 
 The production manifests for Quick Log and Activity Logger contain the same 31 Connect IQ product IDs below. Their locally installed device definitions support both Watch Apps and Data Fields, both apps compiled for every target, and the automated simulator tests passed for every target.
@@ -19,6 +19,8 @@ The production manifests for Quick Log and Activity Logger contain the same 31 C
 | epix Gen 2 | `epix2`, `epix2pro42mm`, `epix2pro47mm`, `epix2pro51mm` |
 
 Garmin device definitions can map one product ID to multiple hardware part numbers. The 31 manifest targets generated **46 device binaries per app** in the exported `.iq` packages.
+
+The Quick Log source and package remain compatible with all 31 products. Garmin's installed device definitions do not expose watch-app glances on `fr245`, `fr245m`, `fr945` or `fr945lte`, so those four products ignore the glance annotation while retaining normal Quick Log actions, connection, queueing and Training Mode behaviour. The fuel-status glance is available on the remaining declared glance-capable products through one shared implementation.
 
 ## Automated acceptance result
 

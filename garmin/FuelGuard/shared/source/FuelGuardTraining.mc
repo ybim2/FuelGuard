@@ -338,6 +338,7 @@ module FuelGuardTraining {
         }
         if (responseCode == 200 && data instanceof Dictionary) {
             var values = data as Dictionary;
+            FuelGuardGlanceState.applyServerStatus(values);
             var nextActive = dictionaryBoolean(values, "active");
             if (nextActive != null) {
                 var action = pendingAction();

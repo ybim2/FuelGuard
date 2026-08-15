@@ -560,6 +560,7 @@ module FuelGuardConnection {
         Storage.deleteValue(TOKEN_PREFIX_KEY);
         Storage.deleteValue(PENDING_STATE_KEY);
         Storage.setValue(STATUS_KEY, "Not connected");
+        FuelGuardGlanceState.markUnavailable();
     }
 
     (:debug)

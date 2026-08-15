@@ -292,9 +292,18 @@ module FuelGuardApi {
         if (acknowledged) {
             if (context instanceof String) {
                 if (!trainingCommand && queuedEvent instanceof Dictionary) {
-                    var acknowledgedType = (queuedEvent as Dictionary)["type"];
+                    var acknowledgedEvent = queuedEvent as Dictionary;
+                    var acknowledgedType = acknowledgedEvent["type"];
                     _lastAcknowledgedEventId = context as String;
                     _lastAcknowledgedType = acknowledgedType instanceof String ? acknowledgedType as String : null;
+                    if (_lastAcknowledgedType != null
+                        && ((_lastAcknowledgedType as String).equals(FuelGuardEvents.TYPE_FUEL)
+                            || (_lastAcknowledgedType as String).equals(FuelGuardEvents.TYPE_FUEL_HYDRATION))) {
+                        var acknowledgedAt = acknowledgedEvent["logged_at_seconds"];
+                        if (acknowledgedAt instanceof Number) {
+                            FuelGuardGlanceState.recordAcknowledgedFuel(acknowledgedAt as Number);
+                        }
+                    }
                 }
                 FuelGuardQueue.removeAcknowledged(context as String);
                 _batchSyncedCount += 1;

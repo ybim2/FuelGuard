@@ -3,7 +3,7 @@
 ## Listing fields
 
 - **App name:** Fuel Guard Quick Log
-- **Version:** 0.5.5
+- **Version:** 0.5.6
 - **App type:** Watch App
 - **Category:** Health & Fitness
 - **Language:** English
@@ -19,6 +19,8 @@ Log fuelling and hydration from your Garmin in seconds.
 
 Fuel Guard Quick Log gives you a fast way to record Fuel, Hydrate and Sleepy events, or start and end Fuel Guard Training Mode, from a compatible Garmin watch without taking out your phone.
 
+On glance-capable watches, the Fuel Guard glance shows how long it has been since your latest confirmed Fuel event. Open Quick Log to refresh the cached status from your Fuel Guard athlete account.
+
 Pair the app with your Fuel Guard athlete account, choose an action and press START. Events sync to your normal Fuel Guard Daily timeline. If a connection is temporarily unavailable, the app keeps the event on the watch and retries it using the same event identity so a retry does not create another log.
 
 When Training Mode is active in Fuel Guard, Fuel and Hydrate events remain ordinary Daily events and also inherit the active workout context and configured Training Mode nutrition values. Sleepy is saved as a Daily check-in.
@@ -32,6 +34,7 @@ This is a public beta. Please report connection or device-layout problems using 
 ## Store highlights
 
 - Fuel, Hydrate and Sleepy actions
+- Time since last confirmed Fuel event in the watch glance on supported devices
 - Start or end Fuel Guard Training Mode from the watch
 - Normal Fuel Guard Daily timeline sync
 - Training Mode context and preset enrichment for Fuel and Hydrate
@@ -43,6 +46,6 @@ This is a public beta. Please report connection or device-layout problems using 
 
 - 500 × 500 icon: `assets/quick-log/store-icon-500.png`
 - Screenshots: add representative simulator/physical-watch captures to `assets/quick-log/` before submission.
-- Recommended screenshot order: disconnected account prompt; connected Fuel selection; Hydrate selection; Training Mode action; confirmation/pending status.
+- Recommended screenshot order: Fuel status glance; disconnected account prompt; connected Fuel selection; Hydrate selection; Training Mode action; confirmation/pending status.
 
 Do not submit until every asset has been reviewed at the dimensions shown by the Connect IQ developer portal and the public support contact has been confirmed.

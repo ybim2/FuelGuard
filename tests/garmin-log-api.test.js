@@ -103,8 +103,19 @@ class FakeSupabase {
   match(row, query) {
     for (const [key, raw] of query.entries()) {
       if (["select", "order", "limit"].includes(key)) continue;
+      if (key === "or" && raw.includes("fuel_guard_checkin:")) {
+        const notes = row.notes;
+        if (notes !== null && notes !== undefined
+          && (String(notes).startsWith("fuel_guard_checkin:") || String(notes).includes("fuel_guard_event:crash"))) return false;
+        continue;
+      }
       if (raw === "is.null") {
         if (row[key] !== null && row[key] !== undefined) return false;
+        continue;
+      }
+      if (raw.startsWith("in.(") && raw.endsWith(")")) {
+        const expected = raw.slice(4, -1).split(",");
+        if (!expected.includes(String(row[key]))) return false;
         continue;
       }
       if (raw.startsWith("eq.")) {
@@ -123,6 +134,9 @@ class FakeSupabase {
     }
     if (order.startsWith("started_at.desc")) {
       next = next.slice().sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || "")));
+    }
+    if (order.startsWith("logged_at.desc")) {
+      next = next.slice().sort((a, b) => String(b.logged_at || "").localeCompare(String(a.logged_at || "")));
     }
     const limit = Number(query.get("limit") || 0);
     return limit ? next.slice(0, limit) : next;
@@ -482,6 +496,66 @@ test("Garmin start respects an existing PWA session and status exposes only the 
   assert.equal(status.json.active, true);
   assert.equal(status.json.session.id, "pwa-session");
   assert.doesNotMatch(JSON.stringify(status.json), /Private run|other-athlete-session/);
+}));
+
+test("Garmin status returns the paired athlete's latest canonical Fuel event for the glance", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.logs.push(
+    {
+      id: "fuel-a",
+      user_id: USERS["user-token-a"].id,
+      type: "fuel",
+      notes: null,
+      logged_at: "2026-08-15T08:20:00.000Z"
+    },
+    {
+      id: "sleepy-a",
+      user_id: USERS["user-token-a"].id,
+      type: "fuel",
+      notes: 'fuel_guard_checkin:{"checkinType":"sleepy"}',
+      logged_at: "2026-08-15T09:30:00.000Z"
+    },
+    {
+      id: "hydration-a",
+      user_id: USERS["user-token-a"].id,
+      type: "hydration",
+      notes: null,
+      logged_at: "2026-08-15T09:45:00.000Z"
+    },
+    {
+      id: "fuel-b",
+      user_id: USERS["user-token-b"].id,
+      type: "fuel",
+      notes: null,
+      logged_at: "2026-08-15T10:00:00.000Z"
+    }
+  );
+
+  const status = await call(garminTrainingHandler, { method: "GET", token: paired.deviceToken });
+
+  assert.equal(status.statusCode, 200);
+  assert.equal(status.json.fuel_status.last_fuel_at, "2026-08-15T08:20:00.000Z");
+  assert.equal(status.json.fuel_status.last_fuel_at_seconds, 1786782000);
+  assert.ok(Number.isInteger(status.json.fuel_status.synced_at_seconds));
+  assert.doesNotMatch(JSON.stringify(status.json), /sleepy-a|hydration-a|fuel-b/);
+}));
+
+test("Garmin status reports a fresh explicit no-Fuel state without exposing another athlete", async () => withFake(async (fake) => {
+  const paired = await pairDevice(fake, { userToken: "user-token-a" });
+  fake.logs.push({
+    id: "fuel-b-only",
+    user_id: USERS["user-token-b"].id,
+    type: "fuel",
+    notes: null,
+    logged_at: "2026-08-15T10:00:00.000Z"
+  });
+
+  const status = await call(garminTrainingHandler, { method: "GET", token: paired.deviceToken });
+
+  assert.equal(status.statusCode, 200);
+  assert.equal(status.json.fuel_status.last_fuel_at, null);
+  assert.equal(status.json.fuel_status.last_fuel_at_seconds, null);
+  assert.ok(Number.isInteger(status.json.fuel_status.synced_at_seconds));
 }));
 
 test("Garmin ends Training Mode idempotently and a status refresh observes the closed session", async () => withFake(async (fake) => {
