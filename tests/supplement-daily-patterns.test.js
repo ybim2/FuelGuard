@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "supplement-rhythm.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "supplement-rhythm.css"), "utf8");
 
-function fixture({ plans = [], events = [] } = {}) {
+function fixture({ plans = [], scheduleSlots = [], events = [] } = {}) {
   const emitted = [];
   const listeners = new Map();
   const windowListeners = new Map();
@@ -19,7 +19,7 @@ function fixture({ plans = [], events = [] } = {}) {
   let failNextMutation = false;
   const rowsByTable = {
     fuel_supplement_plans: plans.map(row => ({ ...row })),
-    fuel_supplement_schedule_slots: [],
+    fuel_supplement_schedule_slots: scheduleSlots.map(row => ({ ...row })),
     fuel_supplement_events: events.map(row => ({ ...row }))
   };
   const element = (id, initial = {}) => {
@@ -191,6 +191,54 @@ test("Supplement Settings is a compact curated selector with an explicit save ac
   assert.match(styles, /max-height:\s*min\(46vh,360px\)/);
   assert.match(styles, /min-height:\s*48px/);
   assert.match(styles, /overflow-y:\s*auto/);
+});
+
+test("Supplement Settings keeps schedules compact, sorted and separate from private history", async () => {
+  const plans = [
+    { id: "plan-1", user_id: "athlete-1", supplement_type: "creatine", custom_name: null, label: "Creatine", active: true }
+  ];
+  const scheduleSlots = [
+    { id: "slot-evening", user_id: "athlete-1", supplement_plan_id: "plan-1", local_time: "18:00", days_of_week: [0, 1, 2, 3, 4, 5, 6], active: true, reminder_enabled: true },
+    { id: "slot-morning", user_id: "athlete-1", supplement_plan_id: "plan-1", local_time: "08:00", days_of_week: [1, 3, 5], active: true, reminder_enabled: true }
+  ];
+  const events = [
+    { id: "event-taken", user_id: "athlete-1", supplement_plan_id: "plan-1", event_status: "taken", taken_at: "2026-08-14T07:20:00Z", context_snapshot: { trainingSessionId: "training-1" } },
+    { id: "event-skipped", user_id: "athlete-1", supplement_plan_id: "plan-1", event_status: "skipped", taken_at: "2026-08-14T18:00:00Z", context_snapshot: { trainingSessionId: "training-1" } }
+  ];
+  const originalEvents = events.map(event => ({ ...event, context_snapshot: { ...event.context_snapshot } }));
+  const view = fixture({ plans, scheduleSlots, events });
+
+  await view.api.load();
+  view.api.render();
+  const markup = view.management();
+  const morning = new Date(2026, 0, 1, 8).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const evening = new Date(2026, 0, 1, 18).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  assert.ok(markup.indexOf(`>${morning}</strong>`) < markup.indexOf(`>${evening}</strong>`), "visible schedule times should be chronological");
+  assert.match(markup, /class="supplement-time-list"[\s\S]*data-supplement-edit-slot="slot-morning"[\s\S]*data-supplement-edit-slot="slot-evening"[\s\S]*data-supplement-add-slot="plan-1"/);
+  assert.equal((markup.match(/role="switch"/g) || []).length, 1);
+  assert.match(markup, /role="switch" aria-checked="true" data-supplement-toggle-reminder="plan-1"/);
+  for (const slotId of ["slot-morning", "slot-evening"]) {
+    assert.match(markup, new RegExp(`data-supplement-edit-slot="${slotId}"`));
+    assert.match(markup, new RegExp(`data-supplement-remove-slot="${slotId}"`));
+  }
+  assert.doesNotMatch(markup, /Private history|supplement-history|supplement-consistency|Last 7 days|\bhistory\b/i);
+  assert.deepEqual(view.rowsByTable.fuel_supplement_events, originalEvents, "rendering Settings must not mutate supplement history rows");
+
+  const projections = view.api.analyticsEvents();
+  assert.deepEqual(Array.from(projections, event => ({ ...event })), [{
+    id: "event-taken",
+    timestamp: "2026-08-14T07:20:00Z",
+    label: "Creatine",
+    planId: "plan-1",
+    trainingSessionId: "training-1"
+  }]);
+  projections[0].label = "Changed outside the module";
+  const freshProjections = view.api.analyticsEvents();
+  assert.notStrictEqual(freshProjections, projections);
+  assert.notStrictEqual(freshProjections[0], projections[0]);
+  assert.equal(freshProjections[0].label, "Creatine", "analytics projections must not expose mutable internal event state");
+  assert.deepEqual(view.rowsByTable.fuel_supplement_events, originalEvents, "analytics projections must leave persisted event rows unchanged");
 });
 
 test("one or many supplement preferences persist explicitly and survive reload and account re-entry", async () => {

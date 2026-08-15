@@ -210,11 +210,11 @@ test("retention labels include sample numerators and denominators", () => {
 });
 
 test("canonical PWA loads and caches the analytics modules with a fresh shell", () => {
-  assert.match(athleteHtml, /product-analytics\.js\?v=mobile-pwa-v154-product-analytics/);
-  assert.match(performanceHtml, /performance\.js\?v=mobile-pwa-v154-product-analytics/);
+  assert.match(athleteHtml, /product-analytics\.js\?v=mobile-pwa-v155-training-nutrition-analytics/);
+  assert.match(performanceHtml, /performance\.js\?v=mobile-pwa-v155-training-nutrition-analytics/);
   assert.match(worker, /\.\/product-analytics\.js/);
   assert.match(worker, /\.\/performance\/product-analytics\.js/);
-  assert.match(worker, /fuel-guard-mobile-pwa-v154-product-analytics-20260815T082036Z/);
+  assert.match(worker, /fuel-guard-mobile-pwa-v155-training-nutrition-analytics-20260815T175813Z/);
 });
 
 test("analytics definitions document privacy, exclusions and known unavailable metrics", () => {

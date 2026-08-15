@@ -41,6 +41,14 @@
     work: Object.freeze([5, 10, 25, 50, 100, 250])
   });
   const ANALYTICS_PERIOD_DAYS = Object.freeze({ "7d": 7, "30d": 30, "90d": 90, all: null });
+  const TRAINING_TIMING_RULES = Object.freeze({
+    binMinutes: 15,
+    minimumEvents: 3,
+    minimumSessions: 2,
+    summaryMinimumEvents: 6,
+    summaryMinimumSessions: 3,
+    summaryClusterShare: 0.4
+  });
   const TRAINING_ANALYTICS_RATE_LIMITS = Object.freeze({
     carbsG: 500,
     sodiumMg: 10000,
@@ -734,6 +742,238 @@
       sufficient: valid.length > 0 && durationHours > 0,
       metrics,
       sessions: valid
+    };
+  }
+
+  function trainingTimingSessionId(value = {}) {
+    return String(value.id || value.sessionId || value.session_id || "");
+  }
+
+  function trainingTimingSessions({ sessions = [], period = "30d", now = new Date() } = {}) {
+    return (Array.isArray(sessions) ? sessions : [])
+      .filter(session => validCompletedSession(session, { minimumMinutes: 15 }))
+      .filter(session => inAnalyticsPeriod(session.endedAt || session.ended_at, period, now))
+      .map(session => {
+        const startedAt = parseDate(session.startedAt || session.started_at);
+        const endedAt = parseDate(session.endedAt || session.ended_at);
+        return {
+          id: trainingTimingSessionId(session),
+          startedAt,
+          endedAt,
+          durationMinutes: (endedAt - startedAt) / 60000,
+          raw: session
+        };
+      })
+      .filter(session => session.id && session.startedAt && session.endedAt)
+      .sort((left, right) => left.startedAt - right.startedAt || left.id.localeCompare(right.id));
+  }
+
+  function matchTrainingTimingSession({ at, sessions = [], linkedSessionId = "" } = {}) {
+    const eventAt = parseDate(at);
+    if (!eventAt) return { session: null, candidateCount: 0, ambiguous: false };
+    const containing = (Array.isArray(sessions) ? sessions : [])
+      .map(session => ({
+        ...session,
+        id: trainingTimingSessionId(session),
+        startedAt: parseDate(session.startedAt || session.started_at),
+        endedAt: parseDate(session.endedAt || session.ended_at)
+      }))
+      .filter(session => session.id && session.startedAt && session.endedAt && eventAt >= session.startedAt && eventAt <= session.endedAt);
+    if (!containing.length) return { session: null, candidateCount: 0, ambiguous: false };
+    const linked = String(linkedSessionId || "");
+    const linkedMatch = linked ? containing.find(session => session.id === linked) : null;
+    const session = linkedMatch || [...containing]
+      .sort((left, right) => right.startedAt - left.startedAt || left.id.localeCompare(right.id))[0];
+    return { session, candidateCount: containing.length, ambiguous: containing.length > 1 };
+  }
+
+  function medianTimingMinutes(values = []) {
+    const sorted = values.map(Number).filter(Number.isFinite).sort((left, right) => left - right);
+    if (!sorted.length) return null;
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  }
+
+  function trainingTimingEvidence(points = []) {
+    const unique = new Map();
+    (Array.isArray(points) ? points : []).forEach((point, index) => {
+      const key = String(point?.eventKey || `${point?.sessionId || "session"}:${point?.minutes ?? ""}:${index}`);
+      if (!unique.has(key)) unique.set(key, point);
+    });
+    const rows = [...unique.values()];
+    const sessionCount = new Set(rows.map(point => point.sessionId).filter(Boolean)).size;
+    return {
+      eventCount: rows.length,
+      sessionCount,
+      sufficient: rows.length >= TRAINING_TIMING_RULES.minimumEvents && sessionCount >= TRAINING_TIMING_RULES.minimumSessions
+    };
+  }
+
+  function trainingTimingSeries({ key, label, points = [] } = {}) {
+    const sorted = (Array.isArray(points) ? points : [])
+      .filter(point => Number.isFinite(Number(point?.minutes)))
+      .map(point => ({ ...point, minutes: Number(point.minutes) }))
+      .sort((left, right) => left.minutes - right.minutes || String(left.eventKey).localeCompare(String(right.eventKey)));
+    const evidence = trainingTimingEvidence(sorted);
+    const buckets = new Map();
+    sorted.forEach(point => {
+      const startMinute = Math.floor(point.minutes / TRAINING_TIMING_RULES.binMinutes) * TRAINING_TIMING_RULES.binMinutes;
+      if (!buckets.has(startMinute)) buckets.set(startMinute, []);
+      buckets.get(startMinute).push(point);
+    });
+    const bins = [...buckets.entries()]
+      .map(([startMinute, rows]) => ({
+        startMinute,
+        endMinute: startMinute + TRAINING_TIMING_RULES.binMinutes,
+        eventCount: rows.length,
+        sessionCount: new Set(rows.map(point => point.sessionId)).size
+      }))
+      .sort((left, right) => left.startMinute - right.startMinute);
+    const maximumBinCount = Math.max(0, ...bins.map(bin => bin.eventCount));
+    bins.forEach(bin => { bin.relativeDensity = maximumBinCount ? Math.round(bin.eventCount / maximumBinCount * 100) : 0; });
+    const rankedBins = [...bins].sort((left, right) => right.eventCount - left.eventCount || right.sessionCount - left.sessionCount || left.startMinute - right.startMinute);
+    const leadingBin = rankedBins[0] || null;
+    const secondBin = rankedBins[1] || null;
+    const uniqueLeader = Boolean(leadingBin) && (!secondBin || leadingBin.eventCount > secondBin.eventCount);
+    const clusterSupported = evidence.sufficient
+      && uniqueLeader
+      && leadingBin.sessionCount >= TRAINING_TIMING_RULES.minimumSessions
+      && leadingBin.eventCount / Math.max(1, sorted.length) >= TRAINING_TIMING_RULES.summaryClusterShare;
+    const summarySupported = clusterSupported
+      && sorted.length >= TRAINING_TIMING_RULES.summaryMinimumEvents
+      && evidence.sessionCount >= TRAINING_TIMING_RULES.summaryMinimumSessions;
+    const median = evidence.sufficient ? medianTimingMinutes(sorted.map(point => point.minutes)) : null;
+    return {
+      key: String(key || "timing"),
+      label: String(label || "Timing"),
+      ...evidence,
+      points: sorted,
+      bins,
+      medianMinutes: Number.isFinite(median) ? Math.round(median / 5) * 5 : null,
+      typicalWindow: clusterSupported ? {
+        startMinute: leadingBin.startMinute,
+        endMinute: leadingBin.endMinute,
+        eventCount: leadingBin.eventCount,
+        sessionCount: leadingBin.sessionCount,
+        share: Math.round(leadingBin.eventCount / sorted.length * 100)
+      } : null,
+      summarySupported
+    };
+  }
+
+  function timingVisualAxis(points = [], sessions = []) {
+    const representedIds = new Set((Array.isArray(points) ? points : []).map(point => point.sessionId).filter(Boolean));
+    const represented = (Array.isArray(sessions) ? sessions : []).filter(session => representedIds.has(session.id));
+    const maximumDuration = Math.max(0, ...represented.map(session => session.durationMinutes));
+    const axisMaxMinutes = Math.max(60, Math.ceil(maximumDuration / 30) * 30);
+    return {
+      axisMaxMinutes,
+      sessionEnds: represented.map(session => ({ sessionId: session.id, minutes: Math.round(session.durationMinutes) }))
+    };
+  }
+
+  function supplementTimingLabel(event = {}) {
+    return String(event.supplementLabel || event.supplement_label || event.label || event.supplementName || "Supplement").trim() || "Supplement";
+  }
+
+  function supplementTimingPlanId(event = {}) {
+    return String(event.supplementPlanId || event.supplement_plan_id || event.planId || "");
+  }
+
+  function supplementTimingLinkedSessionId(event = {}) {
+    const snapshot = event.contextSnapshot || event.context_snapshot;
+    return String(
+      event.trainingModeSessionId
+      || event.training_mode_session_id
+      || event.trainingSessionId
+      || (snapshot && typeof snapshot === "object" ? snapshot.trainingSessionId || snapshot.training_mode_session_id : "")
+      || ""
+    );
+  }
+
+  function athleteTrainingNutritionTiming({ sessions = [], logs = [], supplementEvents = [], period = "30d", now = new Date() } = {}) {
+    const includedSessions = trainingTimingSessions({ sessions, period, now });
+    const supplementPoints = [];
+    let supplementAmbiguousEventCount = 0;
+    const seenSupplements = new Set();
+    (Array.isArray(supplementEvents) ? supplementEvents : []).forEach((event, index) => {
+      const status = String(event?.eventStatus || event?.event_status || "taken").toLowerCase();
+      const at = parseDate(event?.takenAt || event?.taken_at || event?.takenAtIso || event?.timestamp || event?.date);
+      if (status !== "taken" || !at || at > (parseDate(now) || new Date())) return;
+      const stableId = String(event?.id || "");
+      if (stableId && seenSupplements.has(stableId)) return;
+      if (stableId) seenSupplements.add(stableId);
+      const match = matchTrainingTimingSession({ at, sessions: includedSessions, linkedSessionId: supplementTimingLinkedSessionId(event) });
+      if (!match.session) return;
+      if (match.ambiguous) supplementAmbiguousEventCount += 1;
+      const planId = supplementTimingPlanId(event);
+      const label = supplementTimingLabel(event);
+      supplementPoints.push({
+        eventKey: `supplement:${stableId || `${planId || label}:${at.toISOString()}:${index}`}`,
+        eventId: stableId,
+        sessionId: match.session.id,
+        planId,
+        label,
+        minutes: Math.max(0, Math.round(((at - match.session.startedAt) / 60000) * 100) / 100)
+      });
+    });
+
+    const intakePoints = [];
+    let intakeAmbiguousEventCount = 0;
+    const seenLogs = new Set();
+    (Array.isArray(logs) ? logs : []).forEach((log, index) => {
+      if (!validActivityUsageLog(log)) return;
+      const at = logDate(log);
+      const linkedSessionId = trainingLogSessionId(log);
+      if (!at || at > (parseDate(now) || new Date())) return;
+      const stableId = String(log?.id || log?.cloudId || log?.localId || "");
+      if (stableId && seenLogs.has(stableId)) return;
+      if (stableId) seenLogs.add(stableId);
+      const match = matchTrainingTimingSession({ at, sessions: includedSessions, linkedSessionId });
+      if (!match.session) return;
+      if (match.ambiguous) intakeAmbiguousEventCount += 1;
+      const point = {
+        eventKey: `intake:${stableId || `${linkedSessionId}:${at.toISOString()}:${index}`}`,
+        eventId: stableId,
+        sessionId: match.session.id,
+        minutes: Math.max(0, Math.round(((at - match.session.startedAt) / 60000) * 100) / 100)
+      };
+      if (isFuelLog(log)) intakePoints.push({ ...point, kind: "fuel", label: "Fuel" });
+      if (isHydrationLog(log)) intakePoints.push({ ...point, kind: "hydration", label: "Hydration" });
+    });
+
+    const supplementGroups = new Map();
+    supplementPoints.forEach(point => {
+      const key = point.planId || point.label.toLowerCase();
+      if (!supplementGroups.has(key)) supplementGroups.set(key, { key, label: point.label, points: [] });
+      supplementGroups.get(key).points.push(point);
+    });
+    const supplementSeries = [...supplementGroups.values()]
+      .map(group => trainingTimingSeries(group))
+      .sort((left, right) => Number(right.sufficient) - Number(left.sufficient) || right.eventCount - left.eventCount || left.label.localeCompare(right.label));
+    const fuelSeries = trainingTimingSeries({ key: "fuel", label: "Fuel", points: intakePoints.filter(point => point.kind === "fuel") });
+    const hydrationSeries = trainingTimingSeries({ key: "hydration", label: "Hydration", points: intakePoints.filter(point => point.kind === "hydration") });
+    const supplementEvidence = trainingTimingEvidence(supplementPoints);
+    const intakeEvidence = trainingTimingEvidence(intakePoints);
+    supplementEvidence.sufficient = supplementSeries.some(series => series.sufficient);
+    intakeEvidence.sufficient = [fuelSeries, hydrationSeries].some(series => series.sufficient);
+
+    return {
+      period,
+      sessionCount: includedSessions.length,
+      rules: TRAINING_TIMING_RULES,
+      supplement: {
+        ...supplementEvidence,
+        ...timingVisualAxis(supplementPoints, includedSessions),
+        ambiguousEventCount: supplementAmbiguousEventCount,
+        series: supplementSeries
+      },
+      intake: {
+        ...intakeEvidence,
+        ...timingVisualAxis(intakePoints, includedSessions),
+        ambiguousEventCount: intakeAmbiguousEventCount,
+        series: [fuelSeries, hydrationSeries]
+      }
     };
   }
 
@@ -3798,6 +4038,7 @@
     ATHLETE_POINT_LEVELS,
     TRAINING_QUANTITY_FIELDS,
     TRAINING_QUANTITY_LIMITS,
+    TRAINING_TIMING_RULES,
     PERFORMANCE_IMPACT_RULES,
     escapeHtml,
     parseDate,
@@ -3836,6 +4077,9 @@
     athleteFuelTimingObservations,
     athletePreparationRhythm,
     athleteTrainingFuelAnalytics,
+    athleteTrainingNutritionTiming,
+    matchTrainingTimingSession,
+    trainingTimingSeries,
     hourWindowLabel,
     applyDayTypeOverride,
     applyDayTypeState,

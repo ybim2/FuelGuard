@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v154-product-analytics";
-const BUILD_VERSION = "2026-08-15T08:20:36Z";
+const APP_VERSION = "mobile-pwa-v155-training-nutrition-analytics";
+const BUILD_VERSION = "2026-08-15T17:58:13Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v154-product-analytics-20260815T082036Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v155-training-nutrition-analytics-20260815T175813Z";
 const APP_SHELL = [
   "./",
   "./index.html",
