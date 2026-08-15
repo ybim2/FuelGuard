@@ -1,13 +1,16 @@
 import Toybox.Lang;
 import Toybox.Application.Properties;
+import Toybox.Application.Storage;
 import Toybox.Test;
 import Toybox.WatchUi;
 
 (:debug)
 function fuelGuardQuickReset(responseCode as Number, data as Dictionary or String or Null) as Void {
+    FuelGuardDiagnostics.resetForTest();
     FuelGuardQueue.saveQueue([]);
     FuelGuardConnection.resetForTest();
     FuelGuardConnection.setConnectedForTest("device-token-test");
+    FuelGuardConnection.useTestOAuthRegistrationOnly();
     FuelGuardApi.resetForTest();
     FuelGuardApi.useTestTransport(responseCode, data, false);
     FuelGuardTraining.resetForTest();
@@ -696,4 +699,147 @@ function testFuelGuardQuickHealthRevokedTokenClearsAndPreservesSnapshot(logger) 
         && FuelGuardConnection.statusText().equals("Disconnected - reconnect")
         && FuelGuardHealthApi.dispatchCountForTest() == 1
         && FuelGuardHealthQueue.pendingCount() == 1;
+}
+
+(:test)
+function testFuelGuardQuickLogMalformedConnectionStateDoesNotConnect(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    FuelGuardConnection.resetForTest();
+    Storage.setValue(FuelGuardConnection.TOKEN_KEY, {"unexpected" => "token"});
+
+    var firstReadDisconnected = !FuelGuardConnection.connected();
+    FuelGuardDiagnostics.clearCurrent();
+    return firstReadDisconnected
+        && !FuelGuardConnection.connected()
+        && !FuelGuardDiagnostics.hasError()
+        && Storage.getValue(FuelGuardConnection.TOKEN_KEY) == null
+        && FuelGuardDiagnostics.lastCodeForTest() != null
+        && (FuelGuardDiagnostics.lastCodeForTest() as String).equals("QL-STATE-02");
+}
+
+(:test)
+function testFuelGuardQuickLogMalformedQueueIsResetWithoutCrash(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    Storage.setValue(FuelGuardQueue.QUEUE_KEY, {"unexpected" => "queue"});
+
+    var count = FuelGuardQueue.pendingCount();
+    var stored = Storage.getValue(FuelGuardQueue.QUEUE_KEY);
+    return count == 0
+        && stored instanceof Array
+        && (stored as Array).size() == 0
+        && FuelGuardDiagnostics.code().equals("QL-QUEUE-02");
+}
+
+(:test)
+function testFuelGuardQuickLogStaleQueueEntriesAreBoundedAndSanitized(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    var items = [];
+    items.add({"external_event_id" => ""});
+    for (var i = 0; i < FuelGuardQueue.MAX_QUEUE_SIZE + 3; i++) {
+        items.add({
+            "external_event_id" => Lang.format("fg-stale-$1$", [i]),
+            "type" => FuelGuardEvents.TYPE_FUEL,
+            "logged_at" => "2026-08-14T10:00:00Z"
+        });
+    }
+    Storage.setValue(FuelGuardQueue.QUEUE_KEY, items);
+
+    return FuelGuardQueue.pendingCount() == FuelGuardQueue.MAX_QUEUE_SIZE
+        && FuelGuardQueue.peek() != null
+        && FuelGuardDiagnostics.code().equals("QL-QUEUE-02");
+}
+
+(:test)
+function testFuelGuardQuickLogMalformedSettingsFallbackSafely(logger) as Boolean {
+    return !FuelGuardHealthSettings.normalizedBooleanForTest(null)
+        && !FuelGuardHealthSettings.normalizedBooleanForTest("true")
+        && !FuelGuardHealthSettings.normalizedBooleanForTest(1)
+        && FuelGuardHealthSettings.normalizedBooleanForTest(true);
+}
+
+(:test)
+function testFuelGuardQuickLogFutureFuelTimestampFallsBackSafely(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    FuelGuardEvents.setLastFuelSecondsForTest(FuelGuardEvents.nowSeconds() + (2 * 24 * 60 * 60));
+
+    var metric = FuelGuardFeedback.elapsedFuelMetric();
+    FuelGuardDiagnostics.clearCurrent();
+    return metric.equals("Ready")
+        && FuelGuardFeedback.elapsedFuelLabel().equals("to log")
+        && !FuelGuardDiagnostics.hasError()
+        && FuelGuardDiagnostics.lastCodeForTest() != null
+        && (FuelGuardDiagnostics.lastCodeForTest() as String).equals("QL-STATE-06");
+}
+
+(:test)
+function testFuelGuardQuickLogOAuthRegistrationFailureShowsRecoverableError(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.useThrowingOAuthRegistrationForTest();
+
+    var view = new FuelGuardQuickLogView();
+    view.onShow();
+
+    return FuelGuardDiagnostics.hasError()
+        && FuelGuardDiagnostics.code().equals("QL-CONNECT-01")
+        && FuelGuardDiagnostics.title().equals("Phone unavailable");
+}
+
+(:test)
+function testFuelGuardQuickLogAuthStartFailureShowsRecoverableError(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    FuelGuardConnection.resetForTest();
+    FuelGuardConnection.useTestOAuthRegistrationOnly();
+    FuelGuardConnection.useThrowingAuthRequestForTest();
+
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+
+    return !FuelGuardConnection.connected()
+        && FuelGuardDiagnostics.hasError()
+        && FuelGuardDiagnostics.code().equals("QL-CONNECT-02");
+}
+
+(:test)
+function testFuelGuardQuickLogEmptyAndMalformedResponsesStayRecoverable(logger) as Boolean {
+    fuelGuardQuickReset(500, null);
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+    var pendingAfterEmpty = FuelGuardQueue.pendingCount();
+
+    FuelGuardApi.resetForTest();
+    FuelGuardApi.useTestTransport(500, {"unexpected" => ["shape"]}, false);
+    FuelGuardApi.trySync(true);
+
+    return pendingAfterEmpty == 1
+        && FuelGuardQueue.pendingCount() == 1
+        && !FuelGuardDiagnostics.hasError();
+}
+
+(:test)
+function testFuelGuardQuickLogQueuedStartupCanReopenRepeatedly(logger) as Boolean {
+    fuelGuardQuickReset(500, null);
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION));
+    var view = new FuelGuardQuickLogView();
+
+    view.onShow();
+    view.onHide();
+    view.onShow();
+    view.onHide();
+    view.onShow();
+
+    return FuelGuardQueue.pendingCount() == 1
+        && !FuelGuardDiagnostics.hasError();
+}
+
+(:test)
+function testFuelGuardQuickLogFallbackErrorCopyIsAlwaysBounded(logger) as Boolean {
+    FuelGuardDiagnostics.resetForTest();
+    FuelGuardDiagnostics.report("QL-UNKNOWN-01", "test fallback", null);
+
+    return FuelGuardDiagnostics.title().length() > 0
+        && FuelGuardDiagnostics.title().length() < 40
+        && FuelGuardDiagnostics.message().length() > 0
+        && FuelGuardDiagnostics.message().length() < 40
+        && FuelGuardDiagnostics.code().equals("QL-UNKNOWN-01");
 }

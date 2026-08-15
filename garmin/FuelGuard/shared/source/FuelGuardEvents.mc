@@ -28,6 +28,10 @@ module FuelGuardEvents {
     function nextCounter() as Number {
         var value = Storage.getValue(COUNTER_KEY);
         var counter = value instanceof Number ? value as Number : 0;
+        if (counter < 0 || counter >= 2000000000) {
+            FuelGuardDiagnostics.report("QL-STATE-05", "reset malformed event counter", null);
+            counter = 0;
+        }
         counter += 1;
         Storage.setValue(COUNTER_KEY, counter);
         return counter;
@@ -76,7 +80,20 @@ module FuelGuardEvents {
 
     function lastFuelSeconds() as Number? {
         var value = Storage.getValue(LAST_FUEL_KEY);
-        return value instanceof Number ? value as Number : null;
+        if (!(value instanceof Number)) {
+            return null;
+        }
+        var seconds = value as Number;
+        if (seconds <= 0 || seconds > Time.now().value() + (24 * 60 * 60)) {
+            FuelGuardDiagnostics.report("QL-STATE-06", "ignore malformed last fuel time", null);
+            try {
+                Storage.deleteValue(LAST_FUEL_KEY);
+            } catch (e) {
+                FuelGuardDiagnostics.report("QL-STATE-03", "repair last fuel time", e);
+            }
+            return null;
+        }
+        return seconds;
     }
 
     (:debug)

@@ -12,7 +12,12 @@ class FuelGuardOAuthCallback {
     }
 
     public function onOAuthMessage(message as Authentication.OAuthMessage) as Void {
-        FuelGuardConnection.onOAuthMessage(message);
+        try {
+            FuelGuardConnection.onOAuthMessage(message);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-AUTH-02", "OAuth callback", e);
+            FuelGuardDiagnostics.requestUpdate();
+        }
     }
 }
 
@@ -21,7 +26,12 @@ class FuelGuardAuthExchangeCallback {
     }
 
     public function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
-        FuelGuardConnection.onExchangeResponse(responseCode, data, context);
+        try {
+            FuelGuardConnection.onExchangeResponse(responseCode, data, context);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-AUTH-03", "token exchange callback", e);
+            FuelGuardDiagnostics.requestUpdate();
+        }
     }
 }
 
@@ -61,6 +71,7 @@ module FuelGuardConnection {
 
     var _appId = APP_QUICK_LOG;
     var _oauthCallback = null;
+    var _oauthRegistered = false;
     var _exchangeCallback = null;
     var _revokeCallback = null;
 
@@ -78,6 +89,8 @@ module FuelGuardConnection {
     (:debug) var _testRevokeEnabled = false;
     (:debug) var _testRevokeCode = 200;
     (:debug) var _testRevokeData = {"result" => "revoked"};
+    (:debug) var _testThrowOnOAuthRegister = false;
+    (:debug) var _testOAuthRegistrationOnly = false;
 
     function isConnectActionKey(key as WatchUi.Key) as Boolean {
         return key == WatchUi.KEY_START || key == WatchUi.KEY_ENTER;
@@ -89,11 +102,21 @@ module FuelGuardConnection {
         } else {
             _appId = APP_QUICK_LOG;
         }
-        Storage.setValue(APP_ID_KEY, _appId);
+        try {
+            Storage.setValue(APP_ID_KEY, _appId);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-STATE-01", "save app identity", e);
+        }
     }
 
     function appId() as String {
-        var stored = Storage.getValue(APP_ID_KEY);
+        var stored = null;
+        try {
+            stored = Storage.getValue(APP_ID_KEY);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-STATE-01", "read app identity", e);
+            return _appId;
+        }
         if (stored instanceof String) {
             var text = stored as String;
             if (text.equals(APP_ACTIVITY_LOGGER) || text.equals(APP_QUICK_LOG)) {
@@ -125,11 +148,35 @@ module FuelGuardConnection {
     }
 
     function storedString(key as String) as String {
-        var value = Storage.getValue(key);
-        if (!(value instanceof String)) {
+        var value = null;
+        try {
+            value = Storage.getValue(key);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-STATE-01", "read connection state", e);
             return "";
         }
-        return trimString(value as String);
+        if (!(value instanceof String)) {
+            if (value != null) {
+                FuelGuardDiagnostics.report("QL-STATE-02", "malformed connection state", null);
+                try {
+                    Storage.deleteValue(key);
+                } catch (deleteError) {
+                    FuelGuardDiagnostics.report("QL-STATE-03", "repair connection state", deleteError);
+                }
+            }
+            return "";
+        }
+        var text = value as String;
+        if (text.length() > 1024) {
+            FuelGuardDiagnostics.report("QL-STATE-02", "oversized connection state", null);
+            try {
+                Storage.deleteValue(key);
+            } catch (deleteError) {
+                FuelGuardDiagnostics.report("QL-STATE-03", "repair connection state", deleteError);
+            }
+            return "";
+        }
+        return trimString(text);
     }
 
     function token() as String {
@@ -162,6 +209,7 @@ module FuelGuardConnection {
         }
         clearLocalToken();
         Storage.setValue(STATUS_KEY, "Disconnected - reconnect");
+        FuelGuardDiagnostics.report("QL-AUTH-01", "device token rejected", null);
         WatchUi.requestUpdate();
         return true;
     }
@@ -186,11 +234,37 @@ module FuelGuardConnection {
         return PRODUCTION_BASE_URL + REVOKE_PATH;
     }
 
-    function registerForOAuthMessages() as Void {
+    (:release)
+    function dispatchOAuthRegistration(callback as Method) as Void {
+        Authentication.registerForOAuthMessages(callback);
+    }
+
+    (:debug)
+    function dispatchOAuthRegistration(callback as Method) as Void {
+        if (_testThrowOnOAuthRegister) {
+            throw new FuelGuardAuthRequestException();
+        }
+        if (_testOAuthRegistrationOnly) {
+            return;
+        }
+        Authentication.registerForOAuthMessages(callback);
+    }
+
+    function registerForOAuthMessages() as Boolean {
+        if (_oauthRegistered) {
+            return true;
+        }
         if (_oauthCallback == null) {
             _oauthCallback = new FuelGuardOAuthCallback();
         }
-        Authentication.registerForOAuthMessages((_oauthCallback as FuelGuardOAuthCallback).method(:onOAuthMessage));
+        try {
+            dispatchOAuthRegistration((_oauthCallback as FuelGuardOAuthCallback).method(:onOAuthMessage));
+            _oauthRegistered = true;
+            return true;
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-CONNECT-01", "register OAuth messages", e);
+            return false;
+        }
     }
 
     function byteToHex(value as Number) as String {
@@ -288,34 +362,38 @@ module FuelGuardConnection {
     }
 
     function beginAuth() as Void {
-        var state = randomState();
-        Storage.setValue(PENDING_STATE_KEY, state);
-        // Authentication.makeOAuthRequest is handled by the Connect IQ Store
-        // mobile app, not the Garmin Connect mobile app.
-        Storage.setValue(STATUS_KEY, "Open Connect IQ on phone");
-        noteAuthRequest(state);
+        try {
+            var state = randomState();
+            Storage.setValue(PENDING_STATE_KEY, state);
+            // Authentication.makeOAuthRequest is handled by the Connect IQ Store
+            // mobile app, not the Garmin Connect mobile app.
+            Storage.setValue(STATUS_KEY, "Open Connect IQ on phone");
+            noteAuthRequest(state);
 
-        if (testAuthRequestHandled()) {
+            if (testAuthRequestHandled()) {
+                WatchUi.requestUpdate();
+                return;
+            }
+
+            var params = {
+                "redirect_uri" => RESULT_URL,
+                "response_type" => "code",
+                "client_id" => "fuel_guard_" + appId(),
+                "app" => appId(),
+                "state" => state
+            };
+
+            Authentication.makeOAuthRequest(
+                CONNECT_URL,
+                params,
+                RESULT_URL,
+                Authentication.OAUTH_RESULT_TYPE_URL,
+                {"code" => "code", "state" => "state", "error" => "error"}
+            );
             WatchUi.requestUpdate();
-            return;
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-CONNECT-02", "start OAuth request", e);
         }
-
-        var params = {
-            "redirect_uri" => RESULT_URL,
-            "response_type" => "code",
-            "client_id" => "fuel_guard_" + appId(),
-            "app" => appId(),
-            "state" => state
-        };
-
-        Authentication.makeOAuthRequest(
-            CONNECT_URL,
-            params,
-            RESULT_URL,
-            Authentication.OAUTH_RESULT_TYPE_URL,
-            {"code" => "code", "state" => "state", "error" => "error"}
-        );
-        WatchUi.requestUpdate();
     }
 
     function dictionaryString(data as Dictionary, key as String) as String {
@@ -392,7 +470,16 @@ module FuelGuardConnection {
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
             :context => state
         };
-        Communications.makeWebRequest(exchangeEndpoint(), payload, options, exchangeCallback());
+        try {
+            Communications.makeWebRequest(exchangeEndpoint(), payload, options, exchangeCallback());
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-CONNECT-03", "start token exchange", e);
+            try {
+                Storage.setValue(STATUS_KEY, "Phone unavailable; retry connection");
+            } catch (storageError) {
+                FuelGuardDiagnostics.report("QL-STATE-03", "save token exchange failure", storageError);
+            }
+        }
     }
 
     function onExchangeResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
@@ -418,6 +505,7 @@ module FuelGuardConnection {
             Storage.setValue(STATUS_KEY, "Fuel Guard server unavailable");
         } else if (responseCode == 200) {
             Storage.setValue(STATUS_KEY, "Connection returned invalid data");
+            FuelGuardDiagnostics.report("QL-AUTH-04", "malformed token exchange response", null);
         } else {
             Storage.setValue(STATUS_KEY, "Connection incomplete; retry");
         }
@@ -479,6 +567,7 @@ module FuelGuardConnection {
         clearLocalToken();
         Storage.deleteValue(APP_ID_KEY);
         _appId = APP_QUICK_LOG;
+        _oauthRegistered = false;
         _authRequestCount = 0;
         _exchangeRequestCount = 0;
         _lastExchangeCode = null;
@@ -493,6 +582,8 @@ module FuelGuardConnection {
         _testRevokeEnabled = false;
         _testRevokeCode = 200;
         _testRevokeData = {"result" => "revoked"};
+        _testThrowOnOAuthRegister = false;
+        _testOAuthRegistrationOnly = false;
     }
 
     (:debug)
@@ -505,6 +596,23 @@ module FuelGuardConnection {
     (:debug)
     function useTestAuthRequestOnly() as Void {
         _testAuthRequestOnly = true;
+    }
+
+    (:debug)
+    function useThrowingAuthRequestForTest() as Void {
+        _testThrowOnAuth = true;
+    }
+
+    (:debug)
+    function useThrowingOAuthRegistrationForTest() as Void {
+        _testThrowOnOAuthRegister = true;
+        _oauthRegistered = false;
+    }
+
+    (:debug)
+    function useTestOAuthRegistrationOnly() as Void {
+        _testOAuthRegistrationOnly = true;
+        _oauthRegistered = false;
     }
 
     (:debug)

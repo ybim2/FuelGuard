@@ -8,7 +8,12 @@ class FuelGuardApiCallback {
     }
 
     public function onResponse(responseCode as Number, data as Dictionary or String or Null, context as Object) as Void {
-        FuelGuardApi.onResponse(responseCode, data, context);
+        try {
+            FuelGuardApi.onResponse(responseCode, data, context);
+        } catch (e) {
+            FuelGuardDiagnostics.report("QL-API-01", "log response callback", e);
+            FuelGuardDiagnostics.requestUpdate();
+        }
     }
 }
 
@@ -85,7 +90,6 @@ module FuelGuardApi {
         _batchFinishedAt = null;
         _batchFinishedSyncedCount = 0;
         _batchFinishedRemainingCount = 0;
-        WatchUi.requestUpdate();
     }
 
     function finishBatch() as Void {
@@ -301,6 +305,7 @@ module FuelGuardApi {
         } else {
             finishBatch();
         }
+        WatchUi.requestUpdate();
     }
 
     (:debug)
