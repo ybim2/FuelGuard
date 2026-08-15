@@ -1,6 +1,6 @@
 # Forerunner 255 physical release acceptance
 
-Candidate version: **0.5.5**
+Candidate versions: **Quick Log 0.5.6** · **Activity Logger 0.5.5**
 
 The original signed Quick Log 0.5.1 package with SHA-256 `d9b6561551e5a2ab62b28bc8d3ab159322d995284d07f7ec0da76cf9a273484a` and the first signed replacement with SHA-256 `33c6beb99a9518ceb4e5ec501de1620dce1de4e490fb2603bda24ae871f36c23` both failed physical acceptance with delayed `IQ!` after connection. Both are permanently marked not releasable. Version 0.5.2 was then physically blocked because the disconnected Quick Log screen displayed `Press START` without handling the raw Garmin `KEY_START` input. Version 0.5.3 added the Quick Log raw-key path; version 0.5.4 applies the same shared START/ENTER mapping to both public apps while preserving the existing OAuth flow.
 
@@ -46,11 +46,15 @@ This completion branch does not apply either migration and does not modify Produ
 
 ## Quick Log outside Training Mode
 
-1. Log Fuel once, Hydrate once and Sleepy once.
-2. Confirm exactly three new events appear in the intended athlete's normal Daily timeline.
-3. Confirm the Fuel and Hydration rows have `source = 'garmin'`, the correct owner and distinct stable `external_event_id` values.
-4. Confirm Sleepy is represented as the intended Daily check-in and is not counted as Fuel or Hydration.
-5. Force one offline/queued retry and confirm it resolves to one row, not a duplicate.
+1. Open Quick Log once while connected so the authoritative Fuel status snapshot syncs.
+2. Return to the Garmin glance and confirm it shows the elapsed time since the latest Fuel event, or the explicit no-Fuel state.
+3. Log Fuel once, Hydrate once and Sleepy once.
+4. Confirm exactly three new events appear in the intended athlete's normal Daily timeline.
+5. Confirm the Fuel and Hydration rows have `source = 'garmin'`, the correct owner and distinct stable `external_event_id` values.
+6. Confirm the glance updates after the Fuel event is acknowledged and is not changed by Hydrate or Sleepy.
+7. Log Fuel from Fuel Guard Athlete, reopen Quick Log to sync, and confirm the glance adopts that newer server event.
+8. Confirm Sleepy is represented as the intended Daily check-in and is not counted as Fuel or Hydration.
+9. Force one offline/queued retry and confirm it resolves to one row, not a duplicate or a false glance success.
 
 ## Quick Log during Training Mode
 
@@ -97,6 +101,7 @@ This completion branch does not apply either migration and does not modify Produ
 | Quick Log Hydrate | PENDING | Replacement Store candidate. |
 | Quick Log Sleepy | PENDING | Replacement Store candidate. |
 | Quick Log retry/idempotency | PENDING | Replacement Store candidate. |
+| Quick Log authoritative Fuel glance | PENDING USER HARDWARE SPOT-CHECK 0.5.6 | Source/package compatibility covers all 31 products; Garmin does not expose watch-app glances on FR245/FR945 variants. |
 | Quick Log Training Mode enrichment | PENDING | Replacement Store candidate. |
 | Quick Log Training Mode start/end | PENDING | Replacement Store candidate. |
 | Activity Logger one-LAP Fuel | PENDING | |

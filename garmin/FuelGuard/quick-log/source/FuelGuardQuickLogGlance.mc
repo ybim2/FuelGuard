@@ -53,14 +53,14 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         dc.clear();
 
         var height = dc.getHeight();
-        var metric = "Ready to log";
-        var label = "";
+        var metric = "Open Fuel Guard";
+        var label = "to sync";
         try {
             metric = FuelGuardGlanceState.metric();
             label = FuelGuardGlanceState.label();
         } catch (e) {
-            metric = "Ready to log";
-            label = "";
+            metric = "Open Fuel Guard";
+            label = "to sync";
         }
         var titleY = height < 80 ? 11 : 14;
         var metricY = height < 92 ? height / 2 - 3 : height / 2 - 8;

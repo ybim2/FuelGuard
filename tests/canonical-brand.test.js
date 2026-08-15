@@ -72,6 +72,6 @@ test("Fuel Guard-owned Garmin icons use the same canonical geometry at required 
   store.forEach(file => assert.deepEqual(pngDimensions(file), [500, 500]));
   assert.equal(hash(launcher[0]), hash(launcher[1]));
   store.slice(1).forEach(file => assert.equal(hash(file), hash(store[0])));
-  assert.match(text("garmin/FuelGuard/quick-log/manifest.xml"), /version="0\.5\.5"/);
+  assert.match(text("garmin/FuelGuard/quick-log/manifest.xml"), /version="0\.5\.6"/);
   assert.match(text("garmin/FuelGuard/activity-logger/manifest.xml"), /version="0\.5\.5"/);
 });

@@ -71,10 +71,6 @@ module FuelGuardEvents {
             "type" => normalizedType,
             "device_id" => DEVICE_ID
         };
-        if (normalizedType.equals(TYPE_FUEL) || normalizedType.equals(TYPE_FUEL_HYDRATION)) {
-            Storage.setValue(LAST_FUEL_KEY, timestamp);
-            FuelGuardGlanceState.recordFuel(timestamp);
-        }
         return event;
     }
 

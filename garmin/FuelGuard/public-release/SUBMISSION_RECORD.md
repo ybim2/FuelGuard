@@ -1,5 +1,16 @@
 # Connect IQ public-beta submission record
 
+## Quick Log fuel-status glance 0.5.6 — review candidate
+
+- **Quick Log version:** 0.5.6
+- **Activity Logger version:** unchanged at 0.5.5
+- **Quick Log production AppID:** `2F3B7C5E9F2D4A6B8C1D0E7F0F255002`
+- **Scope:** show elapsed time since the paired athlete's latest canonical Fuel event using a validated local snapshot; the glance itself remains network-free.
+- **Authority:** foreground status sync reads the latest Fuel event for the device-token owner; Garmin Fuel updates the cache only after server acknowledgement. Sleepy/check-in rows are excluded.
+- **Stale handling:** snapshots older than six hours show `Open Fuel Guard` / `to sync` rather than presenting stale data as current.
+- **Compatibility:** all 31 declared products compile with the shared source. Garmin ignores watch-app glance annotations on `fr245`, `fr245m`, `fr945` and `fr945lte`; those products retain normal Quick Log functionality.
+- **Publication status:** NOT UPLOADED — requires Preview/source approval and the user's Store-delivered physical FR255 spot-check.
+
 ## Canonical Fuel Guard mark 0.5.5 — physical hardware spot-check pending
 
 - **Version:** 0.5.5

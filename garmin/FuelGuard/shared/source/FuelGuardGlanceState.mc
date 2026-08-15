@@ -1,158 +1,172 @@
 import Toybox.Application.Storage;
 import Toybox.Lang;
 import Toybox.Time;
-import Toybox.Time.Gregorian;
 
 (:glance)
 module FuelGuardGlanceState {
     const LAST_FUEL_KEY = "fg_last_fuel_at";
-    const TODAY_FUEL_COUNT_KEY = "fg_today_fuel_count";
-    const TODAY_FUEL_DATE_KEY = "fg_today_fuel_date";
+    const LAST_SYNC_KEY = "fg_last_fuel_sync_at";
+    const STATUS_KNOWN_KEY = "fg_last_fuel_status_known";
+    const MAX_STALE_SECONDS = 6 * 60 * 60;
+    const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
 
     function nowSeconds() as Number {
         return Time.now().value();
     }
 
-    function localDateKey(seconds as Number) as String {
-        var info = Gregorian.info(new Time.Moment(seconds), Time.FORMAT_SHORT);
-        var year = info.year instanceof Number ? info.year as Number : 1970;
-        var month = info.month instanceof Number ? info.month as Number : 1;
-        var day = info.day instanceof Number ? info.day as Number : 1;
-        return Lang.format("$1$-$2$-$3$", [
-            year.format("%04d"),
-            month.format("%02d"),
-            day.format("%02d")
-        ]);
-    }
-
-    function sameLocalDay(leftSeconds as Number, rightSeconds as Number) as Boolean {
-        return localDateKey(leftSeconds).equals(localDateKey(rightSeconds));
-    }
-
-    function lastFuelSeconds() as Number? {
-        var value = Storage.getValue(LAST_FUEL_KEY);
+    function safeStoredNumber(key as String) as Number? {
+        var value = Storage.getValue(key);
         if (!(value instanceof Number)) {
             return null;
         }
         var seconds = value as Number;
-        if (seconds <= 0 || seconds > nowSeconds() + (24 * 60 * 60)) {
+        if (seconds <= 0 || seconds > nowSeconds() + MAX_CLOCK_SKEW_SECONDS) {
             return null;
         }
         return seconds;
     }
 
-    function todayFuelCount() as Number {
-        var today = localDateKey(nowSeconds());
-        var storedDate = Storage.getValue(TODAY_FUEL_DATE_KEY);
-        if (!(storedDate instanceof String) || !(storedDate as String).equals(today)) {
-            Storage.setValue(TODAY_FUEL_DATE_KEY, today);
-            Storage.setValue(TODAY_FUEL_COUNT_KEY, 0);
-            return 0;
-        }
-        var count = Storage.getValue(TODAY_FUEL_COUNT_KEY);
-        if (!(count instanceof Number)) {
-            return 0;
-        }
-        var safeCount = count as Number;
-        return safeCount >= 0 && safeCount <= 10000 ? safeCount : 0;
+    function lastFuelSeconds() as Number? {
+        return safeStoredNumber(LAST_FUEL_KEY);
     }
 
-    function recordFuel(timestamp as Number) as Void {
-        var dateKey = localDateKey(timestamp);
-        var storedDate = Storage.getValue(TODAY_FUEL_DATE_KEY);
-        var count = 0;
-        if (storedDate instanceof String && (storedDate as String).equals(dateKey)) {
-            var storedCount = Storage.getValue(TODAY_FUEL_COUNT_KEY);
-            count = storedCount instanceof Number ? storedCount as Number : 0;
+    function lastSyncSeconds() as Number? {
+        return safeStoredNumber(LAST_SYNC_KEY);
+    }
+
+    function statusKnown() as Boolean {
+        var value = Storage.getValue(STATUS_KNOWN_KEY);
+        return value instanceof Boolean ? value as Boolean : false;
+    }
+
+    function fresh() as Boolean {
+        var syncedAt = lastSyncSeconds();
+        if (!statusKnown() || syncedAt == null) {
+            return false;
         }
-        Storage.setValue(LAST_FUEL_KEY, timestamp);
-        Storage.setValue(TODAY_FUEL_DATE_KEY, dateKey);
-        Storage.setValue(TODAY_FUEL_COUNT_KEY, count + 1);
+        var age = nowSeconds() - (syncedAt as Number);
+        return age >= 0 && age <= MAX_STALE_SECONDS;
+    }
+
+    function dictionaryValue(data as Dictionary, stringKey as String, symbolKey as Symbol) as Object? {
+        var value = data[stringKey];
+        if (value == null) {
+            value = data[symbolKey];
+        }
+        return value;
+    }
+
+    function applyServerStatus(data as Dictionary) as Boolean {
+        var status = dictionaryValue(data, "fuel_status", :fuel_status);
+        if (!(status instanceof Dictionary)) {
+            return false;
+        }
+        var values = status as Dictionary;
+        var syncedAt = dictionaryValue(values, "synced_at_seconds", :synced_at_seconds);
+        if (!(syncedAt instanceof Number)) {
+            return false;
+        }
+        var safeSync = syncedAt as Number;
+        if (safeSync <= 0 || safeSync > nowSeconds() + MAX_CLOCK_SKEW_SECONDS) {
+            return false;
+        }
+
+        var lastFuel = dictionaryValue(values, "last_fuel_at_seconds", :last_fuel_at_seconds);
+        if (lastFuel != null && !(lastFuel instanceof Number)) {
+            return false;
+        }
+        if (lastFuel instanceof Number) {
+            var safeFuel = lastFuel as Number;
+            if (safeFuel <= 0 || safeFuel > nowSeconds() + MAX_CLOCK_SKEW_SECONDS) {
+                return false;
+            }
+            Storage.setValue(LAST_FUEL_KEY, safeFuel);
+        } else {
+            Storage.deleteValue(LAST_FUEL_KEY);
+        }
+        Storage.setValue(LAST_SYNC_KEY, safeSync);
+        Storage.setValue(STATUS_KNOWN_KEY, true);
+        return true;
+    }
+
+    function recordAcknowledgedFuel(timestamp as Number) as Boolean {
+        var now = nowSeconds();
+        if (timestamp <= 0 || timestamp > now + MAX_CLOCK_SKEW_SECONDS) {
+            return false;
+        }
+        var existing = lastFuelSeconds();
+        if (existing == null || timestamp >= (existing as Number)) {
+            Storage.setValue(LAST_FUEL_KEY, timestamp);
+        }
+        Storage.setValue(LAST_SYNC_KEY, now);
+        Storage.setValue(STATUS_KNOWN_KEY, true);
+        return true;
+    }
+
+    function markUnavailable() as Void {
+        Storage.deleteValue(LAST_FUEL_KEY);
+        Storage.deleteValue(LAST_SYNC_KEY);
+        Storage.deleteValue(STATUS_KNOWN_KEY);
     }
 
     function elapsedText(elapsed as Number) as String {
         if (elapsed < 60) {
-            return "<1m";
+            return "<1m ago";
         }
         var minutes = elapsed / 60;
         var hours = minutes / 60;
-        if (hours >= 1) {
-            return Lang.format("$1$h $2$m", [hours, minutes % 60]);
+        if (hours >= 5) {
+            return "5h+ ago";
         }
-        return Lang.format("$1$m", [minutes]);
+        if (hours >= 1) {
+            return Lang.format("$1$h $2$m ago", [hours, minutes % 60]);
+        }
+        return Lang.format("$1$m ago", [minutes]);
     }
 
     function metric() as String {
+        if (!fresh()) {
+            return "Open Fuel Guard";
+        }
         var lastFuel = lastFuelSeconds();
         if (lastFuel == null) {
-            return "No fuel today";
+            return "No fuel logged";
         }
-        var now = nowSeconds();
-        if (!sameLocalDay(lastFuel as Number, now)) {
-            return "No fuel today";
-        }
-        return Lang.format("$1$ since fuel", [elapsedText(now - (lastFuel as Number))]);
+        return elapsedText(nowSeconds() - (lastFuel as Number));
     }
 
     function label() as String {
-        var lastFuel = lastFuelSeconds();
-        if (lastFuel == null) {
-            return "Press START to log";
+        if (!fresh()) {
+            return "to sync";
         }
-        if (!sameLocalDay(lastFuel as Number, nowSeconds())) {
-            return "Press START to log";
-        }
-        var count = todayFuelCount();
-        if (count < 1) {
-            count = 1;
-        }
-        return Lang.format("$1$ $2$ today", [count, count == 1 ? "log" : "logs"]);
-    }
-
-    function countLabel() as String {
-        var lastFuel = lastFuelSeconds();
-        if (lastFuel == null) {
-            return "";
-        }
-        if (!sameLocalDay(lastFuel as Number, nowSeconds())) {
-            return "";
-        }
-        var count = todayFuelCount();
-        if (count < 1) {
-            count = 1;
-        }
-        return Lang.format("$1$ today", [count]);
+        return lastFuelSeconds() == null ? "today" : "Last fuel";
     }
 
     (:debug)
     function resetForTest() as Void {
         Storage.deleteValue(LAST_FUEL_KEY);
-        Storage.deleteValue(TODAY_FUEL_COUNT_KEY);
-        Storage.deleteValue(TODAY_FUEL_DATE_KEY);
+        Storage.deleteValue(LAST_SYNC_KEY);
+        Storage.deleteValue(STATUS_KNOWN_KEY);
     }
 
     (:debug)
-    function setLastFuelSecondsForTest(seconds as Number?) as Void {
-        if (seconds == null) {
+    function setStatusForTest(lastFuel as Number?, syncedAt as Number) as Void {
+        if (lastFuel == null) {
             Storage.deleteValue(LAST_FUEL_KEY);
         } else {
-            Storage.setValue(LAST_FUEL_KEY, seconds as Number);
+            Storage.setValue(LAST_FUEL_KEY, lastFuel as Number);
         }
+        Storage.setValue(LAST_SYNC_KEY, syncedAt);
+        Storage.setValue(STATUS_KNOWN_KEY, true);
     }
 
     (:debug)
-    function setTodayFuelCountForTest(count as Number, dateKey as String) as Void {
-        Storage.setValue(TODAY_FUEL_COUNT_KEY, count);
-        Storage.setValue(TODAY_FUEL_DATE_KEY, dateKey);
+    function lastFuelSecondsForTest() as Number? {
+        return lastFuelSeconds();
     }
 
     (:debug)
-    function todayFuelCountForTest() as Number {
-        return todayFuelCount();
-    }
-
-    (:debug)
-    function localDateKeyForTest(seconds as Number) as String {
-        return localDateKey(seconds);
+    function freshForTest() as Boolean {
+        return fresh();
     }
 }

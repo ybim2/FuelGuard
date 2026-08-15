@@ -28,12 +28,12 @@ function pngDimensions(relativePath) {
   return [buffer.readUInt32BE(16), buffer.readUInt32BE(20)];
 }
 
-test("public manifests preserve the 0.5.5 production identities and exact 31-device matrix", () => {
+test("public manifests preserve production identities, release versions and exact 31-device matrix", () => {
   const quick = read("garmin/FuelGuard/quick-log/manifest.xml");
   const activity = read("garmin/FuelGuard/activity-logger/manifest.xml");
 
   assert.match(quick, /id="2F3B7C5E9F2D4A6B8C1D0E7F0F255002"/);
-  assert.match(quick, /type="watch-app" version="0\.5\.5"/);
+  assert.match(quick, /type="watch-app" version="0\.5\.6"/);
   assert.match(activity, /id="9C8A41410F0A4D46A7F7D1C68F0F2551"/);
   assert.match(activity, /type="datafield" version="0\.5\.5"/);
   assert.deepEqual(manifestProducts(quick), EXPECTED_PRODUCTS);
