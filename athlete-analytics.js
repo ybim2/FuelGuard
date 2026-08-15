@@ -30,11 +30,22 @@
 
   function model({ period = selectedPeriod, now = new Date() } = {}) {
     const gap = gapState();
+    const supplementInput = window.FuelGuardSupplementRhythm?.analyticsEvents?.() || [];
+    const supplementEvents = Array.isArray(supplementInput)
+      ? supplementInput
+      : Array.isArray(supplementInput?.events) ? supplementInput.events : [];
     const rhythm = domain().athleteFuelRhythm({ logs: gap.logs || [], period, now });
     const timing = domain().athleteFuelTimingObservations({ logs: gap.logs || [], period, now });
     const training = domain().athleteTrainingFuelAnalytics({
       sessions: gap.trainingMode?.sessions || [],
       logs: gap.logs || [],
+      period,
+      now
+    });
+    const trainingTiming = domain().athleteTrainingNutritionTiming({
+      sessions: gap.trainingMode?.sessions || [],
+      logs: gap.logs || [],
+      supplementEvents,
       period,
       now
     });
@@ -54,7 +65,7 @@
       value: `${Math.round(training.metrics.carbsG.perHour)} g/hr`,
       detail: `Across ${training.workoutCount} valid completed workout${training.workoutCount === 1 ? "" : "s"}.`
     });
-    return { period, rhythm, timing, training, preparation, insights };
+    return { period, rhythm, timing, training, trainingTiming, preparation, insights };
   }
 
   function rhythmMarkup(rhythm) {
@@ -103,6 +114,81 @@
     </div>`;
   }
 
+  function relativeMinuteLabel(value, { signed = false } = {}) {
+    const minutes = Math.max(0, Math.round(Number(value) || 0));
+    return `${signed ? "+" : ""}${minutes}m`;
+  }
+
+  function timingTicks(axisMaxMinutes) {
+    const maximum = Math.max(60, Number(axisMaxMinutes) || 60);
+    const roughStep = maximum / 4;
+    const step = [30, 60, 90, 120, 180, 240, 360, 480, 720, 1440].find(value => value >= roughStep) || Math.ceil(roughStep / 1440) * 1440;
+    const values = [];
+    for (let value = 0; value <= maximum; value += step) values.push(value);
+    if (values.at(-1) !== maximum) values.push(maximum);
+    return values;
+  }
+
+  function timingAxisMarkup(axisMaxMinutes) {
+    const maximum = Math.max(60, Number(axisMaxMinutes) || 60);
+    return `<div class="athlete-training-timing-axis" aria-hidden="true">${timingTicks(maximum).map(value => `<span style="left:${Math.min(100, value / maximum * 100)}%">${relativeMinuteLabel(value)}</span>`).join("")}</div>`;
+  }
+
+  function timingSeriesMarkup(series, axisMaxMinutes, index = 0) {
+    const maximum = Math.max(60, Number(axisMaxMinutes) || 60);
+    const median = Number.isFinite(series?.medianMinutes) ? Number(series.medianMinutes) : null;
+    const kindClass = ["fuel", "hydration"].includes(series?.key) ? series.key : "supplement";
+    const markers = (series?.bins || []).map(bin => {
+      const minute = Math.min(maximum, Number(bin.startMinute) + Math.min(7.5, Math.max(0, maximum - Number(bin.startMinute))));
+      const left = Math.min(100, Math.max(0, minute / maximum * 100));
+      const size = 8 + Math.round(Math.max(0, Number(bin.relativeDensity) || 0) * 0.08);
+      const windowLabel = `${relativeMinuteLabel(bin.startMinute)}–${relativeMinuteLabel(bin.endMinute)}`;
+      return `<i class="athlete-training-timing-cluster" role="img" aria-label="${escape(series.label)}: ${bin.eventCount} event${bin.eventCount === 1 ? "" : "s"} between ${escape(windowLabel)} into training" style="--timing-left:${left}%;--timing-size:${size}px"><b>${bin.eventCount > 1 ? bin.eventCount : ""}</b></i>`;
+    }).join("");
+    const summary = series?.summarySupported && series.typicalWindow
+      ? `<p class="athlete-training-timing-summary">${escape(series.label)} is most often recorded ${relativeMinuteLabel(series.typicalWindow.startMinute)}–${relativeMinuteLabel(series.typicalWindow.endMinute)} into training.</p>`
+      : "";
+    return `<article class="athlete-training-timing-series ${kindClass} ${series.sufficient ? "supported" : "sparse"}" style="--timing-series-index:${index}">
+      <header><strong>${escape(series.label)}</strong><span>${series.eventCount} event${series.eventCount === 1 ? "" : "s"} · ${series.sessionCount} session${series.sessionCount === 1 ? "" : "s"}</span>${median == null ? `<small>More sessions needed</small>` : `<small>Median ${relativeMinuteLabel(median, { signed: true })}</small>`}</header>
+      <div class="athlete-training-timing-track" role="group" aria-label="${escape(series.label)} events positioned by minutes from Training Mode start">
+        <span class="athlete-training-timing-start" aria-hidden="true"></span>
+        ${markers}
+        ${median == null ? "" : `<span class="athlete-training-timing-median" style="--timing-left:${Math.min(100, Math.max(0, median / maximum * 100))}%" aria-hidden="true"></span>`}
+      </div>
+      ${summary}
+    </article>`;
+  }
+
+  function trainingTimingVisualMarkup(visual, { kind } = {}) {
+    const supplement = kind === "supplement";
+    const emptyCopy = supplement
+      ? "Not enough Training Mode supplement data yet. Log supplements during more training sessions to build your pattern."
+      : "Not enough Training Mode fuel and hydration data yet. Log fuel or hydration during more training sessions to build your pattern.";
+    if (!visual?.sufficient) return `<div class="athlete-training-timing-empty"><p>${escape(emptyCopy)}</p></div>`;
+    return `<div class="athlete-training-timing-chart ${supplement ? "supplement" : "intake"}">
+      <div class="athlete-training-timing-axis-label"><span>Training start</span><span>Minutes into training</span></div>
+      ${timingAxisMarkup(visual.axisMaxMinutes)}
+      <div class="athlete-training-timing-series-list">${(visual.series || []).map((series, index) => timingSeriesMarkup(series, visual.axisMaxMinutes, index)).join("")}</div>
+    </div>`;
+  }
+
+  function trainingNutritionTimingMarkup(timing) {
+    const supplement = timing?.supplement || {};
+    const intake = timing?.intake || {};
+    return `<section class="athlete-training-timing" aria-labelledby="trainingNutritionPatternsHeading">
+      <header><div><span>TRAINING NUTRITION PATTERNS</span><h2 id="trainingNutritionPatternsHeading">When you tend to supplement, fuel and hydrate</h2></div><b>${timing?.sessionCount || "—"} sessions</b></header>
+      <article class="athlete-training-timing-card supplement">
+        <header><div><span>SUPPLEMENT TIMING</span><h3>Supplement timing during Training Mode</h3></div><b>${supplement.eventCount || "—"} events</b></header>
+        ${trainingTimingVisualMarkup(supplement, { kind: "supplement" })}
+      </article>
+      <article class="athlete-training-timing-card intake">
+        <header><div><span>FUEL + HYDRATION TIMING</span><h3>Fuel and hydration timing during Training Mode</h3></div><b>${intake.eventCount || "—"} events</b></header>
+        <div class="athlete-training-timing-legend" aria-label="Timing graph legend"><span class="fuel"><i></i>Fuel</span><span class="hydration"><i></i>Hydration</span></div>
+        ${trainingTimingVisualMarkup(intake, { kind: "intake" })}
+      </article>
+    </section>`;
+  }
+
   function preparationMarkup(preparation) {
     if (!preparation.sufficient) return `
       <div class="athlete-preparation-empty">
@@ -145,6 +231,7 @@
         <header><div><span>HOW YOU FUEL TRAINING</span><h2 id="trainingFuelHeading">Your average intake while Training Mode is active</h2></div><b>${data.training.workoutCount || "—"} workouts</b></header>
         ${trainingMarkup(data.training)}
       </section>
+      ${trainingNutritionTimingMarkup(data.trainingTiming)}
       <section class="athlete-preparation-analytics" aria-labelledby="preparationRhythmHeading">
         <header><div><span>PREPARATION RHYTHM</span><h2 id="preparationRhythmHeading">Ready for the Day</h2></div><b>${periodLabel}</b></header>
         ${preparationMarkup(data.preparation)}
@@ -164,12 +251,13 @@
   });
   window.addEventListener("fuelguard:cloud-status", render);
   window.addEventListener("fuelguard:training-session-ended", render);
+  window.addEventListener("fuelguard:supplement-events-changed", render);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
 
   window.FuelGuardAthleteAnalytics = Object.freeze({
     render,
     model,
     period: () => selectedPeriod,
-    _test: Object.freeze({ clockFromMinute, rhythmMarkup, trainingMarkup, preparationMarkup, PERIODS })
+    _test: Object.freeze({ clockFromMinute, rhythmMarkup, trainingMarkup, trainingNutritionTimingMarkup, preparationMarkup, timingTicks, PERIODS })
   });
 })();

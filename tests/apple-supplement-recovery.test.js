@@ -182,7 +182,7 @@ test("PWA shell versions every new private surface and preserves callback naviga
   const html = read("index.html");
   const sw = read("sw.js");
   for (const asset of ["account-identities.js", "athlete-context-layer.js", "supplement-rhythm.js", "supplement-rhythm.css"]) {
-    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v154-product-analytics"));
+    assert.match(html, new RegExp(asset.replace(".", "\\.") + "\\?v=mobile-pwa-v155-training-nutrition-analytics"));
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
   assert.match(sw, /requestUrl\.pathname\.startsWith\("\/auth\/callback"\)/);

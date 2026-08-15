@@ -17,6 +17,8 @@ body.beta-mvp #analytics { min-width: 0; background: #fff; }
 .athlete-analytics-header span,
 .athlete-analytics-hero header span,
 .athlete-training-analytics header span,
+.athlete-training-timing > header span,
+.athlete-training-timing-card > header span,
 .athlete-analytics-insights > header span {
   display: block;
   color: #2c7a4b;
@@ -98,6 +100,7 @@ body.beta-mvp #analytics { min-width: 0; background: #fff; }
 
 .athlete-analytics-hero h2,
 .athlete-training-analytics h2,
+.athlete-training-timing h2,
 .athlete-analytics-insights h2,
 .athlete-preparation-analytics h2 {
   max-width: 460px;
@@ -269,6 +272,243 @@ body.beta-mvp #analytics { min-width: 0; background: #fff; }
 .athlete-training-intake-metric.fluid i { background: linear-gradient(90deg, #16739f, #64c9ef); }
 .athlete-training-intake-note { font-size: .67rem; }
 
+.athlete-training-timing {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.athlete-training-timing > header,
+.athlete-training-timing-card > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.athlete-training-timing > header { padding: 3px 4px 2px; }
+.athlete-training-timing > header h2 { margin: 4px 0 0; }
+
+.athlete-training-timing > header > b,
+.athlete-training-timing-card > header > b {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: #edf7f0;
+  color: #2d6843;
+  font-size: .65rem;
+  letter-spacing: .04em;
+}
+
+.athlete-training-timing-card {
+  overflow: hidden;
+  padding: 18px 16px;
+  border: 1px solid #dce7df;
+  border-radius: 23px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(23, 57, 38, .05);
+}
+
+.athlete-training-timing-card.supplement {
+  background: linear-gradient(145deg, #fbfffc, #f1faf4);
+}
+
+.athlete-training-timing-card > header h3 {
+  margin: 4px 0 0;
+  color: #193c29;
+  font-size: 1.04rem;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+}
+
+.athlete-training-timing-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 13px;
+  color: #5e6e64;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.athlete-training-timing-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.athlete-training-timing-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #c2852f;
+}
+
+.athlete-training-timing-legend .hydration i { border-radius: 2px; background: #238cb7; }
+
+.athlete-training-timing-empty {
+  margin-top: 15px;
+  padding: 16px;
+  border: 1px dashed #cbdcd0;
+  border-radius: 17px;
+  background: rgba(250, 253, 251, .78);
+}
+
+.athlete-training-timing-empty p {
+  margin: 0;
+  color: #617067;
+  font-size: .75rem;
+  line-height: 1.45;
+}
+
+.athlete-training-timing-chart { margin-top: 15px; }
+
+.athlete-training-timing-axis-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #68776e;
+  font-size: .61rem;
+  font-weight: 800;
+}
+
+.athlete-training-timing-axis {
+  position: relative;
+  height: 24px;
+  margin: 7px 8px 1px;
+  border-top: 1px solid #cbd9cf;
+}
+
+.athlete-training-timing-axis span {
+  position: absolute;
+  top: 6px;
+  color: #78847c;
+  font-size: .56rem;
+  font-weight: 750;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.athlete-training-timing-axis span::before {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 1px;
+  height: 4px;
+  background: #afc0b4;
+  content: "";
+}
+
+.athlete-training-timing-axis span:first-child { transform: none; }
+.athlete-training-timing-axis span:first-child::before { left: 0; }
+.athlete-training-timing-axis span:last-child { transform: translateX(-100%); }
+.athlete-training-timing-axis span:last-child::before { left: 100%; }
+
+.athlete-training-timing-series-list {
+  display: grid;
+  gap: 13px;
+}
+
+.athlete-training-timing-series {
+  --timing-color: #217947;
+  display: grid;
+  gap: 7px;
+}
+
+.athlete-training-timing-chart.supplement .athlete-training-timing-series:nth-child(3n + 2) { --timing-color: #7355aa; }
+.athlete-training-timing-chart.supplement .athlete-training-timing-series:nth-child(3n) { --timing-color: #a26725; }
+.athlete-training-timing-series.fuel { --timing-color: #c2852f; }
+.athlete-training-timing-series.hydration { --timing-color: #238cb7; }
+
+.athlete-training-timing-series > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.athlete-training-timing-series > header strong {
+  overflow: hidden;
+  color: #263d30;
+  font-size: .76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.athlete-training-timing-series > header span {
+  color: #748078;
+  font-size: .6rem;
+}
+
+.athlete-training-timing-series > header small {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--timing-color);
+  font-size: .61rem;
+  font-weight: 850;
+}
+
+.athlete-training-timing-series.sparse > header small { color: #7a857e; font-weight: 700; }
+
+.athlete-training-timing-track {
+  position: relative;
+  height: 28px;
+  margin-inline: 8px;
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), rgba(80, 112, 91, .08) 25%),
+    #edf3ef;
+}
+
+.athlete-training-timing-start {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  border-radius: 99px;
+  background: #50685a;
+}
+
+.athlete-training-timing-cluster {
+  position: absolute;
+  top: 50%;
+  left: var(--timing-left);
+  display: grid;
+  width: var(--timing-size);
+  height: var(--timing-size);
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--timing-color);
+  color: #fff;
+  font-style: normal;
+  box-shadow: 0 2px 7px rgba(27, 62, 39, .18);
+  transform: translate(-50%, -50%);
+}
+
+.athlete-training-timing-series.hydration .athlete-training-timing-cluster { border-radius: 4px; }
+.athlete-training-timing-cluster b { font-size: .5rem; line-height: 1; }
+
+.athlete-training-timing-median {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: var(--timing-left);
+  width: 2px;
+  border-radius: 99px;
+  background: var(--timing-color);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.86);
+  transform: translateX(-50%);
+}
+
+.athlete-training-timing-series.sparse .athlete-training-timing-cluster { opacity: .55; }
+
+.athlete-training-timing-summary {
+  margin: 0 8px;
+  color: #506258;
+  font-size: .66rem;
+  line-height: 1.4;
+}
+
 .athlete-analytics-empty {
   display: grid;
   gap: 8px;
@@ -340,6 +580,11 @@ body.beta-mvp #analytics { min-width: 0; background: #fff; }
   .athlete-training-analytics,
   .athlete-analytics-insights,
   .athlete-preparation-analytics { padding-inline: 14px; border-radius: 22px; }
+  .athlete-training-timing-card { padding-inline: 13px; border-radius: 21px; }
+  .athlete-training-timing > header { align-items: end; }
+  .athlete-training-timing > header > b { padding-inline: 7px; }
+  .athlete-training-timing-series > header { grid-template-columns: minmax(0, 1fr) auto; }
+  .athlete-training-timing-series > header span { grid-column: 1 / -1; }
   .athlete-rhythm-bars { gap: 2px; }
   .athlete-preparation-rhythm { grid-template-columns: 1fr; }
 }

@@ -4,7 +4,6 @@
   const PLANS = "fuel_supplement_plans";
   const SLOTS = "fuel_supplement_schedule_slots";
   const EVENTS = "fuel_supplement_events";
-  const INSIGHT_MIN_EVENTS = 6;
   const CATALOGUE = Object.freeze([
     { key: "creatine", label: "Creatine" },
     { key: "protein_supplement", label: "Protein powder" },
@@ -80,7 +79,11 @@
       track_caffeine_separation: false
     };
   }
-  function scheduleFor(planId) { return slots.filter(slot => slot.supplement_plan_id === planId && slot.active); }
+  function scheduleFor(planId) {
+    return slots
+      .filter(slot => slot.supplement_plan_id === planId && slot.active)
+      .sort((left, right) => String(left.local_time || "").localeCompare(String(right.local_time || "")));
+  }
   function todayEvents(now = new Date()) { const start = dayStart(now); const end = dayEnd(now); return events.filter(event => new Date(event.taken_at) >= start && new Date(event.taken_at) < end); }
   function patternEvent(event) {
     const date = new Date(event?.taken_at || "");
@@ -116,6 +119,17 @@
     });
     return [...groups.values()].sort((left, right) => left.date - right.date);
   }
+  function analyticsEvents() {
+    return events
+      .filter(event => event.event_status === "taken")
+      .map(event => ({
+        id: event.id || "",
+        timestamp: event.taken_at || "",
+        label: planFor(event.supplement_plan_id)?.label || typeLabel(planFor(event.supplement_plan_id)) || "Supplement",
+        planId: event.supplement_plan_id || "",
+        trainingSessionId: event.context_snapshot?.trainingSessionId || ""
+      }));
+  }
   function emitEventsChanged() {
     window.dispatchEvent?.(new CustomEvent("fuelguard:supplement-events-changed", {
       detail: { dateKey: localDateKey(), count: eventsForDay().length }
@@ -149,24 +163,16 @@
     });
   }
 
-  function historyMarkup(rows) {
-    return `<div class="supplement-history-list">${rows.map(event => `<article><div><strong>${escape(planFor(event.supplement_plan_id)?.label || "Supplement")}</strong><small>${escape(new Date(event.taken_at).toLocaleString())} · ${event.event_status === "skipped" ? "Not taken" : "Recorded"}</small></div><button class="secondary" type="button" data-supplement-undo="${escape(event.id)}">Undo</button></article>`).join("")}</div>`;
-  }
-  function consistencyMarkup(plan) {
-    const today = dayStart();
-    const days = Array.from({ length: 7 }, (_, offset) => {
-      const date = new Date(today); date.setDate(date.getDate() - (6 - offset));
-      const key = localDateKey(date);
-      const done = events.some(event => event.supplement_plan_id === plan.id && event.event_status === "taken" && (event.event_local_date || localDateKey(event.taken_at)) === key);
-      return `<span class="${done ? "logged" : ""}" title="${escape(date.toLocaleDateString())}">${date.toLocaleDateString([], { weekday: "narrow" })}</span>`;
-    });
-    return `<div class="supplement-consistency" aria-label="${escape(plan.label)} seven-day recorded history">${days.join("")}</div>`;
-  }
-  function insightMarkup() {
-    const taken = events.filter(event => event.event_status === "taken");
-    if (taken.length < INSIGHT_MIN_EVENTS) return `<p class="muted">Timing patterns appear after ${INSIGHT_MIN_EVENTS} recorded supplement moments. Fuel Guard describes what was recorded, not effectiveness.</p>`;
-    const recent = taken.filter(event => new Date(event.taken_at) >= new Date(Date.now() - 7 * 86400000));
-    return `<div class="supplement-insight"><strong>Last 7 days</strong><p>${recent.length} recorded moment${recent.length === 1 ? "" : "s"}. This is a timing record, not health or performance advice.</p></div>`;
+  function planScheduleMarkup(plan) {
+    const planSlots = scheduleFor(plan.id);
+    const label = typeLabel(plan);
+    const remindersEnabled = planSlots.some(slot => slot.reminder_enabled);
+    const timeControls = planSlots.map(slot => {
+      const time = timeLabel(slot.local_time);
+      const days = daysLabel(slot.days_of_week);
+      return `<span class="supplement-time-chip"><button class="supplement-time-edit" type="button" data-supplement-edit-slot="${escape(slot.id)}" aria-label="Edit ${escape(label)} at ${escape(time)}, ${escape(days)}"><strong>${escape(time)}</strong><small>${escape(days)}</small></button><button class="supplement-time-remove" type="button" data-supplement-remove-slot="${escape(slot.id)}" aria-label="Remove ${escape(label)} at ${escape(time)}">×</button></span>`;
+    }).join("");
+    return `<article class="supplement-plan-card"><header><strong>${escape(label)}</strong></header><div class="supplement-schedule-config"><span class="supplement-config-label">Scheduled times</span><div class="supplement-time-list">${timeControls || `<span class="supplement-no-times">No times set</span>`}<button class="secondary supplement-add-time" type="button" data-supplement-add-slot="${escape(plan.id)}">+ Add time</button></div></div><div class="supplement-reminder-row"><span><strong>Reminder</strong><small>${planSlots.length ? "For every scheduled time" : "Add a time to enable reminders"}</small></span><button class="supplement-reminder-switch" type="button" role="switch" aria-checked="${remindersEnabled}" data-supplement-toggle-reminder="${escape(plan.id)}" ${planSlots.length ? "" : "disabled"}><span>${remindersEnabled ? "On" : "Off"}</span><i aria-hidden="true"></i></button></div></article>`;
   }
   function renderManagement() {
     const target = document.getElementById("athleteSupplementManagement");
@@ -176,10 +182,7 @@
     target.innerHTML = `<div class="section-heading-row"><div><h2>Supplementation</h2><p class="muted">Choose supplements that are already part of your routine, then record when you take them from Daily. This is private timing support, not a recommendation or medical advice.</p></div></div><form id="supplementCatalogueForm" class="supplement-catalogue-form" aria-busy="${busy ? "true" : "false"}"><fieldset><legend>Supplements available in Daily</legend><p class="muted">Select the supplements you want ready for quick logging.</p><div class="supplement-catalogue" role="group" aria-label="Supplement selection">${selectionRows().map(row => {
       const selected = selectionDraft.has(row.key);
       return `<label class="${selected ? "selected" : ""}" data-supplement-selection-row><input type="checkbox" name="supplementSelection" value="${escape(row.key)}" ${selected ? "checked" : ""} ${busy ? "disabled" : ""}><span>${escape(row.label)}</span></label>`;
-    }).join("")}</div></fieldset><button id="supplementSelectionSave" class="primary" type="submit" ${!selectionDirty || busy || !owner ? "disabled" : ""}>${busy ? "Saving…" : "Save supplement selection"}</button><p id="supplementSelectionStatus" class="row-note" role="status">${escape(message || (selectionDirty ? "Unsaved changes" : ""))}</p></form><div class="supplement-plan-list">${trackedPlans.length ? trackedPlans.map(plan => {
-      const planSlots = scheduleFor(plan.id);
-      return `<article><div><span>Selected</span><strong>${escape(typeLabel(plan))}</strong><small>${planSlots.length ? planSlots.map(slot => `${timeLabel(slot.local_time)} · ${daysLabel(slot.days_of_week)}`).join(" · ") : "No schedule set"}${planSlots.some(slot => slot.reminder_enabled) ? " · reminder on" : ""}</small>${consistencyMarkup(plan)}</div>${planSlots.length ? `<div class="supplement-slot-actions">${planSlots.map(slot => `<button class="secondary" type="button" data-supplement-edit-slot="${escape(slot.id)}">Edit ${escape(timeLabel(slot.local_time))}</button><button class="secondary" type="button" data-supplement-remove-slot="${escape(slot.id)}">Remove time</button>`).join("")}</div>` : ""}<div class="button-row"><button class="secondary" type="button" data-supplement-add-slot="${escape(plan.id)}">Add time</button>${planSlots.length ? `<button class="secondary" type="button" data-supplement-toggle-reminder="${escape(plan.id)}">${planSlots.some(slot => slot.reminder_enabled) ? "Reminders off" : "Reminders on"}</button>` : ""}</div></article>`;
-    }).join("") : `<p class="muted">No supplements selected yet.</p>`}</div><section class="supplement-history"><h3>Private history</h3>${events.length ? historyMarkup(events.slice(0, 30)) : `<p class="muted">Nothing recorded yet.</p>`}</section>${insightMarkup()}<details class="supplement-data-actions"><summary>Supplement data and privacy</summary><p>Only you can access these records through the Athlete app. They are excluded from Coach access, organisations, points and sharing.</p><div class="button-row"><button class="secondary" type="button" data-supplement-export>Export JSON</button><button class="secondary danger-secondary" type="button" data-supplement-delete-all>Delete supplement data</button></div></details>`;
+    }).join("")}</div></fieldset><button id="supplementSelectionSave" class="primary" type="submit" ${!selectionDirty || busy || !owner ? "disabled" : ""}>${busy ? "Saving…" : "Save supplement selection"}</button><p id="supplementSelectionStatus" class="row-note" role="status">${escape(message || (selectionDirty ? "Unsaved changes" : ""))}</p></form><div class="supplement-plan-list">${trackedPlans.length ? trackedPlans.map(planScheduleMarkup).join("") : `<p class="muted">No supplements selected yet.</p>`}</div><details class="supplement-data-actions"><summary>Supplement data and privacy</summary><p>Only you can access these records through the Athlete app. They are excluded from Coach access, organisations, points and sharing.</p><div class="button-row"><button class="secondary" type="button" data-supplement-export>Export JSON</button><button class="secondary danger-secondary" type="button" data-supplement-delete-all>Delete supplement data</button></div></details>`;
   }
   function render() { renderManagement(); window.FuelGuardContextLayer?.refresh?.(); window.FuelGuardAthleteRetention?.render?.(); }
 
@@ -369,7 +372,8 @@
     if (daysInput === null) return;
     const days = parseDays(daysInput);
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || !days.length) { message = "Use a valid 24-hour time and at least one day."; render(); return; }
-    const { data, error } = await cloud().client.from(SLOTS).insert({ id: uuid(), user_id: owner, supplement_plan_id: planId, local_time: time, days_of_week: days, active: true, reminder_enabled: false }).select().single();
+    const reminderEnabled = scheduleFor(planId).some(slot => slot.reminder_enabled);
+    const { data, error } = await cloud().client.from(SLOTS).insert({ id: uuid(), user_id: owner, supplement_plan_id: planId, local_time: time, days_of_week: days, active: true, reminder_enabled: reminderEnabled }).select().single();
     if (error) { message = error.message; render(); return; }
     slots.push(data);
     message = "Supplement timing added.";
@@ -464,8 +468,9 @@
     openQuickLog,
     eventsForDay,
     timelineEventsForDay,
+    analyticsEvents,
     reminderPrompt,
     recoveryActionSummary,
-    _test: Object.freeze({ INSIGHT_MIN_EVENTS, catalogue: CATALOGUE, ironWindowConflict, localDateKey, slotIsToday, typeLabel, plannedFor, isUuid, parseDays, patternEvent })
+    _test: Object.freeze({ catalogue: CATALOGUE, ironWindowConflict, localDateKey, slotIsToday, typeLabel, plannedFor, isUuid, parseDays, patternEvent })
   });
 })();
