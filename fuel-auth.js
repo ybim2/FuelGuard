@@ -208,6 +208,7 @@
       if (panel) {
         panel.hidden = false;
         panel.removeAttribute("inert");
+        root.dispatchEvent?.(new CustomEvent("fuelguard:onboarding-started", { detail: { userId } }));
         root.requestAnimationFrame?.(() => element("fuelGuardPreferredName")?.focus?.());
       }
     } catch (_error) {
@@ -293,6 +294,7 @@
       const { email, password } = credentials();
       if (!email || !password) throw new Error("Enter your email and a password to create an account.");
       const result = await root.fuelGuardCloud?.signUp?.(email, password);
+      root.FuelGuardProductAnalytics?.markAccountCreatedPending?.(result?.user?.id);
       if (result?.session) applyState();
       else status("Account created. Check your inbox to confirm your email, then return to Fuel Guard.", "success");
     });

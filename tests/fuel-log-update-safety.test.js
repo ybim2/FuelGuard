@@ -470,13 +470,13 @@ test("service-worker update is atomic and never caches authenticated API respons
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const pwa = fs.readFileSync(path.join(__dirname, "..", "app-pwa.js"), "utf8");
   const index = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(sw, /mobile-pwa-v153-supplement-one-tap-timeline/);
+  assert.match(sw, /mobile-pwa-v154-product-analytics/);
   assert.match(sw, /cache\.addAll\(appShellRequests\(\)\)/);
   assert.match(sw, /new Request\([^\n]+\{ cache: "reload" \}\)/);
   assert.match(sw, /requestUrl\.pathname\.startsWith\("\/api\/"\)/);
   assert.doesNotMatch(sw, /localStorage|indexedDB|fuel_logs/);
   assert.match(pwa, /updateViaCache: "none"/);
-  assert.match(index, /fuel-supabase\.js\?v=mobile-pwa-v153-supplement-one-tap-timeline/);
+  assert.match(index, /fuel-supabase\.js\?v=mobile-pwa-v154-product-analytics/);
 });
 
 test("ordinary startup and synchronization do not issue fuel-log DELETE operations", () => {

@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v153-supplement-one-tap-timeline";
-const BUILD_VERSION = "2026-08-14T12:21:17Z";
+const APP_VERSION = "mobile-pwa-v154-product-analytics";
+const BUILD_VERSION = "2026-08-15T08:20:36Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v153-supplement-one-tap-timeline-20260814T154015Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v154-product-analytics-20260815T082036Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -27,6 +27,7 @@ const APP_SHELL = [
   "./performance/index.html",
   "./performance/performance.css",
   "./performance/performance.js",
+  "./performance/product-analytics.js",
   "./build-info.js",
   "./styles.css",
   "./mobile-pwa.css",
@@ -51,6 +52,7 @@ const APP_SHELL = [
   "./fuel-guard-domain.js",
   "./app-state.js",
   "./fuel-supabase.js",
+  "./product-analytics.js",
   "./fuel-auth.js",
   "./account-identities.js",
   "./product-shell.js",

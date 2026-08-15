@@ -216,7 +216,7 @@ test("Staff & Access provides narrow management RPCs for scope and capability", 
 test("Performance UI is desktop-first, responsive and accessibility-labelled", () => {
   assert.match(css, /grid-template-columns: 240px minmax\(0, 1fr\)/);
   assert.match(css, /@media \(max-width: 820px\)/);
-  assert.match(css, /grid-template-columns: repeat\(5, 1fr\)/);
+  assert.match(css, /grid-template-columns: repeat\(auto-fit, minmax\(52px, 1fr\)\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(html, /aria-label="Performance navigation"/);
   assert.match(html, /aria-live="polite"/);
@@ -272,7 +272,7 @@ test("demo hierarchy initialization is explicit and atomic", () => {
 });
 
 test("service worker versions and routes Athlete, Coach and Performance independently", () => {
-  assert.match(sw, /mobile-pwa-v153-supplement-one-tap-timeline/);
+  assert.match(sw, /mobile-pwa-v154-product-analytics/);
   assert.match(sw, /\.\/performance\/index\.html/);
   assert.match(sw, /\.\/performance\/performance\.css/);
   assert.match(sw, /\.\/performance\/performance\.js/);

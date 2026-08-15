@@ -294,6 +294,9 @@
       return count;
     } catch (error) {
       setDailyLogStatus(`Could not record supplements: ${error.message || "Try again."}`);
+      void window.FuelGuardProductAnalytics?.trackFailure?.("supplement", error, {
+        metadata: { source: "daily_mode" }
+      });
       return 0;
     } finally {
       busy = false;
@@ -340,6 +343,13 @@
     }
     events.unshift(...(data || []));
     message = `${rows.length} supplement${rows.length === 1 ? "" : "s"} recorded.`;
+    window.dispatchEvent?.(new CustomEvent("fuelguard:supplement-logged", {
+      detail: {
+        eventIds: (data || []).map(event => event.id).filter(Boolean),
+        count: rows.length,
+        loggedAt: atIso
+      }
+    }));
     emitEventsChanged();
     return rows.length;
   }
