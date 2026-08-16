@@ -769,6 +769,12 @@ test("Garmin connected devices are user-scoped and cannot be revoked by another 
     completed: false
   });
 
+  delete process.env.GARMIN_TOKEN_PEPPER;
+  const supabaseOnlyStatus = await call(auth.devicesHandler, { method: "GET", token: "user-token-a" });
+  assert.equal(supabaseOnlyStatus.statusCode, 200);
+  assert.equal(supabaseOnlyStatus.json.onboarding.completed, true);
+  process.env.GARMIN_TOKEN_PEPPER = BASE_ENV.GARMIN_TOKEN_PEPPER;
+
   const forbidden = await call(auth.revokeDeviceHandler, { token: "user-token-b", body: { device_id: userA.json.devices[0].id } });
   assert.equal(forbidden.statusCode, 404);
   assert.equal(fake.deviceTokens.find(row => row.id === userA.json.devices[0].id).revoked_at, null);
