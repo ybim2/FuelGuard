@@ -1315,6 +1315,34 @@
     return data;
   }
 
+  async function saveGarminOnboardingState(state) {
+    if (!client || !user()) throw new Error("Sign in before updating Garmin setup.");
+    const allowed = new Set([
+      "not_started",
+      "connection_pending",
+      "watch_app_install_pending",
+      "watch_app_open_pending",
+      "first_watch_log_pending",
+      "completed",
+      "not_a_garmin_user"
+    ]);
+    const nextState = String(state || "").trim();
+    if (!allowed.has(nextState)) throw new Error("Unsupported Garmin setup state.");
+    const { data, error } = await client.auth.updateUser({
+      data: {
+        fuel_guard_garmin_onboarding: {
+          version: 1,
+          state: nextState,
+          updated_at: new Date().toISOString()
+        }
+      }
+    });
+    if (error) throw error;
+    if (data?.user && session) session = { ...session, user: data.user };
+    emitAuthState();
+    return data?.user || user();
+  }
+
   async function signUp(email, password) {
     if (!client) throw new Error("Supabase is not configured.");
     const redirectUrl = window.location.origin;
@@ -1517,6 +1545,7 @@
     unlinkIdentity,
     authProfile,
     savePreferredName,
+    saveGarminOnboardingState,
     signUp,
     sendPasswordReset,
     updatePassword,

@@ -53,7 +53,7 @@ test("favicon, Apple and installable PWA identity use canonical PNG derivatives"
   for (const asset of ["fuel-guard-brand.css", "fuel-guard-mark-192.png", "fuel-guard-mark-512.png", "fuel-guard-mark-64.png", "apple-touch-icon.png", "favicon-32.png"]) {
     assert.match(worker, new RegExp(asset.replaceAll(".", "\\.")));
   }
-  assert.match(worker, /mobile-pwa-v155-training-nutrition-analytics/);
+  assert.match(worker, /mobile-pwa-v156-garmin-setup-walkthrough/);
   assert.equal(fs.existsSync(path.join(ROOT, "icons/icon.svg")), false);
 });
 

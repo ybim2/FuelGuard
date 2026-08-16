@@ -235,7 +235,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   const buildInfo = read("build-info.js");
   const pwa = read("app-pwa.js");
   const sw = read("sw.js");
-  const version = "mobile-pwa-v155-training-nutrition-analytics";
+  const version = "mobile-pwa-v156-garmin-setup-walkthrough";
 
   assert.match(html, new RegExp(version));
   assert.match(buildInfo, new RegExp(version));
@@ -245,7 +245,7 @@ test("PWA cache and asset versions are coherent for the accepted integrated rele
   assert.match(coachHtml, /\.\.\/build-info\.js/);
   assert.match(coachHtml, /\.\.\/app-pwa\.js/);
   assert.match(sw, new RegExp(version));
-  assert.match(sw, /20260815T175813Z/);
+  assert.match(sw, /20260816T062313Z/);
   assert.match(sw, /coach\/index\.html/);
   assert.match(sw, /coach\/coach-platform\.js/);
   assert.match(sw, /coach\/coach-attention\.js/);

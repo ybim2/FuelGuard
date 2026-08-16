@@ -740,8 +740,13 @@ test("Garmin duplicate external_event_id creates exactly one Supabase row", asyn
 }));
 
 test("Garmin connected devices are user-scoped and cannot be revoked by another user", async () => withFake(async (fake) => {
-  await pairDevice(fake, { appId: "quick_log", state: "user-a", userToken: "user-token-a" });
+  const quick = await pairDevice(fake, { appId: "quick_log", state: "user-a", userToken: "user-token-a" });
   await pairDevice(fake, { appId: "activity_logger", state: "user-b", userToken: "user-token-b" });
+  const logged = await call(auth.garminLogHandler, {
+    token: quick.deviceToken,
+    body: { ...VALID_EVENT, external_event_id: "onboarding-user-a" }
+  });
+  assert.equal(logged.statusCode, 201);
   const userA = await call(auth.devicesHandler, { method: "GET", token: "user-token-a" });
   const userB = await call(auth.devicesHandler, { method: "GET", token: "user-token-b" });
   assert.equal(userA.statusCode, 200);
@@ -749,6 +754,26 @@ test("Garmin connected devices are user-scoped and cannot be revoked by another 
   assert.equal(userA.json.devices.length, 1);
   assert.equal(userB.json.devices.length, 1);
   assert.notEqual(userA.json.devices[0].id, userB.json.devices[0].id);
+  assert.deepEqual(userA.json.onboarding, {
+    quick_log_connected: true,
+    first_watch_log_received: true,
+    latest_watch_log_at: VALID_EVENT.logged_at,
+    latest_watch_log_type: "fuel",
+    completed: true
+  });
+  assert.deepEqual(userB.json.onboarding, {
+    quick_log_connected: false,
+    first_watch_log_received: false,
+    latest_watch_log_at: null,
+    latest_watch_log_type: null,
+    completed: false
+  });
+
+  delete process.env.GARMIN_TOKEN_PEPPER;
+  const supabaseOnlyStatus = await call(auth.devicesHandler, { method: "GET", token: "user-token-a" });
+  assert.equal(supabaseOnlyStatus.statusCode, 200);
+  assert.equal(supabaseOnlyStatus.json.onboarding.completed, true);
+  process.env.GARMIN_TOKEN_PEPPER = BASE_ENV.GARMIN_TOKEN_PEPPER;
 
   const forbidden = await call(auth.revokeDeviceHandler, { token: "user-token-b", body: { device_id: userA.json.devices[0].id } });
   assert.equal(forbidden.statusCode, 404);
