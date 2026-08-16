@@ -80,19 +80,22 @@ test("Supabase Google OAuth uses the existing auth client and email auth remains
   assert.match(read("performance/index.html"), /id="appShell" class="performance-shell" hidden/);
 });
 
-test("Garmin onboarding is authenticated, connection-derived, dismissible and recoverable from Settings", () => {
+test("Garmin onboarding is account-persistent, watch-event verified and recoverable from Settings", () => {
   const html = read("index.html");
   const devices = read("garmin-connected-devices.js");
   const onboarding = read("garmin-onboarding.js");
-  const setupUrl = "https://app.notion.com/p/Fuel-Guard-Setup-HQ-3b7ab7791e2081c0bf99dc4c34cb7501";
   assert.match(devices, /quickLogConnected: status === "ready" && activeDevices\("quick_log"\)\.length > 0/);
+  assert.match(devices, /firstWatchLogReceived/);
   assert.match(onboarding, /auth\.signedIn/);
   assert.match(onboarding, /garmin\.status === "ready"/);
-  assert.match(onboarding, /fuelGuardQuickLogOnboardingDismissed:/);
-  assert.match(html, /Get more from Fuel Guard/);
-  assert.match(html, /Log fuel, hydration and sleepy moments straight from your wrist/);
-  assert.match(html, /https:\/\/apps\.garmin\.com\/apps\/daa45a0d-e858-4b08-84b1-e9bb9a8196f3/);
-  assert.ok(html.split(setupUrl).length >= 4, "Setup Guide is available from auth, onboarding and Settings");
+  assert.match(onboarding, /fuel_guard_garmin_onboarding/);
+  assert.match(onboarding, /garmin\.quickLogConnected && garmin\.firstWatchLogReceived/);
+  assert.match(html, /Have a Garmin\?/);
+  assert.match(html, /garminSetupPrompt/);
+  assert.match(html, /garminOnboardingSettingsStatus/);
+  assert.match(onboarding, /I don’t use Garmin/);
+  assert.match(onboarding, /Waiting for your first Garmin log/);
+  assert.match(onboarding, /https:\/\/apps\.garmin\.com\/en-US\/apps\/daa45a0d-e858-4b08-84b1-e9bb9a8196f3/);
   assert.match(html, /Garmin, installation and getting started/);
 });
 
@@ -116,5 +119,5 @@ test("new authentication assets are versioned in the offline app shell", () => {
   for (const asset of ["fuel-auth.css", "fuel-auth.js", "garmin-onboarding.css", "garmin-onboarding.js", "logging-feedback.js"]) {
     assert.match(sw, new RegExp(asset.replace(".", "\\.")));
   }
-  assert.match(read("build-info.js"), /mobile-pwa-v155-training-nutrition-analytics/);
+  assert.match(read("build-info.js"), /mobile-pwa-v156-garmin-setup-walkthrough/);
 });

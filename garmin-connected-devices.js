@@ -39,6 +39,12 @@
   let reconnectPollAttempts = 0;
   let reconnectPollAppId = null;
   let reconnectSuccessTimer = null;
+  let onboarding = {
+    quickLogConnected: false,
+    firstWatchLogReceived: false,
+    latestWatchLogAt: "",
+    completed: false
+  };
 
   function els() {
     return {
@@ -102,7 +108,10 @@
     const detail = {
       status,
       userId: String(currentUser?.id || ""),
-      quickLogConnected: status === "ready" && activeDevices("quick_log").length > 0
+      quickLogConnected: status === "ready" && activeDevices("quick_log").length > 0,
+      firstWatchLogReceived: status === "ready" && Boolean(onboarding.firstWatchLogReceived),
+      latestWatchLogAt: status === "ready" ? String(onboarding.latestWatchLogAt || "") : "",
+      completed: status === "ready" && activeDevices("quick_log").length > 0 && Boolean(onboarding.firstWatchLogReceived)
     };
     const EventConstructor = window.CustomEvent || globalThis.CustomEvent;
     window.dispatchEvent(typeof EventConstructor === "function"
@@ -312,6 +321,12 @@
       const response = await fetch("/api/garmin/devices", { headers: { Authorization: `Bearer ${token()}` } });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load Garmin apps.");
+      onboarding = {
+        quickLogConnected: Boolean(data.onboarding?.quick_log_connected),
+        firstWatchLogReceived: Boolean(data.onboarding?.first_watch_log_received),
+        latestWatchLogAt: String(data.onboarding?.latest_watch_log_at || ""),
+        completed: Boolean(data.onboarding?.completed)
+      };
       renderRows(data.devices || []);
       publishConnectionState("ready");
       const reconnected = dialogState?.type === "guide"
@@ -400,5 +415,6 @@
   window.addEventListener("pageshow", loadDevices);
   window.addEventListener("focus", loadDevices);
   window.addEventListener("fuelguard:cloud-status", loadDevices);
+  window.addEventListener("fuelguard:auth-state", loadDevices);
   window.fuelGuardGarminDevices = Object.freeze({ refresh: loadDevices });
 })();
