@@ -130,7 +130,7 @@ function fuelGuardQuickLogSelectedType(selectionMoves as Number, expectedType as
         && dispatchedLoggedAt != null
         && (dispatchedLoggedAt as String).equals(loggedAt as String)
         && fuelGuardQuickEventMatches(event, expectedType)
-        && !view.isConfirming()
+        && view.isConfirming()
         && view.pendingEventIdForTest() != null
         && (view.pendingEventIdForTest() as String).equals(eventId as String)
         && view.confirmationTypeForTest().equals(expectedType)
@@ -383,17 +383,17 @@ function testFuelGuardQuickLogStatusMismatchCannotOptimisticallyConfirmPendingSt
 }
 
 (:test)
-function testFuelGuardQuickLogEnterFuelPersistsPendingWithoutFalseSuccess(logger) as Boolean {
+function testFuelGuardQuickLogEnterFuelConfirmsDurableOfflineSave(logger) as Boolean {
     return fuelGuardQuickLogSelectedType(0, FuelGuardEvents.TYPE_FUEL, "FUEL");
 }
 
 (:test)
-function testFuelGuardQuickLogEnterHydrationPersistsPendingWithoutFalseSuccess(logger) as Boolean {
+function testFuelGuardQuickLogEnterHydrationConfirmsDurableOfflineSave(logger) as Boolean {
     return fuelGuardQuickLogSelectedType(1, FuelGuardEvents.TYPE_HYDRATION, "HYDRATION");
 }
 
 (:test)
-function testFuelGuardQuickLogEnterSleepyPersistsPendingWithoutFalseSuccess(logger) as Boolean {
+function testFuelGuardQuickLogEnterSleepyConfirmsDurableOfflineSave(logger) as Boolean {
     return fuelGuardQuickLogSelectedType(2, FuelGuardEvents.TYPE_SLEEPY, "SLEEPY");
 }
 
@@ -410,11 +410,28 @@ function testFuelGuardQuickLogDirectLogSelectionUsesProductionPath(logger) as Bo
         return false;
     }
 
-    return !view.isConfirming()
+    return view.isConfirming()
         && FuelGuardQueue.pendingCount() == 1
         && FuelGuardApi.dispatchCountForTest() == 1
         && FuelGuardApi.queuedBeforeDispatchForTest()
         && fuelGuardQuickEventMatches(event, FuelGuardEvents.TYPE_HYDRATION);
+}
+
+(:test)
+function testFuelGuardQuickLogRequestStartFailureStillConfirmsLocalSave(logger) as Boolean {
+    fuelGuardQuickReset(201, {"result" => "ok"});
+    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, true);
+
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+
+    var event = FuelGuardQueue.peek();
+    return event != null
+        && view.isConfirming()
+        && view.pendingEventIdForTest() != null
+        && FuelGuardQueue.pendingCount() == 1
+        && FuelGuardApi.dispatchCountForTest() == 0
+        && !FuelGuardApi.inFlightForTest();
 }
 
 (:test)

@@ -496,9 +496,14 @@ test("Activity Logger uses onTimerLap and persists before upload", () => {
   assert.match(source, /FuelGuardEvents\.TYPE_FUEL/);
 });
 
-test("Quick Log supports fuel, hydration and sleepy actions and persists before upload", () => {
+test("Quick Log confirms durable local saves before attempting upload", () => {
   const source = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
   const logSelection = sourceBlock(source, "function logSelection()", "public function onUpdate");
+  const acknowledgement = sourceBlock(
+    source,
+    "private function updateAcknowledgedConfirmation()",
+    "public function finishSyncStatus"
+  );
 
   assert.match(source, /FuelGuardEvents\.TYPE_FUEL/);
   assert.match(source, /FuelGuardEvents\.TYPE_HYDRATION/);
@@ -506,6 +511,14 @@ test("Quick Log supports fuel, hydration and sleepy actions and persists before 
   assert.doesNotMatch(source, /FuelGuardEvents\.TYPE_FUEL_HYDRATION/);
   assert.match(source, /function onUpdate\(dc as Graphics\.Dc\) as Void/);
   assertSourceOrder(logSelection, "FuelGuardQueue.enqueue(event);", "FuelGuardApi.trySync(true);");
+  assertSourceOrder(logSelection, "FuelGuardQueue.enqueue(event);", "_confirmStartedAt = _pendingStartedAt;");
+  assertSourceOrder(logSelection, "_confirmStartedAt = _pendingStartedAt;", "FuelGuardFeedback.vibrateSuccess();");
+  assertSourceOrder(logSelection, "FuelGuardFeedback.vibrateSuccess();", "FuelGuardApi.trySync(true);");
+  assert.doesNotMatch(acknowledgement, /vibrateSuccess|startConfirmationTimer|_confirmStartedAt\s*=/);
+  assert.match(
+    readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogViewTests.mc"),
+    /testFuelGuardQuickLogRequestStartFailureStillConfirmsLocalSave/
+  );
 });
 
 test("Garmin sources avoid unsupported String.trim", () => {

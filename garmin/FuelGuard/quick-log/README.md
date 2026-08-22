@@ -10,6 +10,7 @@ Connect IQ Watch App with Glance on compatible devices. The Forerunner 255 (`fr2
 - START logs Fuel, Hydrate or Sleepy.
 - ESC exits normally.
 - Events are persisted before upload and retried later if offline.
+- A successful local save confirms immediately; pending sync remains visible until the server acknowledges it.
 
 ## Build
 
