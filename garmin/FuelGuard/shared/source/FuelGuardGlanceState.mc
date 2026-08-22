@@ -89,7 +89,7 @@ module FuelGuardGlanceState {
         return true;
     }
 
-    function recordAcknowledgedFuel(timestamp as Number) as Boolean {
+    function recordFuel(timestamp as Number, synced as Boolean) as Boolean {
         var now = nowSeconds();
         if (timestamp <= 0 || timestamp > now + MAX_CLOCK_SKEW_SECONDS) {
             return false;
@@ -98,9 +98,19 @@ module FuelGuardGlanceState {
         if (existing == null || timestamp >= (existing as Number)) {
             Storage.setValue(LAST_FUEL_KEY, timestamp);
         }
-        Storage.setValue(LAST_SYNC_KEY, now);
+        if (synced) {
+            Storage.setValue(LAST_SYNC_KEY, now);
+        }
         Storage.setValue(STATUS_KNOWN_KEY, true);
         return true;
+    }
+
+    function recordLocalFuel(timestamp as Number) as Boolean {
+        return recordFuel(timestamp, false);
+    }
+
+    function recordAcknowledgedFuel(timestamp as Number) as Boolean {
+        return recordFuel(timestamp, true);
     }
 
     function markUnavailable() as Void {
@@ -110,13 +120,17 @@ module FuelGuardGlanceState {
     }
 
     function elapsedText(elapsed as Number) as String {
+        if (elapsed < 0) {
+            elapsed = 0;
+        }
         if (elapsed < 60) {
             return "<1m ago";
         }
         var minutes = elapsed / 60;
         var hours = minutes / 60;
-        if (hours >= 5) {
-            return "5h+ ago";
+        if (hours >= 24) {
+            var days = hours / 24;
+            return Lang.format("$1$d ago", [days]);
         }
         if (hours >= 1) {
             return Lang.format("$1$h $2$m ago", [hours, minutes % 60]);
@@ -125,21 +139,24 @@ module FuelGuardGlanceState {
     }
 
     function metric() as String {
-        if (!fresh()) {
-            return "Open Fuel Guard";
-        }
         var lastFuel = lastFuelSeconds();
-        if (lastFuel == null) {
+        if (lastFuel != null) {
+            return elapsedText(nowSeconds() - (lastFuel as Number));
+        }
+        if (statusKnown()) {
             return "No fuel logged";
         }
-        return elapsedText(nowSeconds() - (lastFuel as Number));
+        return "Open Fuel Guard";
     }
 
     function label() as String {
-        if (!fresh()) {
-            return "to sync";
+        if (lastFuelSeconds() != null) {
+            return fresh() ? "Last fuel" : "Last fuel cached";
         }
-        return lastFuelSeconds() == null ? "today" : "Last fuel";
+        if (statusKnown()) {
+            return fresh() ? "today" : "cached";
+        }
+        return "to sync";
     }
 
     (:debug)
