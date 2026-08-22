@@ -66,12 +66,19 @@ scan_package() {
   local forbidden='(sb_secret_|SUPABASE_SECRET|SUPABASE_SERVICE_ROLE|GARMIN_TOKEN_PEPPER|VERCEL_AUTOMATION_BYPASS_SECRET|developer_key|BEGIN [A-Z ]*PRIVATE KEY|\.env|\.vercel)'
   scan_dir="$(mktemp -d /private/tmp/fuelguard-public-iq.XXXXXX)"
   LC_ALL=C bsdtar -xf "$package" -C "$scan_dir"
-  if LC_ALL=C rg -a -l "$forbidden" "$scan_dir" >/dev/null; then
+  if command -v rg >/dev/null 2>&1; then
+    forbidden_match() { LC_ALL=C rg -a -l "$forbidden" "$scan_dir" >/dev/null; }
+    endpoint_match() { LC_ALL=C rg -a -l -F 'https://fuelguardapp.com' "$scan_dir" >/dev/null; }
+  else
+    forbidden_match() { LC_ALL=C grep -a -r -l -E "$forbidden" "$scan_dir" >/dev/null; }
+    endpoint_match() { LC_ALL=C grep -a -r -l -F 'https://fuelguardapp.com' "$scan_dir" >/dev/null; }
+  fi
+  if forbidden_match; then
     rm -rf "$scan_dir"
     echo "Public package contains a forbidden secret-like or local-development string: $package" >&2
     exit 1
   fi
-  if ! LC_ALL=C rg -a -l -F 'https://fuelguardapp.com' "$scan_dir" >/dev/null; then
+  if ! endpoint_match; then
     rm -rf "$scan_dir"
     echo "Public package is missing the expected Fuel Guard endpoint: $package" >&2
     exit 1
