@@ -48,27 +48,29 @@ class FuelGuardQuickLogGlance extends WatchUi.GlanceView {
         return FuelGuardGlanceState.label();
     }
 
+    (:debug)
+    public function summaryForTest() as String {
+        return FuelGuardGlanceState.summary();
+    }
+
     public function onUpdate(dc as Graphics.Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
 
         var height = dc.getHeight();
-        var metric = "Open Fuel Guard";
-        var label = "to sync";
+        var summary = "Open FG to sync";
         try {
-            metric = FuelGuardGlanceState.metric();
-            label = FuelGuardGlanceState.label();
+            summary = FuelGuardGlanceState.connected()
+                ? FuelGuardGlanceState.summary()
+                : "Connect Fuel Guard";
         } catch (e) {
-            metric = "Open Fuel Guard";
-            label = "to sync";
+            summary = "Open FG to sync";
         }
-        var titleY = height < 80 ? 11 : 14;
-        var metricY = height < 92 ? height / 2 - 3 : height / 2 - 8;
-        var labelY = height < 92 ? height - 18 : height / 2 + 26;
-        var metricFont = metric.length() > 12 || dc.getWidth() < 140 ? Graphics.FONT_XTINY : Graphics.FONT_SMALL;
+        var titleY = height / 2 - 13;
+        var summaryY = height / 2 + 13;
+        var summaryFont = summary.length() > 20 || dc.getWidth() < 140 ? Graphics.FONT_XTINY : Graphics.FONT_SMALL;
 
         drawCenter(dc, titleY, Graphics.FONT_XTINY, "Fuel Guard", Graphics.COLOR_GREEN);
-        drawCenter(dc, metricY, metricFont, metric, Graphics.COLOR_WHITE);
-        drawCenter(dc, labelY, Graphics.FONT_XTINY, label, Graphics.COLOR_LT_GRAY);
+        drawCenter(dc, summaryY, summaryFont, summary, Graphics.COLOR_WHITE);
     }
 }

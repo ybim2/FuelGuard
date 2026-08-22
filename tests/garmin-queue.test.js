@@ -586,7 +586,7 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(queueSource, /!\(itemId as String\)\.equals\(eventId\)/);
 });
 
-test("Quick Log glance renders only validated server-confirmed fuel status without lifecycle network sync", () => {
+test("Quick Log registers and renders its pre-open glance without lifecycle network sync", () => {
   const appSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogGlance.mc");
   const glanceStateSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardGlanceState.mc");
@@ -600,40 +600,49 @@ test("Quick Log glance renders only validated server-confirmed fuel status witho
   assert.doesNotMatch(onStart, /FuelGuardConnection\.configure/);
   assert.doesNotMatch(onStart, /registerForOAuthMessages/);
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
+  assert.doesNotMatch(appSource, /\(:glance\)\s*class FuelGuardQuickLogApp/);
+  assert.match(appSource, /\(:glance\)\s*public function getGlanceView/);
   assert.match(onAuthenticationRequest, /FuelGuardConnection\.configure\(FuelGuardConnection\.APP_QUICK_LOG\)/);
   assert.match(onAuthenticationRequest, /FuelGuardConnection\.registerForOAuthMessages\(\)/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
   assert.doesNotMatch(glanceSource, /FuelGuardFeedback/);
   assert.doesNotMatch(glanceSource, /FuelGuardQueue/);
   assert.doesNotMatch(glanceSource, /FuelGuardHealth/);
-  assert.match(glanceSource, /FuelGuardGlanceState\.metric\(\)/);
-  assert.match(glanceSource, /FuelGuardGlanceState\.label\(\)/);
-  assert.match(glanceSource, /try \{[\s\S]*FuelGuardGlanceState\.metric\(\)[\s\S]*catch \(e\)/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.summary\(\)/);
+  assert.match(glanceSource, /FuelGuardGlanceState\.connected\(\)/);
+  assert.match(glanceSource, /try \{[\s\S]*FuelGuardGlanceState\.summary\(\)[\s\S]*catch \(e\)/);
   assert.match(glanceSource, /getTextWidthInPixels/);
+  assert.match(glanceSource, /Connect Fuel Guard/);
   assert.match(glanceStateSource, /LAST_SYNC_KEY/);
-  assert.match(glanceStateSource, /MAX_STALE_SECONDS/);
+  assert.match(glanceStateSource, /TOKEN_KEY = "fg_device_token"/);
+  assert.match(glanceStateSource, /LOCAL_FUEL_KEY/);
   assert.match(glanceStateSource, /applyServerStatus\(data as Dictionary\)/);
+  assert.match(glanceStateSource, /recordLocalFuel\(timestamp as Number\)/);
   assert.match(glanceStateSource, /recordAcknowledgedFuel\(timestamp as Number\)/);
   assert.match(glanceStateSource, /function markUnavailable\(\)[\s\S]*Storage\.deleteValue\(LAST_FUEL_KEY\)/);
-  assert.match(glanceStateSource, /Open Fuel Guard/);
+  assert.match(glanceStateSource, /Open FG to sync/);
   assert.match(glanceStateSource, /No fuel logged/);
-  assert.match(glanceStateSource, /Last fuel/);
-  assert.match(glanceStateSource, /5h\+ ago/);
+  assert.match(glanceStateSource, /Fuelled just now/);
+  assert.match(glanceStateSource, /Last fuel: /);
+  assert.doesNotMatch(glanceStateSource, /MAX_STALE_SECONDS|5h\+ ago/);
   assert.doesNotMatch(glanceSource, /Open to log/);
 });
 
-test("Quick Log fuel status is optimistic-free and refreshed through the existing authenticated status path", () => {
+test("Quick Log persists local Fuel for the glance and reconciles it with authenticated status", () => {
   const eventsSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardEvents.mc");
   const apiSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardApi.mc");
   const trainingSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardTraining.mc");
+  const viewSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogView.mc");
   const quickLogTests = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogViewTests.mc");
 
   assert.doesNotMatch(eventsSource, /FuelGuardGlanceState\.recordFuel/);
   assert.doesNotMatch(eventsSource, /Storage\.setValue\(LAST_FUEL_KEY, timestamp\)/);
+  assertSourceOrder(viewSource, "FuelGuardQueue.enqueue(event)", "FuelGuardGlanceState.recordLocalFuel");
   assert.match(apiSource, /if \(acknowledgedAt instanceof Number\)[\s\S]*FuelGuardGlanceState\.recordAcknowledgedFuel/);
   assert.match(trainingSource, /FuelGuardGlanceState\.applyServerStatus\(values\)/);
-  assert.match(quickLogTests, /testFuelGuardQuickLogFuelDoesNotUpdateGlanceBeforeServerAcknowledgement/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogDurableOfflineFuelUpdatesGlanceImmediately/);
   assert.match(quickLogTests, /testFuelGuardQuickLogAcknowledgedFuelUpdatesGlance/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogOlderServerStatusCannotReplaceNewerLocalFuel/);
   assert.match(quickLogTests, /testFuelGuardQuickLogStatusRefreshAppliesAthleteFuelToGlance/);
   assert.match(quickLogTests, /testFuelGuardQuickLogDisconnectClearsPriorAthleteGlanceState/);
 });

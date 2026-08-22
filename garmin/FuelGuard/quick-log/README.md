@@ -4,13 +4,13 @@ Connect IQ Watch App with Glance on compatible devices. The Forerunner 255 (`fr2
 
 ## What it does
 
-- Glance shows Fuel Guard, time since the most recent fuel log saved locally on the watch, and a small pending count when needed. It does not fetch the latest server state while sitting in the glance.
+- The pre-open glance shows Fuel Guard and the time since the most recent fuel log saved locally on the watch. It does not fetch the latest server state while sitting in the glance.
 - Opening the app defaults to Fuel for the fastest flow.
 - UP/DOWN changes selection.
 - START logs Fuel, Hydrate or Sleepy.
 - ESC exits normally.
 - Events are persisted before upload and retried later if offline.
-- A successful local save confirms immediately; pending sync remains visible until the server acknowledges it.
+- A successful local Fuel save updates the glance immediately; pending sync remains visible inside Quick Log until the server acknowledges it.
 
 ## Build
 
