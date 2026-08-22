@@ -78,7 +78,7 @@ class FuelGuardQuickLogView extends WatchUi.View {
                 WatchUi.requestUpdate();
                 return;
             }
-            if (eventType.equals(FuelGuardEvents.TYPE_FUEL) || eventType.equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
+            if (eventType.equals(FuelGuardEvents.TYPE_FUEL)) {
                 var localFuelAt = event["logged_at_seconds"];
                 if (localFuelAt instanceof Number) {
                     FuelGuardGlanceState.recordLocalFuel(localFuelAt as Number);

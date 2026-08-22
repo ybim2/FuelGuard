@@ -7,6 +7,7 @@ import Toybox.WatchUi;
 (:debug)
 function fuelGuardQuickReset(responseCode as Number, data as Dictionary or String or Null) as Void {
     FuelGuardDiagnostics.resetForTest();
+    FuelGuardGlanceState.resetForTest();
     FuelGuardQueue.saveQueue([]);
     FuelGuardConnection.resetForTest();
     FuelGuardConnection.setConnectedForTest("device-token-test");
@@ -504,6 +505,23 @@ function testFuelGuardQuickLogConnectedTrainingRefreshContainsRequestStartFailur
 }
 
 (:test)
+function testFuelGuardQuickLogLaunchContainsPhoneUnavailableRequests(logger) as Boolean {
+    fuelGuardQuickReset(201, {"result" => "ok"});
+    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, true);
+    FuelGuardTraining.useThrowingRefreshTransportForTest();
+    FuelGuardQueue.enqueue(FuelGuardEvents.create(FuelGuardEvents.TYPE_HYDRATION));
+
+    var view = new FuelGuardQuickLogView();
+    view.onShow();
+
+    return FuelGuardConnection.connected()
+        && FuelGuardQueue.pendingCount() == 1
+        && !FuelGuardApi.inFlightForTest()
+        && !FuelGuardTraining.refreshInFlightForTest()
+        && !FuelGuardDiagnostics.hasError();
+}
+
+(:test)
 function testFuelGuardQuickLogConnectedTrainingResponseUsesContextWithoutRefreshLoop(logger) as Boolean {
     fuelGuardQuickReset(200, {"result" => "ok"});
     FuelGuardTraining.useHeldRefreshTransportForTest(200, {"active" => true});
@@ -646,33 +664,31 @@ function testFuelGuardQuickLogGlanceShowsFreshNoFuelState(logger) as Boolean {
 }
 
 (:test)
-function testFuelGuardQuickLogGlanceRequiresSyncWhenCachedStateIsStale(logger) as Boolean {
+function testFuelGuardQuickLogGlanceKeepsCachedFuelWhenSyncIsStale(logger) as Boolean {
     FuelGuardGlanceState.resetForTest();
     var now = FuelGuardEvents.nowSeconds();
-    FuelGuardGlanceState.setStatusForTest(now - 60, now - FuelGuardGlanceState.MAX_STALE_SECONDS - 1);
+    FuelGuardGlanceState.setStatusForTest(now - (6 * 60 * 60) - (20 * 60), now - FuelGuardGlanceState.MAX_STALE_SECONDS - 1);
 
     var glance = new FuelGuardQuickLogGlance();
 
     return !FuelGuardGlanceState.freshForTest()
-        && glance.metricForTest().equals("Open Fuel Guard")
-        && glance.labelForTest().equals("to sync");
+        && glance.metricForTest().equals("6h 20m ago")
+        && glance.labelForTest().equals("Last fuel cached");
 }
 
 (:test)
-function testFuelGuardQuickLogFuelDoesNotUpdateGlanceBeforeServerAcknowledgement(logger) as Boolean {
-    FuelGuardQueue.saveQueue([]);
-    FuelGuardConnection.resetForTest();
-    FuelGuardConnection.setConnectedForTest("device-token");
-    FuelGuardApi.resetForTest();
-    FuelGuardApi.useTestTransport(500, null, false);
-    FuelGuardGlanceState.resetForTest();
+function testFuelGuardQuickLogOfflineFuelImmediatelyUpdatesGlance(logger) as Boolean {
+    fuelGuardQuickReset(500, null);
 
-    var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
-    FuelGuardQueue.enqueue(event);
-    FuelGuardApi.trySync(true);
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
 
-    return FuelGuardGlanceState.lastFuelSecondsForTest() == null
-        && FuelGuardQueue.pendingCount() == 1;
+    var glance = new FuelGuardQuickLogGlance();
+    return FuelGuardGlanceState.lastFuelSecondsForTest() != null
+        && FuelGuardGlanceState.pendingLocalFuelSecondsForTest() != null
+        && FuelGuardQueue.pendingCount() == 1
+        && glance.metricForTest().equals("<1m ago")
+        && glance.labelForTest().equals("Last fuel cached");
 }
 
 (:test)
@@ -693,8 +709,77 @@ function testFuelGuardQuickLogAcknowledgedFuelUpdatesGlance(logger) as Boolean {
     return loggedAt instanceof Number
         && stored instanceof Number
         && (stored as Number) == (loggedAt as Number)
+        && FuelGuardGlanceState.pendingLocalFuelSecondsForTest() == null
         && FuelGuardGlanceState.freshForTest()
         && FuelGuardQueue.pendingCount() == 0;
+}
+
+(:test)
+function testFuelGuardQuickLogReconnectAcknowledgesQueuedFuelWithoutChangingPersonalGlance(logger) as Boolean {
+    fuelGuardQuickReset(201, {"result" => "ok"});
+    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, true);
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
+
+    var localFuel = FuelGuardGlanceState.lastFuelSecondsForTest();
+    if (localFuel == null || FuelGuardQueue.pendingCount() != 1) {
+        return false;
+    }
+
+    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, false);
+    FuelGuardApi.trySync(true);
+
+    return FuelGuardQueue.pendingCount() == 0
+        && FuelGuardGlanceState.pendingLocalFuelSecondsForTest() == null
+        && FuelGuardGlanceState.freshForTest()
+        && FuelGuardGlanceState.lastFuelSecondsForTest() == localFuel;
+}
+
+(:test)
+function testFuelGuardQuickLogOlderServerStatusDoesNotReplacePendingLocalFuel(logger) as Boolean {
+    FuelGuardGlanceState.resetForTest();
+    var now = FuelGuardEvents.nowSeconds();
+    FuelGuardGlanceState.recordLocalFuel(now);
+
+    var applied = FuelGuardGlanceState.applyServerStatus({
+        "fuel_status" => {
+            "last_fuel_at_seconds" => now - (2 * 60 * 60),
+            "synced_at_seconds" => now
+        }
+    });
+
+    return applied
+        && FuelGuardGlanceState.lastFuelSecondsForTest() == now
+        && FuelGuardGlanceState.pendingLocalFuelSecondsForTest() == now;
+}
+
+(:test)
+function testFuelGuardQuickLogServerStatusUpdatesCachedFuelWithoutPendingLocalEvent(logger) as Boolean {
+    FuelGuardGlanceState.resetForTest();
+    var now = FuelGuardEvents.nowSeconds();
+    FuelGuardGlanceState.setStatusForTest(now - (3 * 60 * 60), now - 60);
+
+    var applied = FuelGuardGlanceState.applyServerStatus({
+        "fuel_status" => {
+            "last_fuel_at_seconds" => now - (45 * 60),
+            "synced_at_seconds" => now
+        }
+    });
+
+    return applied
+        && FuelGuardGlanceState.lastFuelSecondsForTest() == now - (45 * 60)
+        && FuelGuardGlanceState.pendingLocalFuelSecondsForTest() == null;
+}
+
+(:test)
+function testFuelGuardQuickLogMalformedCachedFuelFallsBackWithoutCrash(logger) as Boolean {
+    FuelGuardGlanceState.resetForTest();
+    FuelGuardGlanceState.setMalformedStateForTest();
+
+    var glance = new FuelGuardQuickLogGlance();
+    return FuelGuardGlanceState.lastFuelSecondsForTest() == null
+        && glance.metricForTest().equals("Open Fuel Guard")
+        && glance.labelForTest().equals("to sync");
 }
 
 (:test)
