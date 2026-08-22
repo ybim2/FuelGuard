@@ -2,7 +2,6 @@ import Toybox.Application;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
-(:glance)
 class FuelGuardQuickLogApp extends Application.AppBase {
     public function initialize() {
         AppBase.initialize();
@@ -25,6 +24,7 @@ class FuelGuardQuickLogApp extends Application.AppBase {
         return [view, new $.FuelGuardQuickLogDelegate(view)];
     }
 
+    (:glance)
     public function getGlanceView() as [WatchUi.GlanceView] or [WatchUi.GlanceView, WatchUi.GlanceViewDelegate] or Null {
         return [new $.FuelGuardQuickLogGlance()];
     }

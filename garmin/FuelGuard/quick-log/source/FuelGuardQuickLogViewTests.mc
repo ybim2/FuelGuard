@@ -360,9 +360,10 @@ function testFuelGuardQuickLogStatusRefreshAppliesAthleteFuelToGlance(logger) as
     FuelGuardTraining.deliverHeldRefreshResponseForTest();
 
     var glance = new FuelGuardQuickLogGlance();
-    return FuelGuardGlanceState.freshForTest()
+    return FuelGuardGlanceState.statusKnownForTest()
         && glance.metricForTest().equals("2h 47m ago")
-        && glance.labelForTest().equals("Last fuel");
+        && glance.labelForTest().equals("Last fuel")
+        && glance.summaryForTest().equals("Last fuel: 2h 47m ago");
 }
 
 (:test)
@@ -631,7 +632,8 @@ function testFuelGuardQuickLogGlanceShowsFreshServerFuel(logger) as Boolean {
     var glance = new FuelGuardQuickLogGlance();
 
     return glance.metricForTest().equals("1h 8m ago")
-        && glance.labelForTest().equals("Last fuel");
+        && glance.labelForTest().equals("Last fuel")
+        && glance.summaryForTest().equals("Last fuel: 1h 8m ago");
 }
 
 (:test)
@@ -642,59 +644,88 @@ function testFuelGuardQuickLogGlanceShowsFreshNoFuelState(logger) as Boolean {
     var glance = new FuelGuardQuickLogGlance();
 
     return glance.metricForTest().equals("No fuel logged")
-        && glance.labelForTest().equals("today");
+        && glance.labelForTest().equals("")
+        && glance.summaryForTest().equals("No fuel logged");
 }
 
 (:test)
-function testFuelGuardQuickLogGlanceRequiresSyncWhenCachedStateIsStale(logger) as Boolean {
+function testFuelGuardQuickLogGlanceKeepsLastKnownFuelBeyondSixHours(logger) as Boolean {
     FuelGuardGlanceState.resetForTest();
     var now = FuelGuardEvents.nowSeconds();
-    FuelGuardGlanceState.setStatusForTest(now - 60, now - FuelGuardGlanceState.MAX_STALE_SECONDS - 1);
+    FuelGuardGlanceState.setStatusForTest(now - (6 * 60 * 60), now - (7 * 60 * 60));
 
     var glance = new FuelGuardQuickLogGlance();
 
-    return !FuelGuardGlanceState.freshForTest()
-        && glance.metricForTest().equals("Open Fuel Guard")
-        && glance.labelForTest().equals("to sync");
+    return FuelGuardGlanceState.statusKnownForTest()
+        && glance.metricForTest().equals("6h 0m ago")
+        && glance.labelForTest().equals("Last fuel")
+        && glance.summaryForTest().equals("Last fuel: 6h 0m ago");
 }
 
 (:test)
-function testFuelGuardQuickLogFuelDoesNotUpdateGlanceBeforeServerAcknowledgement(logger) as Boolean {
-    FuelGuardQueue.saveQueue([]);
-    FuelGuardConnection.resetForTest();
-    FuelGuardConnection.setConnectedForTest("device-token");
-    FuelGuardApi.resetForTest();
-    FuelGuardApi.useTestTransport(500, null, false);
+function testFuelGuardQuickLogDurableOfflineFuelUpdatesGlanceImmediately(logger) as Boolean {
+    fuelGuardQuickReset(500, null);
     FuelGuardGlanceState.resetForTest();
 
-    var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
-    FuelGuardQueue.enqueue(event);
-    FuelGuardApi.trySync(true);
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
 
-    return FuelGuardGlanceState.lastFuelSecondsForTest() == null
+    var stored = FuelGuardGlanceState.lastFuelSecondsForTest();
+    var localFuel = FuelGuardGlanceState.localFuelSecondsForTest();
+    var glance = new FuelGuardQuickLogGlance();
+    return stored instanceof Number
+        && localFuel instanceof Number
+        && (stored as Number) == (localFuel as Number)
+        && FuelGuardGlanceState.statusKnownForTest()
+        && glance.metricForTest().equals("Fuelled just now")
+        && glance.summaryForTest().equals("Fuelled just now")
         && FuelGuardQueue.pendingCount() == 1;
 }
 
 (:test)
 function testFuelGuardQuickLogAcknowledgedFuelUpdatesGlance(logger) as Boolean {
-    FuelGuardQueue.saveQueue([]);
-    FuelGuardConnection.resetForTest();
-    FuelGuardConnection.setConnectedForTest("device-token");
-    FuelGuardApi.resetForTest();
-    FuelGuardApi.useTestTransport(201, {"result" => "ok"}, false);
+    fuelGuardQuickReset(201, {"result" => "ok"});
     FuelGuardGlanceState.resetForTest();
 
-    var event = FuelGuardEvents.create(FuelGuardEvents.TYPE_FUEL);
-    var loggedAt = event["logged_at_seconds"];
-    FuelGuardQueue.enqueue(event);
-    FuelGuardApi.trySync(true);
+    var view = new FuelGuardQuickLogView();
+    view.logSelection();
 
     var stored = FuelGuardGlanceState.lastFuelSecondsForTest();
-    return loggedAt instanceof Number
-        && stored instanceof Number
-        && (stored as Number) == (loggedAt as Number)
-        && FuelGuardGlanceState.freshForTest()
+    var localFuel = FuelGuardGlanceState.localFuelSecondsForTest();
+    if (!(stored instanceof Number) || !(localFuel instanceof Number)) {
+        return false;
+    }
+    var applied = FuelGuardGlanceState.applyServerStatus({
+        "fuel_status" => {
+            "last_fuel_at_seconds" => stored as Number,
+            "synced_at_seconds" => FuelGuardEvents.nowSeconds()
+        }
+    });
+
+    return applied
+        && FuelGuardGlanceState.lastFuelSecondsForTest() == stored
+        && FuelGuardGlanceState.localFuelSecondsForTest() == null
+        && FuelGuardGlanceState.statusKnownForTest()
         && FuelGuardQueue.pendingCount() == 0;
+}
+
+(:test)
+function testFuelGuardQuickLogOlderServerStatusCannotReplaceNewerLocalFuel(logger) as Boolean {
+    FuelGuardGlanceState.resetForTest();
+    var now = FuelGuardEvents.nowSeconds();
+    var localFuel = now - 60;
+    FuelGuardGlanceState.recordLocalFuel(localFuel);
+
+    var applied = FuelGuardGlanceState.applyServerStatus({
+        "fuel_status" => {
+            "last_fuel_at_seconds" => now - (60 * 60),
+            "synced_at_seconds" => now
+        }
+    });
+
+    return applied
+        && FuelGuardGlanceState.lastFuelSecondsForTest() == localFuel
+        && FuelGuardGlanceState.localFuelSecondsForTest() == localFuel;
 }
 
 (:test)
@@ -708,9 +739,11 @@ function testFuelGuardQuickLogDisconnectClearsPriorAthleteGlanceState(logger) as
 
     var glance = new FuelGuardQuickLogGlance();
     return FuelGuardGlanceState.lastFuelSecondsForTest() == null
-        && !FuelGuardGlanceState.freshForTest()
+        && FuelGuardGlanceState.localFuelSecondsForTest() == null
+        && !FuelGuardGlanceState.statusKnownForTest()
         && glance.metricForTest().equals("Open Fuel Guard")
-        && glance.labelForTest().equals("to sync");
+        && glance.labelForTest().equals("to sync")
+        && glance.summaryForTest().equals("Open FG to sync");
 }
 
 (:test)

@@ -4,14 +4,22 @@ import Toybox.Time;
 
 (:glance)
 module FuelGuardGlanceState {
+    const TOKEN_KEY = "fg_device_token";
     const LAST_FUEL_KEY = "fg_last_fuel_at";
+    const LOCAL_FUEL_KEY = "fg_last_local_fuel_at";
     const LAST_SYNC_KEY = "fg_last_fuel_sync_at";
     const STATUS_KNOWN_KEY = "fg_last_fuel_status_known";
-    const MAX_STALE_SECONDS = 6 * 60 * 60;
     const MAX_CLOCK_SKEW_SECONDS = 5 * 60;
 
     function nowSeconds() as Number {
         return Time.now().value();
+    }
+
+    function connected() as Boolean {
+        var value = Storage.getValue(TOKEN_KEY);
+        return value instanceof String
+            && (value as String).length() > 0
+            && (value as String).length() <= 1024;
     }
 
     function safeStoredNumber(key as String) as Number? {
@@ -34,18 +42,13 @@ module FuelGuardGlanceState {
         return safeStoredNumber(LAST_SYNC_KEY);
     }
 
+    function localFuelSeconds() as Number? {
+        return safeStoredNumber(LOCAL_FUEL_KEY);
+    }
+
     function statusKnown() as Boolean {
         var value = Storage.getValue(STATUS_KNOWN_KEY);
         return value instanceof Boolean ? value as Boolean : false;
-    }
-
-    function fresh() as Boolean {
-        var syncedAt = lastSyncSeconds();
-        if (!statusKnown() || syncedAt == null) {
-            return false;
-        }
-        var age = nowSeconds() - (syncedAt as Number);
-        return age >= 0 && age <= MAX_STALE_SECONDS;
     }
 
     function dictionaryValue(data as Dictionary, stringKey as String, symbolKey as Symbol) as Object? {
@@ -71,20 +74,51 @@ module FuelGuardGlanceState {
             return false;
         }
 
-        var lastFuel = dictionaryValue(values, "last_fuel_at_seconds", :last_fuel_at_seconds);
-        if (lastFuel != null && !(lastFuel instanceof Number)) {
+        var serverFuel = dictionaryValue(values, "last_fuel_at_seconds", :last_fuel_at_seconds);
+        if (serverFuel != null && !(serverFuel instanceof Number)) {
             return false;
         }
-        if (lastFuel instanceof Number) {
-            var safeFuel = lastFuel as Number;
+        var resolvedFuel = null;
+        if (serverFuel instanceof Number) {
+            var safeFuel = serverFuel as Number;
             if (safeFuel <= 0 || safeFuel > nowSeconds() + MAX_CLOCK_SKEW_SECONDS) {
                 return false;
             }
-            Storage.setValue(LAST_FUEL_KEY, safeFuel);
+            resolvedFuel = safeFuel;
+        }
+
+        var localFuel = localFuelSeconds();
+        if (localFuel != null && resolvedFuel instanceof Number && (resolvedFuel as Number) >= (localFuel as Number)) {
+            Storage.deleteValue(LOCAL_FUEL_KEY);
+            localFuel = null;
+        }
+        if (localFuel != null && (resolvedFuel == null || (localFuel as Number) > (resolvedFuel as Number))) {
+            resolvedFuel = localFuel as Number;
+        }
+
+        if (resolvedFuel instanceof Number) {
+            Storage.setValue(LAST_FUEL_KEY, resolvedFuel as Number);
         } else {
             Storage.deleteValue(LAST_FUEL_KEY);
         }
         Storage.setValue(LAST_SYNC_KEY, safeSync);
+        Storage.setValue(STATUS_KNOWN_KEY, true);
+        return true;
+    }
+
+    function recordLocalFuel(timestamp as Number) as Boolean {
+        var now = nowSeconds();
+        if (timestamp <= 0 || timestamp > now + MAX_CLOCK_SKEW_SECONDS) {
+            return false;
+        }
+        var existing = lastFuelSeconds();
+        if (existing == null || timestamp >= (existing as Number)) {
+            Storage.setValue(LAST_FUEL_KEY, timestamp);
+        }
+        var localFuel = localFuelSeconds();
+        if (localFuel == null || timestamp >= (localFuel as Number)) {
+            Storage.setValue(LOCAL_FUEL_KEY, timestamp);
+        }
         Storage.setValue(STATUS_KNOWN_KEY, true);
         return true;
     }
@@ -105,18 +139,20 @@ module FuelGuardGlanceState {
 
     function markUnavailable() as Void {
         Storage.deleteValue(LAST_FUEL_KEY);
+        Storage.deleteValue(LOCAL_FUEL_KEY);
         Storage.deleteValue(LAST_SYNC_KEY);
         Storage.deleteValue(STATUS_KNOWN_KEY);
     }
 
     function elapsedText(elapsed as Number) as String {
         if (elapsed < 60) {
-            return "<1m ago";
+            return "just now";
         }
         var minutes = elapsed / 60;
         var hours = minutes / 60;
-        if (hours >= 5) {
-            return "5h+ ago";
+        var days = hours / 24;
+        if (days >= 1) {
+            return Lang.format("$1$d $2$h ago", [days, hours % 24]);
         }
         if (hours >= 1) {
             return Lang.format("$1$h $2$m ago", [hours, minutes % 60]);
@@ -125,32 +161,54 @@ module FuelGuardGlanceState {
     }
 
     function metric() as String {
-        if (!fresh()) {
+        if (!statusKnown()) {
             return "Open Fuel Guard";
         }
         var lastFuel = lastFuelSeconds();
         if (lastFuel == null) {
             return "No fuel logged";
         }
-        return elapsedText(nowSeconds() - (lastFuel as Number));
+        var elapsed = nowSeconds() - (lastFuel as Number);
+        return elapsed < 60 ? "Fuelled just now" : elapsedText(elapsed);
     }
 
     function label() as String {
-        if (!fresh()) {
+        if (!statusKnown()) {
             return "to sync";
         }
-        return lastFuelSeconds() == null ? "today" : "Last fuel";
+        var lastFuel = lastFuelSeconds();
+        if (lastFuel == null || nowSeconds() - (lastFuel as Number) < 60) {
+            return "";
+        }
+        return "Last fuel";
+    }
+
+    function summary() as String {
+        if (!statusKnown()) {
+            return "Open FG to sync";
+        }
+        var lastFuel = lastFuelSeconds();
+        if (lastFuel == null) {
+            return "No fuel logged";
+        }
+        var elapsed = nowSeconds() - (lastFuel as Number);
+        if (elapsed < 60) {
+            return "Fuelled just now";
+        }
+        return "Last fuel: " + elapsedText(elapsed);
     }
 
     (:debug)
     function resetForTest() as Void {
         Storage.deleteValue(LAST_FUEL_KEY);
+        Storage.deleteValue(LOCAL_FUEL_KEY);
         Storage.deleteValue(LAST_SYNC_KEY);
         Storage.deleteValue(STATUS_KNOWN_KEY);
     }
 
     (:debug)
     function setStatusForTest(lastFuel as Number?, syncedAt as Number) as Void {
+        Storage.deleteValue(LOCAL_FUEL_KEY);
         if (lastFuel == null) {
             Storage.deleteValue(LAST_FUEL_KEY);
         } else {
@@ -166,7 +224,12 @@ module FuelGuardGlanceState {
     }
 
     (:debug)
-    function freshForTest() as Boolean {
-        return fresh();
+    function localFuelSecondsForTest() as Number? {
+        return localFuelSeconds();
+    }
+
+    (:debug)
+    function statusKnownForTest() as Boolean {
+        return statusKnown();
     }
 }
