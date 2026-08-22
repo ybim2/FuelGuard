@@ -74,9 +74,16 @@ class FuelGuardQuickLogView extends WatchUi.View {
             var event = FuelGuardEvents.create(eventType);
             var eventId = FuelGuardQueue.externalEventId(event);
             FuelGuardQueue.enqueue(event);
+            if (FuelGuardDiagnostics.hasError()) {
+                WatchUi.requestUpdate();
+                return;
+            }
             _confirmType = eventType;
             _pendingEventId = eventId != null ? eventId as String : null;
             _pendingStartedAt = Time.now().value();
+            _confirmStartedAt = _pendingStartedAt;
+            FuelGuardFeedback.vibrateSuccess();
+            startConfirmationTimer();
             FuelGuardApi.trySync(true);
             FuelGuardHealth.maybeCollectAndSync("fuel_log");
             updateAcknowledgedConfirmation();
@@ -201,9 +208,6 @@ class FuelGuardQuickLogView extends WatchUi.View {
         }
         _pendingEventId = null;
         _pendingStartedAt = null;
-        _confirmStartedAt = Time.now().value();
-        FuelGuardFeedback.vibrateSuccess();
-        startConfirmationTimer();
     }
 
     public function finishSyncStatus() as Void {
