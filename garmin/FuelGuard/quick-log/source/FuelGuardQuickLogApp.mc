@@ -9,7 +9,9 @@ class FuelGuardQuickLogApp extends Application.AppBase {
     }
 
     public function onStart(state as Dictionary?) as Void {
-        FuelGuardDiagnostics.beginLaunch();
+        // Glance mode also runs AppBase.onStart(). Keep this hook isolated from
+        // normal-app modules so the glance can render safely with no phone.
+        // The interactive view clears diagnostics in recoverRuntime().
     }
 
     public function onAuthenticationRequest() as Void {
