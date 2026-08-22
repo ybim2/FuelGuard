@@ -78,6 +78,12 @@ class FuelGuardQuickLogView extends WatchUi.View {
                 WatchUi.requestUpdate();
                 return;
             }
+            if (eventType.equals(FuelGuardEvents.TYPE_FUEL) || eventType.equals(FuelGuardEvents.TYPE_FUEL_HYDRATION)) {
+                var localFuelAt = event["logged_at_seconds"];
+                if (localFuelAt instanceof Number) {
+                    FuelGuardGlanceState.recordLocalFuel(localFuelAt as Number);
+                }
+            }
             _confirmType = eventType;
             _pendingEventId = eventId != null ? eventId as String : null;
             _pendingStartedAt = Time.now().value();
@@ -350,7 +356,6 @@ class FuelGuardQuickLogView extends WatchUi.View {
     }
 
     private function drawNormal(dc as Graphics.Dc) as Void {
-
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
 
