@@ -10,14 +10,27 @@
   document.addEventListener("DOMContentLoaded",()=>{apply();wrap("renderFuelGap");wrap("renderAll");document.getElementById("fuelDayType")?.addEventListener("change",e=>{if(removed(e.target.value))e.target.value=norm(e.target.value);schedule()})});schedule();
 })();
 
+// Human-scale elapsed time: keep precision below 24h, switch to days at 24h+.
+(() => {
+  function humanDuration(minutes){
+    if(!Number.isFinite(minutes))return"No limit";
+    const safeMinutes=Math.max(0,Math.round(minutes));
+    if(safeMinutes>=1440){const days=Math.floor(safeMinutes/1440);return`${days} day${days===1?"":"s"}`;}
+    return`${Math.floor(safeMinutes/60)}h ${String(safeMinutes%60).padStart(2,"0")}m`;
+  }
+  globalThis.duration=humanDuration;
+  const refresh=()=>{if(typeof renderFuelGap==="function")renderFuelGap();else if(typeof renderAll==="function")renderAll();};
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",refresh,{once:true});else requestAnimationFrame(refresh);
+})();
+
 // Routines is intentionally loaded after the core Daily modules so it can place itself
 // before manual Quick actions without making Settings part of the setup journey.
 (() => {
   function loadRoutines(){
     if(window.FuelGuardRoutines){window.FuelGuardRoutines.init?.();return;}
     if(document.querySelector('script[data-fg-routines]'))return;
-    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v161-routines-init-fix';css.dataset.fgRoutines='1';document.head.appendChild(css)}
-    const script=document.createElement('script');script.src='routine-manager.js?v=mobile-pwa-v161-routines-init-fix';script.dataset.fgRoutines='1';script.defer=true;script.addEventListener('load',()=>window.FuelGuardRoutines?.init?.(),{once:true});document.body.appendChild(script);
+    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v162-routines-main';css.dataset.fgRoutines='1';document.head.appendChild(css)}
+    const script=document.createElement('script');script.src='routine-manager.js?v=mobile-pwa-v162-routines-main';script.dataset.fgRoutines='1';script.defer=true;script.addEventListener('load',()=>window.FuelGuardRoutines?.init?.(),{once:true});document.body.appendChild(script);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',loadRoutines,{once:true});else loadRoutines();
 })();
