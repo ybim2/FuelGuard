@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v158-routines-ux-polish";
-const BUILD_VERSION = "2026-08-29T21:24:00Z";
+const APP_VERSION = "mobile-pwa-v159-routines-readability";
+const BUILD_VERSION = "2026-08-29T21:36:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v158-routines-ux-polish-20260829T212400Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v159-routines-readability-20260829T213600Z";
 const APP_SHELL = [
   "./",
   "./index.html",
