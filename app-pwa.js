@@ -1,11 +1,31 @@
 (function registerFuelGuardPwa() {
   const buildInfo = window.FUEL_GUARD_BUILD || {};
-  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v156-garmin-setup-walkthrough";
+  const APP_VERSION = buildInfo.canonicalApp || "mobile-pwa-v157-recurring-routines";
+  const SERVICE_WORKER_URL = buildInfo.serviceWorkerUrl || "./sw.js?v=mobile-pwa-v157-recurring-routines";
   const SERVICE_WORKER_SCOPE = buildInfo.serviceWorkerScope || "./";
   let registrationPromise = null;
   let refreshing = false;
   let updateCheckInFlight = false;
   let reloadOnControllerChange = false;
+
+  function loadRoutineAssets() {
+    if (!document.querySelector('link[data-fuel-routines]')) {
+      const stylesheet = document.createElement("link");
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = `./routine-manager.css?v=${encodeURIComponent(APP_VERSION)}`;
+      stylesheet.dataset.fuelRoutines = "styles";
+      document.head.appendChild(stylesheet);
+    }
+    if (!document.querySelector('script[data-fuel-routines]')) {
+      const script = document.createElement("script");
+      script.src = `./routine-manager.js?v=${encodeURIComponent(APP_VERSION)}`;
+      script.defer = true;
+      script.dataset.fuelRoutines = "script";
+      document.head.appendChild(script);
+    }
+  }
+
+  loadRoutineAssets();
 
   function updateStatus(message) {
     window.dispatchEvent(new CustomEvent("fuelguard:pwa-update-status", {
@@ -28,10 +48,6 @@
   if (!("serviceWorker" in navigator)) return;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    // A first install can acquire a controller after the page is already
-    // visible. That is not an app update and must not flash the global loader
-    // a second time. Reload only after the athlete explicitly accepts an
-    // already-downloaded update from Settings.
     if (!reloadOnControllerChange || refreshing) return;
     refreshing = true;
     updateStatus("Update status: new app shell active. Reloading...");
@@ -124,9 +140,7 @@
 
   window.addEventListener("load", () => {
     registrationReady()
-      .then(registration => {
-        return registration.update();
-      })
+      .then(registration => registration.update())
       .catch(error => {
         console.warn("Fuel Guard service worker registration failed.", error);
       });
