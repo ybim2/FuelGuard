@@ -1,8 +1,8 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v157-recurring-routines",
-  buildVersion: "2026-08-29T21:05:00Z",
-  sourceCheckpoint: "v156-garmin-setup-walkthrough",
-  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v157-recurring-routines",
+  canonicalApp: "mobile-pwa-v158-routines-ux-polish",
+  buildVersion: "2026-08-29T21:19:00Z",
+  sourceCheckpoint: "v157-recurring-routines",
+  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v158-routines-ux-polish",
   serviceWorkerScope: "/",
-  cacheName: "fuel-guard-mobile-pwa-v157-recurring-routines-20260829T210500Z"
+  cacheName: "fuel-guard-mobile-pwa-v158-routines-ux-polish-20260829T211900Z"
 });
