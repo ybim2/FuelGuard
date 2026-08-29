@@ -1,8 +1,8 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
-  canonicalApp: "mobile-pwa-v160-routines-first",
-  buildVersion: "2026-08-29T21:48:00Z",
-  sourceCheckpoint: "v159-routines-readability",
-  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v160-routines-first",
+  canonicalApp: "mobile-pwa-v161-routines-init-fix",
+  buildVersion: "2026-08-29T21:56:00Z",
+  sourceCheckpoint: "v160-routines-first",
+  serviceWorkerUrl: "/sw.js?v=mobile-pwa-v161-routines-init-fix",
   serviceWorkerScope: "/",
-  cacheName: "fuel-guard-mobile-pwa-v160-routines-first-20260829T214800Z"
+  cacheName: "fuel-guard-mobile-pwa-v161-routines-init-fix-20260829T215600Z"
 });
