@@ -1,241 +1,56 @@
 (() => {
   "use strict";
+  const RK="fuel_guard_routines_v1", OK="fuel_guard_routine_occurrences_v1", DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], LOOKBACK=7;
+  const CATALOGUE=[
+    ["creatine","Creatine"],["protein_supplement","Protein powder"],["iron","Iron"],["vitamin_d","Vitamin D"],["vitamin_c","Vitamin C"],["vitamin_b12","Vitamin B12"],["multivitamin","Multivitamin"],["magnesium","Magnesium"],["zinc","Zinc"],["calcium","Calcium"],["omega_3","Omega-3 / Fish oil"],["electrolytes","Electrolytes"],["caffeine","Caffeine","custom"],["collagen","Collagen","custom"],["folic_acid","Folic acid","custom"],["probiotics","Probiotics","custom"],["beta_alanine","Beta-alanine","custom"],["nitrate_beetroot","Nitrate / Beetroot","custom"],["carbohydrate_supplement","Carbohydrate supplement","custom"],["recovery_drink","Recovery drink","custom"]
+  ];
+  let plans=[],busy=false,message="";
+  const cloud=()=>window.fuelGuardCloud||null, uid=()=>String(cloud()?.user?.id||"");
+  const id=()=>crypto?.randomUUID?.()||`routine-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const esc=v=>window.FuelGuardDomain?.escapeHtml?.(String(v??""))||String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||"null")??f}catch{return f}}, write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+  const routines=()=>read(RK,[]).filter(x=>x?.id), occ=()=>read(OK,{}), saveR=v=>write(RK,v), saveO=v=>write(OK,v);
+  const dateKey=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const planned=(r,d=new Date())=>{const x=new Date(d),[h,m]=String(r.time||"08:00").split(":").map(Number);x.setHours(h||0,m||0,0,0);return x};
+  const clock=d=>d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}), dayLabel=d=>d.toLocaleDateString([],{weekday:"short",day:"numeric",month:"short"});
+  const okey=(r,d=new Date())=>`${dateKey(d)}:${r.id}`, onDay=(r,d)=>r.enabled!==false&&(r.days||[]).includes(d.getDay());
+  const planLabel=p=>p?.label||p?.custom_name||"Supplement";
+  const activeFor=r=>plans.filter(p=>(r.supplementPlanIds||[]).includes(p.id));
+  const labels=r=>[...(r.coffee?["Coffee"]:[]),...activeFor(r).map(planLabel)];
+  const daysText=a=>a?.length===7?"Daily":(a||[]).map(x=>DAYS[x]).join(", ");
+  const catalogueKey=p=>p.supplement_type!=="custom"?p.supplement_type:(CATALOGUE.find(x=>x[2]==="custom"&&x[1].toLowerCase()===String(p.custom_name||p.label||"").toLowerCase())?.[0]||"");
+  function durationHuman(min){if(!Number.isFinite(min))return"No limit";const n=Math.max(0,Math.round(min));if(n>=1440){const d=Math.floor(n/1440);return`${d} day${d===1?"":"s"}`}return`${Math.floor(n/60)}h ${String(n%60).padStart(2,"0")}m`} globalThis.duration=durationHuman;
 
-  const ROUTINES_KEY = "fuel_guard_routines_v1";
-  const OCCURRENCES_KEY = "fuel_guard_routine_occurrences_v1";
-  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const MISSED_LOOKBACK_DAYS = 7;
-  let supplementPlans = [];
-  let message = "";
-  let busy = false;
-
-  function cloud() { return window.fuelGuardCloud || null; }
-  function userId() { return String(cloud()?.user?.id || ""); }
-  function uuid() { return globalThis.crypto?.randomUUID?.() || `routine-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
-  function read(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key) || "null"); return value ?? fallback; } catch { return fallback; } }
-  function write(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-  function routines() { return read(ROUTINES_KEY, []).filter(item => item && item.id); }
-  function saveRoutines(value) { write(ROUTINES_KEY, value); }
-  function occurrences() { return read(OCCURRENCES_KEY, {}); }
-  function saveOccurrences(value) { write(OCCURRENCES_KEY, value); }
-  function dateKey(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
-  function scheduledDate(routine, date = new Date()) {
-    const result = new Date(date);
-    const [hour, minute] = String(routine.time || "08:00").split(":").map(Number);
-    result.setHours(Number.isFinite(hour) ? hour : 8, Number.isFinite(minute) ? minute : 0, 0, 0);
-    return result;
-  }
-  function clock(date) { return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
-  function dateLabel(date) { return date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }); }
-  function escape(value) { return window.FuelGuardDomain?.escapeHtml?.(String(value ?? "")) || String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
-  function occurrenceKey(routine, date = new Date()) { return `${dateKey(date)}:${routine.id}`; }
-  function occurrenceFor(routine, date = new Date()) { return occurrences()[occurrenceKey(routine, date)] || null; }
-  function scheduledOn(routine, date) { return routine.enabled !== false && (routine.days || []).includes(date.getDay()); }
-  function dueToday(routine, now = new Date()) { return scheduledOn(routine, now); }
-  function activeSupplements(routine) { return supplementPlans.filter(plan => (routine.supplementPlanIds || []).includes(plan.id)); }
-  function itemLabels(routine) {
-    const labels = [];
-    if (routine.coffee) labels.push("Coffee");
-    activeSupplements(routine).forEach(plan => labels.push(plan.label || plan.custom_name || "Supplement"));
-    return labels;
-  }
-  function daysLabel(days = []) { return days.length === 7 ? "Daily" : days.map(day => DAY_NAMES[day]).join(", "); }
-  function savedRoutineMarkup(routine) {
-    const items = itemLabels(routine);
-    return `<article>
-      <div>
-        <strong>${escape(routine.name || "Routine")}</strong>
-        <div class="fg-routine-saved-grid">
-          <div class="fg-routine-saved-cell"><span>Time</span><strong>${escape(routine.time || "08:00")}</strong></div>
-          <div class="fg-routine-saved-cell"><span>Days</span><strong>${escape(daysLabel(routine.days || []))}</strong></div>
-          <div class="fg-routine-saved-cell"><span>Confirms</span><strong>${escape(items.join(" · ") || "Nothing selected")}</strong></div>
-        </div>
-      </div>
-      <button class="secondary" type="button" data-routine-delete="${escape(routine.id)}">Remove</button>
-    </article>`;
+  async function loadPlans(){if(!cloud()?.client||!uid()){plans=[];return}const {data,error}=await cloud().client.from("fuel_supplement_plans").select("id,label,custom_name,supplement_type,active").eq("user_id",uid()).eq("active",true).order("created_at");if(!error)plans=data||[]}
+  async function ensurePlans(keys){
+    if(!keys.length)return[]; if(!cloud()?.client||!uid())throw new Error("Sign in to save supplement routines.");
+    const selected=[];
+    for(const key of keys){let p=plans.find(x=>catalogueKey(x)===key);if(p){selected.push(p);continue}const c=CATALOGUE.find(x=>x[0]===key);if(!c)continue;const type=c[2]||c[0];const row={id:id(),user_id:uid(),supplement_type:type,custom_name:type==="custom"?c[1]:null,label:c[1],active:true,track_caffeine_separation:false};const {data,error}=await cloud().client.from("fuel_supplement_plans").insert(row).select().single();if(error)throw error;p=data;plans.push(p);selected.push(p)}
+    return selected;
   }
 
-  function formatElapsedDuration(minutes) {
-    if (!Number.isFinite(minutes)) return "No limit";
-    const safeMinutes = Math.max(0, Math.round(minutes));
-    if (safeMinutes >= 1440) {
-      const days = Math.floor(safeMinutes / 1440);
-      return `${days} day${days === 1 ? "" : "s"}`;
-    }
-    return `${Math.floor(safeMinutes / 60)}h ${String(safeMinutes % 60).padStart(2, "0")}m`;
+  function ensureSurfaces(){
+    const quick=document.querySelector(".beta-quick-actions-card");
+    if(quick&&!document.getElementById("fuelGuardRoutineToday")){const card=document.createElement("section");card.id="fuelGuardRoutineToday";card.className="beta-rhythm-section-card fg-routine-card";card.setAttribute("aria-label","Routines");quick.insertAdjacentElement("beforebegin",card)}
+    const settings=document.getElementById("checklist");if(settings&&!document.getElementById("fuelGuardRoutineSettings")){const a=document.createElement("article");a.id="fuelGuardRoutineSettings";a.className="card fg-routine-settings";settings.appendChild(a)}
+    if(!document.getElementById("fuelGuardRoutineSheet"))document.body.insertAdjacentHTML("beforeend",`<section id="fuelGuardRoutineSheet" class="fg-routine-sheet" data-private-ui data-managed-visibility hidden inert aria-modal="true" role="dialog"><button class="fg-routine-sheet-backdrop" type="button" data-routine-close aria-label="Close"></button><article class="fg-routine-sheet-panel"><div class="fg-routine-sheet-handle"></div><header class="fg-routine-sheet-header"><div><span class="fg-routine-eyebrow">Routines first</span><h2>Set up what repeats</h2><p>Choose coffee or supplements here. You do not need to visit Settings first.</p></div><button class="secondary fg-routine-close" type="button" data-routine-close>×</button></header><div id="fuelGuardRoutineSheetBody"></div></article></section>`);
   }
-  globalThis.duration = formatElapsedDuration;
-
-  async function loadSupplementPlans() {
-    if (!cloud()?.client || !userId()) { supplementPlans = []; return; }
-    const { data, error } = await cloud().client.from("fuel_supplement_plans").select("id,label,custom_name,supplement_type,active").eq("user_id", userId()).eq("active", true).order("created_at");
-    if (!error) supplementPlans = data || [];
-  }
-
-  function ensureSurfaces() {
-    const quick = document.querySelector(".beta-quick-actions-card");
-    if (quick && !document.getElementById("fuelGuardRoutineToday")) {
-      const card = document.createElement("section");
-      card.id = "fuelGuardRoutineToday";
-      card.className = "beta-rhythm-section-card fg-routine-card";
-      card.setAttribute("aria-label", "Routines");
-      quick.insertAdjacentElement("afterend", card);
-    }
-    const settings = document.getElementById("checklist");
-    if (settings && !document.getElementById("fuelGuardRoutineSettings")) {
-      const card = document.createElement("article");
-      card.id = "fuelGuardRoutineSettings";
-      card.className = "card fg-routine-settings";
-      settings.appendChild(card);
-    }
-    if (!document.getElementById("fuelGuardRoutineSheet")) {
-      document.body.insertAdjacentHTML("beforeend", `<section id="fuelGuardRoutineSheet" class="fg-routine-sheet" data-private-ui data-managed-visibility hidden inert aria-modal="true" role="dialog" aria-labelledby="fuelGuardRoutineSheetTitle"><button type="button" class="fg-routine-sheet-backdrop" data-routine-close aria-label="Close routine setup"></button><article class="fg-routine-sheet-panel"><div class="fg-routine-sheet-handle" aria-hidden="true"></div><header class="fg-routine-sheet-header"><div><span class="fg-routine-eyebrow">Routines</span><h2 id="fuelGuardRoutineSheetTitle">Make repeat moments one tap</h2><p>Choose the time, days and items once. Nothing is logged until you confirm it actually happened.</p></div><button class="secondary fg-routine-close" type="button" data-routine-close aria-label="Close routine setup">×</button></header><div id="fuelGuardRoutineSheetBody"></div></article></section>`);
-    }
-  }
-
-  function routineFormMarkup({ includeExisting = true } = {}) {
-    const current = routines();
-    return `<form id="fuelGuardRoutineForm" class="fg-routine-settings-form">
-      <div class="fg-routine-form-grid"><label>Routine name<input name="name" type="text" maxlength="60" value="Morning routine" autocomplete="off" required></label><label>Time<input name="time" type="time" value="05:30" required></label></div>
-      <fieldset><legend>Days this should happen</legend><div class="fg-routine-days">${DAY_NAMES.map((name, index) => `<label><input type="checkbox" name="day" value="${index}" ${index >= 1 && index <= 5 ? "checked" : ""}><span>${name}</span></label>`).join("")}</div></fieldset>
-      <fieldset><legend>What should one tap confirm?</legend><div class="fg-routine-supplements"><label class="fg-routine-choice"><input type="checkbox" name="coffee" value="1"><span><strong>Coffee</strong><small>Part of the routine only; it is not counted as a Fuel event.</small></span></label>${supplementPlans.map(plan => `<label class="fg-routine-choice"><input type="checkbox" name="supplement" value="${escape(plan.id)}"><span><strong>${escape(plan.label || plan.custom_name || "Supplement")}</strong><small>Logged as taken only after you confirm the routine.</small></span></label>`).join("") || `<div class="fg-routine-supplement-empty"><p>No supplements are selected yet.</p><button class="secondary" type="button" data-open-supplement-settings>Set up supplements</button></div>`}</div></fieldset>
-      <button class="primary fg-routine-save" type="submit" ${busy ? "disabled" : ""}>Save routine</button>
-      <p class="fg-routine-note">Scheduled = expected, not consumed. After the time passes Fuel Guard asks you to confirm or skip. If you miss the prompt, the unanswered routine is carried forward so you can answer later.</p>
-    </form>${includeExisting ? `<div class="fg-routine-existing">${current.length ? `<h3>Saved routines</h3>${current.map(savedRoutineMarkup).join("")}<p class="fg-routine-requirement-note"><strong>How this works:</strong> each saved routine keeps its own time, repeat days and selected items. It never auto-logs consumption.</p>` : ""}</div>` : ""}`;
-  }
-
-  function renderSheet() { const target = document.getElementById("fuelGuardRoutineSheetBody"); if (target) target.innerHTML = routineFormMarkup({ includeExisting: true }); }
-  function openSheet() { ensureSurfaces(); renderSheet(); const sheet = document.getElementById("fuelGuardRoutineSheet"); if (!sheet) return; sheet.hidden = false; sheet.removeAttribute("inert"); document.body.classList.add("fg-routine-sheet-open"); setTimeout(() => sheet.querySelector('input[name="name"]')?.focus(), 0); }
-  function closeSheet() { const sheet = document.getElementById("fuelGuardRoutineSheet"); if (!sheet) return; sheet.hidden = true; sheet.setAttribute("inert", ""); document.body.classList.remove("fg-routine-sheet-open"); }
-
-  function missedOccurrences(now = new Date()) {
-    const result = [];
-    const current = routines();
-    for (let offset = 1; offset <= MISSED_LOOKBACK_DAYS; offset += 1) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - offset);
-      current.forEach(routine => {
-        if (!scheduledOn(routine, date)) return;
-        const planned = scheduledDate(routine, date);
-        if (planned >= now || occurrenceFor(routine, date)) return;
-        result.push({ routine, date, planned });
-      });
-    }
-    return result.sort((a, b) => b.planned - a.planned);
-  }
-
-  function routineCardMarkup(routine, planned, occurrence, context = "today") {
-    const labels = itemLabels(routine);
-    const now = new Date();
-    const future = planned > now;
-    const missed = context === "missed";
-    const status = occurrence?.status === "confirmed" ? "Confirmed" : occurrence?.status === "skipped" ? "Skipped" : missed ? "Missed · answer now" : future ? "Expected" : "Confirm now";
-    const statusClass = occurrence?.status || (missed ? "missed" : future ? "expected" : "due");
-    const keyDate = planned.toISOString();
-    return `<article class="fg-routine-item ${escape(statusClass)}"><header><div><h4>${escape(routine.name || "Routine")}</h4><div class="fg-routine-meta">${missed ? `${escape(dateLabel(planned))} · ` : ""}${escape(clock(planned))}</div></div><span class="fg-routine-status">${escape(status)}</span></header><div class="fg-routine-items">${escape(labels.join(" · ") || "No items selected")}</div>${occurrence ? `<p class="fg-routine-result">${occurrence.status === "confirmed" ? `Recorded for ${escape(clock(planned))}` : "Nothing recorded"}</p>` : `<div class="fg-routine-actions"><button class="primary" type="button" data-routine-confirm="${escape(routine.id)}" data-routine-date="${escape(keyDate)}" ${future || !labels.length || busy ? "disabled" : ""}>Yes, done</button><button class="secondary" type="button" data-routine-skip="${escape(routine.id)}" data-routine-date="${escape(keyDate)}" ${future || busy ? "disabled" : ""}>No, skipped</button></div>`}</article>`;
-  }
-
-  function renderToday() {
-    const target = document.getElementById("fuelGuardRoutineToday");
-    if (!target) return;
-    const now = new Date();
-    const current = routines();
-    if (!current.length) {
-      target.hidden = false;
-      target.innerHTML = `<div class="fg-routine-onboarding"><div class="fg-routine-onboarding-copy"><span class="fg-routine-eyebrow">Optional · Routines</span><h3>Make the repetitive stuff one tap.</h3><p>Coffee every morning? Creatine and a multivitamin on weekdays? Save the schedule once, then simply confirm whether it happened.</p></div><button class="primary fg-routine-start" type="button" data-routine-open>Set up a routine</button></div>`;
-      return;
-    }
-    const due = current.filter(routine => dueToday(routine, now));
-    const missed = missedOccurrences(now);
-    target.hidden = false;
-    target.innerHTML = `<div class="fg-routine-title-row"><div><span class="fg-routine-eyebrow">Routines</span><h3>Today</h3><p>Expected until you confirm it.</p></div><button class="secondary fg-routine-manage" type="button" data-routine-open>Manage</button></div>${missed.length ? `<div class="fg-routine-missed-heading">Still needs an answer</div><div class="fg-routine-list">${missed.map(item => routineCardMarkup(item.routine, item.planned, null, "missed")).join("")}</div>` : ""}${due.length ? `<div class="fg-routine-list">${due.map(routine => { const planned = scheduledDate(routine, now); return routineCardMarkup(routine, planned, occurrenceFor(routine, now), "today"); }).join("")}</div>` : `<div class="fg-routine-offday"><strong>No routines scheduled today.</strong><span>Your saved routines will appear on the days you chose.</span></div>`}<p class="fg-routine-message" role="status" aria-live="polite">${escape(message)}</p>`;
-  }
-
-  function renderSettings() {
-    const target = document.getElementById("fuelGuardRoutineSettings");
-    if (!target) return;
-    const current = routines();
-    target.innerHTML = `<div class="fg-routine-settings-summary"><div><span class="fg-routine-eyebrow">Routines</span><h2>Recurring moments</h2><p>${current.length ? `${current.length} saved routine${current.length === 1 ? "" : "s"}. Time, days and items are shown clearly when you open Manage.` : "Set up recurring coffee or supplementation without auto-logging anything."}</p></div><button class="primary" type="button" data-routine-open>${current.length ? "View saved routines" : "Set up a routine"}</button></div>`;
-  }
-
-  async function recordSupplements(routine, planned) {
-    const plans = activeSupplements(routine);
-    if (!plans.length) return;
-    if (!cloud()?.client || !userId()) throw new Error("Sign in to confirm this routine.");
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const snapshot = window.FuelGuardContextLayer?.contextSnapshot?.(planned) || { primary: "everyday", capturedAt: new Date().toISOString() };
-    const rows = plans.map(plan => ({ id: uuid(), user_id: userId(), supplement_plan_id: plan.id, schedule_slot_id: null, event_status: "taken", taken_at: planned.toISOString(), planned_for: planned.toISOString(), source: "manual", idempotency_key: `routine:${routine.id}:${plan.id}:${dateKey(planned)}`, event_local_date: dateKey(planned), timezone_name: timezone, context_mode: snapshot.primary || "everyday", context_snapshot: snapshot }));
-    const { error } = await cloud().client.from("fuel_supplement_events").insert(rows);
-    if (error) throw error;
-    await window.FuelGuardSupplementRhythm?.load?.();
-  }
-
-  async function confirmRoutine(id, dateValue) {
-    const routine = routines().find(item => item.id === id);
-    if (!routine || busy) return;
-    const reference = dateValue ? new Date(dateValue) : new Date();
-    const planned = scheduledDate(routine, reference);
-    if (planned > new Date()) return;
-    busy = true; message = "Confirming…"; renderToday();
-    try {
-      await recordSupplements(routine, planned);
-      const next = occurrences();
-      next[occurrenceKey(routine, planned)] = { status: "confirmed", plannedAt: planned.toISOString(), confirmedAt: new Date().toISOString(), coffee: Boolean(routine.coffee), supplementPlanIds: (routine.supplementPlanIds || []).slice() };
-      saveOccurrences(next);
-      message = `Confirmed for ${dateLabel(planned)} at ${clock(planned)}.`;
-      window.dispatchEvent(new CustomEvent("fuelguard:routines-changed", { detail: { routineId: id, status: "confirmed" } }));
-    } catch (error) { message = `Could not confirm: ${error?.message || "try again"}`; }
-    finally { busy = false; renderToday(); renderSettings(); renderSheet(); }
-  }
-
-  function skipRoutine(id, dateValue) {
-    const routine = routines().find(item => item.id === id);
-    if (!routine) return;
-    const reference = dateValue ? new Date(dateValue) : new Date();
-    const planned = scheduledDate(routine, reference);
-    const next = occurrences();
-    next[occurrenceKey(routine, planned)] = { status: "skipped", plannedAt: planned.toISOString(), skippedAt: new Date().toISOString() };
-    saveOccurrences(next);
-    message = `Marked skipped for ${dateLabel(planned)} — nothing was logged.`;
-    renderToday(); renderSheet();
-  }
-
-  function addRoutine(formElement) {
-    const form = new FormData(formElement);
-    const days = form.getAll("day").map(Number).filter(Number.isInteger);
-    const supplementPlanIds = form.getAll("supplement").map(String);
-    if (!days.length || (!form.get("coffee") && !supplementPlanIds.length)) {
-      message = "Choose at least one day and one item.";
-      const status = formElement.querySelector(".fg-routine-note");
-      if (status) status.textContent = message;
-      return;
-    }
-    const next = routines();
-    next.push({ id: uuid(), name: String(form.get("name") || "Routine").trim() || "Routine", time: String(form.get("time") || "08:00"), days, coffee: Boolean(form.get("coffee")), supplementPlanIds, enabled: true, createdAt: new Date().toISOString() });
-    saveRoutines(next);
-    message = "Routine saved.";
-    renderToday(); renderSettings(); renderSheet();
-  }
-
-  function bind() {
-    document.addEventListener("submit", event => { if (event.target.id !== "fuelGuardRoutineForm") return; event.preventDefault(); addRoutine(event.target); });
-    document.addEventListener("click", event => {
-      const open = event.target.closest("[data-routine-open]"); if (open) { openSheet(); return; }
-      const close = event.target.closest("[data-routine-close]"); if (close) { closeSheet(); return; }
-      const confirm = event.target.closest("[data-routine-confirm]"); if (confirm) { confirmRoutine(confirm.dataset.routineConfirm, confirm.dataset.routineDate); return; }
-      const skip = event.target.closest("[data-routine-skip]"); if (skip) { skipRoutine(skip.dataset.routineSkip, skip.dataset.routineDate); return; }
-      const remove = event.target.closest("[data-routine-delete]");
-      if (remove) { saveRoutines(routines().filter(item => item.id !== remove.dataset.routineDelete)); message = "Routine removed."; renderSettings(); renderToday(); renderSheet(); return; }
-      if (event.target.closest("[data-open-supplement-settings]")) closeSheet();
-    });
-    document.addEventListener("keydown", event => { if (event.key === "Escape" && !document.getElementById("fuelGuardRoutineSheet")?.hidden) closeSheet(); });
-  }
-
-  async function init() { ensureSurfaces(); await loadSupplementPlans(); ensureSurfaces(); renderSettings(); renderToday(); renderSheet(); }
-  bind();
-  document.addEventListener("DOMContentLoaded", init);
-  window.addEventListener("fuelguard:auth-state", init);
-  window.addEventListener("fuelguard:supplement-events-changed", async () => { await loadSupplementPlans(); renderSettings(); renderToday(); renderSheet(); });
-  window.addEventListener("focus", renderToday);
-  window.FuelGuardRoutines = Object.freeze({ init, open: openSheet, render: () => { ensureSurfaces(); renderSettings(); renderToday(); renderSheet(); } });
-})();
+  function selectedKeys(){return new Set(plans.map(catalogueKey).filter(Boolean))}
+  function formMarkup(){const current=routines(),selected=selectedKeys();return `<form id="fuelGuardRoutineForm" class="fg-routine-settings-form">
+    <div class="fg-routine-step"><span>1</span><div><strong>When does it happen?</strong><small>Name the routine, choose its time and repeat days.</small></div></div>
+    <div class="fg-routine-form-grid"><label>Routine name<input name="name" type="text" value="Morning routine" maxlength="60" required></label><label>Time<input name="time" type="time" value="05:30" required></label></div>
+    <fieldset><legend>Repeat days</legend><div class="fg-routine-days">${DAYS.map((d,i)=>`<label><input type="checkbox" name="day" value="${i}" ${i>0&&i<6?"checked":""}><span>${d}</span></label>`).join("")}</div></fieldset>
+    <div class="fg-routine-step"><span>2</span><div><strong>What happens in this routine?</strong><small>Select supplements directly here. Fuel Guard saves them for you.</small></div></div>
+    <fieldset><legend>Items to confirm</legend><div class="fg-routine-supplements"><label class="fg-routine-choice"><input type="checkbox" name="coffee"><span><strong>Coffee</strong><small>Routine confirmation only — not counted as a Fuel event.</small></span></label>${CATALOGUE.map(c=>`<label class="fg-routine-choice"><input type="checkbox" name="supplementKey" value="${esc(c[0])}" ${selected.has(c[0])?"":""}><span><strong>${esc(c[1])}</strong><small>${selected.has(c[0])?"Already available in Fuel Guard · ":""}Select to include in this routine.</small></span></label>`).join("")}</div></fieldset>
+    <div class="fg-routine-step"><span>3</span><div><strong>Save once, confirm later</strong><small>The schedule creates an expectation. It never pretends you took something.</small></div></div>
+    <button class="primary fg-routine-save" type="submit" ${busy?"disabled":""}>${busy?"Saving…":"Save routine"}</button><p class="fg-routine-note">After the scheduled time: Yes, done confirms it; No, skipped records nothing. Missed questions stay available for 7 days.</p>
+    </form>${current.length?`<div class="fg-routine-existing"><h3>Saved routines</h3>${current.map(r=>`<article><div><strong>${esc(r.name)}</strong><div class="fg-routine-saved-grid"><div class="fg-routine-saved-cell"><span>Time</span><strong>${esc(r.time)}</strong></div><div class="fg-routine-saved-cell"><span>Days</span><strong>${esc(daysText(r.days))}</strong></div><div class="fg-routine-saved-cell"><span>Confirms</span><strong>${esc(labels(r).join(" · ")||"Nothing")}</strong></div></div></div><button class="secondary" type="button" data-routine-delete="${esc(r.id)}">Remove</button></article>`).join("")}</div>`:""}`}
+  function renderSheet(){const x=document.getElementById("fuelGuardRoutineSheetBody");if(x)x.innerHTML=formMarkup()}
+  function open(){ensureSurfaces();renderSheet();const s=document.getElementById("fuelGuardRoutineSheet");s.hidden=false;s.removeAttribute("inert");document.body.classList.add("fg-routine-sheet-open")}
+  function close(){const s=document.getElementById("fuelGuardRoutineSheet");if(!s)return;s.hidden=true;s.setAttribute("inert","");document.body.classList.remove("fg-routine-sheet-open")}
+  function missed(now=new Date()){const out=[];for(let n=1;n<=LOOKBACK;n++){const d=new Date(now);d.setDate(d.getDate()-n);for(const r of routines()){const p=planned(r,d);if(onDay(r,d)&&p<now&&!occ()[okey(r,d)])out.push({r,p})}}return out.sort((a,b)=>b.p-a.p)}
+  function card(r,p,o,isMissed=false){const future=p>new Date(),status=o?.status==="confirmed"?"Confirmed":o?.status==="skipped"?"Skipped":isMissed?"Missed · answer now":future?"Expected":"Confirm now";return `<article class="fg-routine-item ${o?.status||isMissed&&"missed"||future&&"expected"||"due"}"><header><div><h4>${esc(r.name)}</h4><div class="fg-routine-meta">${isMissed?`${esc(dayLabel(p))} · `:""}${esc(clock(p))}</div></div><span class="fg-routine-status">${esc(status)}</span></header><div class="fg-routine-items">${esc(labels(r).join(" · ")||"No items")}</div>${o?`<p class="fg-routine-result">${o.status==="confirmed"?`Recorded for ${esc(clock(p))}`:"Nothing recorded"}</p>`:`<div class="fg-routine-actions"><button class="primary" data-routine-confirm="${esc(r.id)}" data-routine-date="${esc(p.toISOString())}" ${future||busy?"disabled":""}>Yes, done</button><button class="secondary" data-routine-skip="${esc(r.id)}" data-routine-date="${esc(p.toISOString())}" ${future||busy?"disabled":""}>No, skipped</button></div>`}</article>`}
+  function renderToday(){const t=document.getElementById("fuelGuardRoutineToday");if(!t)return;const now=new Date(),rs=routines();t.hidden=false;if(!rs.length){t.innerHTML=`<div class="fg-routine-onboarding"><div><span class="fg-routine-eyebrow">Start here · Routines</span><h3>Set up the things you repeat.</h3><p>Coffee every morning? Creatine and multivitamin on weekdays? Build that first, then use manual logging below whenever life does not follow the routine.</p></div><button class="primary fg-routine-start" data-routine-open>Set up my routine</button></div>`;return}const due=rs.filter(r=>onDay(r,now)),m=missed(now);t.innerHTML=`<div class="fg-routine-title-row"><div><span class="fg-routine-eyebrow">Start here · Routines</span><h3>Your routine</h3><p>Confirm the repeat stuff first. Manual logging is just below for anything extra.</p></div><button class="secondary" data-routine-open>Manage</button></div>${m.length?`<div class="fg-routine-missed-heading">Still needs an answer</div><div class="fg-routine-list">${m.map(x=>card(x.r,x.p,null,true)).join("")}</div>`:""}${due.length?`<div class="fg-routine-list">${due.map(r=>card(r,planned(r,now),occ()[okey(r,now)])).join("")}</div>`:`<div class="fg-routine-offday"><strong>No routine due today.</strong><span>Use manual logging below if something happens outside your routine.</span></div>`}<p class="fg-routine-message">${esc(message)}</p>`}
+  function renderSettings(){const t=document.getElementById("fuelGuardRoutineSettings");if(t)t.innerHTML=`<div class="fg-routine-settings-summary"><div><span class="fg-routine-eyebrow">Routines</span><h2>Recurring moments</h2><p>Routines are managed from Daily first. Settings remains a secondary route.</p></div><button class="primary" data-routine-open>Manage routines</button></div>`}
+  async function record(r,p){const ps=activeFor(r);if(!ps.length)return;const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC",snap=window.FuelGuardContextLayer?.contextSnapshot?.(p)||{primary:"everyday",capturedAt:new Date().toISOString()};const rows=ps.map(x=>({id:id(),user_id:uid(),supplement_plan_id:x.id,schedule_slot_id:null,event_status:"taken",taken_at:p.toISOString(),planned_for:p.toISOString(),source:"manual",idempotency_key:`routine:${r.id}:${x.id}:${dateKey(p)}`,event_local_date:dateKey(p),timezone_name:tz,context_mode:snap.primary||"everyday",context_snapshot:snap}));const {error}=await cloud().client.from("fuel_supplement_events").insert(rows);if(error)throw error;await window.FuelGuardSupplementRhythm?.load?.()}
+  async function confirm(rid,iso){const r=routines().find(x=>x.id===rid),p=new Date(iso);if(!r||busy||p>new Date())return;busy=true;renderToday();try{await record(r,p);const o=occ();o[okey(r,p)]={status:"confirmed",plannedAt:p.toISOString(),confirmedAt:new Date().toISOString(),coffee:!!r.coffee,supplementPlanIds:[...(r.supplementPlanIds||[])]};saveO(o);message=`Confirmed for ${clock(p)}.`}catch(e){message=`Could not confirm: ${e.message||"try again"}`}finally{busy=false;
