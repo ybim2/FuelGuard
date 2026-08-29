@@ -1,7 +1,7 @@
-const APP_VERSION = "mobile-pwa-v156-garmin-setup-walkthrough";
-const BUILD_VERSION = "2026-08-16T06:23:13Z";
+const APP_VERSION = "mobile-pwa-v157-recurring-routines";
+const BUILD_VERSION = "2026-08-29T21:05:00Z";
 const CACHE_PREFIX = "fuel-guard-";
-const CACHE_NAME = "fuel-guard-mobile-pwa-v156-garmin-setup-walkthrough-20260816T062313Z";
+const CACHE_NAME = "fuel-guard-mobile-pwa-v157-recurring-routines-20260829T210500Z";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -35,6 +35,7 @@ const APP_SHELL = [
   "./fuel-beta.css",
   "./fuel-auth.css",
   "./supplement-rhythm.css",
+  "./routine-manager.css",
   "./garmin-onboarding.css",
   "./training-mode.css",
   "./work-mode.css",
@@ -67,6 +68,7 @@ const APP_SHELL = [
   "./work-mode.js",
   "./athlete-context-layer.js",
   "./supplement-rhythm.js",
+  "./routine-manager.js",
   "./athlete-impact.js",
   "./athlete-everyday-reflection.js",
   "./athlete-analytics.js",
@@ -91,34 +93,20 @@ function appShellRequests() {
 }
 
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then(cache => cache.addAll(appShellRequests()))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(appShellRequests())));
 });
 
 self.addEventListener("message", event => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
   if (event.data?.type === "GET_VERSION") {
-    event.source?.postMessage({
-      type: "FUEL_GUARD_VERSION",
-      appVersion: APP_VERSION,
-      buildVersion: BUILD_VERSION,
-      cacheName: CACHE_NAME
-    });
+    event.source?.postMessage({ type: "FUEL_GUARD_VERSION", appVersion: APP_VERSION, buildVersion: BUILD_VERSION, cacheName: CACHE_NAME });
   }
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    caches
-      .keys()
-      .then(keys => Promise.all(
-        keys
-          .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
-          .map(key => caches.delete(key))
-      ))
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -126,7 +114,6 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   const { request } = event;
   if (request.method !== "GET") return;
-
   const requestUrl = new URL(request.url);
   if (requestUrl.origin !== self.location.origin) return;
   if (requestUrl.pathname.endsWith("/sw.js")) return;
@@ -144,9 +131,7 @@ self.addEventListener("fetch", event => {
       fetch(request)
         .then(response => {
           if (!response || response.status !== 200 || response.type !== "basic") return response;
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(shell, copy));
-          return response;
+          const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(shell, copy)); return response;
         })
         .catch(() => caches.match(shell).then(response => response || caches.match("./index.html")))
     );
@@ -157,9 +142,7 @@ self.addEventListener("fetch", event => {
     fetch(request)
       .then(response => {
         if (!response || response.status !== 200 || response.type !== "basic") return response;
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-        return response;
+        const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(request, copy)); return response;
       })
       .catch(() => caches.match(request))
   );
