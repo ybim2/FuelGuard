@@ -23,14 +23,13 @@
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",refresh,{once:true});else requestAnimationFrame(refresh);
 })();
 
-// Routines is intentionally loaded after the core Daily modules so it can place itself
-// before manual Quick actions without making Settings part of the setup journey.
+// Load the restored Routines manager after the canonical Daily shell exists.
 (() => {
   function loadRoutines(){
-    if(window.FuelGuardRoutines){window.FuelGuardRoutines.init?.();return;}
-    if(document.querySelector('script[data-fg-routines]'))return;
-    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v162-routines-main';css.dataset.fgRoutines='1';document.head.appendChild(css)}
-    const script=document.createElement('script');script.src='routine-manager.js?v=mobile-pwa-v162-routines-main';script.dataset.fgRoutines='1';script.defer=true;script.addEventListener('load',()=>window.FuelGuardRoutines?.init?.(),{once:true});document.body.appendChild(script);
+    if(window.FuelGuardRoutinesV2){window.FuelGuardRoutinesV2.init?.();return;}
+    if(document.querySelector('script[data-fg-routines-v2]'))return;
+    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v163-routines-restored';css.dataset.fgRoutines='1';document.head.appendChild(css)}
+    const script=document.createElement('script');script.src='routine-manager-v2.js?v=mobile-pwa-v163-routines-restored';script.dataset.fgRoutinesV2='1';script.addEventListener('load',()=>window.FuelGuardRoutinesV2?.init?.(),{once:true});document.body.appendChild(script);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',loadRoutines,{once:true});else loadRoutines();
 })();
