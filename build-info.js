@@ -1,6 +1,6 @@
 window.FUEL_GUARD_BUILD = Object.freeze({
   canonicalApp: "mobile-pwa-v158-routines-ux-polish",
-  buildVersion: "2026-08-29T21:27:00Z",
+  buildVersion: "2026-08-29T21:24:00Z",
   sourceCheckpoint: "v157-recurring-routines",
   serviceWorkerUrl: "/sw.js?v=mobile-pwa-v158-routines-ux-polish",
   serviceWorkerScope: "/",
