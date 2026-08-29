@@ -1,0 +1,9 @@
+/* Fuel Guard Routines v3: compact mobile planner + scrollable item selection */
+.fg-routine-card{border:1px solid var(--line,rgba(255,255,255,.12));border-radius:18px;padding:16px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.028));}
+.fg-routine-supplements{max-height:min(42vh,360px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-gutter:stable;}
+.fg-routine-supplements::-webkit-scrollbar{width:6px}.fg-routine-supplements::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:999px}
+.fg-routine-kind-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.fg-routine-kind-grid .fg-routine-choice{min-height:64px}
+.fg-routine-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fg-routine-mode label{position:relative}.fg-routine-mode input{position:absolute;opacity:0}.fg-routine-mode span{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;font-weight:800}.fg-routine-mode input:checked+span{border-color:rgba(45,255,136,.55);background:rgba(45,255,136,.11)}
+.fg-routine-items-scroll{max-height:148px;overflow:auto;overscroll-behavior:contain;margin-top:8px;padding-right:3px}.fg-routine-items-scroll .fg-routine-items{margin-top:0}
+.fg-routine-plan-tag{display:inline-flex;align-items:center;gap:5px;margin:3px 5px 3px 0;padding:5px 8px;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:999px;background:rgba(255,255,255,.035);font-size:.76rem}
+@media(max-width:480px){.fg-routine-kind-grid{grid-template-columns:1fr}.fg-routine-card{padding:14px}.fg-routine-supplements{max-height:320px}}
