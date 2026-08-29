@@ -12,24 +12,21 @@
 
 // Human-scale elapsed time: keep precision below 24h, switch to days at 24h+.
 (() => {
-  function humanDuration(minutes){
-    if(!Number.isFinite(minutes))return"No limit";
-    const safeMinutes=Math.max(0,Math.round(minutes));
-    if(safeMinutes>=1440){const days=Math.floor(safeMinutes/1440);return`${days} day${days===1?"":"s"}`;}
-    return`${Math.floor(safeMinutes/60)}h ${String(safeMinutes%60).padStart(2,"0")}m`;
-  }
+  function humanDuration(minutes){if(!Number.isFinite(minutes))return"No limit";const safeMinutes=Math.max(0,Math.round(minutes));if(safeMinutes>=1440){const days=Math.floor(safeMinutes/1440);return`${days} day${days===1?"":"s"}`;}return`${Math.floor(safeMinutes/60)}h ${String(safeMinutes%60).padStart(2,"0")}m`;}
   globalThis.duration=humanDuration;
   const refresh=()=>{if(typeof renderFuelGap==="function")renderFuelGap();else if(typeof renderAll==="function")renderAll();};
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",refresh,{once:true});else requestAnimationFrame(refresh);
 })();
 
-// Load the restored Routines manager after the canonical Daily shell exists.
+// Load Routines v3 and the unified Daily timeline after the canonical shell exists.
 (() => {
-  function loadRoutines(){
-    if(window.FuelGuardRoutinesV2){window.FuelGuardRoutinesV2.init?.();return;}
-    if(document.querySelector('script[data-fg-routines-v2]'))return;
-    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v163-routines-restored';css.dataset.fgRoutines='1';document.head.appendChild(css)}
-    const script=document.createElement('script');script.src='routine-manager-v2.js?v=mobile-pwa-v163-routines-restored';script.dataset.fgRoutinesV2='1';script.addEventListener('load',()=>window.FuelGuardRoutinesV2?.init?.(),{once:true});document.body.appendChild(script);
+  const VERSION="mobile-pwa-v164-daily-routines-timeline";
+  function addCss(href,key){if(document.querySelector(`link[data-fg-${key}]`))return;const css=document.createElement("link");css.rel="stylesheet";css.href=`${href}?v=${VERSION}`;css.dataset[`fg${key[0].toUpperCase()+key.slice(1)}`]="1";document.head.appendChild(css)}
+  function addScript(src,key,onload){if(document.querySelector(`script[data-fg-${key}]`)){onload?.();return;}const script=document.createElement("script");script.src=`${src}?v=${VERSION}`;script.dataset[`fg${key[0].toUpperCase()+key.slice(1)}`]="1";if(onload)script.addEventListener("load",onload,{once:true});document.body.appendChild(script)}
+  function load(){
+    addCss("routine-manager.css","routines-base");addCss("routine-manager-v3.css","routines-v3");addCss("daily-unified-v164.css","daily-v164");
+    addScript("routine-manager-v3.js","routines-v3",()=>window.FuelGuardRoutinesV3?.init?.());
+    addScript("daily-unified-v164.js","daily-v164",()=>window.FuelGuardDailyUnifiedV164?.refresh?.());
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',loadRoutines,{once:true});else loadRoutines();
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",load,{once:true});else load();
 })();
