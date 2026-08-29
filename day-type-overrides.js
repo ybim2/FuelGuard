@@ -14,9 +14,10 @@
 // before manual Quick actions without making Settings part of the setup journey.
 (() => {
   function loadRoutines(){
+    if(window.FuelGuardRoutines){window.FuelGuardRoutines.init?.();return;}
     if(document.querySelector('script[data-fg-routines]'))return;
-    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v160-routines-first';css.dataset.fgRoutines='1';document.head.appendChild(css)}
-    const script=document.createElement('script');script.src='routine-manager.js?v=mobile-pwa-v160-routines-first';script.dataset.fgRoutines='1';script.defer=true;document.body.appendChild(script);
+    if(!document.querySelector('link[data-fg-routines]')){const css=document.createElement('link');css.rel='stylesheet';css.href='routine-manager.css?v=mobile-pwa-v161-routines-init-fix';css.dataset.fgRoutines='1';document.head.appendChild(css)}
+    const script=document.createElement('script');script.src='routine-manager.js?v=mobile-pwa-v161-routines-init-fix';script.dataset.fgRoutines='1';script.defer=true;script.addEventListener('load',()=>window.FuelGuardRoutines?.init?.(),{once:true});document.body.appendChild(script);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',loadRoutines,{once:true});else loadRoutines();
 })();
