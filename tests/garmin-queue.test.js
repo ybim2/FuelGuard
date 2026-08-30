@@ -586,7 +586,7 @@ test("Garmin API sends serially and removes only the acknowledged event", () => 
   assert.match(queueSource, /!\(itemId as String\)\.equals\(eventId\)/);
 });
 
-test("Quick Log glance renders only validated server-confirmed fuel status without lifecycle network sync", () => {
+test("Quick Log glance remains network-free and renders validated server or watch-local fuel status", () => {
   const appSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogApp.mc");
   const glanceSource = readRepoFile("garmin/FuelGuard/quick-log/source/FuelGuardQuickLogGlance.mc");
   const glanceStateSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardGlanceState.mc");
@@ -600,6 +600,7 @@ test("Quick Log glance renders only validated server-confirmed fuel status witho
   assert.doesNotMatch(onStart, /FuelGuardConnection\.configure/);
   assert.doesNotMatch(onStart, /registerForOAuthMessages/);
   assert.doesNotMatch(onStart, /FuelGuardApi\.trySync/);
+  assert.doesNotMatch(onStart, /FuelGuardDiagnostics/);
   assert.match(onAuthenticationRequest, /FuelGuardConnection\.configure\(FuelGuardConnection\.APP_QUICK_LOG\)/);
   assert.match(onAuthenticationRequest, /FuelGuardConnection\.registerForOAuthMessages\(\)/);
   assert.doesNotMatch(glanceSource, /FuelGuardApi\.trySync/);
@@ -613,16 +614,19 @@ test("Quick Log glance renders only validated server-confirmed fuel status witho
   assert.match(glanceStateSource, /LAST_SYNC_KEY/);
   assert.match(glanceStateSource, /MAX_STALE_SECONDS/);
   assert.match(glanceStateSource, /applyServerStatus\(data as Dictionary\)/);
+  assert.match(glanceStateSource, /PENDING_LOCAL_FUEL_KEY/);
+  assert.match(glanceStateSource, /recordLocalFuel\(timestamp as Number\)/);
   assert.match(glanceStateSource, /recordAcknowledgedFuel\(timestamp as Number\)/);
-  assert.match(glanceStateSource, /function markUnavailable\(\)[\s\S]*Storage\.deleteValue\(LAST_FUEL_KEY\)/);
+  assert.match(glanceStateSource, /function markUnavailable\(\)[\s\S]*deleteValue\(LAST_FUEL_KEY\)/);
   assert.match(glanceStateSource, /Open Fuel Guard/);
   assert.match(glanceStateSource, /No fuel logged/);
   assert.match(glanceStateSource, /Last fuel/);
-  assert.match(glanceStateSource, /5h\+ ago/);
+  assert.doesNotMatch(glanceStateSource, /5h\+ ago/);
+  assert.match(glanceStateSource, /Last fuel cached/);
   assert.doesNotMatch(glanceSource, /Open to log/);
 });
 
-test("Quick Log fuel status is optimistic-free and refreshed through the existing authenticated status path", () => {
+test("Quick Log fuel status updates locally before sync and reconciles through the authenticated status path", () => {
   const eventsSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardEvents.mc");
   const apiSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardApi.mc");
   const trainingSource = readRepoFile("garmin/FuelGuard/shared/source/FuelGuardTraining.mc");
@@ -632,8 +636,11 @@ test("Quick Log fuel status is optimistic-free and refreshed through the existin
   assert.doesNotMatch(eventsSource, /Storage\.setValue\(LAST_FUEL_KEY, timestamp\)/);
   assert.match(apiSource, /if \(acknowledgedAt instanceof Number\)[\s\S]*FuelGuardGlanceState\.recordAcknowledgedFuel/);
   assert.match(trainingSource, /FuelGuardGlanceState\.applyServerStatus\(values\)/);
-  assert.match(quickLogTests, /testFuelGuardQuickLogFuelDoesNotUpdateGlanceBeforeServerAcknowledgement/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogOfflineFuelImmediatelyUpdatesGlance/);
   assert.match(quickLogTests, /testFuelGuardQuickLogAcknowledgedFuelUpdatesGlance/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogReconnectAcknowledgesQueuedFuelWithoutChangingPersonalGlance/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogOlderServerStatusDoesNotReplacePendingLocalFuel/);
+  assert.match(quickLogTests, /testFuelGuardQuickLogMalformedCachedFuelFallsBackWithoutCrash/);
   assert.match(quickLogTests, /testFuelGuardQuickLogStatusRefreshAppliesAthleteFuelToGlance/);
   assert.match(quickLogTests, /testFuelGuardQuickLogDisconnectClearsPriorAthleteGlanceState/);
 });
